@@ -28,15 +28,26 @@ def get_msk_now():
 
 
 async def main():
-    interval = 6 * 3600  # 6 hours
-    logger.info(f"🚀 Board Scheduler started. Interval: 6 hours. Current MSK time: {get_msk_now()}")
+    interval = int(os.getenv("BOARD_SCHEDULER_INTERVAL_SECONDS", str(6 * 3600)))
+    meeting_timeout = int(os.getenv("BOARD_MEETING_TIMEOUT_SECONDS", "1200"))
+    logger.info(
+        "🚀 Board Scheduler started. Interval: %s sec. Meeting timeout: %s sec. Current MSK time: %s",
+        interval,
+        meeting_timeout,
+        get_msk_now(),
+    )
 
     while True:
         try:
             logger.info(f"🏛 Starting scheduled Board Meeting at {get_msk_now()} MSK...")
-            await run_board_meeting()
+            await asyncio.wait_for(run_board_meeting(), timeout=meeting_timeout)
             logger.info(
-                f"✅ Board Meeting finished. Next run in 6 hours. Next MSK run: {get_msk_now() + timedelta(seconds=interval)}"
+                f"✅ Board Meeting finished. Next run in {interval} sec. Next MSK run: {get_msk_now() + timedelta(seconds=interval)}"
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                "⏱️ Board Meeting timeout after %s sec. Cycle marked failed; scheduler continues.",
+                meeting_timeout,
             )
         except Exception as e:
             logger.error(f"❌ Error in Board Meeting: {e}")

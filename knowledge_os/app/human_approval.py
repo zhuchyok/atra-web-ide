@@ -11,10 +11,10 @@ import asyncio
 import logging
 import os
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Dict, Any
-from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +159,9 @@ class HumanApprovalSystem:
                 logger.warning(f"[APPROVAL] {approval_id} EXPIRED")
 
                 if approval_id in self._callbacks:
-                    self._callbacks[approval_id].set_result(False)
+                    fut = self._callbacks[approval_id]
+                    if not fut.done():
+                        fut.set_result(False)
 
     async def approve(self, approval_id: str, approver: str, reason: str = "") -> bool:
         """Одобрить запрос"""
@@ -177,7 +179,9 @@ class HumanApprovalSystem:
             self._pending_approvals.remove(approval_id)
 
         if approval_id in self._callbacks:
-            self._callbacks[approval_id].set_result(True)
+            fut = self._callbacks[approval_id]
+            if not fut.done():
+                fut.set_result(True)
 
         logger.info(f"[APPROVAL] {approval_id} APPROVED by {approver}")
         return True
@@ -198,7 +202,9 @@ class HumanApprovalSystem:
             self._pending_approvals.remove(approval_id)
 
         if approval_id in self._callbacks:
-            self._callbacks[approval_id].set_result(False)
+            fut = self._callbacks[approval_id]
+            if not fut.done():
+                fut.set_result(False)
 
         logger.warning(f"[APPROVAL] {approval_id} REJECTED by {approver}: {reason}")
         return True
@@ -209,10 +215,8 @@ class HumanApprovalSystem:
             return True  # Нет pending - продолжаем
 
         try:
-            result = await asyncio.wait_for(
-                self._callbacks[approval_id].__await__(), timeout=timeout_seconds
-            )
-            return result
+            result = await asyncio.wait_for(self._callbacks[approval_id], timeout=timeout_seconds)
+            return bool(result)
         except asyncio.TimeoutError:
             logger.error(f"[APPROVAL] {approval_id} TIMEOUT")
             return False

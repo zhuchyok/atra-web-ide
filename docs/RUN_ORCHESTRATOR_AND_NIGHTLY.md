@@ -3,7 +3,10 @@
 ## Что сделано
 
 - **Redis:** Для контейнеров в atra-network используется `REDIS_URL=redis://knowledge_redis:6379` (не atra-redis). Скрипты и cron передают эту переменную.
-- **Блокировка:** Один ключ Redis `lock:heavy_process` — одновременно может работать только один тяжёлый процесс (оркестратор или Nightly Learner). Освободить вручную: `docker exec knowledge_redis redis-cli DEL "lock:heavy_process"`.
+- **Блокировка:** Один ключ Redis `lock:heavy_process` — lease lock с owner token + auto-renew + safe release. Используется для критических фаз оркестратора.
+- **Ожидание lock:** `HEAVY_PROCESS_LOCK_WAIT_SEC` (default 30s). Если ожидание истекло, цикл не зависает бесконечно.
+- **Важно:** lock может освобождаться перед тяжелыми фазами (`ORCHESTRATOR_RELEASE_LOCK_BEFORE_HEAVY_PHASES=true`), чтобы длинные R&D операции не блокировали весь контур.
+- **Освободить вручную (аварийно):** `docker exec knowledge_redis redis-cli DEL "lock:heavy_process"`.
 - **Скрипт оркестратора:** `./scripts/start_enhanced_orchestrator.sh once` — по умолчанию контейнер `victoria-agent`, Redis `knowledge_redis`.
 - **Cron (ensure_autonomous_systems.sh):** В crontab для оркестратора и Nightly Learner добавлены `REDIS_URL=redis://knowledge_redis:6379` и для Nightly Learner — `OLLAMA_BASE_URL`, `MAC_LLM_URL` (host.docker.internal).
 
@@ -35,4 +38,29 @@ PostgreSQL отклоняет новые подключения из‑за ли
 
 - Оркестратор: вывод в консоль и при запуске через скрипт — в `/tmp/enhanced_orchestrator.log`.
 - Nightly Learner: при запуске через cron — `/tmp/nightly_learner.log`; при ручном запуске — консоль.
-- Поиск по нашим меткам: `[ENHANCED_ORCHESTRATOR]`, `[NIGHTLY_LEARNER]`, `[LOG_INTERACTION]`, `[DELEGATION]`.
+- Поиск по нашим меткам: `[ENHANCED_ORCHESTRATOR]`, `[NIGHTLY_LEARNER]`, `[LOG_INTERACTION]`, `[DELEGATION]`, `phase=1.95`, `released global lock before heavy phases`.
+
+## Быстрая проверка runtime-контракта
+
+```bash
+# 1) Live workers heartbeat
+docker exec knowledge_os_redis redis-cli HGETALL runtime:expert_heartbeats
+
+# 2) Состояние глобального lock
+docker exec knowledge_os_redis redis-cli GET lock:heavy_process
+docker exec knowledge_os_redis redis-cli TTL lock:heavy_process
+
+# 3) KPI срез
+docker exec knowledge_postgres psql -U admin -d knowledge_os -Atc \
+"SELECT 'completed_10m', count(*) FROM tasks WHERE status='completed' AND updated_at > NOW()-INTERVAL '10 minutes'
+ UNION ALL
+ SELECT 'in_progress_now', count(*) FROM tasks WHERE status='in_progress'
+ UNION ALL
+ SELECT 'pending_now', count(*) FROM tasks WHERE status='pending';"
+
+# 4) SLA/fallback discipline (нет premature fallback)
+docker exec knowledge_postgres psql -U admin -d knowledge_os -Atc \
+"SELECT count(*) FROM tasks
+ WHERE status='pending'
+   AND COALESCE((metadata->>'stale_force_fallback')::boolean,false)=true;"
+```

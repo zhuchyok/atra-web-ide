@@ -34,9 +34,35 @@ class TelegramAlerter:
         self.token = token or os.getenv("TG_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN", "")
         self.chat_id = chat_id or os.getenv("CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID", "")
         self.base_url = f"https://api.telegram.org/bot{self.token}"
+        self.tg_proxy = os.getenv("TG_PROXY") or os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY")
+        self.ntfy_url = os.getenv("NTFY_URL", "https://ntfy.sh/atra_victoria_curator")
+        self.tg_force_ntfy_primary = os.getenv("TG_FORCE_NTFY_PRIMARY", "false").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
         self._alert_queue: List[Dict] = []
         self._rate_limit_delay = 1.0  # Задержка между отправками (Telegram limit: 30 msg/sec)
         self._last_send_time = 0.0
+
+    async def _send_ntfy_fallback(
+        self, title: str, message: str, priority: str = "default"
+    ) -> bool:
+        """Fallback channel when Telegram is unavailable."""
+        try:
+            headers = {"Title": title[:120], "Priority": priority}
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    self.ntfy_url, content=message.encode("utf-8"), headers=headers
+                )
+            if resp.status_code == 200:
+                logger.info("🔔 [NTFY FALLBACK] Алерт отправлен")
+                return True
+            logger.warning("⚠️ [NTFY FALLBACK] HTTP %s", resp.status_code)
+            return False
+        except Exception as e:
+            logger.error("❌ [NTFY FALLBACK] Ошибка отправки: %s", e)
+            return False
 
     def _get_priority_emoji(self, priority: str) -> str:
         """Возвращает эмодзи для приоритета"""
@@ -83,6 +109,13 @@ class TelegramAlerter:
         Returns:
             True если успешно отправлено, False иначе
         """
+        if self.tg_force_ntfy_primary:
+            logger.info("TG_FORCE_NTFY_PRIMARY=true, route alert directly to ntfy")
+            return await self._send_ntfy_fallback(
+                title=f"ATRA ALERT ({priority.upper()})",
+                message=f"[{source or 'system'}]\n{message}",
+                priority="high" if priority in ("high", "critical") else "default",
+            )
         if not self.token or not self.chat_id:
             logger.debug("TG_TOKEN/CHAT_ID не заданы, пропуск Telegram алерта")
             return False
@@ -114,7 +147,15 @@ class TelegramAlerter:
 
         for attempt in range(retry_count):
             try:
-                async with httpx.AsyncClient(timeout=15.0) as client:
+                client_kwargs = {"timeout": 15.0}
+                proxy_url = self.tg_proxy
+                if proxy_url:
+                    # [SINGULARITY 26.10] Use socks5h:// for remote DNS resolution
+                    if proxy_url.startswith("socks5://"):
+                        proxy_url = proxy_url.replace("socks5://", "socks5h://")
+                    client_kwargs["proxy"] = proxy_url
+
+                async with httpx.AsyncClient(**client_kwargs) as client:
                     response = await client.post(
                         f"{self.base_url}/sendMessage",
                         data={
@@ -172,7 +213,12 @@ class TelegramAlerter:
         )
 
         logger.error(f"❌ [TELEGRAM ALERT] Не удалось отправить алерт после {retry_count} попыток")
-        return False
+        # Fallback to ntfy to avoid silent alert loss.
+        return await self._send_ntfy_fallback(
+            title=f"ATRA ALERT ({priority.upper()})",
+            message=f"[{source or 'system'}]\n{message}",
+            priority="high" if priority in ("high", "critical") else "default",
+        )
 
     async def send_batch_alerts(self, alerts: List[Dict]) -> int:
         """Отправляет батч алертов"""

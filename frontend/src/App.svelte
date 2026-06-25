@@ -20,6 +20,7 @@
   let activeCenterTab = 'chat'
   let victoriaStatus = 'checking'
   let mlxStatus = 'checking'
+  let agentList = []
   let isResizingLeft = false
   let isResizingRight = false
   let isResizingPreview = false
@@ -53,8 +54,25 @@
     }
 
     await checkStatus()
-    // Обновляем статус каждые 30 секунд
     setInterval(checkStatus, 30000)
+
+    // [SINGULARITY 31.3] Agent status bar
+    async function fetchAllAgents() {
+      try {
+        const r = await fetch(`http://${window.location.hostname}:8002/api/health/all`)
+        if (r.ok) {
+          const d = await r.json()
+          agentList = Object.entries(d.services || {}).map(([name, s]) => ({
+            name: name.replace(/_/g, ' '),
+            ok: s.status === 'ok',
+          }))
+        }
+      } catch (e) {
+        console.error('Agent status fetch failed:', e)
+      }
+    }
+    await fetchAllAgents()
+    setInterval(fetchAllAgents, 15000)
 
     // Обработка изменения размера панелей
     function handleMouseMove(e) {
@@ -92,7 +110,7 @@
         A
       </div>
       <h1 class="text-lg font-semibold">ATRA Web IDE</h1>
-      <span class="text-xs text-gray-500 bg-atra-accent px-2 py-0.5 rounded">Singularity 14.0</span>
+      <span class="text-xs text-gray-500 bg-atra-accent px-2 py-0.5 rounded">Singularity 31.2+</span>
     </div>
 
     <div class="flex items-center gap-4">
@@ -302,26 +320,26 @@
         {/if}
       {/if}
     </div>
-    <div class="flex items-center gap-4">
+    <div class="flex items-center gap-3">
       {#if $currentFile}
         <span>UTF-8</span>
         <span>Ln 1, Col 1</span>
       {/if}
       <span id="victoria-status" class="flex items-center gap-1">
         {#if victoriaStatus === 'healthy' || victoriaStatus === 'online' || victoriaStatus === 'ok'}
-          <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-          <span>Victoria: Online</span>
-        {:else if victoriaStatus === 'checking'}
-          <span class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
-          <span>Victoria: Checking...</span>
-        {:else if mlxStatus === 'healthy'}
-          <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-          <span>AI: MLX (Victoria Offline)</span>
+          <span class="w-2 h-2 rounded-full bg-green-500"></span>
+          <span>Vic</span>
         {:else}
           <span class="w-2 h-2 rounded-full bg-orange-500"></span>
-          <span>Victoria: Offline</span>
+          <span>Vic</span>
         {/if}
       </span>
+      {#each agentList as agent}
+        <span class="flex items-center gap-1">
+          <span class="w-1.5 h-1.5 rounded-full {agent.ok ? 'bg-green-500' : 'bg-red-500'}"></span>
+          <span class="capitalize">{agent.name.slice(0, 6)}</span>
+        </span>
+      {/each}
     </div>
   </footer>
 </div>

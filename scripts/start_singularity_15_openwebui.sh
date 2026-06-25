@@ -30,6 +30,21 @@ else
   echo "3. Бэкенд не запускаем (для метрик и прокси добавьте: $0 --with-backend)"
 fi
 
+echo "4. Запуск watcher автосинхронизации policy/valves для новых моделей..."
+mkdir -p "$REPO_ROOT/logs" "$REPO_ROOT/.tmp"
+if pgrep -f "openwebui_model_policy_watcher.py" >/dev/null 2>&1; then
+  echo "   ✅ watcher уже запущен"
+else
+  nohup python3 "$REPO_ROOT/scripts/openwebui_model_policy_watcher.py" \
+    >> "$REPO_ROOT/logs/openwebui_model_policy_watcher.log" 2>&1 &
+  sleep 1
+  if pgrep -f "openwebui_model_policy_watcher.py" >/dev/null 2>&1; then
+    echo "   ✅ watcher запущен (лог: logs/openwebui_model_policy_watcher.log)"
+  else
+    echo "   ⚠️ watcher не стартовал, проверьте logs/openwebui_model_policy_watcher.log"
+  fi
+fi
+
 echo ""
 echo "=== Дальнейшие шаги ==="
 echo "  • Open WebUI:  http://localhost:3005"
@@ -39,8 +54,8 @@ echo "  В Open WebUI:"
 echo "  1. System Prompt модели → вставить текст из docs/SINGULARITY_15_GOLDEN_PERSONA.md"
 echo "  2. Workspace → Tools → Import Tools → выбрать configs/openwebui_ask_victoria_tool.py"
 echo "     (в контейнере файл смонтирован как /workspace/configs/openwebui_ask_victoria_tool.py)"
-echo "  3. Valves инструмента: VICTORIA_URL=http://victoria-agent:8000, USE_BACKEND_PROXY=false"
-echo "     (если поднят бэкенд и нужен прокси: VICTORIA_URL=http://atra-web-ide-backend:8080, USE_BACKEND_PROXY=true)"
+echo "  3. Valves инструмента (рекомендуется): VICTORIA_URL=http://victoria-agent:8000, USE_BACKEND_PROXY=true"
+echo "     BACKEND_FALLBACK_URL=http://atra-web-ide-backend:8000"
 echo "  4. Тест: запрос «Проверь бэкенд» или «Кратко ответь: какой у тебя статус?»"
 echo ""
 echo "Настройка Open WebUI одной командой (системный промпт + инструкция):"

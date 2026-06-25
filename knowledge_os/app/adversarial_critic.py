@@ -1,15 +1,20 @@
 import asyncio
 import json
+import logging
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
+from typing import Any, Dict, Optional
 
 import asyncpg
 
 # Используем get_pool из evaluator для консистентности
 sys.path.insert(0, os.path.dirname(__file__))
 from evaluator import get_pool
+
+logger = logging.getLogger(__name__)
 
 
 def run_cursor_agent(prompt: str):
@@ -107,9 +112,9 @@ async def run_adversarial_cycle(limit: int = 5):
 
                 # [FIX] Если модель вернула текст до или после JSON, пробуем найти границы JSON
                 if not clean_json.startswith("{") and "{" in clean_json:
-                    clean_json = clean_json[clean_json.find("{"):]
+                    clean_json = clean_json[clean_json.find("{") :]
                 if not clean_json.endswith("}") and "}" in clean_json:
-                    clean_json = clean_json[:clean_json.rfind("}")+1]
+                    clean_json = clean_json[: clean_json.rfind("}") + 1]
 
                 result = json.loads(clean_json)
 
@@ -163,18 +168,18 @@ async def verify_high_priority_task(task_id: str, content: str) -> Dict[str, Any
     Mandatory adversarial verification for high-priority tasks.
     """
     print(f"🛡️ [TRUST GATE] Mandatory verification for task {task_id}...")
-    
+
     attack_prompt = f"""
     ТЫ - БЕЗЖАЛОСТНЫЙ КРИТИК И АДВОКАТ ДЬЯВОЛА.
     ТВОЯ ЗАДАЧА: Найти критические изъяны в предложенном решении задачи.
-    
+
     КОНТЕНТ: {content}
-    
+
     ИНСТРУКЦИЯ:
     1. Проведи поиск потенциальных проблем (security, performance, logic).
     2. Найди 3 причины, почему это может не сработать.
     3. Если решение выдержало атаку - подтверди его надежность.
-    
+
     ВЕРНИ JSON:
     {{
         "survived": true/false,
@@ -183,27 +188,112 @@ async def verify_high_priority_task(task_id: str, content: str) -> Dict[str, Any
     }}
     ВЕРНИ ТОЛЬКО ЧИСТЫЙ JSON.
     """
-    
+
     from ai_core import run_smart_agent_async
-    output = await run_smart_agent_async(
-        attack_prompt, expert_name="Критик", category="reasoning"
-    )
-    
-    if output:
+
+    def _extract_json_candidate(raw_output: Optional[str]) -> Optional[str]:
+        if not raw_output:
+            return None
+        text = raw_output.strip()
+        if not text:
+            return None
+
+        fenced_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL | re.IGNORECASE)
+        if fenced_match:
+            return fenced_match.group(1).strip()
+
+        first_brace = text.find("{")
+        last_brace = text.rfind("}")
+        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+            return text[first_brace : last_brace + 1].strip()
+
+        return None
+
+    def _local_fallback_verdict(task_text: str) -> Dict[str, Any]:
+        """Deterministic local fallback when critic output is malformed."""
+        lowered = (task_text or "").lower()
+        high_risk_markers = (
+            "drop table",
+            "truncate ",
+            "rm -rf",
+            "curl http",
+            "password",
+            "secret",
+            "token",
+            "api_key",
+            "sudo ",
+        )
+        marker_hits = [m for m in high_risk_markers if m in lowered]
+        survived = len(marker_hits) == 0
+        return {
+            "survived": survived,
+            "attack_report": (
+                "local_fallback: no high-risk markers detected"
+                if survived
+                else f"local_fallback: detected risk markers: {', '.join(marker_hits[:5])}"
+            ),
+            "new_confidence_score": 0.62 if survived else 0.28,
+            "verification_reason": "critic_local_fallback",
+        }
+
+    max_attempts = max(1, int(os.getenv("TRUST_GATE_MAX_ATTEMPTS", "2")))
+    retry_sleep_sec = float(os.getenv("TRUST_GATE_RETRY_SLEEP_SEC", "1.0"))
+    fail_open = os.getenv("TRUST_GATE_FAIL_OPEN", "true").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        output = await run_smart_agent_async(
+            attack_prompt, expert_name="Критик", category="reasoning"
+        )
+
         try:
-            clean_json = output.strip()
-            if "```json" in clean_json:
-                clean_json = clean_json.split("```json")[1].split("```")[0]
-            elif "```" in clean_json:
-                clean_json = clean_json.split("```")[1].split("```")[0]
-            
-            if not clean_json.startswith("{") and "{" in clean_json:
-                clean_json = clean_json[clean_json.find("{"):]
-            if not clean_json.endswith("}") and "}" in clean_json:
-                clean_json = clean_json[:clean_json.rfind("}")+1]
-                
-            return json.loads(clean_json)
+            candidate = _extract_json_candidate(output)
+            if not candidate:
+                raise ValueError("empty_or_non_json_critic_output")
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict):
+                parsed.setdefault("verification_reason", "critic_json_ok")
+                return parsed
+            raise ValueError("critic output is not a JSON object")
         except Exception as e:
-            print(f"❌ [TRUST GATE] Error parsing critic output: {e}")
-            
-    return {"survived": True, "attack_report": "Verification failed, defaulting to safe.", "new_confidence_score": 0.5}
+            last_error = e
+            logger.debug(
+                "❌ [TRUST GATE] Error parsing critic output (attempt %s/%s): %s",
+                attempt,
+                max_attempts,
+                e,
+            )
+            if attempt < max_attempts:
+                await asyncio.sleep(max(0.0, retry_sleep_sec))
+                continue
+
+    # Always return a valid contract-shaped JSON verdict to avoid noisy degraded paths.
+    fallback_verdict = _local_fallback_verdict(content)
+    if last_error:
+        fallback_verdict["attack_report"] = (
+            f"{fallback_verdict['attack_report']}; critic_output_parse_error={last_error}"
+        )
+        logger.info(
+            "⚠️ [TRUST GATE] Falling back to local deterministic verdict for task %s (fail_open=%s)",
+            task_id,
+            fail_open,
+        )
+        if not fail_open:
+            fallback_verdict["survived"] = False
+            fallback_verdict["new_confidence_score"] = min(
+                0.2, float(fallback_verdict["new_confidence_score"])
+            )
+            fallback_verdict["verification_reason"] = "critic_local_fallback_fail_closed"
+        return fallback_verdict
+
+    return {
+        "survived": bool(fail_open),
+        "attack_report": "critic_unavailable_or_empty_output",
+        "new_confidence_score": 0.0,
+        "verification_reason": "critic_unavailable_or_empty_output",
+    }

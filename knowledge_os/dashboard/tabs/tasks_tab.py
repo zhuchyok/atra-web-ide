@@ -57,7 +57,7 @@ def format_msk(dt):
 def render_tasks_tab():
     """Основная функция рендеринга вкладки задач."""
     st.header("🛠️ Управление Задачами")
-    
+
     time_range = st.session_state.get("global_time_range", "Последние 7 дней")
     st.caption(f"📅 Фильтр времени: **{time_range}** (настройте в боковой панели)")
 
@@ -75,8 +75,9 @@ def render_tasks_tab():
 
 def _render_tasks_list(time_range):
     st.subheader("🛠️ Автономные Задачи и Оркестрация")
-    
+
     from database_service import get_time_filter
+
     t_filter = get_time_filter(time_range, "created_at")
 
     # Статистика задач вверху (кэш 15 сек — чтобы увидеть рост «Завершено», нажмите «Обновить»)
@@ -106,8 +107,20 @@ def _render_tasks_list(time_range):
             COUNT(*) FILTER (WHERE status = 'pending') as pending,
             COUNT(*) FILTER (WHERE status = 'failed') as failed,
             CASE
-                WHEN COUNT(*) FILTER (WHERE updated_at IS NOT NULL AND created_at IS NOT NULL) > 0
-                THEN ROUND(AVG(EXTRACT(EPOCH FROM (updated_at - created_at))) FILTER (WHERE updated_at IS NOT NULL AND created_at IS NOT NULL) / 3600, 1)
+                WHEN COUNT(*) FILTER (
+                    WHERE status = 'completed'
+                      AND COALESCE(completed_at, updated_at) IS NOT NULL
+                      AND created_at IS NOT NULL
+                ) > 0
+                THEN ROUND(
+                    AVG(EXTRACT(EPOCH FROM (COALESCE(completed_at, updated_at) - created_at)))
+                    FILTER (
+                        WHERE status = 'completed'
+                          AND COALESCE(completed_at, updated_at) IS NOT NULL
+                          AND created_at IS NOT NULL
+                    ) / 3600,
+                    1
+                )
                 ELSE 0
             END as avg_hours
         FROM tasks
@@ -202,7 +215,7 @@ def _render_tasks_list(time_range):
     with col_filter3:
         project_filter = st.selectbox("Проект", ["Все"] + project_slugs, key="task_project_filter")
     with col_action:
-        if st.button("🔄 Обновить", key="refresh_tasks", use_container_width=True):
+        if st.button("🔄 Обновить", key="refresh_tasks", width="stretch"):
             st.cache_data.clear()
             st.rerun()
 
@@ -213,8 +226,9 @@ def _render_tasks_list(time_range):
 
     # Запрос данных
     from database_service import get_time_filter
+
     t_filter = get_time_filter(time_range, "t.created_at")
-    
+
     query_parts = [
         f"SELECT t.id, t.title, t.description, t.status, t.result, t.created_at, t.updated_at, COALESCE(e.name, 'Не назначен') as assignee, COALESCE(e.department, 'N/A') as department, t.metadata, t.project_context FROM tasks t LEFT JOIN experts e ON t.assignee_expert_id = e.id WHERE {t_filter}"
     ]
@@ -256,32 +270,103 @@ def _render_tasks_list(time_range):
         with col_chart:
             render_task_status_chart(df_tasks)
 
-        # --- ATRA CANVAS: Интеграция комментариев экспертов ---
+        # --- ATRA CANVAS: Интеграция обсуждений из нескольких источников ---
         st.markdown("### 💬 Активные обсуждения и советы")
         try:
             recent_comments = fetch_data_tasks("""
-                SELECT c.comment_text, c.expert_name, c.file_path, c.created_at, e.role
-                FROM file_comments c
-                LEFT JOIN experts e ON c.expert_id = e.id
-                WHERE c.status = 'active'
-                ORDER BY c.created_at DESC
-                LIMIT 5
+                SELECT *
+                FROM (
+                    SELECT
+                        'file_comment'::text AS source,
+                        c.comment_text AS comment_text,
+                        COALESCE(c.expert_name, e.name, 'Эксперт') AS expert_name,
+                        COALESCE(e.role, 'Expert') AS role,
+                        COALESCE(c.file_path, '—') AS location,
+                        c.created_at
+                    FROM (
+                        SELECT *
+                        FROM file_comments
+                        WHERE status = 'active'
+                        ORDER BY created_at DESC
+                        LIMIT 5
+                    ) c
+                    LEFT JOIN experts e ON c.expert_id = e.id
+
+                    UNION ALL
+
+                    SELECT
+                        'board'::text AS source,
+                        LEFT(COALESCE(b.directive_text, ''), 700) AS comment_text,
+                        'Совет Директоров' AS expert_name,
+                        'Board' AS role,
+                        'board_decisions' AS location,
+                        b.created_at
+                    FROM (
+                        SELECT directive_text, created_at
+                        FROM board_decisions
+                        ORDER BY created_at DESC
+                        LIMIT 3
+                    ) b
+
+                    UNION ALL
+
+                    SELECT
+                        'discussion'::text AS source,
+                        LEFT(COALESCE(d.consensus_summary, ''), 700) AS comment_text,
+                        'Экспертная дискуссия' AS expert_name,
+                        'Discussion' AS role,
+                        COALESCE(d.topic, 'expert_discussions') AS location,
+                        d.created_at
+                    FROM (
+                        SELECT topic, consensus_summary, created_at
+                        FROM expert_discussions
+                        WHERE COALESCE(consensus_summary, '') <> ''
+                        ORDER BY created_at DESC
+                        LIMIT 3
+                    ) d
+                ) all_comments
+                ORDER BY created_at DESC
+                LIMIT 10
             """)
             if recent_comments:
+                now_utc = datetime.now(timezone.utc)
+                all_stale = True
                 for comm in recent_comments:
+                    created_at = comm.get("created_at")
+                    age_hours = None
+                    if created_at:
+                        if created_at.tzinfo is None:
+                            created_at = created_at.replace(tzinfo=timezone.utc)
+                        age_hours = (now_utc - created_at).total_seconds() / 3600
+                    is_stale = age_hours is None or age_hours > 24
+                    all_stale = all_stale and is_stale
+                    stale_badge = "🔴 устарело >24ч" if is_stale else f"🟢 свежо {int(age_hours)}ч"
+                    source_label = {
+                        "file_comment": "Комментарий",
+                        "board": "Совет",
+                        "discussion": "Дискуссия",
+                    }.get(comm.get("source"), "Сигнал")
+
                     st.markdown(
                         f"""
                         <div style="background: rgba(88, 166, 255, 0.05); border-left: 3px solid var(--dash-accent); padding: 10px; border-radius: 4px; margin-bottom: 8px;">
                             <div style="font-size: 11px; color: var(--dash-text-muted);">
-                                <b>{comm["expert_name"]}</b> ({comm["role"] or "Expert"}) · {comm["file_path"]}
+                                <b>{source_label}</b> · <b>{comm["expert_name"]}</b> ({comm["role"] or "Expert"}) · {comm["location"]} · {stale_badge}
                             </div>
                             <div style="font-size: 13px; color: var(--dash-text); margin-top: 4px;">{comm["comment_text"]}</div>
                         </div>
                     """,
                         unsafe_allow_html=True,
                     )
+                if all_stale:
+                    st.warning(
+                        "Все обсуждения/советы в этом блоке старше 24 часов. "
+                        "Интерфейс работает, но источник данных давно не обновлялся."
+                    )
             else:
-                st.caption("Нет активных комментариев в коде.")
+                st.caption(
+                    "Нет обсуждений: file_comments, board_decisions и expert_discussions пусты."
+                )
         except Exception as e:
             logger.debug(f"Comments fetch failed: {e}")
 
@@ -352,7 +437,7 @@ def _render_put_task():
         project_slugs = get_project_slugs()
         project_ctx = st.selectbox("Проект", project_slugs if project_slugs else ["atra-web-ide"])
 
-        submitted = st.form_submit_state = st.form_submit_button("🚀 Создать задачу")
+        submitted = st.form_submit_button("🚀 Создать задачу")
         if submitted:
             if not title or not description:
                 st.error("Название и описание обязательны")
@@ -378,8 +463,9 @@ def _render_put_task():
 def _render_tasks_analytics(time_range):
     """Дополнительная аналитика задач и SLA."""
     st.subheader("📊 Аналитика производительности и SLA")
-    
+
     from database_service import get_time_filter
+
     t_filter = get_time_filter(time_range, "t.created_at")
 
     col1, col2 = st.columns(2)
@@ -389,13 +475,15 @@ def _render_tasks_analytics(time_range):
         try:
             sla_data = fetch_data(f"""
                 SELECT
-                    e.name,
-                    AVG(EXTRACT(EPOCH FROM (t.completed_at - t.created_at))) as avg_time_sec,
+                    COALESCE(e.name, 'Не назначен') as name,
+                    AVG(EXTRACT(EPOCH FROM (COALESCE(t.completed_at, t.updated_at) - t.created_at))) as avg_time_sec,
                     COUNT(t.id) as total_tasks
-                FROM experts e
-                JOIN tasks t ON t.assignee_expert_id = e.id
-                WHERE t.status = 'completed' AND t.completed_at IS NOT NULL AND {t_filter}
-                GROUP BY e.id, e.name
+                FROM tasks t
+                LEFT JOIN experts e ON t.assignee_expert_id = e.id
+                WHERE t.status = 'completed'
+                  AND COALESCE(t.completed_at, t.updated_at) IS NOT NULL
+                  AND {t_filter}
+                GROUP BY COALESCE(e.name, 'Не назначен')
                 ORDER BY avg_time_sec ASC
             """)
             if sla_data:
@@ -415,11 +503,11 @@ def _render_tasks_analytics(time_range):
         st.markdown("### 🏆 Нагрузка по экспертам")
         try:
             data = fetch_data(f"""
-                SELECT e.name as expert, COUNT(t.id) as task_count
+                SELECT COALESCE(e.name, 'Не назначен') as expert, COUNT(t.id) as task_count
                 FROM tasks t
-                JOIN experts e ON t.assignee_expert_id = e.id
+                LEFT JOIN experts e ON t.assignee_expert_id = e.id
                 WHERE {t_filter}
-                GROUP BY e.name
+                GROUP BY COALESCE(e.name, 'Не назначен')
                 ORDER BY task_count DESC
             """)
             if data:
@@ -431,6 +519,6 @@ def _render_tasks_analytics(time_range):
                     title="Задачи по экспертам",
                     color_discrete_sequence=["#58a6ff"],
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
         except Exception as e:
             st.error(f"Ошибка аналитики: {e}")

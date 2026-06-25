@@ -1,0 +1,34 @@
+{
+  "ok": true,
+  "generated_utc": "2026-06-24T19:47:55.623066+00:00",
+  "boot": {
+    "ok": true,
+    "boot_sec": 1782163298,
+    "boot_utc": "2026-06-22T21:21:38+00:00",
+    "uptime_sec": 166953,
+    "uptime_h": 46.38,
+    "raw": "{ sec = 1782163298, usec = 896226 } Tue Jun 23 00:21:38 2026"
+  },
+  "classification": "unknown",
+  "panic_evidence": {
+    "ok": true,
+    "has_previous_shutdown_cause": false,
+    "has_dump_panic_events": false,
+    "no_paniclog_data": false,
+    "tail_lines": [
+      "Timestamp               Ty Process[PID:TID]"
+    ]
+  },
+  "container_health": {
+    "ok": false,
+    "error": "[Errno 2] No such file or directory: 'docker'"
+  },
+  "queue_kpi": {
+    "ok": false,
+    "error": {
+      "queue": "[Errno 2] No such file or directory: 'docker'",
+      "stale": "[Errno 2] No such file or directory: 'docker'",
+      "throughput": "[Errno 2] No such file or directory: 'docker'"
+    }
+  }
+}

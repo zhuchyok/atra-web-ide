@@ -28,6 +28,13 @@ logger = logging.getLogger("telegram_notifications")
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TG_TOKEN", "")
 CHAT_ID = os.getenv("TELEGRAM_USER_ID") or os.getenv("CHAT_ID", "")
+TG_PROXY = os.getenv("TG_PROXY") or os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY", "")
+NTFY_URL = os.getenv("NTFY_URL", "https://ntfy.sh/atra_victoria_curator")
+TG_FORCE_NTFY_PRIMARY = os.getenv("TG_FORCE_NTFY_PRIMARY", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 NOTIFICATION_INTERVAL_SEC = int(
     os.getenv("TELEGRAM_NOTIFICATION_INTERVAL_SEC", "3600")
 )  # по умолчанию раз в час
@@ -36,11 +43,22 @@ REPORTS_ENABLED = os.getenv("TELEGRAM_REPORTS_ENABLED", "true").lower() in ("1",
 
 async def send_telegram(text: str) -> bool:
     """Отправить сообщение в Telegram. Без parse_mode, чтобы избежать ошибок разбора."""
+    if TG_FORCE_NTFY_PRIMARY:
+        logger.info("TG_FORCE_NTFY_PRIMARY=true, Telegram send skipped")
+        return False
     if not TG_TOKEN or not CHAT_ID:
         return False
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        client_kwargs = {"timeout": 15.0}
+        proxy_url = TG_PROXY
+        if proxy_url:
+            # [SINGULARITY 26.10] Use socks5h:// for remote DNS resolution (world practice for TG)
+            if proxy_url.startswith("socks5://"):
+                proxy_url = proxy_url.replace("socks5://", "socks5h://")
+            client_kwargs["proxy"] = proxy_url
+
+        async with httpx.AsyncClient(**client_kwargs) as client:
             r = await client.post(
                 url,
                 json={"chat_id": str(CHAT_ID).strip(), "text": text[:4096]},
@@ -51,6 +69,23 @@ async def send_telegram(text: str) -> bool:
         return False
     except Exception as e:
         logger.warning("Telegram send error: %s", e)
+        return False
+
+
+async def send_ntfy(text: str, title: str = "ATRA Notification") -> bool:
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(
+                NTFY_URL,
+                content=text[:8000].encode("utf-8"),
+                headers={"Title": title[:120], "Priority": "default"},
+            )
+        if r.is_success:
+            return True
+        logger.warning("NTFY send failed: %s %s", r.status_code, r.text[:200])
+        return False
+    except Exception as e:
+        logger.warning("NTFY send error: %s", e)
         return False
 
 
@@ -69,7 +104,15 @@ async def process_pending_notifications():
             "SELECT id, message FROM notifications WHERE sent = FALSE ORDER BY created_at ASC LIMIT 50"
         )
         for row in rows:
-            ok = await send_telegram(str(row["message"]))
+            message = str(row["message"])
+            if TG_FORCE_NTFY_PRIMARY:
+                ok = await send_ntfy(message, title="ATRA DB Notification")
+                if not ok:
+                    ok = await send_telegram(message)
+            else:
+                ok = await send_telegram(message)
+                if not ok:
+                    ok = await send_ntfy(message, title="ATRA DB Notification (fallback)")
             if ok:
                 await conn.execute("UPDATE notifications SET sent = TRUE WHERE id = $1", row["id"])
                 logger.info("Sent notification id=%s", row["id"])

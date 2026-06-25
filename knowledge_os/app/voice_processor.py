@@ -27,6 +27,11 @@ class VoiceProcessor:
         # Можно использовать OpenAI Whisper API или локальную модель
         self.use_openai_whisper = os.getenv("USE_OPENAI_WHISPER", "false").lower() == "true"
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        self.local_model_name = os.getenv("LOCAL_WHISPER_MODEL", "small")
+        self.local_language = os.getenv("LOCAL_WHISPER_LANGUAGE", "ru")
+        self._local_warned_missing = False
+        self._faster_whisper_model = None
+        self._openai_whisper_model = None
 
     async def transcribe_voice_message(self, file_path: str) -> Optional[str]:
         """
@@ -78,10 +83,61 @@ class VoiceProcessor:
             return None
 
     async def _transcribe_with_local(self, file_path: str) -> Optional[str]:
-        """Распознавание через локальную модель (если доступна)"""
-        # Можно использовать локальную модель Whisper через Ollama или другую библиотеку
-        # Пока возвращаем None (требует дополнительной настройки)
-        logger.warning("⚠️ [VOICE PROCESSOR] Локальное распознавание речи не настроено")
+        """Распознавание через локальную модель (faster-whisper/openai-whisper)."""
+        # Prefer faster-whisper for lower latency and lower RAM pressure.
+        try:
+            if self._faster_whisper_model is None:
+                from faster_whisper import WhisperModel  # type: ignore
+
+                self._faster_whisper_model = WhisperModel(
+                    self.local_model_name,
+                    device=os.getenv("LOCAL_WHISPER_DEVICE", "cpu"),
+                    compute_type=os.getenv("LOCAL_WHISPER_COMPUTE_TYPE", "int8"),
+                )
+
+            def _run_faster_whisper() -> str:
+                segments, _ = self._faster_whisper_model.transcribe(
+                    file_path,
+                    language=self.local_language,
+                    vad_filter=True,
+                    beam_size=int(os.getenv("LOCAL_WHISPER_BEAM_SIZE", "2")),
+                )
+                return " ".join((seg.text or "").strip() for seg in segments).strip()
+
+            text = await asyncio.to_thread(_run_faster_whisper)
+            if text:
+                return text
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.error(f"❌ [VOICE PROCESSOR] faster-whisper error: {e}")
+
+        # Fallback to openai-whisper if available.
+        try:
+            if self._openai_whisper_model is None:
+                import whisper  # type: ignore
+
+                self._openai_whisper_model = whisper.load_model(self.local_model_name)
+
+            def _run_openai_whisper() -> str:
+                result = self._openai_whisper_model.transcribe(
+                    file_path,
+                    language=self.local_language,
+                )
+                return str(result.get("text") or "").strip()
+
+            text = await asyncio.to_thread(_run_openai_whisper)
+            if text:
+                return text
+        except ImportError:
+            if not self._local_warned_missing:
+                logger.warning(
+                    "⚠️ [VOICE PROCESSOR] Local ASR unavailable. Install one of: faster-whisper or openai-whisper."
+                )
+                self._local_warned_missing = True
+        except Exception as e:
+            logger.error(f"❌ [VOICE PROCESSOR] openai-whisper error: {e}")
+
         return None
 
     async def synthesize_speech(self, text: str, language: str = "ru") -> Optional[bytes]:

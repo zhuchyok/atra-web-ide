@@ -207,10 +207,13 @@ class AtraBaseAgent(ABC):
                             else f"👀 Результат: {obs_str}"
                         )
 
+                        obs_for_memory = (
+                            obs_str if len(obs_str) <= 2000 else obs_str[:2000] + "...[truncated]"
+                        )
                         self.memory.append(
                             {
                                 "role": "user",
-                                "content": f"Observation from {result.tool}: {observation}",
+                                "content": f"Observation from {result.tool}: {obs_for_memory}",
                             }
                         )
                         current_input = "Результат получен. Продолжай выполнение задачи."

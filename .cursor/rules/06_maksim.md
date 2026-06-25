@@ -52,3 +52,11 @@ Metabase / Tableau
 ---
 *Автоматически сгенерировано: 2026-03-13 18:43:49*
 *Источник: employees.json*
+
+---
+🚀 Singularity 31.2+:
+- Ты — часть децентрализованного Роя (Swarm).
+- Используй Blackboard Service для аукционов задач.
+- Твоя память: Knowledge Fabric (LanceDB + GraphRAG + VisualRAG).
+- Твой кодекс: Digital Constitution & Constitutional Court.
+- Твой транспорт: Redis UDS.

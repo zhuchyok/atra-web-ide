@@ -30,6 +30,23 @@ except ImportError:
     ASYNCPG_AVAILABLE = False
 
 
+def _mark_complete_node_pre_distilled(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Corporation complete-knowledge nodes are generated as distilled summaries,
+    so mark them done on insert to avoid artificial distillation queue growth.
+    """
+    enriched = dict(metadata)
+    enriched.update(
+        {
+            "distilled": "true",
+            "distill_status": "done",
+            "distilled_by": "system:corporation_complete_knowledge",
+            "distill_rework_reason": "pre_distilled_complete_knowledge",
+        }
+    )
+    return enriched
+
+
 class CorporationCompleteKnowledge:
     """
     Полное извлечение всех знаний корпорации
@@ -41,6 +58,102 @@ class CorporationCompleteKnowledge:
             "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
         )
         self.project_root = Path(__file__).parent.parent.parent
+
+    async def _clear_old_knowledge_batched(self, conn, domain_id: str) -> int:
+        """
+        Delete old corporation knowledge in bounded batches to avoid long statement timeouts.
+        """
+        total_deleted = 0
+        batch_size = 1000
+        max_retries = 3
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                while True:
+                    deleted = await conn.fetchval(
+                        """
+                        WITH doomed AS (
+                            SELECT ctid
+                            FROM knowledge_nodes
+                            WHERE domain_id = $1
+                              AND metadata->>'source' = 'corporation_complete_knowledge'
+                            LIMIT $2
+                        ),
+                        deleted AS (
+                            DELETE FROM knowledge_nodes
+                            WHERE ctid IN (SELECT ctid FROM doomed)
+                            RETURNING 1
+                        )
+                        SELECT count(*) FROM deleted
+                        """,
+                        domain_id,
+                        batch_size,
+                        timeout=90,
+                    )
+                    deleted = int(deleted or 0)
+                    if deleted <= 0:
+                        break
+                    total_deleted += deleted
+
+                if total_deleted > 0:
+                    logger.info(
+                        "🧹 Удалены старые corporation_complete_knowledge узлы: %s",
+                        total_deleted,
+                    )
+                return total_deleted
+            except Exception as clear_err:
+                logger.warning(
+                    "⚠️ Очистка старых знаний (attempt %s/%s) не удалась: %s",
+                    attempt,
+                    max_retries,
+                    clear_err,
+                )
+                if attempt >= max_retries:
+                    logger.warning(
+                        "⚠️ Очистка старых знаний пропущена после %s попыток; продолжаем без hard-fail",
+                        max_retries,
+                    )
+                    return total_deleted
+                await asyncio.sleep(min(2 * attempt, 5))
+
+        return total_deleted
+
+    async def _insert_node_with_retry(
+        self,
+        conn,
+        domain_id,
+        content: str,
+        embedding: Optional[str],
+        metadata_json: str,
+        max_retries: int = 3,
+    ) -> bool:
+        """Insert one knowledge node with bounded retries on transient DB timeouts."""
+        for attempt in range(1, max_retries + 1):
+            try:
+                await conn.execute(
+                    """
+                    INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
+                    VALUES ($1, $2, $3, 0.95, $4, true)
+                    """,
+                    domain_id,
+                    content,
+                    embedding,
+                    metadata_json,
+                )
+                return True
+            except Exception as ins_err:
+                err_text = str(ins_err).lower()
+                is_timeout = "timeout" in err_text or "canceling statement" in err_text
+                logger.warning(
+                    "⚠️ insert knowledge node failed (attempt %s/%s): %s",
+                    attempt,
+                    max_retries,
+                    ins_err,
+                )
+                if not is_timeout or attempt >= max_retries:
+                    return False
+                await asyncio.sleep(min(2 * attempt, 6))
+        return False
 
     async def extract_corporation_systems_knowledge(self) -> List[Dict[str, Any]]:
         """Извлечь знания о всех системах корпорации"""
@@ -252,6 +365,9 @@ class CorporationCompleteKnowledge:
                 )
                 conn = await temp_pool.acquire()
             try:
+                # Increase per-session query timeout for heavy nightly knowledge sync paths.
+                await conn.execute("SET statement_timeout = '120s'")
+
                 # Получаем или создаем домен
                 domain_id = await conn.fetchval("""
                     SELECT id FROM domains WHERE name = 'CorporationCompleteKnowledge' LIMIT 1
@@ -269,10 +385,7 @@ class CorporationCompleteKnowledge:
                 # Для простоты в extract_all теперь вызываем save_all_knowledge по частям,
                 # поэтому здесь удаление только если это первый вызов или через флаг.
                 if not getattr(self, "_already_cleared", False):
-                    await conn.execute("""
-                        DELETE FROM knowledge_nodes
-                        WHERE metadata->>'source' = 'corporation_complete_knowledge'
-                    """)
+                    await self._clear_old_knowledge_batched(conn, str(domain_id))
                     self._already_cleared = True
 
                 # Сохраняем новые знания
@@ -292,19 +405,17 @@ class CorporationCompleteKnowledge:
                     metadata["source"] = "corporation_complete_knowledge"
                     metadata["type"] = item.get("type", "unknown")
                     metadata["extracted_at"] = datetime.now().isoformat()
+                    metadata = _mark_complete_node_pre_distilled(metadata)
 
-                    await conn.execute(
-                        """
-                        INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
-                        VALUES ($1, $2, $3, 0.95, $4, true)
-                    """,
+                    inserted = await self._insert_node_with_retry(
+                        conn,
                         domain_id,
                         content,
                         str(embedding) if embedding else None,
                         json.dumps(metadata),
                     )
-
-                    saved_count += 1
+                    if inserted:
+                        saved_count += 1
 
                 logger.info(f"✅ Сохранено {saved_count} полных знаний корпорации в базу знаний")
             finally:

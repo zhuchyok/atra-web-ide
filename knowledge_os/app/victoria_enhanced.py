@@ -1,7 +1,8 @@
 import asyncio
 import json
-import os
 import logging
+import os
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -106,6 +107,115 @@ class EventType(Enum):
     DIALOGUE_CONSENSUS = "dialogue_consensus"
 
 
+def _extract_audit_file_path(goal: str) -> Optional[str]:
+    if not goal:
+        return None
+    patterns = (
+        r"(/app/[^\s,;:]+\.py)",
+        r"(/Users/[^\s,;:]+\.py)",
+        r"(knowledge_os/[^\s,;:]+\.py)",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, goal)
+        if match:
+            return match.group(1).rstrip(".,:;)")
+    return None
+
+
+def _resolve_existing_python_path(raw_path: str) -> Optional[str]:
+    if not raw_path:
+        return None
+    clean = raw_path.strip()
+    candidates = [clean]
+    norm = clean.lstrip("./")
+    candidates.extend(
+        [
+            f"/app/{norm}",
+            f"/app/knowledge_os/{norm}",
+        ]
+    )
+    for candidate in candidates:
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
+def _run_fast_security_audit(goal: str) -> Optional[str]:
+    text = (goal or "").lower()
+    is_file_check = "проверь файл" in text or "check file" in text
+    if not is_file_check:
+        return None
+    if "pip install" not in text and "hardcoded" not in text and "секрет" not in text:
+        return None
+
+    raw_path = _extract_audit_file_path(goal or "")
+    resolved_path = _resolve_existing_python_path(raw_path or "")
+    if not resolved_path:
+        return None
+
+    try:
+        with open(resolved_path, "r", encoding="utf-8", errors="ignore") as handle:
+            lines = list(handle.readlines())
+    except Exception as err:
+        return f"ПРОБЛЕМА\nФайл: {resolved_path}\nНе удалось прочитать файл: {err}"
+
+    if "pip install" in text:
+        findings = []
+        for idx, line in enumerate(lines, 1):
+            lowered = line.lower()
+            if "pip" in lowered and "install" in lowered and (
+                "subprocess." in lowered
+                or "os.system(" in lowered
+                or "python -m pip install" in lowered
+                or "python3 -m pip install" in lowered
+            ):
+                findings.append(f"L{idx}: {line.strip()[:220]}")
+        if findings:
+            return (
+                "ПРОБЛЕМА\n"
+                f"Файл: {resolved_path}\n"
+                "Найдены признаки runtime pip install:\n"
+                + "\n".join(f"- {entry}" for entry in findings[:5])
+            )
+        return (
+            "ОК\n"
+            f"Файл: {resolved_path}\n"
+            "Runtime вызовов pip install через subprocess/os.system/python -m pip install не обнаружено."
+        )
+
+    if "hardcoded" in text or "секрет" in text or "парол" in text:
+        suspicious = []
+        for idx, line in enumerate(lines[:30], 1):
+            stripped = line.strip()
+            lowered = stripped.lower()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if "=" not in stripped:
+                continue
+            if any(k in lowered for k in ("password", "passwd", "secret", "token", "api_key")):
+                if any(
+                    safe in lowered
+                    for safe in ("os.getenv", "environ.get", "changeme", "example", "<secret>")
+                ):
+                    continue
+                if re.search(r"=\s*[\"'][^\"']{3,}[\"']", stripped):
+                    suspicious.append(f"L{idx}: {stripped[:220]}")
+        if suspicious:
+            return (
+                "ПРОБЛЕМА\n"
+                f"Файл: {resolved_path}\n"
+                "В первых 30 строках найдены потенциально hardcoded секреты/пароли:\n"
+                + "\n".join(f"- {entry}" for entry in suspicious[:5])
+            )
+        return (
+            "ОК\n"
+            f"Файл: {resolved_path}\n"
+            "В первых 30 строках hardcoded секреты/пароли не обнаружены."
+        )
+
+    return None
+
+
 class VictoriaEnhanced:
     """
     Victoria Enhanced - Victoria с интеграцией всех новых компонентов
@@ -167,8 +277,9 @@ class VictoriaEnhanced:
         # [SINGULARITY 24.7] Auto-start Event Bus and Sentinel
         if os.getenv("ENABLE_EVENT_MONITORING", "false").lower() == "true":
             try:
-                from app.event_bus import get_event_bus
                 from app.autonomous_sentinel import get_autonomous_sentinel
+                from app.event_bus import EventType as BusEventType
+                from app.event_bus import get_event_bus
                 from app.victoria_event_handlers import VictoriaEventHandlers
 
                 self.event_bus = get_event_bus()
@@ -176,16 +287,29 @@ class VictoriaEnhanced:
 
                 # Регистрация обработчиков
                 self.event_bus.subscribe(
-                    EventType.FILE_CREATED, self.event_handlers.handle_file_created
+                    BusEventType.FILE_CREATED, self.event_handlers.handle_file_created
                 )
                 self.event_bus.subscribe(
-                    EventType.LOG_ERROR_DETECTED, self.event_handlers.handle_log_error_detected
+                    BusEventType.LOG_ERROR_DETECTED, self.event_handlers.handle_log_error_detected
                 )
                 self.event_bus.subscribe(
-                    EventType.PERFORMANCE_DEGRADED, self.event_handlers.handle_performance_degraded
+                    BusEventType.PERFORMANCE_DEGRADED,
+                    self.event_handlers.handle_performance_degraded,
                 )
                 self.event_bus.subscribe(
-                    EventType.SERVICE_DOWN, self.event_handlers.handle_service_down
+                    BusEventType.SERVICE_DOWN, self.event_handlers.handle_service_down
+                )
+                # Dialogue pipeline: route expert-specific requests into expert task queue
+                # and accept expert responses / final consensus events.
+                self.event_bus.subscribe(
+                    BusEventType.DIALOGUE_REQUEST, self.event_handlers.handle_dialogue_request
+                )
+                self.event_bus.subscribe(
+                    BusEventType.EXPERT_RESPONSE, self.event_handlers.handle_expert_response
+                )
+                self.event_bus.subscribe(
+                    BusEventType.DIALOGUE_CONSENSUS,
+                    self.event_handlers.handle_dialogue_consensus,
                 )
 
                 # Запуск шины и стража
@@ -206,7 +330,7 @@ class VictoriaEnhanced:
         if self.use_react:
             try:
                 self.react_agent = ReActAgent(agent_name="Виктория", model_name=self.model_name)
-                logger.info(f"✅ ReActAgent инициализирован")
+                logger.info("✅ ReActAgent инициализирован")
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка инициализации ReActAgent: {e}")
 
@@ -273,10 +397,18 @@ class VictoriaEnhanced:
         category = kwargs.get("category") or self._categorize_task(goal)
         session_id = kwargs.get("session_id", "default")
 
+        # Operational audits should avoid reasoning loops and use direct general execution path.
+        g_low = (goal or "").lower()
+        if ("аудит" in g_low or "deep-analysis" in g_low or "deep analysis" in g_low) and (
+            "дашборд" in g_low or "dashboard" in g_low
+        ):
+            category = "general"
+
         # [SINGULARITY 28.0] Long-term Memory Recall
         ltm_context = ""
         try:
             from long_term_memory import get_ltm
+
             ltm = get_ltm()
             memories = await ltm.recall_memories(goal)
             if memories:
@@ -294,6 +426,40 @@ class VictoriaEnhanced:
         logger.info(
             f"🧠 [VICTORIA] Solving goal: {goal[:50]}... (Method: {method}, Category: {category})"
         )
+
+        # Operational goals (аудит дашборда): Department Heads + парсинг Veronica — лишняя задержка.
+        skip_dept_heads = False
+        try:
+            from src.agents.bridge.task_detector import is_operational_execution_goal
+
+            skip_dept_heads = is_operational_execution_goal(goal)
+        except Exception:
+            g = (goal or "").lower()
+            skip_dept_heads = "аудит" in g and ("дашборд" in g or "dashboard" in g)
+
+        # Backward-compatible Department Heads chain (used by tests and legacy flow).
+        should_use_department_heads, dept_info = False, {}
+        if not skip_dept_heads:
+            try:
+                should_use_department_heads, dept_info = await self._should_use_department_heads(
+                    goal, category=category
+                )
+            except Exception as e:
+                logger.debug(f"Department heads pre-check failed: {e}")
+                should_use_department_heads, dept_info = False, {}
+
+        if should_use_department_heads:
+            try:
+                dept_result = await self._execute_with_task_distribution(
+                    goal=goal,
+                    veronica_prompt=dept_info.get("veronica_prompt", goal),
+                    organizational_structure=dept_info.get("organizational_structure", {}),
+                    department=dept_info.get("department", "Strategy/Data"),
+                )
+                if dept_result and dept_result.get("result"):
+                    return dept_result
+            except Exception as e:
+                logger.warning(f"⚠️ Department heads flow failed, fallback to default solve: {e}")
 
         if method == "extended_thinking" and self.use_extended_thinking:
             await self._init_extended_thinking()
@@ -335,19 +501,194 @@ class VictoriaEnhanced:
                     pass
 
         if VictoriaEnhanced._run_smart_agent_async is not None:
+            fast_audit_result = _run_fast_security_audit(goal)
+            if fast_audit_result:
+                return {"result": fast_audit_result, "method": "enhanced_fast_audit"}
+            _default_llm_timeout = float(os.getenv("VICTORIA_ENHANCED_LLM_TIMEOUT_SEC", "1200"))
+            _operational_llm_timeout = float(
+                os.getenv("VICTORIA_ENHANCED_LLM_TIMEOUT_OPERATIONAL_SEC", "240")
+            )
+            llm_timeout = (
+                _operational_llm_timeout if is_operational_execution_goal else _default_llm_timeout
+            )
             try:
-                result = await VictoriaEnhanced._run_smart_agent_async(
-                    goal,
-                    expert_name="Виктория",
-                    category=category,
-                    local_router=VictoriaEnhanced._local_router,
+                llm_task = asyncio.create_task(
+                    VictoriaEnhanced._run_smart_agent_async(
+                        goal,
+                        expert_name="Виктория",
+                        category=category,
+                        local_router=VictoriaEnhanced._local_router,
+                    )
                 )
+                done, _ = await asyncio.wait({llm_task}, timeout=llm_timeout)
+                if not done:
+                    logger.error(
+                        "❌ [VICTORIA] LLM soft-timeout after %ss (goal_preview=%s)",
+                        int(llm_timeout),
+                        (goal or "")[:80],
+                    )
+                    # Не делаем task.cancel(): в этом стеке cancel может вызывать RecursionError.
+                    return {
+                        "result": f"Таймаут Enhanced LLM ({int(llm_timeout)}s). Сократите задачу.",
+                        "method": "enhanced_llm_timeout",
+                        "status": "failed",
+                    }
+                result = llm_task.result()
                 return {"result": result}
             except Exception as e:
                 logger.error(f"❌ [VICTORIA] LLM call failed: {e}")
                 return {"result": f"Ошибка вызова LLM: {e}"}
 
         return {"result": f"Solved: {goal}"}
+
+    def _is_casual_chat(self, text: str) -> bool:
+        """Detect short conversational messages that should not trigger orchestration."""
+        t = (text or "").strip().lower()
+        if not t:
+            return False
+        casual_markers = (
+            "привет",
+            "здравств",
+            "как дела",
+            "поболтать",
+            "расскажи о себе",
+            "что умеешь",
+            "hello",
+            "hi",
+            "thanks",
+            "спасибо",
+            "пока",
+            "ок",
+            "okay",
+        )
+        if any(m in t for m in casual_markers):
+            return True
+        # Very short non-imperative phrases are likely chat.
+        if len(t.split()) <= 2 and not any(
+            verb in t for verb in ("сделай", "напиши", "создай", "проанализируй", "покажи")
+        ):
+            return True
+        return False
+
+    def _is_simple_veronica_request(self, text: str) -> bool:
+        """Detect simple one-step local assistant requests."""
+        t = (text or "").strip().lower()
+        if not t:
+            return False
+        simple_patterns = (
+            "покажи файл",
+            "покажи файлы",
+            "список файлов",
+            "выведи список",
+            "прочитай файл",
+            "покажи список",
+            "list files",
+            "show file",
+            "read file",
+        )
+        complex_patterns = (
+            "сделай",
+            "напиши код",
+            "реализуй",
+            "архитектур",
+            "отч",
+            "analyze",
+            "refactor",
+        )
+        if any(p in t for p in complex_patterns):
+            return False
+        return any(p in t for p in simple_patterns)
+
+    async def _should_delegate_task(self, goal: str) -> Tuple[bool, Dict[str, Any]]:
+        """Legacy delegation guard used by tests with PREFER_EXPERTS_FIRST."""
+        prefer_experts_first = os.getenv("PREFER_EXPERTS_FIRST", "false").lower() == "true"
+        if prefer_experts_first and self._is_simple_veronica_request(goal):
+            return True, {"agent": "Вероника", "reason": "simple_veronica_request"}
+        return False, {}
+
+    async def _should_use_department_heads(
+        self, goal: str, category: Optional[str] = None
+    ) -> Tuple[bool, Dict[str, Any]]:
+        """Decide whether to route request through Department Heads orchestration."""
+        if self._is_casual_chat(goal):
+            return False, {}
+
+        try:
+            from app.department_heads_system import get_department_heads_system
+        except ImportError:
+            return False, {}
+
+        system = get_department_heads_system(os.getenv("DATABASE_URL"))
+        department = system.determine_department(goal)
+        if not department:
+            return False, {}
+
+        dept_struct = {
+            "departments": [
+                {
+                    "id": department,
+                    "name": department,
+                    "manager": {"id": 1, "name": "Department Head"},
+                    "employees": [],
+                    "employee_count": 1,
+                }
+            ],
+            "total_departments": 1,
+            "total_employees": 1,
+        }
+        veronica_prompt = (
+            f"ЗАДАЧА: {goal}\nОТДЕЛ: {department}\nРазбей на подзадачи и распредели исполнителям."
+        )
+        return True, {
+            "department": department,
+            "veronica_prompt": veronica_prompt,
+            "organizational_structure": dept_struct,
+        }
+
+    async def _synthesize_collected_results(
+        self, goal: str, department: str, task_collection: Any
+    ) -> str:
+        """Synthesize department collection into final answer."""
+        if task_collection is None:
+            return ""
+        if isinstance(task_collection, dict):
+            return str(task_collection.get("aggregated_result", "") or "")
+        aggregated = getattr(task_collection, "aggregated_result", "")
+        if aggregated:
+            return str(aggregated)
+        return str(getattr(task_collection, "result", "") or "")
+
+    async def _execute_with_task_distribution(
+        self,
+        goal: str,
+        veronica_prompt: str,
+        organizational_structure: Dict[str, Any],
+        department: str,
+    ) -> Dict[str, Any]:
+        """Execute Department Heads task distribution chain."""
+        from app.task_distribution_system import get_task_distribution_system
+
+        task_dist = get_task_distribution_system(os.getenv("DATABASE_URL", ""))
+        assignments = await task_dist.distribute_tasks_from_veronica_prompt(
+            veronica_prompt,
+            organizational_structure=organizational_structure,
+            department=department,
+            goal=goal,
+        )
+        reviewed_assignments = []
+        for assignment in assignments or []:
+            executed = await task_dist.execute_task_assignment(assignment)
+            reviewed = await task_dist.manager_review_task(executed)
+            reviewed_assignments.append(reviewed)
+
+        collection = await task_dist.department_head_collect_tasks(department, reviewed_assignments)
+        synthesized = await self._synthesize_collected_results(goal, department, collection)
+        return {
+            "method": "task_distribution",
+            "department": department,
+            "result": synthesized,
+            "collection": collection,
+        }
 
     def _categorize_task(self, goal: str) -> str:
         if any(k in goal.lower() for k in ["код", "напиши", "создай", "write", "code"]):
@@ -363,12 +704,13 @@ class VictoriaEnhanced:
         [SINGULARITY 28.5] Detailed health status for gRPC Heartbeat.
         """
         import psutil
+
         try:
             process = psutil.Process(os.getpid())
             stats = {
                 "cpu_usage": process.cpu_percent(),
                 "memory_usage_mb": process.memory_info().rss / (1024 * 1024),
-                "active_tasks": len(asyncio.all_tasks())
+                "active_tasks": len(asyncio.all_tasks()),
             }
         except Exception:
             stats = {}
@@ -379,5 +721,5 @@ class VictoriaEnhanced:
             "skill_registry_available": self.skill_registry is not None,
             "file_watcher_available": self.file_watcher is not None,
             "service_monitor_available": self.service_monitor is not None,
-            "system_stats": stats
+            "system_stats": stats,
         }

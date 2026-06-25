@@ -184,9 +184,9 @@ OLLAMA_MODELS_FALLBACK = {
     "coding": os.getenv("MODEL_CODER", "victoria-wisdom-v3.5:latest"),
     "chat": "victoria-wisdom-v3.5:latest",
     "fast": os.getenv("MODEL_FAST", "tinyllama:1.1b-chat"),
-    "vision": os.getenv("MODEL_VISION", "moondream:latest"),
+    "vision": os.getenv("MODEL_VISION", "minicpm-v:latest"),
     "vision_hd": "minicpm-v:latest",
-    "vision_pdf": "llava:7b",
+    "vision_pdf": os.getenv("MODEL_VISION_PDF", "minicpm-v:latest"),
     "thinking": os.getenv("MODEL_THINKING", "lfm2.5-thinking:1.2b"),
     "default": "victoria-wisdom-v3.5:latest",
     "vip": "victoria-wisdom-v3.5:latest",
@@ -1421,7 +1421,7 @@ class LocalAIRouter:
             # При перегрузке (очередь >= 80% от OLLAMA_MAX_QUEUE) пропускаем запрос → уходим на MLX.
             if is_ollama and os.getenv("OLLAMA_REQUEST_PRIORITY", "").lower() == "low":
                 try:
-                    ollama_max_queue = int(os.getenv("OLLAMA_MAX_QUEUE", "16"))
+                    ollama_max_queue = int(os.getenv("OLLAMA_MAX_QUEUE", "100"))
                     async with httpx.AsyncClient(timeout=3.0) as hc:
                         resp = await hc.get(f"{node_url_base}/api/ps")
                     if resp.status_code == 200:

@@ -28,7 +28,7 @@ FALLBACK_MODELS_OLLAMA = [
     "phi3.5:3.8b",  # Fast, stable
     "tinyllama:1.1b-chat",  # Very small, always works
     "glm-4.7-flash:q8_0",  # Medium, good quality
-    "qwen2.5-coder:32b",  # Large, may crash on limited RAM
+    "victoria-wisdom-v3.5:latest",  # Large, may crash on limited RAM
 ]
 
 
@@ -74,12 +74,12 @@ FALLBACK_MODELS_MLX = [
     "qwen2.5:3b",
     "tinyllama:1.1b-chat",
     "phi3:mini-4k",
-    "qwen2.5-coder:32b",
+    "victoria-wisdom-v3.5:latest",
 ]
 
 # Models that are known to crash on resource-limited systems
 RESOURCE_HEAVY_MODELS = {
-    "qwen2.5-coder:32b",
+    "victoria-wisdom-v3.5:latest",
     "qwq:32b",
     "deepseek-r1-distill-llama:70b",
     "llama3.3:70b",
@@ -108,7 +108,9 @@ class OllamaExecutor:
 
     def __init__(self, model: Optional[str] = None, base_url: Optional[str] = None):
         # Автовыбор модели: если не указана, будет выбрана при первом запросе через сканирование Ollama
-        self.model: str = model or os.getenv("VICTORIA_MODEL") or os.getenv("VERONICA_MODEL") or "auto"
+        self.model: str = (
+            model or os.getenv("VICTORIA_MODEL") or os.getenv("VERONICA_MODEL") or "auto"
+        )
         self.base_url: str = base_url or _ollama_base_url()
         self._model_resolved = False  # Флаг: модель уже выбрана из актуального списка
 
@@ -240,7 +242,9 @@ A: {"thought": "Выполню ls для текущей директории", "
         try:
             # Try to import from knowledge_os
             sys.path.insert(0, os.path.join(os.getcwd(), "knowledge_os/app"))
-            from semantic_cache import SemanticAICache  # type: ignore # [SINGULARITY 21.13] Dynamic import from knowledge_os
+            from semantic_cache import (
+                SemanticAICache,  # type: ignore # [SINGULARITY 21.13] Dynamic import from knowledge_os
+            )
 
             self._cache_manager = SemanticAICache(db_url=os.getenv("DATABASE_URL"))
             logger.info("[CACHE] ✅ SemanticAICache manager initialized")
@@ -437,7 +441,9 @@ A: {"thought": "Выполню ls для текущей директории", "
             try:
                 # Lazy import to avoid circular dependencies
                 sys.path.insert(0, os.path.join(os.getcwd(), "knowledge_os/app"))
-                from mac_studio_monitor import get_mac_studio_monitor  # type: ignore # [SINGULARITY 21.14] Dynamic import from knowledge_os
+                from mac_studio_monitor import (
+                    get_mac_studio_monitor,  # type: ignore # [SINGULARITY 21.14] Dynamic import from knowledge_os
+                )
 
                 monitor = get_mac_studio_monitor()
                 stats = await monitor.get_full_stats()
@@ -463,7 +469,9 @@ A: {"thought": "Выполню ls для текущей директории", "
 
                 # 3. MLX Load check (if available)
                 try:
-                    from mlx_monitor import get_mlx_monitor  # type: ignore # [SINGULARITY 21.14] Dynamic import from knowledge_os
+                    from mlx_monitor import (
+                        get_mlx_monitor,  # type: ignore # [SINGULARITY 21.14] Dynamic import from knowledge_os
+                    )
 
                     mlx_monitor = get_mlx_monitor()
                     health_score = mlx_monitor.get_health_score()

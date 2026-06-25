@@ -119,7 +119,7 @@ def main():
                     labels={"new_nodes": "Новых узлов", "date": "Дата"},
                 )
                 fig.update_traces(line_color="#58a6ff", line_width=3)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
             with col2:
                 # График использования
@@ -132,7 +132,7 @@ def main():
                     labels={"total_usage": "Использований", "date": "Дата"},
                 )
                 fig.update_traces(marker_color="#238636")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
             # Средний confidence по времени
             if "avg_confidence" in growth_data.columns:
@@ -145,7 +145,7 @@ def main():
                     labels={"avg_confidence": "Confidence", "date": "Дата"},
                 )
                 fig.update_traces(line_color="#f38ba8", line_width=2)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
     # 🏢 РАСПРЕДЕЛЕНИЕ ПО ДОМЕНАМ
     with tabs[1]:
@@ -166,7 +166,7 @@ def main():
                     template="plotly_dark",
                     hole=0.4,
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
             with col2:
                 # Столбчатая диаграмма использования
@@ -179,13 +179,13 @@ def main():
                     labels={"total_usage": "Использований", "domain": "Домен"},
                 )
                 fig.update_traces(marker_color="#58a6ff")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
             # Таблица с деталями
             st.subheader("Детальная статистика по доменам")
             st.dataframe(
                 domain_data.sort_values("node_count", ascending=False),
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
             )
 
@@ -210,7 +210,7 @@ def main():
                     template="plotly_dark",
                     labels={"total_usage": "Использований", "name": "Эксперт"},
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
             with col2:
                 # Задачи экспертов
@@ -238,13 +238,13 @@ def main():
                     xaxis_title="Эксперт",
                     yaxis_title="Количество задач",
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
             # Таблица производительности
             st.subheader("Детальная статистика экспертов")
             st.dataframe(
                 expert_data.sort_values("total_usage", ascending=False),
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
             )
 
@@ -300,7 +300,7 @@ def main():
                     labels={"count": "Количество узлов", "usage_range": "Диапазон использований"},
                 )
                 fig.update_traces(marker_color="#58a6ff")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
     # ⭐ КАЧЕСТВО ЗНАНИЙ
     with tabs[4]:
@@ -356,7 +356,7 @@ def main():
                     "Низкое": "#f38ba8",
                 },
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             # Статистика тестирования
             col1, col2 = st.columns(2)
@@ -408,7 +408,7 @@ def main():
                     "Low": "#94e2d5",
                 },
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             # Среднее время выполнения
             if task_metrics.get("avg_completion_hours"):
@@ -467,7 +467,7 @@ def main():
                     xaxis_title="Дата",
                     yaxis_title="Новых узлов",
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
     # 🕸️ ГРАФ ЗНАНИЙ
     with tabs[7]:
@@ -549,7 +549,7 @@ def main():
                 yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                 height=600,
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             # Статистика графа
             col1, col2, col3 = st.columns(3)

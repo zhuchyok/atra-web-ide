@@ -18,10 +18,14 @@ async def _ntfy_notify(title: str, body: str) -> None:
     """Отправка в ntfy → Telegram fallback."""
     if NTFY_URL:
         try:
+            import base64
+            # [FIX 30.2] Use Base64 for headers to support Russian/Unicode correctly in ntfy
+            b64_title = base64.b64encode(title.encode('utf-8')).decode('ascii')
+
             # trust_env=False — отключаем ALL_PROXY из env (socks5h без httpx-socks даёт gaierror)
             async with httpx.AsyncClient(timeout=10.0, trust_env=False) as c:
-                await c.post(NTFY_URL, content=body.encode(),
-                             headers={"Title": title, "Priority": "default"})
+                await c.post(NTFY_URL, content=body.encode('utf-8'),
+                             headers={"X-Title": b64_title, "Priority": "default"})
             logger.info("ntfy отправлено ✅")
             return
         except Exception as e:
@@ -134,7 +138,7 @@ async def ask_victoria_to_analyze(report_path: Path):
                     if analysis and analysis != "Нет ответа.":
                         now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
                         await _ntfy_notify(
-                            f"🧠 Victoria Self-Analysis [{now_str}]",
+                            f"🧠 Само-анализ Виктории [{now_str}]",
                             analysis[:4000]
                         )
 

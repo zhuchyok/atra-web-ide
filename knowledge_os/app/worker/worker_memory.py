@@ -77,3 +77,15 @@ def _select_skills_by_relevance_sync(task_title: str, task_description: str, max
             scored.append((overlap + (2 if folder.replace("-", " ") in task_text else 0), folder))
     scored.sort(key=lambda x: -x[0])
     return [f for _, f in scored[:max_skills]]
+
+
+async def load_skills_for_expert(expert_name: str, task_description: str) -> str:
+    """Async wrapper: loads relevant skills for an expert based on task description."""
+    role_key = expert_name.lower()
+    skill_folders = ROLE_DEPARTMENT_TO_SKILLS.get(role_key, [])
+    if not skill_folders:
+        # Fallback: select by relevance
+        skill_folders = _select_skills_by_relevance_sync(expert_name, task_description)
+    if not skill_folders:
+        return ""
+    return _read_skill_snippets_sync(skill_folders)

@@ -41,7 +41,7 @@ def render_task_status_chart(df):
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 def render_department_budgets_chart(df_dept):
@@ -68,7 +68,7 @@ def render_department_budgets_chart(df_dept):
         margin=dict(t=40, b=0, l=0, r=0),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 def render_roi_scatter_chart(df_finance):
@@ -95,7 +95,7 @@ def render_roi_scatter_chart(df_finance):
         margin=dict(t=40, b=0, l=0, r=0),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 def render_expert_workload_chart(df):
@@ -123,4 +123,4 @@ def render_expert_workload_chart(df):
         margin=dict(t=40, b=0, l=0, r=0),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")

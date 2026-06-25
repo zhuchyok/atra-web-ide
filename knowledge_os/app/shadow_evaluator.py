@@ -15,6 +15,14 @@ except ImportError:
     from app.local_router import LocalAIRouter
 
 logger = logging.getLogger("ShadowEvaluator")
+_LOCAL_ROUTER_SINGLETON = None
+
+
+def _get_local_router_singleton():
+    global _LOCAL_ROUTER_SINGLETON
+    if _LOCAL_ROUTER_SINGLETON is None:
+        _LOCAL_ROUTER_SINGLETON = LocalAIRouter()
+    return _LOCAL_ROUTER_SINGLETON
 
 
 class ShadowEvaluator:
@@ -28,7 +36,7 @@ class ShadowEvaluator:
         self.db_url = db_url or os.getenv(
             "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
         )
-        self.router = LocalAIRouter()
+        self.router = _get_local_router_singleton()
         self.judge_model = os.getenv("SHADOW_JUDGE_MODEL", "victoria-wisdom-v3.5:latest")
         self._pool = None
 
@@ -141,7 +149,7 @@ VERDICT:"""
                     f"""
                     UPDATE expert_mutations
                     SET {column} = {column} + 1,
-                        total_evaluations = total_evaluations + 1,
+                        total_tests = total_tests + 1,
                         updated_at = NOW()
                     WHERE id = $1
                 """,

@@ -19,6 +19,7 @@ import pytest
 from src.agents.bridge.task_detector import (
     detect_task_type,
     is_curator_standard_goal,
+    is_operational_execution_goal,
     should_use_enhanced,
 )
 
@@ -95,6 +96,15 @@ class TestShouldUseEnhanced:
     def test_env_false(self):
         """Если use_enhanced_env=False — всегда False."""
         assert should_use_enhanced("напиши код", None, False) is False
+
+    def test_operational_forces_enhanced_when_env_false(self):
+        """P0: аудит дашборда не должен идти в Swarm при выключенном env."""
+        goal = (
+            "Критическая задача без уточнений: deep-analysis аудит вкладки Обзор "
+            "в Knowledge OS dashboard, исправь SQL."
+        )
+        assert is_operational_execution_goal(goal) is True
+        assert should_use_enhanced(goal, None, False) is True
 
     def test_curator_standard_use_enhanced(self):
         """Кураторские запросы идут в Enhanced (RAG/эталоны)."""

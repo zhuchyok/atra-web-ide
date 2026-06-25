@@ -9,20 +9,23 @@ import sys
 # CRITICAL: Set recursion BEFORE any async operations to prevent deep recursion stack crashes
 # Victoria's complex async pipeline with 200+ loggers needs this
 if hasattr(sys, "setrecursionlimit"):
-    sys.setrecursionlimit(1500)
+    sys.setrecursionlimit(3000)
 
 import asyncio
+import contextvars
 import getpass
+import inspect
 import json
 import logging
 import os
 import time
 from typing import Any, Dict, List, Optional
-import contextvars
 
 # [SINGULARITY 29.5] Recursion Guard for Multi-Agent Loops
 # Prevents IterativeDiscovery -> run_smart_agent -> IterativeDiscovery loops
-_RECURSION_CONTEXT = contextvars.ContextVar("recursion_context", default={"depth": 0, "discovery": False, "debate": False})
+_RECURSION_CONTEXT = contextvars.ContextVar(
+    "recursion_context", default={"depth": 0, "discovery": False, "debate": False}
+)
 
 # Third-party imports with fallbacks
 try:
@@ -56,8 +59,8 @@ except ImportError:
 # [SINGULARITY 21.32] Prompt Master Integration
 try:
     from memory_block import get_memory_block
-    from token_auditor import audit_efficiency
     from session_context_manager import get_session_context_manager
+    from token_auditor import audit_efficiency
 except ImportError:
     get_memory_block = lambda x: ""
     audit_efficiency = lambda x: x
@@ -89,6 +92,11 @@ try:
     from local_router import LocalAIRouter  # type: ignore
 except ImportError:
     LocalAIRouter = None  # type: ignore
+
+try:
+    from redis_manager import RedisManager  # type: ignore
+except ImportError:
+    RedisManager = None  # type: ignore
 
 try:
     from app.ollama_keep_alive_policy import get_keep_alive
@@ -403,10 +411,10 @@ class TeamDiscussionEngine:
                     curr = os.path.dirname(curr)
 
             if not personalities_path:
-                logger.warning(f"⚠️ [TEAM ENGINE] Personalities file not found. Using empty cache.")
+                logger.warning("⚠️ [TEAM ENGINE] Personalities file not found. Using empty cache.")
                 return
 
-            with open(personalities_path, "r", encoding="utf-8") as f:
+            with open(personalities_path, encoding="utf-8") as f:
                 content = f.read()
 
             # Simple parsing: split by "### " and extract name + style
@@ -464,8 +472,8 @@ class TeamDiscussionEngine:
         # [AGENT SCOPE] MsgHub Integration
         try:
             import agentscope
+            from agentscope.agents import DialogAgent, UserAgent
             from agentscope.msghub import MsgHub
-            from agentscope.agents import UserAgent, DialogAgent
 
             # Инициализация AgentScope если еще не сделано
             agentscope.init(
@@ -539,16 +547,14 @@ class TeamDiscussionEngine:
 ### DISCUSSION:
 """
         if not self.router:
-            from local_router import LocalAIRouter
-
-            self.router = LocalAIRouter()
+            self.router = _get_local_router()
 
         # Target MLX (port 11435) via specific category/flag
         result = await self.router.run_local_llm(
             prompt,
             category="team_discussion",
             is_vip=True,  # Team discussions are high priority
-            expert_name=expert_name,
+            expert_name="Виктория",
         )
 
         if isinstance(result, tuple):
@@ -635,6 +641,43 @@ RETRY_MAX_ATTEMPTS = 1  # Reduced to prevent recursion
 
 # Global user identification for conditional logic
 USER_NAME = getpass.getuser()
+
+_LOCAL_ROUTER_SINGLETON = None
+_REDIS_MANAGER_SINGLETON = None
+_SAFETY_CHECKER_SINGLETON = None
+_DISTILLER_SINGLETON = None
+
+
+def _get_local_router():
+    """DI-style provider for a process-local LocalAIRouter instance."""
+    global _LOCAL_ROUTER_SINGLETON
+    if _LOCAL_ROUTER_SINGLETON is None and LocalAIRouter:
+        _LOCAL_ROUTER_SINGLETON = LocalAIRouter()
+    return _LOCAL_ROUTER_SINGLETON
+
+
+def _get_redis_manager():
+    """DI-style provider for RedisManager to avoid per-call re-instantiation."""
+    global _REDIS_MANAGER_SINGLETON
+    if _REDIS_MANAGER_SINGLETON is None and RedisManager:
+        _REDIS_MANAGER_SINGLETON = RedisManager()
+    return _REDIS_MANAGER_SINGLETON
+
+
+def _get_safety_checker():
+    """DI-style provider for SafetyChecker singleton."""
+    global _SAFETY_CHECKER_SINGLETON
+    if _SAFETY_CHECKER_SINGLETON is None and SafetyChecker:
+        _SAFETY_CHECKER_SINGLETON = SafetyChecker()
+    return _SAFETY_CHECKER_SINGLETON
+
+
+def _get_distiller():
+    """DI-style provider for KnowledgeDistiller singleton."""
+    global _DISTILLER_SINGLETON
+    if _DISTILLER_SINGLETON is None and KnowledgeDistiller:
+        _DISTILLER_SINGLETON = KnowledgeDistiller()
+    return _DISTILLER_SINGLETON
 
 
 def _is_transient_llm_error(e_or_msg) -> bool:
@@ -749,7 +792,7 @@ async def _run_cloud_agent_async(
     use_local = bool(LocalAIRouter)
     if use_local:
         try:
-            _router = LocalAIRouter()
+            _router = _get_local_router()
             healthy = await _router.check_health(force_refresh=False)
             if not healthy:
                 logger.info("[HEALTH CHECK] No healthy local nodes, skipping to cloud/cursor-agent")
@@ -759,7 +802,7 @@ async def _run_cloud_agent_async(
     if use_local and LocalAIRouter:
 
         async def _try_local():
-            router = LocalAIRouter()
+            router = _get_local_router()
             result = await router.run_local_llm(
                 prompt, category=category, is_vip=is_vip, expert_name=expert_name
             )
@@ -803,12 +846,15 @@ async def _run_cloud_agent_async(
     # ПРИОРИТЕТ 2: OpenRouter — реальный облачный fallback только при наличии ключа.
     # [SINGULARITY 28.7] Pre-emptive Backpressure: Failover to OpenRouter if Ollama is overloaded.
     try:
-        from redis_manager import RedisManager
-        rm = RedisManager()
+        rm = _get_redis_manager()
+        if rm is None:
+            raise RuntimeError("RedisManager unavailable for backpressure check")
         client = await rm.get_client()
         slots_val = await client.get("ollama:global_slots")
         if slots_val and int(slots_val) >= int(os.getenv("OLLAMA_GLOBAL_MAX_SLOTS", "2")):
-            logger.info("⏩ [BACKPRESSURE] Ollama global slots full, pre-emptive failover to OpenRouter")
+            logger.info(
+                "⏩ [BACKPRESSURE] Ollama global slots full, pre-emptive failover to OpenRouter"
+            )
             # If we are here, it means we skip Priority 1 (Local) or it failed/overloaded
     except Exception as bp_err:
         logger.debug(f"Backpressure check failed in ai_core: {bp_err}")
@@ -893,7 +939,7 @@ async def _run_cloud_agent_async(
             # При таймауте облака пытаемся использовать локальные модели
             if LocalAIRouter:
                 try:
-                    router = LocalAIRouter()
+                    router = _get_local_router()
                     # Быстрый fallback на локальные модели с таймаутом 15 секунд
                     result = await asyncio.wait_for(
                         router.run_local_llm(
@@ -1063,6 +1109,22 @@ async def _run_cloud_agent_async(
         return "[SYSTEM: Cloud connection error]"
 
 
+async def _safe_cloud_response(response: str) -> str:
+    """[SINGULARITY 31.3] Apply SafetyChecker to cloud responses."""
+    if not response or response.startswith("[SYSTEM:"):
+        return response
+    try:
+        from app.safety_checker import get_safety_checker
+        checker = get_safety_checker()
+        is_safe, score, warnings = checker.check_response(response)
+        if not is_safe:
+            logger.warning(f"🛡️ [SAFETY] Cloud response blocked (score={score:.2f}): {warnings[:2]}")
+            return "[SYSTEM: Response blocked by safety checker]"
+    except Exception:
+        pass
+    return response
+
+
 async def _enrich_with_deep_memory(nodes: list, pool) -> str:
     """
     Extract unique domain_ids from nodes and fetch domain summaries (Deep Memory).
@@ -1153,7 +1215,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
             try:
                 if not LocalAIRouter:
                     return ""
-                router = LocalAIRouter()
+                router = _get_local_router()
                 visual_results = await router.search_visual_context(search_query)
                 if not visual_results:
                     return ""
@@ -1169,6 +1231,29 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
 
         async def fetch_vector():
             try:
+                # [SINGULARITY 31.0] Quantum Leap: LanceDB Zero-Latency RAG
+                try:
+                    from app.lancedb_service import get_lancedb_service
+
+                    lancedb_svc = get_lancedb_service()
+
+                    embedding = await get_embedding(query)
+                    if embedding:
+                        lancedb_results = await lancedb_svc.search(embedding, limit=5)
+                        if lancedb_results:
+                            logger.info("⚡ [LANCEDB RAG] Zero-latency context retrieved.")
+                            context = "\n⚡ [KNOWLEDGE CONTEXT (LANCEDB-ACCELERATED)]:\n"
+                            for r in lancedb_results:
+                                if r["similarity"] >= 0.6:  # Higher threshold for vector search
+                                    file_path = r["metadata"].get("file_path", "N/A")
+                                    context += f"\n[NODE: {file_path}] (релевантность: {r['similarity']:.2f}):\n"
+                                    context += f"{r['content'][:1200]}\n"
+
+                            if "[LANCEDB-ACCELERATED]" in context:
+                                return context
+                except Exception as le:
+                    logger.debug(f"LanceDB RAG failed, falling back: {le}")
+
                 # [AGENT SCOPE] ReMe Memory Integration (optional — falls through if not available)
                 try:
                     from agentscope.memory import ReMe
@@ -1196,14 +1281,16 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                     )
                     # [SINGULARITY 29.6] Context Limit Adaptation for R&D
                     # R&D tasks often have huge context, we limit nodes to prevent memory overflow
-                    is_rd_query = "#rd" in query.lower() or (project_context and "#rd" in project_context.lower())
+                    is_rd_query = "#rd" in query.lower() or (
+                        project_context and "#rd" in project_context.lower()
+                    )
                     limit_nodes = 5 if is_rd_query else 10
-                    
+
                     payload = {
                         "embedding": embedding,
                         "project_context": project_context,
                         "limit": limit_nodes,  # Adaptive limit
-                        "use_quantum": not is_rd_query, # Disable quantum for R&D to save RAM
+                        "use_quantum": not is_rd_query,  # Disable quantum for R&D to save RAM
                     }
 
                     # mTLS сертификаты для клиента (Singularity 21.24)
@@ -1226,7 +1313,11 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                         if response.status_code == 200:
                             nodes = response.json()
                             if not nodes:
-                                return ""
+                                # [FIX v31.2] Если Rust RAG пуст, не падаем в Exception, а идем дальше к Python RAG
+                                logger.info(
+                                    "📭 [RUST RAG] No nodes found, falling back to Python RAG."
+                                )
+                                raise StopIteration("Empty Rust RAG")
 
                             context = "\n📚 [KNOWLEDGE CONTEXT (RUST-ACCELERATED)]:\n"
                             for node in nodes:
@@ -1248,8 +1339,17 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                                 context = deep_memory + context
 
                             return context
+                except StopIteration:
+                    # Специальный случай для пустого ответа Rust RAG
+                    pass
                 except Exception as re:
-                    logger.warning(f"⚠️ Rust RAG failed, falling back to Python: {re}")
+                    # [FIX v31.4] Move to INFO level entirely. Falling back to Python is a normal operational path.
+                    # We only log the actual error string if it exists to keep logs clean.
+                    err_msg = str(re).strip()
+                    if err_msg:
+                        logger.info(f"📡 Rust RAG fallback: {err_msg}")
+                    else:
+                        logger.info("📡 Rust RAG empty or unavailable, using Python fallback.")
 
                 # Fallback to Python RAG (old logic)
                 pool = await _get_db_pool()
@@ -1294,7 +1394,8 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
 
                     rows = await conn.fetch(
                         f"""
-                        SELECT content, metadata, domain_id, (1 - (embedding <=> $1::vector)) as similarity
+                        SELECT content, metadata, domain_id,
+                               ((1 - (embedding <=> $1::vector)) * (CASE WHEN metadata->>'low_priority' = 'true' THEN 0.5 ELSE 1.0 END)) as similarity
                         FROM knowledge_nodes
                         WHERE embedding IS NOT NULL AND confidence_score >= 0.3
                         {project_cond}
@@ -1310,6 +1411,12 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                     try:
                         # [SINGULARITY 29.6] Skip reranking for R&D to save memory
                         if is_rd_query:
+                            reranked_nodes = rows[:5]
+                        elif os.getenv("RAG_RERANKER_ENABLED", "true").lower() in (
+                            "false",
+                            "0",
+                            "no",
+                        ):
                             reranked_nodes = rows[:5]
                         else:
                             from app.rag_reranker import get_rag_reranker
@@ -1386,9 +1493,6 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
         if visual_context:
             logger.info("🖼️ [OMNI-RAG] Visual context retrieved. Verifying via ConsensusAgent...")
             try:
-                from consensus_agent import ConsensusAgent
-
-                consensus = ConsensusAgent()
                 # Упрощенная верификация: проверяем, не противоречит ли визуальный контекст текстовому
                 verification_prompt = f"""
                 Verify if the following visual context matches the textual context for the query: "{query}"
@@ -1397,7 +1501,10 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                 Respond with 'VALID' or 'INVALID' and a brief reason.
                 """
                 # Используем легкую модель для верификации
-                v_res = await LocalAIRouter().run_local_llm(verification_prompt, category="fast")
+                _vr = _get_local_router()
+                if not _vr:
+                    raise RuntimeError("LocalAIRouter unavailable for visual verification")
+                v_res = await _vr.run_local_llm(verification_prompt, category="fast")
                 if isinstance(v_res, tuple) and "INVALID" in str(v_res[0]):
                     logger.warning(f"⚠️ [OMNI-RAG] Visual context verification failed: {v_res[0]}")
                     visual_context = f"⚠️ [VERIFICATION FAILED]: {visual_context}"
@@ -1448,6 +1555,7 @@ async def run_smart_agent_async(
     if symbols:
         try:
             from symbol_tuner import get_symbol_tuner
+
             tuner = get_symbol_tuner()
             prompt = tuner.apply_symbols(prompt, symbols)
         except ImportError:
@@ -1481,16 +1589,32 @@ async def run_smart_agent_async_impl(
     project_context: Optional[str] = None,
 ):
     start_time = time.time()
-    
-    # [SINGULARITY 23.0] U-Shape Context Assembly
+
+    # [SINGULARITY 23.0] U-Shape Context Assembly — load memory crystals from DB
     memory_crystals = ""
+    try:
+        _mc_pool = await _get_db_pool()
+        if _mc_pool:
+            async with _mc_pool.acquire() as _mc_conn:
+                _mc_rows = await _mc_conn.fetch(
+                    "SELECT crystal_type, content FROM memory_crystals WHERE project_context = $1 ORDER BY created_at DESC LIMIT 10",
+                    project_context or "atra-web-ide",
+                )
+                if _mc_rows:
+                    _mc_text = "\n".join(
+                        f"[{r['crystal_type'].upper()}] {r['content']}" for r in _mc_rows
+                    )
+                    memory_crystals = f"💎 ПАМЯТЬ ПРОЕКТА (MEMORY CRYSTALS):\n{_mc_text}\n"
+                    logger.info(f"💎 [MEMORY CRYSTALS] Loaded {len(_mc_rows)} crystals")
+    except Exception as _mc_err:
+        logger.debug(f"Memory crystals load failed: {_mc_err}")
 
     # [SINGULARITY 26.9] Queue complex tasks to Redis worker
     goal_lower = (prompt or "").lower()
     # [SINGULARITY 10.3] Bypass queue for discussion mode
     # [SINGULARITY 10.5] Фикс: более надежный поиск тега (игнорируем регистр и пробелы)
     is_discussion_mode = "[system: team_discussion_mode]" in goal_lower
-    
+
     # [SINGULARITY 10.8] Фикс: если это режим обсуждения, мы НЕ добавляем системные инструкции,
     # которые могут спровоцировать Swarm/Handoff или галлюцинации о ролях.
     if is_discussion_mode:
@@ -1514,6 +1638,23 @@ async def run_smart_agent_async_impl(
     # [SINGULARITY 27.1] Inject expert's system_prompt FIRST
     if not is_discussion_mode and expert_system_prompt:
         prompt = f"### ТЫ — {expert_name.upper()}\n{expert_system_prompt}\n\n{prompt}"
+
+    # [SINGULARITY 31.3] Threat Detection — проверяем промпт на инъекции и утечки
+    try:
+        from app.threat_detector import get_threat_detector
+        _td = get_threat_detector()
+        _td_results = _td.analyze(prompt, "")  # Returns list of threats
+        if _td_results:
+            _td_sev = max(
+                {"critical": 3, "high": 2, "medium": 1, "low": 0}.get(t.get("severity", "low"), 0)
+                for t in _td_results
+            )
+            _td_types = [t.get("threat_type", "unknown") for t in _td_results]
+            logger.warning(f"🛡️ [THREAT] {_td_types} (severity=max={_td_sev}) in prompt for {expert_name}")
+            if _td_sev >= 3:
+                return _build_error_response(f"[SECURITY] Prompt rejected: {_td_types}")
+    except Exception as _td_err:
+        logger.debug(f"[THREAT] Detection unavailable: {_td_err}")
 
     # [SINGULARITY 27.0] Anti-Hallucination Instruction
     if not is_discussion_mode and expert_name in ("Виктория", "Victoria", "victoria"):
@@ -1591,6 +1732,17 @@ Use HANDOFF only if delegation genuinely improves the result.
         project_context or os.getenv("MAIN_PROJECT", "atra-web-ide")
     ).strip() or os.getenv("MAIN_PROJECT", "atra-web-ide")
     user_part = prompt.split("Запрос:")[-1].strip() if "Запрос:" in prompt else prompt
+
+    # Operational execution goals (dashboard/audit/no-clarify) should skip recursive meta-loops.
+    # They require deterministic execution path and are prone to recursion overflow in discovery/debate.
+    _upl = user_part.lower()
+    is_operational_execution_goal = (
+        ("аудит" in _upl or "deep-analysis" in _upl or "deep analysis" in _upl)
+        and ("дашборд" in _upl or "dashboard" in _upl)
+    ) or (
+        any(m in _upl for m in ("без уточнений", "не задавай уточняющие", "сразу выполняй"))
+        and any(m in _upl for m in ("исправ", "проверь", "sql", "миграц", "quality gate"))
+    )
 
     # [SINGULARITY 20.0] Wisdom Injection: Meta-Strategies from Knowledge Base
     meta_wisdom_context = ""
@@ -1841,9 +1993,9 @@ Use HANDOFF only if delegation genuinely improves the result.
     router = (
         _router_preferred
         if _router_preferred is not None
-        else (LocalAIRouter() if LocalAIRouter else None)
+        else (_get_local_router() if LocalAIRouter else None)
     )
-    distiller = KnowledgeDistiller() if KnowledgeDistiller else None
+    distiller = _get_distiller()
     qa = QualityAssurance(min_quality_threshold=0.7) if QualityAssurance else None
     quality_gate = QualityGate(qa) if QualityGate and qa else None
     parallel_processor = ParallelProcessor(max_concurrent=3) if ParallelProcessor else None
@@ -1877,6 +2029,7 @@ Use HANDOFF only if delegation genuinely improves the result.
     ltm_context = ""
     try:
         from long_term_memory import get_ltm
+
         ltm = get_ltm()
         memories = await ltm.recall_memories(user_part)
         if memories:
@@ -1942,6 +2095,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                 try:
                     pool = await _get_db_pool()
                     if pool and node_ids:
+
                         async def _log_knowledge_edges():
                             pool = await _get_db_pool()
                             if not pool:
@@ -1961,6 +2115,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                                         )
                                     except:
                                         pass
+
                         asyncio.create_task(_log_knowledge_edges())
                 except Exception as ke:
                     logger.debug(f"⚠️ Knowledge edges logging failed: {ke}")
@@ -2225,8 +2380,13 @@ Use HANDOFF only if delegation genuinely improves the result.
     # [SINGULARITY 22.8] Iterative Discovery Engine (RAG 3.0)
     # [SINGULARITY 29.5] Recursion Guard: Don't start discovery if already in a discovery/debate loop
     ctx = _RECURSION_CONTEXT.get()
-    if IterativeDiscovery and not ctx["discovery"] and not ctx["debate"] and (
-        is_critical or category == "reasoning" or "#complex" in user_part.lower()
+    if (
+        IterativeDiscovery
+        and not is_operational_execution_goal
+        and not ctx["discovery"]
+        and not ctx["debate"]
+        and ctx["depth"] < 3
+        and (is_critical or category == "reasoning" or "#complex" in user_part.lower())
     ):
         logger.info(f"🕵️ [SINGULARITY 22.8] Starting Iterative Discovery for: {expert_name}")
         import sys
@@ -2234,6 +2394,7 @@ Use HANDOFF only if delegation genuinely improves the result.
         # Update context for recursion guard
         new_ctx = ctx.copy()
         new_ctx["discovery"] = True
+        new_ctx["depth"] = ctx["depth"] + 1
         token = _RECURSION_CONTEXT.set(new_ctx)
 
         try:
@@ -2251,13 +2412,21 @@ Use HANDOFF only if delegation genuinely improves the result.
 
     # [SINGULARITY 22.1] Real-time Multi-Agent Debate
     # [SINGULARITY 29.5] Recursion Guard: Don't start debate if already in a discovery/debate loop
-    if ConsensusAgent and not ctx["debate"] and not ctx["discovery"] and (is_critical or category == "reasoning" or "обсуди" in user_part.lower()):
+    if (
+        ConsensusAgent
+        and not is_operational_execution_goal
+        and not ctx["debate"]
+        and not ctx["discovery"]
+        and ctx["depth"] < 3
+        and (is_critical or category == "reasoning" or "обсуди" in user_part.lower())
+    ):
         logger.info(
             f"🤝 [SINGULARITY 22.1] Starting Real-time Multi-Agent Debate for: {expert_name}"
         )
         # Update context for recursion guard
         new_ctx = ctx.copy()
         new_ctx["debate"] = True
+        new_ctx["depth"] = ctx["depth"] + 1
         token = _RECURSION_CONTEXT.set(new_ctx)
 
         try:
@@ -2285,23 +2454,45 @@ Use HANDOFF only if delegation genuinely improves the result.
     # If the task is coding or audit, we use Strategist (Wisdom) to plan and Executor (Qwen3) to execute
 
     # [SINGULARITY 20.0] Load hybrid models from .env
-    strategist_model = os.getenv("VICTORIA_STRATEGIST_MODEL", "victoria-wisdom-v3.5")
-    executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-v3.5")
+    strategist_model = os.getenv("VICTORIA_STRATEGIST_MODEL", "qwen2.5-coder:14b")
+    executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "qwen2.5-coder:14b")
+
+    # [SINGULARITY 30.6] Local-First Orchestration: Force local strategist if ice_mode is off
+    # [SINGULARITY 30.7] Temporarily disabled for R&D/Distillation VRAM offloading
+    force_local_orchestration = os.getenv("VICTORIA_AUTONOMOUS_SWARM", "false").lower() == "true"
+    try:
+        from app.redis_manager import redis_manager
+
+        client = await redis_manager.get_client()
+        ice_mode_val = await client.get("system:ice_mode")
+        is_ice_mode = str(ice_mode_val).lower() in ("true", "1", "yes")
+
+        if force_local_orchestration and not is_ice_mode:
+            # Если мы не в Ice Mode, форсируем локальное планирование
+            # Это уменьшает зависимость от облака (Singularity 30.6)
+            logger.info(
+                "🐝 [AUTONOMOUS SWARM] Local-First Orchestration active. Forcing local strategist."
+            )
+            # Мы не меняем саму модель, но router.run_local_llm будет вызван первым
+    except Exception as e:
+        logger.debug(f"Failed to check ice_mode for autonomous swarm: {e}")
 
     # Track token savings
     tokens_saved = 0
+
+    # [SINGULARITY 10.0+] Episodic Memory (User preferences) — для всех задач, не только coding
+    episodic_context = ""
+    if get_episodic_memory_manager and not is_critical:
+        em = get_episodic_memory_manager()
+        episodic_context = await em.get_episodes(user_key, project_context)
+        if episodic_context:
+            knowledge_context = f"{episodic_context}\n\n{knowledge_context}"
+            logger.info(f"💡 [EPISODIC] Loaded preferences for {user_key[:20]}")
 
     if is_coding_task and not is_critical:
         logger.info(
             f"👩‍💼 [STRATEGIST MODE] {strategist_model} is planning for {executor_model}..."
         )
-        # [SINGULARITY 10.0+] Episodic Memory (User preferences)
-        episodic_context = ""
-        if get_episodic_memory_manager:
-            em = get_episodic_memory_manager()
-            episodic_context = await em.get_episodes(user_key, project_context)
-            if episodic_context:
-                knowledge_context = f"{episodic_context}\n\n{knowledge_context}"
 
         # [SINGULARITY 13.0] Self-Distillation Rules
         distilled_rules = ""
@@ -2316,8 +2507,11 @@ Use HANDOFF only if delegation genuinely improves the result.
         current_strategy = "default"
         try:
             from agent_ab_testing import get_agent_ab_testing
+
             ab_test = get_agent_ab_testing()
-            current_strategy = await ab_test.select_strategy(expert_name, ["default", "concise", "creative"])
+            current_strategy = await ab_test.select_strategy(
+                expert_name, ["default", "concise", "creative"]
+            )
             logger.info(f"⚖️ [AB TEST] Selected strategy '{current_strategy}' for {expert_name}")
         except Exception as ab_err:
             logger.debug(f"Agent A/B testing failed: {ab_err}")
@@ -2325,7 +2519,7 @@ Use HANDOFF only if delegation genuinely improves the result.
         spec_prompt = f"""
         Вы - ВИКТОРИЯ, Главный Стратег (Wisdom Era). Составьте краткое ТЕХНИЧЕСКОЕ ЗАДАНИЕ (ТЗ) для младшего разработчика
         на основе запроса пользователя. Укажите только ЧТО сделать, без написания самого кода.
-        
+
         СТРАТЕГИЯ ОТВЕТА: {current_strategy}
 
         {style_modifier}
@@ -2402,7 +2596,24 @@ Use HANDOFF only if delegation genuinely improves the result.
                         )
                         examples = ""
 
-                worker_prompt = f"{examples}\n\n{style_modifier}\n{emotion_modifier}\n\nТЗ ОТ СТРАТЕГА ({strategist_model}):\n{spec}\n\nВЫПОЛНИТЕ ЗАДАНИЕ:"
+                # Keep executor payload compact: large duplicated context degrades latency.
+                def _clip_section(value: Any, max_len: int) -> str:
+                    text = value if isinstance(value, str) else str(value or "")
+                    text = text.strip()
+                    if len(text) <= max_len:
+                        return text
+                    return text[:max_len].rstrip() + "\n...[truncated]"
+
+                examples_compact = _clip_section(examples, 2500)
+                style_compact = _clip_section(style_modifier, 600)
+                emotion_compact = _clip_section(emotion_modifier, 400)
+                spec_compact = _clip_section(spec, 5000)
+
+                worker_prompt = (
+                    f"{examples_compact}\n\n{style_compact}\n{emotion_compact}\n\n"
+                    f"ТЗ ОТ СТРАТЕГА ({strategist_model}):\n{spec_compact}\n\n"
+                    "ВЫПОЛНИТЕ ЗАДАНИЕ:"
+                )
                 logger.info(f"👷 [EXECUTOR START] {executor_model} executing TS locally...")
 
                 # Используем Executor (Qwen3) на Ollama
@@ -2504,7 +2715,7 @@ Use HANDOFF only if delegation genuinely improves the result.
 
             # Safety check for local response (дополнительная проверка)
             if local_resp and SafetyChecker:
-                checker = SafetyChecker()
+                checker = _get_safety_checker()
                 if checker.should_reroute_to_cloud(local_resp, response_type="code"):
                     logger.warning(
                         "🛡️ [SAFETY CHECK] Local response failed safety check, rerouting to cloud"
@@ -2592,7 +2803,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                         await cache.save_to_cache(user_part, local_resp, expert_name)
                     return local_resp
 
-            # [SINGULARITY 28.X] ALWAYS log AB results after getting response
+                # [SINGULARITY 28.X] ALWAYS log AB results after getting response
                 _log_ab_id = f"{expert_name}_{abs(hash(str(local_resp)[:100])) % 1000000}"
                 try:
                     pool = await _get_db_pool()
@@ -2601,7 +2812,9 @@ Use HANDOFF only if delegation genuinely improves the result.
                             await conn.execute(
                                 """INSERT INTO agent_ab_results (expert_name, strategy, task_id, score, created_at)
                                 VALUES ($1, $2, $3, 1.0, NOW())""",
-                                expert_name, current_strategy, _log_ab_id
+                                expert_name,
+                                current_strategy,
+                                _log_ab_id,
                             )
                             logger.info(f"⚖️ [AB_LOG] {expert_name}/{current_strategy}/{_log_ab_id}")
                 except Exception as _abe:
@@ -2635,13 +2848,15 @@ Use HANDOFF only if delegation genuinely improves the result.
                     force_audit and (is_critical or is_critical_domain)
                 )
 
-                # [FIX] Инициализируем ЗАРАНЕЕ, чтобы избежать UnboundLocalError
-                audit_result = None  # По умолчанию None (если аудит не нужен)
-                if should_run_audit:
-                    logger.info(
-                        f"🏛️ [ARCHITECTURAL OVERSIGHT] {strategist_model} is auditing {expert_name}'s work..."
-                    )
-                    audit_prompt = f"""
+            # [FIX] Инициализируем заранее, чтобы избежать UnboundLocalError
+            should_run_audit = bool(locals().get("should_run_audit", False))
+            audit_result = None  # По умолчанию None (если аудит не нужен)
+            style_similarity_score = 0.0  # [FIX] Инициализируем для UnboundLocalError
+            if should_run_audit:
+                logger.info(
+                    f"🏛️ [ARCHITECTURAL OVERSIGHT] {strategist_model} is auditing {expert_name}'s work..."
+                )
+                audit_prompt = f"""
                     Вы - ВИКТОРИЯ, Главный Архитектор Корпорации (Level 20 Wisdom).
                     Проверьте код/решение, написанное экспертом {expert_name}.
 
@@ -2656,30 +2871,30 @@ Use HANDOFF only if delegation genuinely improves the result.
                     РЕЗУЛЬТАТ ЭКСПЕРТА:
                     {local_resp}
                     """
-                    # Используем Strategist (Wisdom) на MLX для аудита
-                    if router:
-                        audit_res = await router.run_local_llm(
-                            audit_prompt,
-                            category="reasoning",
-                            model_hint=strategist_model,
-                            is_vip=is_vip,
-                            expert_name=expert_name,
-                        )
-                        audit_result = audit_res[0] if isinstance(audit_res, tuple) else audit_res
-                    else:
-                        audit_result = await _run_cloud_agent_async(
-                            audit_prompt,
-                            category="reasoning",
-                            is_vip=is_vip,
-                            expert_name=expert_name,
-                        )
+                # Используем Strategist (Wisdom) на MLX для аудита
+                if router:
+                    audit_res = await router.run_local_llm(
+                        audit_prompt,
+                        category="reasoning",
+                        model_hint=strategist_model,
+                        is_vip=is_vip,
+                        expert_name=expert_name,
+                    )
+                    audit_result = audit_res[0] if isinstance(audit_res, tuple) else audit_res
+                else:
+                    audit_result = await _run_cloud_agent_async(
+                        audit_prompt,
+                        category="reasoning",
+                        is_vip=is_vip,
+                        expert_name=expert_name,
+                    )
 
-                    if audit_result and "APPROVED" not in audit_result.upper():
-                        logger.warning(
-                            f"⚠️ [AUDIT REJECTED] Victoria found issues in {expert_name}'s work."
-                        )
-                    else:
-                        logger.info(f"✅ [AUDIT APPROVED] Victoria approved {expert_name}'s work.")
+                if audit_result and "APPROVED" not in audit_result.upper():
+                    logger.warning(
+                        f"⚠️ [AUDIT REJECTED] Victoria found issues in {expert_name}'s work."
+                    )
+                else:
+                    logger.info(f"✅ [AUDIT APPROVED] Victoria approved {expert_name}'s work.")
 
             # [FIX] Проверяем audit_result на None перед использованием
             if audit_result is not None and audit_result and "APPROVED" in audit_result.upper():
@@ -2794,6 +3009,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                 interaction_log_id = None
                 try:
                     from token_logger import log_ai_interaction
+
                     interaction_log_id = await log_ai_interaction(
                         prompt=user_part,
                         response=local_resp[:2000],
@@ -2814,7 +3030,11 @@ Use HANDOFF only if delegation genuinely improves the result.
                 except:
                     pass
 
-                log_id = str(interaction_log_id) if interaction_log_id else f"{expert_name}_{abs(hash(local_resp[:50])) % 100000}"
+                log_id = (
+                    str(interaction_log_id)
+                    if interaction_log_id
+                    else f"{expert_name}_{abs(hash(local_resp[:50])) % 100000}"
+                )
 
                 # Direct insert to avoid import issues
                 try:
@@ -2824,24 +3044,32 @@ Use HANDOFF only if delegation genuinely improves the result.
                             await conn.execute(
                                 """INSERT INTO agent_ab_results (expert_name, strategy, task_id, score, created_at)
                                 VALUES ($1, $2, $3, $4, NOW())""",
-                                expert_name, current_strategy, log_id, final_score
+                                expert_name,
+                                current_strategy,
+                                log_id,
+                                final_score,
                             )
-                            logger.warning(f"⚖️ [AB_TEST] INSERTED: {expert_name}/{current_strategy}/{log_id}/{final_score}")
+                            logger.warning(
+                                f"⚖️ [AB_TEST] INSERTED: {expert_name}/{current_strategy}/{log_id}/{final_score}"
+                            )
                 except Exception as ab_err:
                     logger.warning(f"⚖️ [AB_TEST] FAILED: {ab_err}")
 
                     # [SINGULARITY 28.X] Constitutional Rewards logging
                     try:
                         from constitutional_rewards import get_constitutional_rewards
+
                         rewards = get_constitutional_rewards()
                         reward_result = await rewards.evaluate_interaction(
                             prompt=user_part,
                             response=local_resp,
                             expert_name=expert_name,
-                            interaction_log_id=str(interaction_log_id)
+                            interaction_log_id=str(interaction_log_id),
                         )
                         if reward_result.get("total") != 0:
-                            logger.info(f"⚖️ [REWARDS] {expert_name}: {reward_result.get('total'):.2f}")
+                            logger.info(
+                                f"⚖️ [REWARDS] {expert_name}: {reward_result.get('total'):.2f}"
+                            )
                     except Exception as rew_err:
                         logger.debug(f"Constitutional rewards log failed: {rew_err}")
 
@@ -2850,7 +3078,9 @@ Use HANDOFF only if delegation genuinely improves the result.
                         try:
                             detector = EmotionDetector()
                             feedback_score = None
-                            await detector.log_emotion(interaction_log_id, emotion_result, feedback_score)
+                            await detector.log_emotion(
+                                interaction_log_id, emotion_result, feedback_score
+                            )
                         except Exception as e:
                             logger.debug(f"⚠️ [EMOTION DETECTOR] Error logging emotion: {e}")
 
@@ -2880,12 +3110,13 @@ Use HANDOFF only if delegation genuinely improves the result.
                 # [SINGULARITY 28.X] Evaluate with Constitutional Rewards before returning
                 try:
                     from constitutional_rewards import get_constitutional_rewards
+
                     rewards = get_constitutional_rewards()
                     await rewards.evaluate_and_score(
                         interaction_log_id or "unknown",
                         expert_name,
                         local_resp,
-                        {"response_time_seconds": response_time_seconds}
+                        {"response_time_seconds": response_time_seconds},
                     )
                 except ImportError:
                     pass
@@ -2900,14 +3131,20 @@ Use HANDOFF only if delegation genuinely improves the result.
                     # Save the error for learning
                     expert_id = await _get_expert_id(expert_name)
                     if expert_id:  # Only save if expert_id is valid
-                        await distiller.save_correction(
-                            expert_id,
-                            category or "coding",
-                            user_part,
-                            local_resp,
-                            "...",
-                            audit_result,
-                        )
+                        save_correction_fn = getattr(distiller, "save_correction", None)
+                        if callable(save_correction_fn):
+                            await save_correction_fn(
+                                expert_id,
+                                category or "coding",
+                                user_part,
+                                local_resp,
+                                "...",
+                                audit_result,
+                            )
+                        else:
+                            logger.debug(
+                                "ℹ️ [DISTILLER] save_correction is not available; skip correction persistence"
+                            )
 
                 final_prompt = f"ПЛАН ИСПРАВЛЕНИЯ ОТ ТИМЛИДА:\n{audit_result}\n\nИСПРАВЬТЕ КОД:"
                 final_result = await router.run_local_llm(
@@ -3114,7 +3351,7 @@ Use HANDOFF only if delegation genuinely improves the result.
 
         # Safety check for direct local responses
         if local_resp and SafetyChecker:
-            checker = SafetyChecker()
+            checker = _get_safety_checker()
             if checker.should_reroute_to_cloud(
                 local_resp, response_type="code" if category == "coding" else "text"
             ):
@@ -3266,7 +3503,9 @@ Use HANDOFF only if delegation genuinely improves the result.
                 await conn.execute(
                     """INSERT INTO agent_ab_results (expert_name, strategy, task_id, score, created_at)
                     VALUES ($1, $2, $3, 1.0, NOW())""",
-                    expert_name, current_strategy, _final_id
+                    expert_name,
+                    current_strategy,
+                    _final_id,
                 )
                 logger.info(f"⚖️ [AB_FINAL] {expert_name}/{current_strategy}/{_final_id}")
     except Exception as _fabe:
@@ -3559,29 +3798,38 @@ Use HANDOFF only if delegation genuinely improves the result.
             # [SINGULARITY 10.0] Budget Gate Check
             try:
                 from redis_manager import redis_manager
+
                 rm = redis_manager
                 client = await rm.get_client()
                 daily_cost = await client.get(f"budget:daily:{expert_name or 'global'}")
                 max_budget = float(os.getenv("DAILY_BUDGET_LIMIT", "10.0"))
                 if daily_cost and float(daily_cost) >= max_budget:
-                    logger.warning(f"💰 [BUDGET GATE] Daily budget exceeded for {expert_name}. Forcing local model.")
+                    logger.warning(
+                        f"💰 [BUDGET GATE] Daily budget exceeded for {expert_name}. Forcing local model."
+                    )
                     # Force local mode by returning local response directly if possible
                     if router:
-                        return await router.run_local_llm(prompt, category=category, expert_name=expert_name)
+                        return await router.run_local_llm(
+                            prompt, category=category, expert_name=expert_name
+                        )
             except Exception as budget_err:
                 logger.debug(f"Budget check failed: {budget_err}")
 
             cloud_start_time = time.time()
-            response = await _run_cloud_agent_async(compressed_prompt, category=category, is_vip=is_vip)
+            response = await _run_cloud_agent_async(
+                compressed_prompt, category=category, is_vip=is_vip
+            )
+            response = await _safe_cloud_response(response)
             cloud_latency_ms = (time.time() - cloud_start_time) * 1000
 
             # [SINGULARITY 10.0] Record Cost in Redis
             try:
                 from token_logger import estimate_tokens
+
                 in_tokens = await estimate_tokens(compressed_prompt)
                 out_tokens = await estimate_tokens(response or "")
                 # Simple cost estimation for cloud
-                estimated_cost = (in_tokens + out_tokens) * 0.00001 # $10 per 1M tokens avg
+                estimated_cost = (in_tokens + out_tokens) * 0.00001  # $10 per 1M tokens avg
                 await client.incrbyfloat(f"budget:daily:{expert_name or 'global'}", estimated_cost)
                 await client.expire(f"budget:daily:{expert_name or 'global'}", 86400)
             except Exception as cost_err:
@@ -3653,6 +3901,7 @@ Use HANDOFF only if delegation genuinely improves the result.
             logger.info("✅ [TOOL CREATOR] New tool created. Retrying task...")
             # Retry once with the new tool
             response = await _run_cloud_agent_async(compressed_prompt)
+            response = await _safe_cloud_response(response)
 
     # Offline fallback
     if response and (response.startswith("❌") or response.startswith("⚠️")) and router:
@@ -3779,7 +4028,12 @@ Use HANDOFF only if delegation genuinely improves the result.
         p_ctx = locals().get("project_context") or os.getenv("MAIN_PROJECT", "atra-web-ide")
         if any(
             kw in user_part.lower()
-            for kw in ["всегда", "никогда", "предпочитаю", "мне нравится", "используй только"]
+            for kw in [
+                "всегда", "никогда", "предпочитаю", "мне нравится", "используй только",
+                "always", "never", "prefer", "i like", "i use", "i want", "always use",
+                "never use", "my preference", "i usually", "i tend to", "i'd like",
+                "i prefer", "i need", "i want you to", "from now on",
+            ]
         ):
             asyncio.create_task(em.save_episode(user_identifier, p_ctx, "preference", user_part))
         elif "почему" in user_part.lower() and len(response) > 500:
@@ -3850,6 +4104,34 @@ Use HANDOFF only if delegation genuinely improves the result.
             )
         )
 
+    # [SINGULARITY 31.3] Canary Router: A/B test expert mutations in production
+    if response and not response.startswith("[SYSTEM:") and expert_name != "Виктория":
+        try:
+            _canary_expert_id = _get_expert_id(expert_name)
+            if inspect.isawaitable(_canary_expert_id):
+                _canary_expert_id = await _canary_expert_id
+            if _canary_expert_id:
+                from app.canary_router import should_use_canary, record_canary_result
+
+                _use_canary, _mutation = await should_use_canary(expert_name, str(_canary_expert_id))
+                if _use_canary and _mutation:
+                    # Run mutated prompt
+                    _mutated_prompt = _mutation.get("mutated_prompt", "")
+                    if _mutated_prompt:
+                        _canary_response = await _run_cloud_agent_async(
+                            _mutated_prompt, category=category, is_vip=False
+                        )
+                        asyncio.create_task(
+                            record_canary_result(
+                                mutation_id=_mutation["id"],
+                                production_response=response,
+                                canary_response=_canary_response,
+                                expert_name=expert_name,
+                            )
+                        )
+        except Exception as _canary_err:
+            logger.debug(f"[CANARY] Skipped: {_canary_err}")
+
     # Cleanup internal metadata markers from response
     response = _clean_response(response)
 
@@ -3864,13 +4146,20 @@ def _clean_response(response: str) -> str:
     # Remove system error messages
     if "[SYSTEM:" in response or response.startswith("⚠️") or response.startswith("❌"):
         return ""
-    
+
     lines = response.split("\n")
     cleaned = []
     markers = (
-        "Solved:", "ЗАДАЧА:", "План от", "Результаты работы",
-        "Назначения оркестратора:", "Стратегия оркестратора:",
-        "strategy_line", "[SYSTEM:", "⚠️", "❌",
+        "Solved:",
+        "ЗАДАЧА:",
+        "План от",
+        "Результаты работы",
+        "Назначения оркестратора:",
+        "Стратегия оркестратора:",
+        "strategy_line",
+        "[SYSTEM:",
+        "⚠️",
+        "❌",
     )
     for line in lines:
         stripped = line.strip()
@@ -3890,8 +4179,23 @@ async def _trigger_shadow_execution(
     [SINGULARITY 14.0] Shadow Execution Trigger.
     Checks for active shadow mutations and runs them in the background.
     """
+    # Keep execution path testable even when optional manager is unavailable.
     if not ShadowExecutionManager:
-        return
+        logger.debug("ShadowExecutionManager unavailable, continuing with lightweight trigger path")
+
+    # [SINGULARITY 31.3] Shadow Execution v2: log performance for monitoring
+    try:
+        from app.shadow_execution_manager_v2 import get_shadow_manager as get_shadow_v2
+        shadow_v2 = get_shadow_v2()
+        shadow_v2.performance_metrics[request_id] = {
+            "expert": expert_name,
+            "category": category,
+            "response_length": len(production_response or ""),
+            "timestamp": time.time(),
+        }
+        logger.debug(f"[SHADOW_V2] Metrics logged for {request_id}")
+    except Exception:
+        pass
 
     try:
         pool = await _get_db_pool()
@@ -3899,8 +4203,34 @@ async def _trigger_shadow_execution(
             return
 
         # 1. Check for active shadow mutations for this expert
-        async with pool.acquire() as conn:
-            expert_id = await _get_expert_id(expert_name)
+        acquired = pool.acquire()
+        if inspect.isawaitable(acquired):
+            acquired = await acquired
+        if hasattr(acquired, "__aenter__"):
+            conn_cm = acquired
+        else:
+
+            class _ConnPassthrough:
+                def __init__(self, conn):
+                    self._conn = conn
+
+                async def __aenter__(self):
+                    return self._conn
+
+                async def __aexit__(self, exc_type, exc, tb):
+                    release = getattr(pool, "release", None)
+                    if callable(release):
+                        maybe = release(self._conn)
+                        if inspect.isawaitable(maybe):
+                            await maybe
+                    return False
+
+            conn_cm = _ConnPassthrough(acquired)
+
+        async with conn_cm as conn:
+            expert_id = _get_expert_id(expert_name)
+            if inspect.isawaitable(expert_id):
+                expert_id = await expert_id
             if not expert_id:
                 return
 
@@ -3939,7 +4269,7 @@ async def _trigger_shadow_execution(
                     try:
                         # Use local router for shadow execution to save tokens
                         if LocalAIRouter:
-                            router = LocalAIRouter()
+                            router = _get_local_router()
                             res = await router.run_local_llm(
                                 shadow_prompt,
                                 category=category or "general",
@@ -3958,6 +4288,9 @@ async def _trigger_shadow_execution(
 
                 if shadow_response:
                     # 3. Send both to Evaluator
+                    logger.info(
+                        f"⚖️ [SHADOW] Sending results for mutation {mutation_id} to evaluator (Placeholder)"
+                    )
                     if ShadowEvaluator:
                         logger.info(f"⚖️ [SHADOW] Evaluating mutation {mutation_id}...")
                         evaluator = ShadowEvaluator(db_url=os.getenv("DATABASE_URL"))
@@ -3970,8 +4303,9 @@ async def _trigger_shadow_execution(
                             )
                         )
                     else:
-                        logger.warning(
-                            f"⚠️ [SHADOW] ShadowEvaluator not found, skipping evaluation for {mutation_id}"
+                        logger.debug(
+                            "ShadowEvaluator not available, kept placeholder-only logging for %s",
+                            mutation_id,
                         )
 
     except Exception as e:
@@ -4001,4 +4335,22 @@ async def _get_expert_id(name: str) -> str:
         return await conn.fetchval("SELECT id FROM experts WHERE name = $1", resolved)
 
 
-# Sync wrapper implementation would go here (omitted for brevity)
+# [SINGULARITY 31.3] Background canary daemon — тестирует мутации без трафика
+async def _canary_daemon_loop():
+    """Run untested shadow mutations every hour."""
+    while True:
+        try:
+            from app.canary_router import run_canary_daemon
+            tested = await run_canary_daemon()
+            if tested:
+                logger.info(f"[CANARY_DAEMON] Tested {tested} untested mutations")
+        except Exception:
+            pass
+        await asyncio.sleep(3600)  # every hour
+
+
+try:
+    asyncio.create_task(_canary_daemon_loop())
+    logger.info("[CANARY_DAEMON] Started (hourly cycle)")
+except Exception:
+    pass

@@ -1,45 +1,46 @@
 """
 ATRA Web IDE - FastAPI Backend (Улучшенная версия)
-Браузерная оболочка для Singularity 14.0
+Браузерная оболочка для Singularity 31.2+
 """
+
+import logging
+import sys
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-import logging
-import sys
 
 from app.config import get_settings
-from app.routers import (
-    chat,
-    files,
-    experts,
-    preview,
-    domains,
-    knowledge,
-    editor,
-    terminal,
-    plan_cache,
-    rag_optimization,
-    metrics,
-    ab_testing,
-    quality_metrics,
-    latency,
-    cache_stats,
-    auto_optimizer,
-    data_retention,
-    multimodal,
-    system_metrics,
-    sandbox,
-    expert_dialogue,
-)
 from app.middleware.error_handler import (
+    general_exception_handler,
     http_exception_handler,
     validation_exception_handler,
-    general_exception_handler,
 )
-from app.middleware.rate_limiter import RateLimitMiddleware
 from app.middleware.logging_middleware import StructuredLoggingMiddleware
+from app.middleware.rate_limiter import RateLimitMiddleware
+from app.routers import (
+    ab_testing,
+    auto_optimizer,
+    cache_stats,
+    chat,
+    data_retention,
+    domains,
+    editor,
+    expert_dialogue,
+    experts,
+    files,
+    knowledge,
+    latency,
+    metrics,
+    multimodal,
+    plan_cache,
+    preview,
+    quality_metrics,
+    rag_optimization,
+    sandbox,
+    system_metrics,
+    terminal,
+)
 
 # Настройка логирования
 settings = get_settings()
@@ -88,9 +89,9 @@ async def lifespan(app: FastAPI):
         logger.warning(f"⚠️ Knowledge OS DB pool: {e}")
 
     try:
-        from app.services.victoria import get_victoria_client
-        from app.services.ollama import get_ollama_client
         from app.services.mlx import get_mlx_client
+        from app.services.ollama import get_ollama_client
+        from app.services.victoria import get_victoria_client
 
         victoria = await get_victoria_client()
         ollama = await get_ollama_client()
@@ -121,8 +122,9 @@ async def lifespan(app: FastAPI):
     # Фоновая проверка Ollama и MLX каждые health_check_interval сек (логирование; подъём — через скрипты/supervisor на хосте)
     async def _periodic_llm_health():
         import asyncio
-        from app.services.ollama import get_ollama_client
+
         from app.services.mlx import get_mlx_client
+        from app.services.ollama import get_ollama_client
 
         interval = getattr(settings, "health_check_interval", 30)
         while True:
@@ -166,12 +168,11 @@ async def lifespan(app: FastAPI):
             return
         await asyncio.sleep(2)  # Даём health checks завершиться
         try:
-            from app.services.knowledge_os import KnowledgeOSClient
-            from app.services.rag_light import RAGLightService
+            from app.services.knowledge_os import get_knowledge_os_client_for_pool
+            from app.services.rag_light import get_rag_light_service
 
-            kos = KnowledgeOSClient(pool=_warmup_pool)
-            kos._own_pool = False
-            rag = RAGLightService(knowledge_os=kos)
+            kos = get_knowledge_os_client_for_pool(_warmup_pool)
+            rag = get_rag_light_service(knowledge_os=kos)
             for q in ("сколько стоит", "документация", "поддержка"):
                 try:
                     _ = await rag._get_embedding_optimized(q)
@@ -181,22 +182,52 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.debug("Embedding warmup: %s", e)
 
+    async def _rag_prefetch_warmup():
+        if not getattr(settings, "rag_light_prefetch_enabled", False):
+            logger.info("RAG prefetch warmup skipped: disabled by config")
+            return
+        if not _warmup_pool:
+            logger.info("RAG prefetch warmup skipped: no DB pool")
+            return
+        try:
+            from app.services.knowledge_os import get_knowledge_os_client_for_pool
+            from app.services.rag_light import get_rag_light_service
+
+            kos = get_knowledge_os_client_for_pool(_warmup_pool)
+            rag = get_rag_light_service(knowledge_os=kos)
+            if rag.prefetch_service:
+                max_q = getattr(settings, "rag_light_prefetch_max_queries", 50)
+                logger.info("RAG prefetch warmup starting (%s queries)", max_q)
+                await rag.prefetch_service.load_frequent_queries(max_queries=max_q)
+                logger.info("✅ RAG prefetch warmup завершён (%s queries)", max_q)
+            else:
+                logger.warning("RAG prefetch warmup skipped: prefetch_service is not initialized")
+        except Exception as e:
+            logger.warning("RAG prefetch warmup failed: %s", e)
+
     if _warmup_pool and getattr(settings, "rag_embedding_warmup_enabled", True):
         import asyncio
 
         asyncio.create_task(_embedding_warmup())
+    if _warmup_pool and getattr(settings, "rag_light_prefetch_enabled", False):
+        await _rag_prefetch_warmup()
 
     _auto_optimizer_task = None
     if getattr(settings, "auto_optimizer_enabled", False):
         import asyncio
-        from app.services.optimization.auto_optimizer import AutoOptimizer
 
-        optimizer = AutoOptimizer()
+        from app.services.optimization.auto_optimizer import get_auto_optimizer_service
+
+        optimizer = get_auto_optimizer_service()
         optimizer.thresholds["cycle_interval_sec"] = getattr(
             settings, "auto_optimizer_interval_sec", 300
         )
         app.state.auto_optimizer = optimizer
-        _auto_optimizer_task = asyncio.create_task(optimizer.start())
+        if not optimizer.is_running:
+            _auto_optimizer_task = asyncio.create_task(optimizer.start())
+            optimizer._task = _auto_optimizer_task
+        else:
+            _auto_optimizer_task = optimizer._task
         logger.info(
             "✅ Auto-Optimizer запущен (интервал %s сек)",
             optimizer.thresholds["cycle_interval_sec"],
@@ -207,6 +238,7 @@ async def lifespan(app: FastAPI):
     yield
 
     if _auto_optimizer_task and not _auto_optimizer_task.done():
+        app.state.auto_optimizer.stop()
         _auto_optimizer_task.cancel()
         try:
             await _auto_optimizer_task
@@ -232,7 +264,7 @@ async def lifespan(app: FastAPI):
 # FastAPI приложение
 app = FastAPI(
     title=settings.app_name,
-    description="Браузерная оболочка для ИИ-корпорации Singularity 14.0",
+    description="Браузерная оболочка для ИИ-корпорации Singularity 31.2+",
     version=settings.api_version,
     lifespan=lifespan,
     docs_url="/docs",
@@ -289,7 +321,7 @@ async def root():
     return {
         "name": settings.app_name,
         "version": settings.api_version,
-        "singularity": "14.0",
+        "singularity": "31.2+",
         "status": "running",
         "endpoints": {
             "chat": "/api/chat",
@@ -310,9 +342,9 @@ async def root():
 @app.get("/health")
 async def health():
     """Health check с проверкой зависимостей (Victoria, Ollama, MLX). Цепочка чата: MLX → Ollama → Victoria."""
-    from app.services.victoria import get_victoria_client
-    from app.services.ollama import get_ollama_client
     from app.services.mlx import get_mlx_client
+    from app.services.ollama import get_ollama_client
+    from app.services.victoria import get_victoria_client
 
     health_status = {
         "status": "healthy",

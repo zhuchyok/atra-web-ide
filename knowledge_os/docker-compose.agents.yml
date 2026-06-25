@@ -54,7 +54,7 @@ services:
     environment:
       TZ: Europe/Moscow
       CORPORATION_TZ: Europe/Moscow
-      PYTHONPATH: /app
+      PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os:/app
       VICTORIA_PORT: "8000"
       ATRA_HOST_WORKSPACE: /Users/bikos/Documents/atra-web-ide
       ATRA_CONTAINER_WORKSPACE: /workspace/atra-web-ide
@@ -62,7 +62,7 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       POSTGRES_DIRECT_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "2"
       OLLAMA_MAX_QUEUE: "100"
       REDIS_URL: unix:///data/redis/redis.sock
@@ -119,11 +119,11 @@ services:
       retries: 3
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app
+      PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os:/app
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "2"
       OLLAMA_MAX_QUEUE: "100"
     ports:
@@ -156,11 +156,11 @@ services:
       retries: 3
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os
+      PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "2"
       OLLAMA_MAX_QUEUE: "100"
       ORCHESTRATOR_BACKLOG_THRESHOLD: ${ORCHESTRATOR_BACKLOG_THRESHOLD:-20}
@@ -212,7 +212,7 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "2"
       OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
@@ -257,7 +257,7 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "2"
       OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
@@ -300,7 +300,7 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "2"
       OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
@@ -341,7 +341,7 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "2"
       OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
@@ -381,7 +381,7 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "2"
       OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
@@ -411,11 +411,11 @@ services:
         condition: service_healthy
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os
+      PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "2"
       OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
@@ -444,11 +444,11 @@ services:
       retries: 3
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os
+      PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "2"
       OLLAMA_MAX_QUEUE: "100"
       EVOLUTION_ROLLOUT_MODE: ${EVOLUTION_ROLLOUT_MODE:-hybrid}
@@ -486,11 +486,11 @@ services:
       retries: 3
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os
+      PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "2"
       OLLAMA_MAX_QUEUE: "100"
       SELF_CHECK_INTERVAL_SEC: ${SELF_CHECK_INTERVAL_SEC:-300}
@@ -514,11 +514,11 @@ services:
       - atra-network
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os
+      PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "2"
       OLLAMA_MAX_QUEUE: "100"
       NIGHTLY_INTERVAL_SEC: ${NIGHTLY_INTERVAL_SEC:-86400}
@@ -545,11 +545,11 @@ services:
       - atra-network
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os
+      PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "2"
       OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
@@ -570,7 +570,7 @@ services:
       - atra-network
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os
+      PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       CHAT_ID: ${TELEGRAM_USER_ID}
@@ -593,7 +593,7 @@ services:
       - atra-network
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os
+      PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
     volumes:
@@ -613,7 +613,7 @@ services:
       - atra-network
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os
+      PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
     volumes:
       - ..:/app:ro
@@ -630,7 +630,7 @@ services:
       - atra-network
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app
+      PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os:/app
       OLLAMA_BASE_URL: "http://host.docker.internal:11434"
     ports:
       - "8005:8005"
@@ -653,7 +653,7 @@ services:
       - atra-network
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os
+      PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       SWARM_STUDIO_PORT: "8006"
     volumes:

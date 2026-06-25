@@ -403,6 +403,30 @@ class StreamingOrchestrator:
                 f"в области {desert['name']}. Найди 3 прорывных инсайта."
             )
             title_curiosity = f"🔥 СРОЧНОЕ ИССЛЕДОВАНИЕ: {desert['name']}"
+            cooldown_min = int(os.getenv("ORCHESTRATOR_CURIOSITY_RETRY_COOLDOWN_MIN", "30"))
+            recent_curiosity_failure = await pool.fetchval(
+                """
+                SELECT 1
+                FROM tasks
+                WHERE title = $1
+                  AND status = 'failed'
+                  AND updated_at > NOW() - ($2::text || ' minutes')::interval
+                  AND COALESCE(metadata->>'auto_fallback_reason', '') IN (
+                      'curiosity_no_llm_progress_timeout',
+                      'pending_curiosity_starvation_timeout'
+                  )
+                LIMIT 1
+                """,
+                title_curiosity,
+                str(cooldown_min),
+            )
+            if recent_curiosity_failure:
+                logger.info(
+                    "⏭️ Curiosity cooldown active for %s (%s min)",
+                    desert["name"],
+                    cooldown_min,
+                )
+                continue
 
             # Находим эксперта
             assignee = await pool.fetchrow(

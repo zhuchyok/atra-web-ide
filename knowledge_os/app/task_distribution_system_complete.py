@@ -13,6 +13,18 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+_VICTORIA_ENHANCED_SINGLETON = None
+_CORP_REFRESH_LAST_TS = 0.0
+_CORP_REFRESH_LOCK = asyncio.Lock()
+
+
+def _get_victoria_enhanced_singleton():
+    global _VICTORIA_ENHANCED_SINGLETON
+    if _VICTORIA_ENHANCED_SINGLETON is None:
+        from app.victoria_enhanced import VictoriaEnhanced
+
+        _VICTORIA_ENHANCED_SINGLETON = VictoriaEnhanced()
+    return _VICTORIA_ENHANCED_SINGLETON
 
 
 def _json_serial(obj: Any) -> Any:
@@ -180,9 +192,13 @@ class TaskDistributionSystem:
             return []
 
     async def distribute_tasks_from_veronica_prompt(
-        self, veronica_prompt: str, organizational_structure: Dict
+        self,
+        veronica_prompt: str,
+        organizational_structure: Dict,
+        **kwargs: Any,
     ) -> List[TaskAssignment]:
         """Распределить задачи из текстового плана (парсинг через Victoria при отсутствии task_plan_struct). Обратная совместимость."""
+        # kwargs: department, goal — передаются из victoria_enhanced._execute_with_task_distribution
         try:
             # Парсим промпт для извлечения задач (fallback, когда нет task_plan_struct)
             tasks = await self._parse_veronica_prompt(veronica_prompt, organizational_structure)
@@ -213,11 +229,29 @@ class TaskDistributionSystem:
         # Реальный парсинг через Victoria Enhanced с использованием системы знаний
         try:
             from app.corporation_knowledge_system import CorporationKnowledgeSystem
-            from app.victoria_enhanced import VictoriaEnhanced
 
-            # Обновляем знания корпорации перед парсингом
-            knowledge_system = CorporationKnowledgeSystem()
-            knowledge = await knowledge_system.update_corporation_knowledge()
+            # Fail-safe: не запускаем refresh знаний на каждый парсинг задачи.
+            # Это вызывало шторм эмбеддингов и деградацию latency.
+            refresh_enabled = (
+                os.getenv("TASK_DISTRIBUTION_REFRESH_CORP_KNOWLEDGE", "false").lower()
+                in ("1", "true", "yes")
+            )
+            refresh_interval = int(
+                os.getenv("TASK_DISTRIBUTION_REFRESH_INTERVAL_SEC", "1800")
+            )
+            if refresh_enabled:
+                async with _CORP_REFRESH_LOCK:
+                    global _CORP_REFRESH_LAST_TS
+                    now_ts = datetime.now().timestamp()
+                    if now_ts - _CORP_REFRESH_LAST_TS >= max(60, refresh_interval):
+                        _CORP_REFRESH_LAST_TS = now_ts
+                        knowledge_system = CorporationKnowledgeSystem()
+                        await knowledge_system.update_corporation_knowledge()
+                    else:
+                        logger.debug(
+                            "TaskDistribution: skip corp refresh due cooldown (%ss).",
+                            refresh_interval,
+                        )
 
             # Используем Victoria для парсинга
             parse_prompt = f"""
@@ -239,7 +273,7 @@ class TaskDistributionSystem:
             ]
             """
 
-            victoria = VictoriaEnhanced()
+            victoria = _get_victoria_enhanced_singleton()
             result = await victoria.solve(parse_prompt, method="extended_thinking")
 
             # Парсим результат

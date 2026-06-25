@@ -6,6 +6,8 @@ ELK Handler для отправки логов в Elasticsearch
 import asyncio
 import json
 import logging
+import os
+import time
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
@@ -39,8 +41,53 @@ class ELKHandler(logging.Handler):
         self.client: Optional[httpx.AsyncClient] = None
         self._log_buffer: list[Dict[str, Any]] = []
         self._last_flush = datetime.now()
+        self._max_buffer = int(os.getenv("ELK_MAX_BUFFER", "200"))
+        self._elk_min_level = getattr(
+            logging, os.getenv("ELK_MIN_LEVEL", "INFO").upper(), logging.INFO
+        )
+        self._drop_noncritical_cache_until = 0.0
+        self._drop_noncritical_cached = False
+        self._redis_flag_client = None
+        self._redis_flag_key = os.getenv("ELK_DROP_FLAG_KEY", "system:elk_drop_noncritical")
+        self._init_redis_flag_client()
         self._init_client()
         self._start_background_flusher()
+
+    def _init_redis_flag_client(self):
+        """Optional Redis client for pressure-aware ELK throttling."""
+        redis_url = os.getenv("REDIS_URL", "")
+        if not redis_url:
+            return
+        try:
+            from redis import Redis
+
+            if redis_url.startswith("unix://"):
+                path = redis_url.replace("unix://", "")
+                self._redis_flag_client = Redis(unix_socket_path=path, decode_responses=True)
+            elif redis_url.startswith("redis://"):
+                # redis://host:port/db
+                without_scheme = redis_url.replace("redis://", "", 1)
+                host_port = without_scheme.split("/", 1)[0]
+                host, port = host_port.split(":")
+                self._redis_flag_client = Redis(host=host, port=int(port), decode_responses=True)
+        except Exception as e:
+            logger.debug(f"Failed to init ELK Redis flag client: {e}")
+
+    def _should_drop_noncritical(self) -> bool:
+        now = time.time()
+        if now < self._drop_noncritical_cache_until:
+            return self._drop_noncritical_cached
+
+        drop = os.getenv("ELK_DROP_NONCRITICAL", "false").lower() in ("true", "1", "yes")
+        if self._redis_flag_client:
+            try:
+                drop = bool(self._redis_flag_client.get(self._redis_flag_key))
+            except Exception:
+                pass
+
+        self._drop_noncritical_cached = drop
+        self._drop_noncritical_cache_until = now + 5.0
+        return drop
 
     def _init_client(self):
         """Инициализация HTTP клиента"""
@@ -57,6 +104,11 @@ class ELKHandler(logging.Handler):
             return
 
         try:
+            if record.levelno < self._elk_min_level:
+                return
+            if self._should_drop_noncritical() and record.levelno < logging.ERROR:
+                return
+
             # Формируем структурированный лог
             log_data = {
                 "@timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -81,6 +133,10 @@ class ELKHandler(logging.Handler):
 
             # Добавляем в буфер
             self._log_buffer.append(log_data)
+            if len(self._log_buffer) > self._max_buffer:
+                overflow = len(self._log_buffer) - self._max_buffer
+                if overflow > 0:
+                    self._log_buffer = self._log_buffer[overflow:]
 
             # Отправляем если буфер заполнен (только при уже запущенном event loop)
             if len(self._log_buffer) >= self.batch_size:

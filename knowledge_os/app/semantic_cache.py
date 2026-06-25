@@ -241,57 +241,40 @@ async def get_embedding(text: str) -> Optional[list]:
 async def _execute_embedding_request(text: str) -> Optional[list]:
     """
     Внутренняя логика выполнения запроса с ретраями.
-    [SINGULARITY 24.3] Увеличено количество попыток и добавлен экспоненциальный бэкофф для 503.
+    [SINGULARITY 31.3] Primary: sentence-transformers (local, reliable).
+    Fallback: Ollama /api/embeddings (fast when available).
     """
-    max_retries = int(os.getenv("OLLAMA_EMBED_MAX_RETRIES", "5"))
+    # [PRIMARY] sentence-transformers — всегда работает, локально
+    try:
+        from sentence_transformers import SentenceTransformer
+        _st_model = SentenceTransformer('nomic-ai/nomic-embed-text-v1.5')
+        _emb = _st_model.encode(text[:2000])
+        logger.debug("✅ [EMBED] sentence-transformers primary OK")
+        return _emb.tolist()
+    except Exception as _st_err:
+        logger.debug(f"[EMBED] sentence-transformers failed: {_st_err}")
+
+    # [FALLBACK] Ollama /api/embeddings (быстро, но нестабильно)
+    max_retries = 2
     for attempt in range(max_retries):
         if attempt > 0:
-            # Exponential backoff: 1s, 2s, 4s, 8s
-            await asyncio.sleep(2 ** (attempt - 1))
+            await asyncio.sleep(1)
         client = None
         if get_http_client:
             try:
                 client = await get_http_client()
-            except Exception as exc:
-                logger.debug("Shared HTTP client unavailable, attempt %d: %s", attempt + 1, exc)
-
+            except Exception:
+                pass
         try:
-            # [DEBUG]
-            logger.debug("Embedding request to %s with model %s", OLLAMA_EMBED_URL, OLLAMA_MODEL)
             if client is None:
                 async with httpx.AsyncClient(verify=False) as fallback_client:
                     res = await _do_embed_request(fallback_client, text)
             else:
                 res = await _do_embed_request(client, text)
-
             if res:
                 return res
-
-            # [SINGULARITY 24.3] Graceful Degradation: Search by Hash if Ollama fails
-            if attempt == max_retries - 1:
-                logger.debug(
-                    "🔍 [GRACEFUL DEGRADATION] Ollama failed, trying exact hash match in DB..."
-                )
-                # Поиск по хэшу в БД будет реализован в методах класса SemanticAICache
-                # Здесь мы просто возвращаем None, чтобы сигнализировать о провале Ollama
-
-            # Если вернулось None (например, 503), пробуем еще раз с экспоненциальным бэкоффом + jitter
-            if attempt < max_retries - 1:
-                wait_time = 2**attempt + random.uniform(
-                    0, 1
-                )  # jitter для предотвращения thundering herd
-                logger.debug(
-                    f"⏳ [RETRY] Embedding attempt {attempt + 1} failed, waiting {wait_time:.2f}s..."
-                )
-                await asyncio.sleep(wait_time)
-
-        except Exception as exc:
-            if attempt < max_retries - 1:
-                logger.warning("Embedding attempt %d failed: %s. Retrying...", attempt + 1, exc)
-                await asyncio.sleep(2**attempt)
-            else:
-                logger.error("Embedding error after %d attempts (Ollama): %s", max_retries, exc)
-
+        except Exception:
+            pass
     return None
 
 

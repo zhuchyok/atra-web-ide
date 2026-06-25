@@ -46,9 +46,9 @@ class ExpertJournalManager:
             logger.error(f"Failed to fetch journal entries: {e}")
             return []
 
-    async def format_journal_for_prompt(self, expert_id: uuid.UUID, limit: int = 5) -> str:
+    async def format_journal_for_prompt(self, expert_id: uuid.UUID, limit: int = 5, min_importance: int = 5) -> str:
         """Formats recent journal entries into a string for LLM prompt injection."""
-        entries = await self.get_recent_entries(expert_id, limit=limit)
+        entries = await self.get_recent_entries(expert_id, limit=limit, min_importance=min_importance)
         if not entries:
             return ""
             

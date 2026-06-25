@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
+from starlette.responses import Response
 from pydantic import BaseModel
 
 from src.agents.bridge.project_registry import get_main_project, get_projects_registry
@@ -18,6 +19,7 @@ from src.agents.tools.system_tools import SystemTools, WebTools
 USE_KNOWLEDGE_OS = os.getenv("USE_KNOWLEDGE_OS", "true").lower() == "true"
 KNOWLEDGE_OS_AVAILABLE = False
 _veronica_db_pool = None
+_veronica_enhanced_singleton = None
 
 if USE_KNOWLEDGE_OS:
     try:
@@ -45,6 +47,21 @@ async def _get_veronica_db_pool():
         except Exception as e:
             logger.warning(f"Veronica: пул Knowledge OS недоступен: {e}")
     return _veronica_db_pool
+
+
+def _get_veronica_enhanced_singleton():
+    """DI-style provider for Veronica's VictoriaEnhanced instance."""
+    global _veronica_enhanced_singleton
+    if _veronica_enhanced_singleton is not None:
+        return _veronica_enhanced_singleton
+    try:
+        from app.victoria_enhanced import VictoriaEnhanced
+
+        _veronica_enhanced_singleton = VictoriaEnhanced()
+        return _veronica_enhanced_singleton
+    except Exception as e:
+        logger.warning("⚠️ Не удалось инициализировать Veronica Enhanced singleton: %s", e)
+        return None
 
 
 def _validate_search_pattern(goal: str, max_len: int = 50) -> str:
@@ -295,6 +312,16 @@ class VeronicaAgent(BaseAgent):
 # Глобальный инстанс агента
 agent = VeronicaAgent()
 
+# [SINGULARITY 31.3] Agent-to-Agent messaging for Veronica
+try:
+    from app.agent_messaging import start_presence_broadcast, listen
+
+    asyncio.create_task(listen("Вероника"))
+    asyncio.create_task(start_presence_broadcast("Вероника", ["execution", "file_ops", "web_search"]))
+    logger.info("🔗 [AGENT_MSG] Veronica subscribed to agent messaging")
+except Exception as e:
+    logger.warning(f"⚠️ [AGENT_MSG] Init failed: {e}")
+
 
 class TaskRequest(BaseModel):
     goal: str
@@ -379,10 +406,10 @@ async def run_task(request: TaskRequest):
                     if path not in sys.path:
                         sys.path.insert(0, path)
                     try:
-                        from app.victoria_enhanced import VictoriaEnhanced
-
                         logger.info("🚀 Veronica Enhanced активирован!")
-                        enhanced = VictoriaEnhanced()
+                        enhanced = _get_veronica_enhanced_singleton()
+                        if enhanced is None:
+                            continue
                         # Передаем контекст проекта в Enhanced (если поддерживается)
                         enhanced_result = await enhanced.solve(request.goal, use_enhancements=True)
                         logger.info(
@@ -433,6 +460,27 @@ async def get_status():
 @app.get("/health")
 async def health():
     return {"status": "ok", "agent": agent.name}
+
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus metrics for Veronica (plaintext without prometheus_client dependency)."""
+    from datetime import datetime
+    ts = int(datetime.now().timestamp())
+    return Response(
+        content=(
+            f"# HELP veronica_info Veronica agent info\n"
+            f"# TYPE veronica_info gauge\n"
+            f'veronica_info{{agent="{agent.name}"}} 1\n'
+            f"# HELP veronica_up Veronica uptime (1 = healthy)\n"
+            f"# TYPE veronica_up gauge\n"
+            f"veronica_up 1\n"
+            f"# HELP veronica_tasks_total Total tasks processed\n"
+            f"# TYPE veronica_tasks_total counter\n"
+            f"veronica_tasks_total{{status=\"ok\"}} 0\n"
+        ),
+        media_type="text/plain",
+    )
 
 
 if __name__ == "__main__":

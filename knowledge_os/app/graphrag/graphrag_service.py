@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from .community_detector import get_community_detector
@@ -22,6 +23,26 @@ class GraphRAGService:
         self.extractor = get_entity_extractor()
         self.detector = get_community_detector(self.db_url)
         self.retriever = get_multi_hop_retriever(self.db_url)
+        self.cache_ttl_sec = int(os.getenv("GRAPHRAG_CACHE_TTL_SEC", "1800"))
+
+    async def _get_snapshot_version(self) -> str:
+        """Return current knowledge snapshot version for cache invalidation."""
+        try:
+            from app.db_pool import get_pool
+
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                max_updated = await conn.fetchval(
+                    "SELECT COALESCE(MAX(updated_at), NOW()) FROM knowledge_nodes"
+                )
+            if max_updated is None:
+                return datetime.now(timezone.utc).isoformat()
+            if isinstance(max_updated, datetime):
+                return max_updated.astimezone(timezone.utc).isoformat()
+            return str(max_updated)
+        except Exception as e:
+            logger.debug("Snapshot version query failed: %s", e)
+            return datetime.now(timezone.utc).isoformat()
 
     async def retrieve_graph_context(self, query: str, limit: int = 8) -> tuple[str, list]:
         """
@@ -31,22 +52,29 @@ class GraphRAGService:
         try:
             # [SINGULARITY 24.0] Memory Cycle
             from app.memory_cycle import get_memory_cycle
+
             cycle = get_memory_cycle(self.db_url)
             # Запускаем в фоне или периодически, здесь для демонстрации интеграции
             # asyncio.create_task(cycle.run_pruning())
             # asyncio.create_task(cycle.run_semantic_merge())
 
-            from app.semantic_cache import get_embedding
-            import json
             import hashlib
-            
+            import json
+
+            from app.semantic_cache import get_embedding
+
+            snapshot_version = await self._get_snapshot_version()
+            query_hash = hashlib.md5(f"{query}|{limit}".encode()).hexdigest()
+            cache_key = f"graphrag_cache:v2:{snapshot_version}:{query_hash}"
+
             # 0. Проверка кэша (Redis)
+            redis = None
             try:
-                from app.db_pool import get_redis_client
-                redis = await get_redis_client()
+                from app.redis_manager import get_redis_manager
+
+                redis_manager = get_redis_manager()
+                redis = await redis_manager.get_client()
                 if redis:
-                    query_hash = hashlib.md5(query.encode()).hexdigest()
-                    cache_key = f"graphrag_cache:{query_hash}"
                     cached_data = await redis.get(cache_key)
                     if cached_data:
                         logger.info(f"🚀 [GRAPHRAG] Cache HIT for query: {query[:30]}...")
@@ -68,7 +96,7 @@ class GraphRAGService:
             # 2. Формирование контекста
             context = "\n🌐 [GRAPHRAG GLOBAL CONTEXT]:\n"
             # ... (остальная логика формирования контекста)
-            
+
             # Группируем результаты: прямые и связанные (hops)
             direct_nodes = [n for n in nodes if not n.get("is_hop")]
             hop_nodes = [n for n in nodes if n.get("is_hop")]
@@ -89,13 +117,23 @@ class GraphRAGService:
             if entities:
                 context += f"\n🔍 ОБНАРУЖЕННЫЕ СУЩНОСТИ: {', '.join([e.name for e in entities])}\n"
 
-            # 4. Сохранение в кэш (Redis) на 1 час
+            # 4. Сохранение в кэш (Redis)
             try:
                 if redis:
                     await redis.setex(
                         cache_key,
-                        3600,
-                        json.dumps({"context": context, "nodes": nodes})
+                        self.cache_ttl_sec,
+                        json.dumps(
+                            {
+                                "context": context,
+                                "nodes": nodes,
+                                "freshness": {
+                                    "snapshot_version": snapshot_version,
+                                    "cache_ttl_sec": self.cache_ttl_sec,
+                                },
+                            },
+                            default=str,
+                        ),
                     )
                     logger.info(f"💾 [GRAPHRAG] Cache SET for query: {query[:30]}...")
             except Exception as se:

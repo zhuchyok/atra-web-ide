@@ -61,6 +61,14 @@ TG_TOKEN = (
     os.getenv("PROD_TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TG_TOKEN", "")
 )
 TG_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or os.getenv("CHAT_ID", "")
+_DISTILLER_SINGLETON = None
+
+
+def _get_distiller_singleton():
+    global _DISTILLER_SINGLETON
+    if _DISTILLER_SINGLETON is None:
+        _DISTILLER_SINGLETON = KnowledgeDistiller()
+    return _DISTILLER_SINGLETON
 
 
 async def get_pool():
@@ -180,7 +188,7 @@ async def generate_morning_plan():
         )
 
         # 5.1 Собираем статус дистилляции и готовность модели
-        distiller = KnowledgeDistiller()
+        distiller = _get_distiller_singleton()
         distillation_report = await distiller.generate_local_upgrade_report()
         pipeline = LocalTrainingPipeline()
         upgrade_status = pipeline.trigger_auto_upgrade()

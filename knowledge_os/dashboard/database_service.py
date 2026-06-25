@@ -147,10 +147,29 @@ def fetch_parallel(queries_dict):
 
 
 def check_services():
-    """Проверка статуса сервисов с кэшированием"""
-    services = {"PostgreSQL": "✅", "Victoria Agent": "✅"}
+    """Проверка статуса сервисов с кэшированием."""
+    services = {"PostgreSQL": "⚠️", "Victoria Agent": "⚠️"}
     is_container = os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER") == "true"
     host_url = "http://host.docker.internal" if is_container else "http://localhost"
+
+    # PostgreSQL
+    try:
+        with db_session() as conn:
+            if conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    services["PostgreSQL"] = "✅"
+    except Exception:
+        services["PostgreSQL"] = "⚠️"
+
+    # Victoria Agent
+    try:
+        import httpx
+
+        vr = httpx.get("http://localhost:8010/health", timeout=5)
+        services["Victoria Agent"] = "✅" if vr.status_code == 200 else "⚠️"
+    except Exception:
+        services["Victoria Agent"] = "⚠️"
 
     # MLX API
     try:
@@ -191,13 +210,13 @@ def check_services():
     try:
         import httpx
 
-        ollama_response = httpx.get(f"{host_url}:11434/api/tags", timeout=2)
+        ollama_response = httpx.get(f"{host_url}:11434/api/tags", timeout=5)
         services["Ollama"] = "✅" if ollama_response.status_code == 200 else "⚠️"
     except Exception:
         try:
             import httpx
 
-            r = httpx.get("http://localhost:11434/api/tags", timeout=2)
+            r = httpx.get("http://localhost:11434/api/tags", timeout=5)
             services["Ollama"] = "✅" if r.status_code == 200 else "⚠️"
         except Exception:
             services["Ollama"] = "⚠️"
@@ -322,11 +341,82 @@ def search_knowledge_base(embedding):
     )
 
 
+@st.cache_data(ttl=30, max_entries=5)
+def fetch_data_freshness():
+    """
+    Возвращает свежесть ключевых источников данных для дашборда.
+    Нужен для явного отличия: "данные устарели" vs "вкладка сломалась".
+    """
+    return fetch_data(
+        """
+        WITH freshness AS (
+            SELECT
+                'tasks'::text AS source,
+                MAX(updated_at) AS last_ts,
+                COUNT(*)::bigint AS total_rows
+            FROM tasks
+            UNION ALL
+            SELECT
+                'knowledge_nodes'::text AS source,
+                MAX(created_at) AS last_ts,
+                COUNT(*)::bigint AS total_rows
+            FROM knowledge_nodes
+            UNION ALL
+            SELECT
+                'interaction_logs'::text AS source,
+                MAX(created_at) AS last_ts,
+                COUNT(*)::bigint AS total_rows
+            FROM interaction_logs
+            UNION ALL
+            SELECT
+                'expert_discussions'::text AS source,
+                MAX(created_at) AS last_ts,
+                COUNT(*)::bigint AS total_rows
+            FROM expert_discussions
+            UNION ALL
+            SELECT
+                'simulations'::text AS source,
+                MAX(created_at) AS last_ts,
+                COUNT(*)::bigint AS total_rows
+            FROM simulations
+            UNION ALL
+            SELECT
+                'okrs'::text AS source,
+                MAX(created_at) AS last_ts,
+                COUNT(*)::bigint AS total_rows
+            FROM okrs
+            UNION ALL
+            SELECT
+                'board_decisions'::text AS source,
+                MAX(created_at) AS last_ts,
+                COUNT(*)::bigint AS total_rows
+            FROM board_decisions
+            UNION ALL
+            SELECT
+                'file_comments'::text AS source,
+                MAX(created_at) AS last_ts,
+                COUNT(*)::bigint AS total_rows
+            FROM file_comments
+        )
+        SELECT
+            source,
+            last_ts,
+            total_rows,
+            CASE
+                WHEN last_ts IS NULL THEN NULL
+                ELSE ROUND(EXTRACT(EPOCH FROM (NOW() - last_ts)) / 60.0, 1)
+            END AS age_minutes
+        FROM freshness
+        ORDER BY source
+        """
+    )
+
+
 def get_time_filter(range_str: str, col_name: str = "created_at") -> str:
     """Возвращает фрагмент SQL WHERE для фильтрации по времени."""
     if range_str == "За все время":
         return "1=1"
-    
+
     intervals = {
         "Последние 24 часа": "1 day",
         "Последние 3 дня": "3 days",

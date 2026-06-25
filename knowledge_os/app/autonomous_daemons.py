@@ -13,6 +13,19 @@ except ImportError:
     from event_bus import Event, EventBus, EventType, get_event_bus
 
 logger = logging.getLogger(__name__)
+_VICTORIA_ENHANCED_SINGLETON = None
+
+
+def _get_victoria_enhanced_singleton():
+    global _VICTORIA_ENHANCED_SINGLETON
+    if _VICTORIA_ENHANCED_SINGLETON is not None:
+        return _VICTORIA_ENHANCED_SINGLETON
+    try:
+        from app.victoria_enhanced import VictoriaEnhanced
+    except ImportError:
+        from victoria_enhanced import VictoriaEnhanced
+    _VICTORIA_ENHANCED_SINGLETON = VictoriaEnhanced()
+    return _VICTORIA_ENHANCED_SINGLETON
 
 
 class PerformanceDaemon:
@@ -144,14 +157,13 @@ async def setup_daemons():
         except ImportError:
             from dialogue_controller import start_dialogue_controller
         try:
+            from app.victoria_event_handlers import VictoriaEventHandlers
+        except ImportError:
+            from victoria_event_handlers import VictoriaEventHandlers
+        try:
             from app.event_bus_redis_bridge import start_redis_bridge
         except ImportError:
             from event_bus_redis_bridge import start_redis_bridge
-        try:
-            from app.victoria_enhanced import VictoriaEnhanced
-        except ImportError:
-            from victoria_enhanced import VictoriaEnhanced
-
         bus = get_event_bus()
         await bus.start()
 
@@ -161,8 +173,38 @@ async def setup_daemons():
         )
 
         # Запускаем VictoriaEnhanced для обработки событий (мониторинг, диалоги)
-        victoria = VictoriaEnhanced()
+        victoria = _get_victoria_enhanced_singleton()
         await victoria.start()
+
+        # Root-cause fix:
+        # ENABLE_EVENT_MONITORING can disable VictoriaEventHandlers auto-subscription,
+        # which breaks dialogue_request -> expert task queue path.
+        # Ensure critical handlers are always wired for runtime dialogue flow.
+        if getattr(victoria, "event_handlers", None) is None:
+            victoria.event_handlers = VictoriaEventHandlers(victoria)
+
+        def _ensure_subscribed(event_type, handler):
+            handlers = bus.subscribers.get(event_type, [])
+            if handler not in handlers:
+                bus.subscribe(event_type, handler)
+
+        _ensure_subscribed(EventType.FILE_CREATED, victoria.event_handlers.handle_file_created)
+        _ensure_subscribed(
+            EventType.LOG_ERROR_DETECTED, victoria.event_handlers.handle_log_error_detected
+        )
+        _ensure_subscribed(
+            EventType.PERFORMANCE_DEGRADED, victoria.event_handlers.handle_performance_degraded
+        )
+        _ensure_subscribed(EventType.SERVICE_DOWN, victoria.event_handlers.handle_service_down)
+        _ensure_subscribed(
+            EventType.DIALOGUE_REQUEST, victoria.event_handlers.handle_dialogue_request
+        )
+        _ensure_subscribed(
+            EventType.EXPERT_RESPONSE, victoria.event_handlers.handle_expert_response
+        )
+        _ensure_subscribed(
+            EventType.DIALOGUE_CONSENSUS, victoria.event_handlers.handle_dialogue_consensus
+        )
 
         bridge = await start_redis_bridge(bus)
         controller = start_dialogue_controller(bus)

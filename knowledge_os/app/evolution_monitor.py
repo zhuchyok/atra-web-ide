@@ -9,6 +9,14 @@ from training_pipeline import LocalTrainingPipeline
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+_DISTILLER_SINGLETON = None
+
+
+def _get_distiller_singleton():
+    global _DISTILLER_SINGLETON
+    if _DISTILLER_SINGLETON is None:
+        _DISTILLER_SINGLETON = KnowledgeDistiller()
+    return _DISTILLER_SINGLETON
 
 
 class SingularityEvolutionMonitor:
@@ -19,7 +27,7 @@ class SingularityEvolutionMonitor:
 
     def __init__(self):
         self.pipeline = LocalTrainingPipeline()
-        self.distiller = KnowledgeDistiller()
+        self.distiller = _get_distiller_singleton()
 
     async def run_daily_check(self):
         """Run daily knowledge distillation and check upgrade readiness."""

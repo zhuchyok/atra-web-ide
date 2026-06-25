@@ -44,16 +44,16 @@ class RedisManager:
             # [SINGULARITY 24.3] ВАЖНО: В Docker REDIS_URL может быть задан через окружение
             # Мы отдаем приоритет переданному url, затем окружению, затем дефолту.
             self.url = url or os.getenv("REDIS_URL", "redis://localhost:6379")
-            
+
             # [SINGULARITY 28.6] Fix: If inside docker but redis is on localhost, try knowledge_os_redis
             if "localhost" in self.url and os.path.exists("/.dockerenv"):
                 self.url = self.url.replace("localhost", "knowledge_os_redis")
-            
+
             # [SINGULARITY 28.6] Final fallback for Docker
             if "knowledge_os_redis" in self.url and os.path.exists("/.dockerenv"):
                 # Try to ping knowledge_os_redis, if fails, it might be just 'redis' in some networks
                 pass
-            
+
             self.initialized = True
             import os as system_os
 
@@ -94,12 +94,43 @@ class RedisManager:
         """Получает или создает клиент Redis из пула."""
         if self._pool is None:
             try:
-                # [SINGULARITY 24.3] Используем self.url, который мы обновили
-                self._pool = redis.ConnectionPool.from_url(
-                    self.url, max_connections=20, decode_responses=True
-                )
-                logger.info(f"✅ [REDIS] Пул соединений создан: {self.url}")
-                print(f"DEBUG: [REDIS_MANAGER] ConnectionPool created for {self.url}")
+                # [SINGULARITY 30.5] Exponential Backoff with Jitter for Redis Connection
+                import random
+                import time
+
+                max_retries = 5
+                for attempt in range(max_retries):
+                    try:
+                        # [SINGULARITY 24.3] Используем self.url, который мы обновили
+                        # [SINGULARITY 30.5] Support for Unix Domain Sockets (UDS)
+                        if self.url.startswith("unix://"):
+                            path = self.url.replace("unix://", "")
+                            self._pool = redis.ConnectionPool(
+                                connection_class=redis.UnixDomainSocketConnection,
+                                path=path,
+                                decode_responses=True,
+                                max_connections=20,
+                            )
+                        else:
+                            self._pool = redis.ConnectionPool.from_url(
+                                self.url, max_connections=20, decode_responses=True
+                            )
+
+                        # Test connection
+                        client = redis.Redis(connection_pool=self._pool)
+                        await client.ping()
+
+                        logger.info(f"✅ [REDIS] Пул соединений создан: {self.url}")
+                        break
+                    except (redis.ConnectionError, redis.TimeoutError) as e:
+                        if attempt == max_retries - 1:
+                            raise
+                        wait_time = (2**attempt) + random.random()
+                        logger.warning(
+                            f"⚠️ [REDIS] Connection failed, retrying in {wait_time:.2f}s... ({e})"
+                        )
+                        time.sleep(wait_time)
+
             except Exception as e:
                 logger.error(f"❌ [REDIS] Ошибка создания пула: {e}")
                 raise
@@ -188,6 +219,13 @@ class RedisManager:
                 for kw in ["anthropic", "google", "openai", "deepseek", "claude", "gemini"]
             ):
                 data["rag_domain"] = "AI Research"
+
+            try:
+                from app.expert_stream_routing import resolve_push_stream
+            except ImportError:
+                from expert_stream_routing import resolve_push_stream
+
+            stream_name = resolve_push_stream(stream_name, data)
 
             # Ограничиваем длину потока 10000 записей (мировая практика)
             await client.xadd(f"stream:{stream_name}", {"payload": json.dumps(data)}, maxlen=10000)
@@ -288,6 +326,7 @@ class RedisManager:
 
 def get_redis_manager():
     return redis_manager
+
 
 # Синглтон для удобного импорта
 redis_manager = RedisManager()

@@ -18,6 +18,16 @@ except ImportError:
         get_graphrag_service = None
 
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
+_LOCAL_ROUTER_SINGLETON = None
+
+
+def _get_local_router_singleton():
+    global _LOCAL_ROUTER_SINGLETON
+    if _LOCAL_ROUTER_SINGLETON is None:
+        from local_router import LocalAIRouter
+
+        _LOCAL_ROUTER_SINGLETON = LocalAIRouter()
+    return _LOCAL_ROUTER_SINGLETON
 
 
 def run_cursor_agent(prompt: str):
@@ -42,9 +52,7 @@ async def run_local_mutation_agent(prompt: str, model: str = "qwen2.5-coder:32b"
     [SINGULARITY 14.0] Mutation generation using local model.
     """
     try:
-        from local_router import LocalAIRouter
-
-        router = LocalAIRouter()
+        router = _get_local_router_singleton()
         # Используем reasoning категорию для качественной мутации
         result = await router.run_local_llm(prompt, category="reasoning", model_hint=model)
         if isinstance(result, tuple):

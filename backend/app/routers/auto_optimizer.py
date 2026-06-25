@@ -8,12 +8,12 @@ router = APIRouter(prefix="/api/auto-optimizer", tags=["auto-optimizer"])
 
 
 def get_auto_optimizer(request: Request):
-    """AutoOptimizer из app.state или создание нового (если не запущен)."""
+    """AutoOptimizer из app.state или singleton provider."""
     opt = getattr(request.app.state, "auto_optimizer", None)
     if opt is None:
-        from app.services.optimization.auto_optimizer import AutoOptimizer
+        from app.services.optimization.auto_optimizer import get_auto_optimizer_service
 
-        opt = AutoOptimizer()
+        opt = get_auto_optimizer_service()
     return opt
 
 

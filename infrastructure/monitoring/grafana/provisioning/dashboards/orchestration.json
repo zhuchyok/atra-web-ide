@@ -2,7 +2,11 @@
   "dashboard": {
     "title": "Orchestration System Monitor",
     "uid": "orchestration-monitor",
-    "tags": ["orchestration", "singularity", "tasks"],
+    "tags": [
+      "orchestration",
+      "singularity",
+      "tasks"
+    ],
     "timezone": "browser",
     "panels": [
       {
@@ -15,7 +19,12 @@
             "legendFormat": "Tasks/sec"
           }
         ],
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
       },
       {
         "id": 2,
@@ -43,7 +52,12 @@
             "legendFormat": "Experts"
           }
         ],
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        }
       },
       {
         "id": 3,
@@ -55,7 +69,12 @@
             "legendFormat": "Success %"
           }
         ],
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        }
       },
       {
         "id": 4,
@@ -67,7 +86,12 @@
             "legendFormat": "Avg duration"
           }
         ],
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        }
       },
       {
         "id": 5,
@@ -79,7 +103,12 @@
             "legendFormat": "Subtasks/task"
           }
         ],
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 }
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 16
+        }
       },
       {
         "id": 6,
@@ -91,7 +120,12 @@
             "legendFormat": "Experts/task"
           }
         ],
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 }
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 16
+        }
       }
     ],
     "schemaVersion": 16,

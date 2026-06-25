@@ -25,6 +25,15 @@ VICTORIA_URL = os.getenv("VICTORIA_URL", "http://localhost:8010")
 # Цель для живой цепочки. По умолчанию «Привет» — быстрый ответ (quick_answer), меньше таймаутов/обрывов.
 # LIVE_CHAIN_GOAL=Помоги с анализом данных — тяжёлая цель для ручной проверки.
 LIVE_GOAL = os.getenv("LIVE_CHAIN_GOAL", "Привет")
+RUN_LIVE_CHAIN_TESTS = os.getenv("RUN_LIVE_CHAIN_TESTS", "false").lower() in ("1", "true", "yes")
+
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not RUN_LIVE_CHAIN_TESTS,
+        reason="Live chain tests are opt-in. Set RUN_LIVE_CHAIN_TESTS=true to enable.",
+    ),
+]
 
 
 def _victoria_health() -> bool:
@@ -38,7 +47,6 @@ def _victoria_health() -> bool:
         return False
 
 
-@pytest.mark.integration
 def test_live_chain_victoria_health():
     """Проверка: Victoria отвечает на /health."""
     if not requests:
@@ -46,7 +54,6 @@ def test_live_chain_victoria_health():
     assert _victoria_health(), f"Victoria недоступна: {VICTORIA_URL}"
 
 
-@pytest.mark.integration
 @pytest.mark.slow
 def test_live_chain_run_completes_successfully(wait_for_victoria):
     """
@@ -117,7 +124,6 @@ def test_live_chain_run_completes_successfully(wait_for_victoria):
     pytest.fail(f"Таймаут ожидания completed ({poll_timeout} с)")
 
 
-@pytest.mark.integration
 def test_live_chain_run_async_poll_until_completed(wait_for_victoria):
     """
     Живая цепочка: POST /run async_mode=true, затем опрос GET /run/status/{task_id} до completed.

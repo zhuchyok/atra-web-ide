@@ -99,14 +99,18 @@ async def notify(title: str, msg: str, priority: str = "default") -> None:
     ntfy = _get_ntfy_url()
     try:
         import httpx
+        import base64
         loop = asyncio.get_event_loop()
 
         def _send() -> None:
+            # [FIX 30.2] Use Base64 for headers to support Russian/Unicode correctly in ntfy
+            b64_title = base64.b64encode(title.encode('utf-8')).decode('ascii')
+
             # trust_env=False — отключаем ALL_PROXY (socks5h без httpx-socks даёт gaierror)
             # ntfy.sh доступен напрямую без прокси
             with httpx.Client(trust_env=False, timeout=10.0) as client:
-                client.post(ntfy, content=msg.encode(),
-                            headers={"Title": title, "Priority": priority})
+                client.post(ntfy, content=msg.encode('utf-8'),
+                            headers={"X-Title": b64_title, "Priority": priority})
 
         await loop.run_in_executor(None, _send)
     except Exception as e:

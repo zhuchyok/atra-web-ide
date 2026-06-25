@@ -8,6 +8,7 @@ import base64
 import io
 import logging
 import os
+import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import httpx
@@ -82,6 +83,8 @@ class VisionProcessor:
             }
         ]
         self.model = VISION_MODEL
+        self._last_failure_log_ts: Dict[str, float] = {}
+        self._failure_counts: Dict[str, int] = {}
 
         # Инициализация Moondream клиента (если доступен)
         if MOONDREAM_AVAILABLE and self.moondream_station_enabled:
@@ -93,6 +96,17 @@ class VisionProcessor:
             except Exception as e:
                 logger.warning(f"⚠️ [VISION] Не удалось инициализировать Moondream клиент: {e}")
                 self.moondream_client = None
+
+    def _log_throttled_warning(self, key: str, message: str, interval_sec: float = 600.0) -> None:
+        """Prevent noisy repeated warnings for expected transient vision failures."""
+        now = time.monotonic()
+        prev = self._last_failure_log_ts.get(key, 0.0)
+        self._failure_counts[key] = self._failure_counts.get(key, 0) + 1
+        if now - prev >= interval_sec:
+            count = self._failure_counts.get(key, 1)
+            logger.warning("%s (count=%s, window=%.0fs)", message, count, interval_sec)
+            self._last_failure_log_ts[key] = now
+            self._failure_counts[key] = 0
 
     def _prepare_image(self, image_path: Optional[str] = None, image_base64: Optional[str] = None):
         """Подготавливает PIL Image из пути или base64"""
@@ -245,7 +259,7 @@ class VisionProcessor:
     ) -> Optional[str]:
         """Fallback на Ollama с поддержкой разных моделей"""
         # [OMNI-RAG] Используем moondream как основную модель для Ollama
-        models_to_try = ["moondream:latest", "llava:7b"]
+        models_to_try = ["minicpm-v:latest", "moondream:latest"]  # moondream text-only fallback
 
         for node in self.fallback_nodes:
             for model_name in models_to_try:
@@ -299,7 +313,7 @@ class VisionProcessor:
         # Подготавливаем изображение
         image = self._prepare_image(image_path, image_base64)
         if not image:
-            logger.error("❌ [VISION] No image provided or failed to load")
+            logger.debug("[VISION] Skipping vision call: no image payload")
             return None
 
         # [SINGULARITY 21.10] Приоритет 1: Ollama (moondream:latest) через host.docker.internal
@@ -358,7 +372,7 @@ class VisionProcessor:
         if result:
             return result
 
-        logger.error("❌ [VISION] All vision processors failed")
+        self._log_throttled_warning("vision_all_failed", "⚠️ [VISION] All vision processors failed")
         return None
 
     async def analyze_code_screenshot(
@@ -387,11 +401,11 @@ class VisionProcessor:
         image_base64: Optional[str] = None,
         prompt: str = "Опиши содержимое этой страницы документа",
     ) -> Optional[str]:
-        """Обрабатывает страницу PDF (использует llava:7b для лучшего качества)"""
+        """Обрабатывает страницу PDF (использует vision model)"""
         # Подготавливаем изображение
         image = self._prepare_image(image_path, image_base64)
         if not image:
-            logger.error("❌ [VISION] No image provided or failed to load")
+            logger.debug("[VISION] Skipping PDF vision call: no image payload")
             return None
 
         # Приоритет 1: Moondream Station (MLX)
@@ -406,7 +420,7 @@ class VisionProcessor:
             if result:
                 return result
 
-        # Приоритет 3: Ollama с llava:7b (лучше для PDF)
+        # Приоритет 3: Ollama vision model
         buffer = io.BytesIO()
         image.save(buffer, format="PNG")
         image_base64_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
@@ -417,7 +431,9 @@ class VisionProcessor:
         if result:
             return result
 
-        logger.error("❌ [VISION] All vision processors failed for PDF")
+        self._log_throttled_warning(
+            "vision_all_failed_pdf", "⚠️ [VISION] All vision processors failed for PDF"
+        )
         return None
 
     async def describe_image(

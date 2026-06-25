@@ -28,6 +28,14 @@ CREATE TABLE IF NOT EXISTS interaction_rewards (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Backward-compatibility for partially created historical schemas.
+ALTER TABLE interaction_rewards ADD COLUMN IF NOT EXISTS interaction_log_id UUID;
+ALTER TABLE interaction_rewards ADD COLUMN IF NOT EXISTS reward_type TEXT;
+ALTER TABLE interaction_rewards ADD COLUMN IF NOT EXISTS reward_value FLOAT DEFAULT 0.0;
+ALTER TABLE interaction_rewards ADD COLUMN IF NOT EXISTS reason TEXT;
+ALTER TABLE interaction_rewards ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';
+ALTER TABLE interaction_rewards ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
 CREATE INDEX IF NOT EXISTS idx_rewards_expert ON interaction_rewards(expert_name);
 CREATE INDEX IF NOT EXISTS idx_rewards_type ON interaction_rewards(reward_type);
 CREATE INDEX IF NOT EXISTS idx_rewards_interaction_log_id ON interaction_rewards(interaction_log_id);
@@ -42,6 +50,14 @@ CREATE TABLE IF NOT EXISTS knowledge_edges (
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Backward-compatibility for historical partial schemas.
+ALTER TABLE knowledge_edges ADD COLUMN IF NOT EXISTS source_id UUID;
+ALTER TABLE knowledge_edges ADD COLUMN IF NOT EXISTS target_id UUID;
+ALTER TABLE knowledge_edges ADD COLUMN IF NOT EXISTS relationship_type TEXT DEFAULT 'related';
+ALTER TABLE knowledge_edges ADD COLUMN IF NOT EXISTS weight FLOAT DEFAULT 1.0;
+ALTER TABLE knowledge_edges ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';
+ALTER TABLE knowledge_edges ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
 CREATE INDEX IF NOT EXISTS idx_edges_source ON knowledge_edges(source_id);
 CREATE INDEX IF NOT EXISTS idx_edges_target ON knowledge_edges(target_id);

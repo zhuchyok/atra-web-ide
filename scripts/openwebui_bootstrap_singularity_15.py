@@ -159,7 +159,10 @@ def main():
         f.write("\n\n=== ИНСТРУМЕНТ ===\n")
         f.write("Workspace → Tools → Import Tools → выберите файл: configs/openwebui_ask_victoria_tool.py\n")
         f.write("(в контейнере: /workspace/configs/openwebui_ask_victoria_tool.py)\n")
-        f.write("\nValves: VICTORIA_URL=http://victoria-agent:8000, USE_BACKEND_PROXY=false\n")
+        f.write(
+            "\nValves: VICTORIA_URL=http://victoria-agent:8000, USE_BACKEND_PROXY=true, "
+            "BACKEND_FALLBACK_URL=http://atra-web-ide-backend:8000\n"
+        )
     print(f"  Файл для копирования: {oneload}")
 
     print()

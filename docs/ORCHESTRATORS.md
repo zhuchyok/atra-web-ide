@@ -12,7 +12,9 @@
 
 - Фоновый цикл по таблице **tasks** (задачи без исполнителя).
 - Назначает задачу лучшему эксперту (`assign_task_to_best_expert`), запускает **Smart Worker** → ai_core → Ollama/MLX.
-- Использует блокировку `acquire_resource_lock("orchestrator")`.
+- Использует `acquire_resource_lock("orchestrator")` как lease-lock для критических фаз; тяжелые фазы могут выполняться после раннего release lock.
+- Имеет **Phase 1.95** (runtime recovery): reopen non-live назначений и staged recovery stale `in_progress` (requeue до retry-cap, затем `stale_force_fallback` для контролируемого fallback).
+- Assignment фильтруется по live-heartbeat registry (`runtime:expert_heartbeats`) и `ORCHESTRATOR_ACTIVE_EXPERTS`.
 - **Запуск:** по расписанию/cron или вручную (`scripts/start_enhanced_orchestrator.sh`), в docker-compose не поднят по умолчанию.
 
 ---

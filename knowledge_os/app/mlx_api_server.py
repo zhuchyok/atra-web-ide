@@ -155,9 +155,9 @@ app.add_middleware(
 # Структура: {model_key: {"model": model, "tokenizer": tokenizer, "loaded_at": datetime, "last_used": datetime, "use_count": int}}
 _models_cache = {}
 
-# Защита от перегрузки (настраивается через env — меньше 429, чаще успешные запросы)
+# Защита от перегрузки. Safe default = 1 по runbook для стабильности Metal на Mac.
 _active_requests = 0
-_max_concurrent_requests = int(os.getenv("MLX_MAX_CONCURRENT", "6"))
+_max_concurrent_requests = int(os.getenv("MLX_MAX_CONCURRENT", "1"))
 # Семафор: запросы ждут слот вместо немедленного 503 (дожидаются очереди)
 _concurrent_semaphore = asyncio.Semaphore(_max_concurrent_requests)
 # VIP Семафор для Виктории (Dual-Channel Priority)
@@ -234,7 +234,8 @@ MODEL_PATHS = {
     "qwen_3b": os.path.join(MLX_BASE, "qwen2.5-3b"),
     "phi3_mini": os.path.join(MLX_BASE, "phi3-mini-4k"),
     "phi3.5:3.8b": os.path.join(MLX_BASE, "phi3.5-mini-4k"),
-    "victoria-wisdom-v3.5": "/Users/bikos/mlx-models/victoria-wisdom-v3.5-mlx-new",
+    "phi3.5-mini-4k": os.path.join(MLX_BASE, "phi3.5-mini-4k"),
+    "victoria-wisdom-v3.5": "/Users/bikos/mlx-models/qwen3.6-35b-a3b-text-qx64-mlx",
 }
 
 # Можно также использовать переменную окружения
@@ -263,7 +264,10 @@ if _VICTORIA_MLX_BRAIN:
         "tiny": "tiny",
         "default": "victoria-wisdom-v3.5",
     }
-    _preload_models = ["victoria-wisdom-v3.5", "phi3.5:3.8b", "qwen_3b"]
+    # Respect env override to keep memory profile controllable in production.
+    _preload_models = [
+        m.strip() for m in os.getenv("MLX_PRELOAD_MODELS", "").split(",") if m.strip()
+    ] or ["victoria-wisdom-v3.5", "fast"]
 elif _MLX_ONLY_LIGHT:
     CATEGORY_TO_MODEL = {
         "reasoning": "fast",
@@ -1179,6 +1183,30 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
         if model_key == "default" and _VICTORIA_MLX_BRAIN:
             model_key = CATEGORY_TO_MODEL.get("default", "victoria-wisdom-v3.5")
 
+        # [SINGULARITY 22.2] Speculative Decoding (35B + 1B)
+        # Если используется тяжелая модель (например, Qwen-35B),
+        # мы можем использовать легкую модель (например, Phi-3.5-mini) для спекулятивного декодирования.
+        # Это ускоряет инференс в 1.5-2 раза.
+        # [SINGULARITY 26.11] Move speculative decoding setup BEFORE incrementing active requests
+        # to avoid deadlock in get_model(draft_model).
+        # Safe default is disabled; enable explicitly for controlled experiments.
+        use_speculative = os.getenv("MLX_SPECULATIVE_DECODING", "false").lower() == "true"
+        draft_model_data = None
+        if use_speculative and model_key in (
+            "reasoning",
+            "coding",
+            "qwen-35b",
+            "victoria-wisdom-v3.5",
+        ):
+            try:
+                # [SINGULARITY 26.11] Use preloaded key for draft model
+                draft_model_data = get_model("phi3.5:3.8b")
+                logger.info(
+                    f"🚀 [SINGULARITY 22.2] Speculative Decoding enabled for {model_key} using phi3.5:3.8b"
+                )
+            except Exception as e:
+                logger.debug(f"⚠️ [SINGULARITY 22.2] Failed to load draft model: {e}")
+
         # Отмечаем, что модель используется (защита от выгрузки)
         with _request_lock:
             _active_model_requests[model_key] += 1
@@ -1209,7 +1237,13 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
             if request.stream:
                 return StreamingResponse(
                     generate_stream(
-                        model, tokenizer, request.prompt, request.max_tokens, _metal_global_lock
+                        model,
+                        tokenizer,
+                        request.prompt,
+                        request.max_tokens,
+                        _metal_global_lock,
+                        draft_model=draft_model_data["model"] if draft_model_data else None,
+                        draft_tokenizer=draft_model_data["tokenizer"] if draft_model_data else None,
                     ),
                     media_type="application/json",
                 )
@@ -1219,22 +1253,6 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
                 # для этой модели выполняется одновременно (защита от Metal конфликтов)
                 loop = asyncio.get_event_loop()
                 try:
-                    # [SINGULARITY 22.2] Speculative Decoding (35B + 1B)
-                    # Если используется тяжелая модель (например, Qwen-35B),
-                    # мы можем использовать легкую модель (например, Phi-3.5-mini) для спекулятивного декодирования.
-                    # Это ускоряет инференс в 1.5-2 раза.
-                    use_speculative = (
-                        os.getenv("MLX_SPECULATIVE_DECODING", "true").lower() == "true"
-                    )
-                    draft_model_data = None
-                    if use_speculative and model_key in ("reasoning", "coding", "qwen-35b"):
-                        try:
-                            draft_model_data = get_model("phi-3.5-mini")
-                            logger.info(
-                                f"🚀 [SINGULARITY 22.2] Speculative Decoding enabled for {model_key} using phi-3.5-mini"
-                            )
-                        except Exception as e:
-                            logger.debug(f"⚠️ [SINGULARITY 22.2] Failed to load draft model: {e}")
 
                     def generate_with_lock():
                         """Генерация с глобальной блокировкой Metal для защиты от конфликтов"""
@@ -1251,7 +1269,6 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
                                     prompt=request.prompt,
                                     max_tokens=request.max_tokens,
                                     draft_model=draft_model_data["model"],
-                                    draft_tokenizer=draft_model_data["tokenizer"],
                                 )
                             else:
                                 return generate(
@@ -1317,9 +1334,15 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
 
 
 async def generate_stream(
-    model, tokenizer, prompt: str, max_tokens: int, metal_lock: threading.Lock = None
+    model,
+    tokenizer,
+    prompt: str,
+    max_tokens: int,
+    metal_lock: threading.Lock = None,
+    draft_model: Any = None,
+    draft_tokenizer: Any = None,
 ):
-    """Streaming генерация с защитой от Metal конфликтов"""
+    """Streaming генерация с защитой от Metal конфликтов и поддержкой спекулятивного декодирования"""
     # MLX не поддерживает streaming напрямую, эмулируем
     # КРИТИЧНО: Используем глобальную блокировку Metal
     if metal_lock is None:
@@ -1332,6 +1355,15 @@ async def generate_stream(
     def generate_with_lock():
         """Генерация с блокировкой Metal"""
         with metal_lock:
+            # [SINGULARITY 24.5] Aggressive Metal Cache Clear
+            import mlx.core as mx
+
+            mx.metal.clear_cache()
+
+            if draft_model and draft_tokenizer:
+                return generate(
+                    model, tokenizer, prompt=prompt, max_tokens=max_tokens, draft_model=draft_model
+                )
             return generate(model, tokenizer, prompt=prompt, max_tokens=max_tokens)
 
     response = await loop.run_in_executor(None, generate_with_lock)

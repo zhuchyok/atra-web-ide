@@ -110,6 +110,52 @@ CURATOR_STANDARD_KEYWORDS = [
 ]
 
 
+# Исполнительные задачи куратора/Victoria: аудит, дашборд, правки — Enhanced/tools, не in-process Swarm LLM
+OPERATIONAL_EXECUTION_MARKERS = (
+    "аудит",
+    "ре-аудит",
+    "deep-analysis",
+    "deep analysis",
+    "дашборд",
+    "dashboard",
+    "исправ",
+    "проверь",
+    "sql",
+    "миграц",
+    "контейнер",
+    "quality gate",
+    "оркестрац",
+    "эксперт",
+)
+
+OPERATIONAL_NO_CLARIFY_MARKERS = (
+    "без уточнений",
+    "не задавай уточняющие",
+    "не задавай встречные вопросы",
+    "начинай выполнение сразу",
+    "сразу выполняй",
+)
+
+
+def is_operational_execution_goal(goal: str) -> bool:
+    """
+    Задачи с явным исполнением (аудит дашборда, правки, сверка с БД).
+    Маршрут: Victoria Enhanced + инструменты; запрет in-process Swarm (3× ai_core).
+    """
+    if not (goal or "").strip():
+        return False
+    g = (goal or "").lower().strip()
+    if any(m in g for m in OPERATIONAL_NO_CLARIFY_MARKERS) and any(
+        m in g for m in OPERATIONAL_EXECUTION_MARKERS
+    ):
+        return True
+    if "критическая задача" in g and any(m in g for m in ("дашборд", "dashboard", "аудит")):
+        return True
+    if ("deep-analysis" in g or "deep analysis" in g) and "дашборд" in g:
+        return True
+    return False
+
+
 def is_curator_standard_goal(goal: str) -> bool:
     """
     Запрос из списка кураторских эталонов: статус проекта, что умеешь, дашборд.
@@ -159,8 +205,8 @@ def detect_task_type(goal: str, context: str = "") -> str:
     goal_lower = goal.lower().strip()
     prefer_experts_first = os.getenv("PREFER_EXPERTS_FIRST", "true").lower() in ("true", "1", "yes")
 
-    # Кураторские эталоны (статус проекта, что умеешь, дашборд) — всегда Enhanced (RAG/эталоны)
-    if is_curator_standard_goal(goal):
+    # Кураторские эталоны и operational execution — Enhanced (RAG/tools), не Veronica/Swarm
+    if is_curator_standard_goal(goal) or is_operational_execution_goal(goal):
         return "enhanced"
 
     # Простые одношаговые запросы → Veronica (реальная роль: руки)
@@ -238,8 +284,21 @@ def should_use_enhanced(goal: str, project_context: Optional[str], use_enhanced_
     Решает, использовать ли Enhanced для данного запроса.
     Если env USE_VICTORIA_ENHANCED=true, но запрос — simple_chat, возвращаем False
     (быстрый ответ через agent.run без тяжёлого Enhanced).
+    Operational/curator execution goals всегда идут в Enhanced (даже если env выключен),
+    чтобы не попадать в зависающий in-process Swarm.
     """
+    task_type = detect_task_type(goal or "", project_context or "")
+    if task_type == "simple_chat":
+        return False
+    force_operational = os.getenv("VICTORIA_FORCE_ENHANCED_OPERATIONAL", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    if force_operational and (
+        is_operational_execution_goal(goal) or is_curator_standard_goal(goal)
+    ):
+        return True
     if not use_enhanced_env:
         return False
-    task_type = detect_task_type(goal or "", project_context or "")
-    return task_type != "simple_chat"
+    return True

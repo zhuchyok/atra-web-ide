@@ -13,12 +13,16 @@ from typing import Any, Callable, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
+def build_thread_pool_executor(max_workers: int):
+    return ThreadPoolExecutor(max_workers=max_workers)
+
+
 class ParallelExecutor:
     """Параллельный исполнитель для независимых задач"""
 
     def __init__(self, max_workers: int = 4):
         self.max_workers = max_workers
-        self.executor = ThreadPoolExecutor(max_workers=max_workers)
+        self.executor = build_thread_pool_executor(max_workers=max_workers)
 
     async def execute_parallel(
         self, tasks: List[Dict[str, Any]], task_func: Callable, timeout: Optional[float] = None

@@ -197,40 +197,84 @@ impl KnowledgeEngine {
 
         // If quantum is enabled, we fetch more candidates to sample from
         let fetch_limit = if use_quantum { limit * 2 } else { limit };
+        let rows = if !pc.is_empty() {
+            // Fast path: use ANN (HNSW) first, then apply context filter.
+            // This avoids large sequential scans on the whole table when context
+            // filters are broad and keeps p95 latency predictable.
+            let ann_pool = std::cmp::min(std::cmp::max(fetch_limit * 25, 500), 5000);
+            let context_query = "
+                WITH ann AS (
+                    SELECT id, content, metadata, created_at, updated_at, embedding, source_ref
+                    FROM knowledge_nodes
+                    WHERE embedding IS NOT NULL
+                      AND confidence_score >= 0.3
+                    ORDER BY embedding <=> $1::vector
+                    LIMIT $2
+                )
+                SELECT id, content, metadata, created_at, updated_at,
+                       (1 - (embedding <=> $1::vector)) as similarity
+                FROM ann
+                WHERE metadata->>'project_slug' = $3
+                   OR metadata->>'file_path' LIKE '%' || $3 || '%'
+                   OR metadata->>'source' IN ('external_docs_indexer', 'indexing_daemon')
+                   OR source_ref = 'autonomous_worker'
+                ORDER BY similarity DESC
+                LIMIT $4
+            ";
 
-        let query = if !pc.is_empty() {
-            format!(
-                "SELECT id, content, metadata, created_at, updated_at,
-                 (1 - (embedding <=> $1::vector)) as similarity
-                 FROM knowledge_nodes
-                 WHERE embedding IS NOT NULL AND confidence_score >= 0.3
-                 AND (
-                    metadata->>'project_slug' = $2
-                    OR metadata->>'file_path' LIKE '%' || $2 || '%'
-                    OR metadata->>'source' IN ('external_docs_indexer', 'indexing_daemon')
-                    OR source_ref = 'autonomous_worker'
-                 )
-                 ORDER BY similarity DESC LIMIT $3"
-            )
+            let context_rows = sqlx::query(context_query)
+                .bind(Vector(embedding.clone()))
+                .bind(ann_pool)
+                .bind(pc.clone())
+                .bind(fetch_limit)
+                .fetch_all(&self.pool)
+                .await?;
+
+            // Safety net: if ANN+filter produced too few candidates,
+            // fallback to the legacy full-filter query to preserve recall.
+            if context_rows.len() >= std::cmp::min(limit as usize, 3) {
+                context_rows
+            } else {
+                let legacy_query = "
+                    SELECT id, content, metadata, created_at, updated_at,
+                           (1 - (embedding <=> $1::vector)) as similarity
+                    FROM knowledge_nodes
+                    WHERE embedding IS NOT NULL
+                      AND confidence_score >= 0.3
+                      AND (
+                        metadata->>'project_slug' = $2
+                        OR metadata->>'file_path' LIKE '%' || $2 || '%'
+                        OR metadata->>'source' IN ('external_docs_indexer', 'indexing_daemon')
+                        OR source_ref = 'autonomous_worker'
+                      )
+                    ORDER BY similarity DESC
+                    LIMIT $3
+                ";
+
+                sqlx::query(legacy_query)
+                    .bind(Vector(embedding))
+                    .bind(pc)
+                    .bind(fetch_limit)
+                    .fetch_all(&self.pool)
+                    .await?
+            }
         } else {
-            format!(
-                "SELECT id, content, metadata, created_at, updated_at,
-                 (1 - (embedding <=> $1::vector)) as similarity
-                 FROM knowledge_nodes
-                 WHERE embedding IS NOT NULL AND confidence_score >= 0.3
-                 ORDER BY embedding <=> $1::vector LIMIT $2"
-            )
+            let query = "
+                SELECT id, content, metadata, created_at, updated_at,
+                       (1 - (embedding <=> $1::vector)) as similarity
+                FROM knowledge_nodes
+                WHERE embedding IS NOT NULL
+                  AND confidence_score >= 0.3
+                ORDER BY embedding <=> $1::vector
+                LIMIT $2
+            ";
+
+            sqlx::query(query)
+                .bind(Vector(embedding))
+                .bind(fetch_limit)
+                .fetch_all(&self.pool)
+                .await?
         };
-
-        let mut sql_query = sqlx::query(&query).bind(Vector(embedding));
-
-        if !pc.is_empty() {
-            sql_query = sql_query.bind(pc).bind(fetch_limit);
-        } else {
-            sql_query = sql_query.bind(fetch_limit);
-        }
-
-        let rows = sql_query.fetch_all(&self.pool).await?;
 
         let candidates: Vec<RankedNode> = rows
             .into_iter()

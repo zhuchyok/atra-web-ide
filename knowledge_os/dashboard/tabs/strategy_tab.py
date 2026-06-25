@@ -20,7 +20,7 @@ def format_msk(dt):
 
 def render_strategy_tab():
     """Вкладка Стратегия и эксперты."""
-    
+
     time_range = st.session_state.get("global_time_range", "Последние 7 дней")
     st.caption(f"📅 Фильтр времени: **{time_range}**")
 
@@ -44,6 +44,54 @@ def render_strategy_tab():
         render_board_decisions()
     with tabs_strategy[4]:
         render_aoi_status()
+        st.markdown("---")
+        render_mutation_rollout_reports()
+
+
+def render_mutation_rollout_reports():
+    """📊 Отчеты по внедрению мутаций (Shadow -> Promoted)."""
+    st.subheader("🧬 Отчеты по Внедрению Мутаций (Rollout)")
+
+    reports = fetch_data("""
+        SELECT content, metadata, created_at
+        FROM knowledge_nodes
+        WHERE metadata->>'type' = 'mutation_rollout_report'
+        ORDER BY created_at DESC LIMIT 5
+    """)
+
+    if reports:
+        for r in reports:
+            meta = r["metadata"]
+            if isinstance(meta, str):
+                import json
+
+                try:
+                    meta = json.loads(meta)
+                except Exception:
+                    meta = {}
+
+            with st.expander(
+                f"📊 Отчет от {format_msk(r['created_at'])} (Окно: {meta.get('window_hours')}ч)"
+            ):
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Promoted", meta.get("promoted", 0))
+                c2.metric("Shadow Created", meta.get("shadow_created", 0))
+                c3.metric("Conversion", f"{meta.get('conversion_rate', 0) * 100:.1f}%")
+
+                st.markdown("**Причины блокировки мутаций (Gate Reasons):**")
+                reasons = meta.get("gate_reasons", {})
+                gr_cols = st.columns(4)
+                gr_cols[0].caption(f"Low Tests: {reasons.get('insufficient_tests', 0)}")
+                gr_cols[1].caption(f"Low Wins: {reasons.get('insufficient_wins', 0)}")
+                gr_cols[2].caption(f"Low Win Rate: {reasons.get('insufficient_win_rate', 0)}")
+                gr_cols[3].caption(f"Low Confidence: {reasons.get('insufficient_confidence', 0)}")
+
+                st.caption(
+                    f"Пороги: tests>={meta.get('thresholds', {}).get('min_tests')}, "
+                    f"win_rate>={meta.get('thresholds', {}).get('win_rate_threshold')}"
+                )
+    else:
+        st.info("Отчетов по внедрению мутаций пока нет. Ожидайте следующего цикла (6ч).")
 
 
 def render_aoi_status():
@@ -80,16 +128,20 @@ def render_aoi_status():
 def render_finance_and_roi():
     """💰 Финансы и ROI знаний."""
     st.subheader("📈 Финансовый Учет Интеллекта (Knowledge P&L)")
-    
+
     time_range = st.session_state.get("global_time_range", "Последние 7 дней")
     from database_service import get_time_filter
-    t_filter = get_time_filter(time_range, "created_at")
+
+    # Use last activity timestamp to reflect real liquidity movement for older nodes too.
+    # Keep two variants: plain for single-table subqueries and aliased for JOIN queries.
+    t_filter_activity = get_time_filter(time_range, "COALESCE(updated_at, created_at)")
+    t_filter_activity_k = get_time_filter(time_range, "COALESCE(k.updated_at, k.created_at)")
 
     # Метрики ликвидности (всегда) и экспертов (если есть колонки virtual_budget, performance_score)
     results = fetch_data(f"""
         SELECT
-            (SELECT SUM(usage_count * confidence_score) FROM knowledge_nodes WHERE {t_filter}) as total_liquidity,
-            (SELECT COUNT(*) FROM knowledge_nodes WHERE usage_count > 0 AND {t_filter}) as active_nodes
+            (SELECT SUM(usage_count * confidence_score) FROM knowledge_nodes WHERE {t_filter_activity}) as total_liquidity,
+            (SELECT COUNT(*) FROM knowledge_nodes WHERE usage_count > 0 AND {t_filter_activity}) as active_nodes
     """)
     total_budget = None
     avg_performance = None
@@ -119,10 +171,11 @@ def render_finance_and_roi():
     st.markdown("---")
 
     # ROI Визуализация
-    roi_data = fetch_data("""
+    roi_data = fetch_data(f"""
         SELECT d.name as domain, SUM(k.usage_count * k.confidence_score) as liquidity_score
         FROM knowledge_nodes k JOIN domains d ON k.domain_id = d.id
-        WHERE k.usage_count > 0 GROUP BY d.name ORDER BY liquidity_score DESC LIMIT 10
+        WHERE k.usage_count > 0 AND {t_filter_activity_k}
+        GROUP BY d.name ORDER BY liquidity_score DESC LIMIT 10
     """)
 
     if roi_data:
@@ -136,24 +189,51 @@ def render_finance_and_roi():
             template="plotly_dark",
             color_continuous_scale="Viridis",
         )
-        st.plotly_chart(fig_roi, use_container_width=True)
+        st.plotly_chart(fig_roi, width="stretch")
 
 
 def render_structure():
     """🏛️ Рейтинг экспертов и структура."""
     st.subheader("🏛️ Рейтинг Экспертов и Лидеры")
 
-    leaderboard = fetch_data("""
-        SELECT e.id, e.name, e.department, e.role, e.version,
-               COUNT(k.id) as nodes_count, SUM(k.usage_count) as total_usage,
-               AVG(k.confidence_score) as avg_confidence, COUNT(t.id) as tasks_count,
-               COUNT(t.id) FILTER (WHERE t.status = 'completed') as tasks_completed
+    leaderboard = fetch_data(
+        """
+        WITH knowledge_by_expert AS (
+            SELECT
+                COALESCE(metadata->>'expert', metadata->>'expert_name') AS expert_name,
+                COUNT(*) AS nodes_count,
+                COALESCE(SUM(usage_count), 0) AS total_usage,
+                AVG(confidence_score) AS avg_confidence
+            FROM knowledge_nodes
+            GROUP BY COALESCE(metadata->>'expert', metadata->>'expert_name')
+        ),
+        tasks_by_expert AS (
+            SELECT
+                assignee_expert_id AS expert_id,
+                COUNT(*) AS tasks_count,
+                COUNT(*) FILTER (WHERE status = 'completed') AS tasks_completed
+            FROM tasks
+            GROUP BY assignee_expert_id
+        )
+        SELECT
+            e.id,
+            e.name,
+            e.department,
+            e.role,
+            e.version,
+            e.metadata,
+            COALESCE(k.nodes_count, 0) AS nodes_count,
+            COALESCE(k.total_usage, 0) AS total_usage,
+            k.avg_confidence AS avg_confidence,
+            COALESCE(t.tasks_count, 0) AS tasks_count,
+            COALESCE(t.tasks_completed, 0) AS tasks_completed
         FROM experts e
-        LEFT JOIN knowledge_nodes k ON (k.metadata->>'expert' = e.name OR k.metadata->>'expert_name' = e.name)
-        LEFT JOIN tasks t ON t.assignee_expert_id = e.id
-        GROUP BY e.id, e.name, e.department, e.role, e.version
-        ORDER BY total_usage DESC NULLS LAST LIMIT 10
-    """)
+        LEFT JOIN knowledge_by_expert k ON k.expert_name = e.name
+        LEFT JOIN tasks_by_expert t ON t.expert_id = e.id
+        ORDER BY total_usage DESC NULLS LAST
+        LIMIT 10
+        """
+    )
 
     if leaderboard:
         # Секция эволюции (прокачки)
@@ -170,7 +250,8 @@ def render_structure():
 
             # Получаем полный системный промпт из БД
             full_expert = fetch_data(
-                f"SELECT system_prompt FROM experts WHERE id = '{exp_data['id']}'"
+                "SELECT system_prompt FROM experts WHERE id = %s",
+                (exp_data["id"],),
             )
             current_prompt = full_expert[0]["system_prompt"] if full_expert else ""
 
@@ -213,9 +294,23 @@ def render_structure():
                             st.caption(skill["description"])
                         with col_s2:
                             if st.button("Применить", key=f"add_skill_{skill['name']}"):
-                                st.info(
-                                    f"Скилл {skill['name']} будет интегрирован в промпт {selected_expert} при следующей мутации."
-                                )
+                                try:
+                                    resp = requests.post(
+                                        "http://knowledge_rest:8002/api/experts/skills/assign",
+                                        json={
+                                            "expert_id": str(exp_data["id"]),
+                                            "skill_name": skill["name"],
+                                        },
+                                        timeout=10,
+                                    )
+                                    if resp.status_code == 200:
+                                        st.success(
+                                            f"✅ Скилл {skill['name']} назначен {selected_expert} и будет применяться автоматически."
+                                        )
+                                    else:
+                                        st.error(f"❌ Ошибка назначения: {resp.text}")
+                                except Exception as e:
+                                    st.error(f"❌ Ошибка связи с API: {e}")
                 else:
                     st.warning("Не удалось загрузить список скиллов.")
             except Exception:
@@ -241,8 +336,27 @@ def render_structure():
         # Авто-предложения по улучшению (Evolution Suggestions)
         st.markdown("#### ✨ Статус Автономной Эволюции")
 
-        last_evolve = (exp_data.get("metadata") or {}).get("last_evolution", "Никогда")
-        st.info(f"🧬 Последняя автономная мутация: **{last_evolve}**")
+        latest_mutation = fetch_data(
+            """
+            SELECT created_at, status
+            FROM expert_mutations
+            WHERE expert_id = %s
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (exp_data["id"],),
+        )
+        metadata_last_evolve = (exp_data.get("metadata") or {}).get("last_evolution")
+        if latest_mutation:
+            mut = latest_mutation[0]
+            st.info(
+                f"🧬 Последняя автономная мутация: **{format_msk(mut['created_at'])}** "
+                f"(статус: {mut.get('status', 'unknown')})"
+            )
+        elif metadata_last_evolve:
+            st.info(f"🧬 Последняя автономная мутация: **{metadata_last_evolve}**")
+        else:
+            st.info("🧬 Последняя автономная мутация: **Никогда**")
         st.caption(
             "Мутация и инъекция скиллов теперь происходят автоматически в ночном цикле обучения."
         )
@@ -298,7 +412,7 @@ def render_structure():
                 }
             ),
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
 

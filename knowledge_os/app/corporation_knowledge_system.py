@@ -15,8 +15,37 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import httpx
+from distillation_tail_metrics import get_distill_eligible_now
 
 logger = logging.getLogger(__name__)
+_CORP_KNOWLEDGE_LOCK = asyncio.Lock()
+_CORP_KNOWLEDGE_LAST_TS = 0.0
+_CORP_KNOWLEDGE_LAST_RESULT: Optional[Dict[str, Any]] = None
+
+
+def _env_flag(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _mark_system_node_pre_distilled(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    System-generated corporation nodes are already concise summaries and should not
+    inflate distillation tail. Mark them as completed at insert time.
+    """
+    enriched = dict(metadata)
+    enriched.update(
+        {
+            "distilled": "true",
+            "distill_status": "done",
+            "distilled_by": "system:corporation_knowledge_system",
+            "distill_rework_reason": "pre_distilled_system_summary",
+        }
+    )
+    return enriched
+
 
 # Database connection
 try:
@@ -233,62 +262,86 @@ class CorporationKnowledgeSystem:
 
         return changes
 
-    async def update_corporation_knowledge(self, pool: Optional[Any] = None) -> Dict[str, Any]:
+    async def update_corporation_knowledge(
+        self, pool: Optional[Any] = None, allow_db_write: bool = True
+    ) -> Dict[str, Any]:
         """Обновить все знания корпорации. Если передан pool (asyncpg), используем его вместо нового соединения."""
-        logger.info("🔄 Обновление знаний корпорации...")
+        min_interval_sec = int(os.getenv("CORP_KNOWLEDGE_GLOBAL_MIN_INTERVAL_SEC", "900"))
+        global _CORP_KNOWLEDGE_LAST_TS, _CORP_KNOWLEDGE_LAST_RESULT
+        async with _CORP_KNOWLEDGE_LOCK:
+            now_ts = datetime.now().timestamp()
+            elapsed = now_ts - _CORP_KNOWLEDGE_LAST_TS
+            if _CORP_KNOWLEDGE_LAST_RESULT and elapsed < max(30, min_interval_sec):
+                logger.info(
+                    "⏭️ [CORP-KNOWLEDGE] Skip refresh (global cooldown %ss, elapsed %ss)",
+                    min_interval_sec,
+                    int(elapsed),
+                )
+                return dict(_CORP_KNOWLEDGE_LAST_RESULT)
 
-        # Обнаруживаем все
-        ollama_models = await self.discover_ollama_models()
-        mlx_models = await self.discover_mlx_models()
-        scripts = self.discover_scripts()
-        images = self.discover_images()
-        recent_changes = await self.discover_recent_changes()
+            _CORP_KNOWLEDGE_LAST_TS = now_ts
+            logger.info("🔄 Обновление знаний корпорации...")
 
-        knowledge = {
-            "timestamp": datetime.now().isoformat(),
-            "ollama_models": ollama_models,
-            "mlx_models": mlx_models,
-            "scripts": scripts,
-            "images": images,
-            "recent_changes": recent_changes,
-            "total_ollama_models": len(ollama_models),
-            "total_mlx_models": len(mlx_models),
-            "total_scripts": len(scripts),
-            "total_images": len(images),
-        }
+            # Обнаруживаем все
+            ollama_models = await self.discover_ollama_models()
+            mlx_models = await self.discover_mlx_models()
+            scripts = self.discover_scripts()
+            images = self.discover_images()
+            recent_changes = await self.discover_recent_changes()
 
-        # Сохраняем в БД с эмбеддингами для поиска
-        if ASYNCPG_AVAILABLE:
-            try:
-                # Импортируем get_embedding: сначала semantic_cache (лёгкий, Ollama), чтобы не тянуть app.main (MCP, redis, pool) — меньше памяти в оркестраторе
-                get_embedding = None
+            knowledge = {
+                "timestamp": datetime.now().isoformat(),
+                "ollama_models": ollama_models,
+                "mlx_models": mlx_models,
+                "scripts": scripts,
+                "images": images,
+                "recent_changes": recent_changes,
+                "total_ollama_models": len(ollama_models),
+                "total_mlx_models": len(mlx_models),
+                "total_scripts": len(scripts),
+                "total_images": len(images),
+            }
+
+            # Сохраняем в БД с эмбеддингами для поиска (может быть временно отключено backpressure-гейтом).
+            if ASYNCPG_AVAILABLE and allow_db_write:
                 try:
-                    from semantic_cache import get_embedding as _get_embedding
-
-                    get_embedding = _get_embedding
-                except ImportError:
+                    # Импортируем get_embedding: сначала semantic_cache (лёгкий, Ollama), чтобы не тянуть app.main (MCP, redis, pool) — меньше памяти в оркестраторе
+                    get_embedding = None
                     try:
-                        from app.main import get_embedding
+                        from semantic_cache import get_embedding as _get_embedding
+
+                        get_embedding = _get_embedding
                     except ImportError:
                         try:
-                            from app.enhanced_search import get_embedding
+                            from app.main import get_embedding
                         except ImportError:
-                            logger.warning("⚠️ get_embedding недоступен, сохраняем без эмбеддингов")
+                            try:
+                                from app.enhanced_search import get_embedding
+                            except ImportError:
+                                logger.warning(
+                                    "⚠️ get_embedding недоступен, сохраняем без эмбеддингов"
+                                )
 
-                # Используем переданный пул или одно соединение (меньше слотов к БД в nightly)
-                if pool is not None:
-                    async with pool.acquire() as conn:
-                        await self._save_corporation_knowledge_to_db(conn, knowledge, get_embedding)
-                else:
-                    conn = await asyncpg.connect(self.db_url, command_timeout=30)
-                    try:
-                        await self._save_corporation_knowledge_to_db(conn, knowledge, get_embedding)
-                    finally:
-                        await conn.close()
-            except Exception as e:
-                logger.error(f"Ошибка сохранения знаний в БД: {e}", exc_info=True)
+                    # Используем переданный пул или одно соединение (меньше слотов к БД в nightly)
+                    if pool is not None:
+                        async with pool.acquire() as conn:
+                            await self._save_corporation_knowledge_to_db(conn, knowledge, get_embedding)
+                    else:
+                        # Knowledge refresh can run longer under DB pressure.
+                        conn = await asyncpg.connect(self.db_url, command_timeout=120)
+                        try:
+                            await self._save_corporation_knowledge_to_db(conn, knowledge, get_embedding)
+                        finally:
+                            await conn.close()
+                except Exception as e:
+                    logger.error(f"Ошибка сохранения знаний в БД: {e}", exc_info=True)
+            elif not allow_db_write:
+                logger.warning(
+                    "⚠️ [CORP-KNOWLEDGE] DB write skipped due to distillation backpressure gate."
+                )
 
-        return knowledge
+            _CORP_KNOWLEDGE_LAST_RESULT = dict(knowledge)
+            return knowledge
 
     async def _save_corporation_knowledge_to_db(
         self, conn, knowledge: Dict[str, Any], get_embedding=None
@@ -308,22 +361,83 @@ class CorporationKnowledgeSystem:
                 INSERT INTO domains (name) VALUES ('System') RETURNING id
             """)
 
-        # Удаляем старые знания корпорации
-        await conn.execute("""
-            DELETE FROM knowledge_nodes
-            WHERE metadata->>'source' = 'corporation_knowledge_system'
-        """)
+        # Удаляем старые знания корпорации порциями, чтобы не ловить statement timeout.
+        # Если БД под давлением, лучше продолжить цикл без полной очистки, чем уронить весь update.
+        while True:
+            try:
+                deleted = await conn.fetchval(
+                    """
+                    WITH to_delete AS (
+                        SELECT ctid
+                        FROM knowledge_nodes
+                        WHERE metadata->>'source' = 'corporation_knowledge_system'
+                        LIMIT 100
+                    ),
+                    deleted AS (
+                        DELETE FROM knowledge_nodes kn
+                        USING to_delete td
+                        WHERE kn.ctid = td.ctid
+                        RETURNING 1
+                    )
+                    SELECT count(*) FROM deleted
+                    """,
+                    timeout=10,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "⚠️ [CORP-KNOWLEDGE] Timed out while pruning old nodes, continue with partial cleanup."
+                )
+                break
+
+            if not deleted:
+                break
+            await asyncio.sleep(0)
 
         saved_count = 0
+        max_consecutive_embed_failures = int(
+            os.getenv("CORP_KNOWLEDGE_EMBED_FAILFAST_THRESHOLD", "3")
+        )
+        consecutive_embed_failures = 0
+        embedding_disabled = not bool(get_embedding)
+
+        async def _safe_embed(text: str, label: str) -> Optional[List[float]]:
+            nonlocal consecutive_embed_failures, embedding_disabled
+            if embedding_disabled:
+                return None
+            try:
+                emb = await get_embedding(text)
+                if emb:
+                    consecutive_embed_failures = 0
+                    return emb
+                consecutive_embed_failures += 1
+                logger.debug(
+                    "Пустой эмбеддинг для %s (fail %s/%s)",
+                    label,
+                    consecutive_embed_failures,
+                    max_consecutive_embed_failures,
+                )
+            except Exception as e:
+                consecutive_embed_failures += 1
+                logger.debug(
+                    "Ошибка создания эмбеддинга для %s (fail %s/%s): %s",
+                    label,
+                    consecutive_embed_failures,
+                    max_consecutive_embed_failures,
+                    e,
+                )
+            if consecutive_embed_failures >= max_consecutive_embed_failures:
+                embedding_disabled = True
+                logger.warning(
+                    "⚠️ [CORP-KNOWLEDGE] Embedding fail-fast activated after %s consecutive failures. "
+                    "Continue saving nodes without embeddings this cycle.",
+                    consecutive_embed_failures,
+                )
+            return None
+
         # Сохраняем каждую модель Ollama отдельно с эмбеддингом
         for model in ollama_models:
             content = f"Модель Ollama: {model['name']}. Размер: {model.get('size', 0) / 1024 / 1024 / 1024:.2f} GB. Доступна для использования в корпорации."
-            embedding = None
-            if get_embedding:
-                try:
-                    embedding = await get_embedding(content)
-                except Exception as e:
-                    logger.debug(f"Ошибка создания эмбеддинга для модели {model['name']}: {e}")
+            embedding = await _safe_embed(content, f"модели {model['name']}")
 
             await conn.execute(
                 """
@@ -334,13 +448,15 @@ class CorporationKnowledgeSystem:
                 content,
                 str(embedding) if embedding else None,
                 json.dumps(
-                    {
-                        "source": "corporation_knowledge_system",
-                        "type": "ollama_model",
-                        "model_name": model["name"],
-                        "size": model.get("size", 0),
-                        "timestamp": knowledge["timestamp"],
-                    }
+                    _mark_system_node_pre_distilled(
+                        {
+                            "source": "corporation_knowledge_system",
+                            "type": "ollama_model",
+                            "model_name": model["name"],
+                            "size": model.get("size", 0),
+                            "timestamp": knowledge["timestamp"],
+                        }
+                    )
                 ),
             )
             saved_count += 1
@@ -355,12 +471,7 @@ class CorporationKnowledgeSystem:
         # Сохраняем каждую модель MLX отдельно с эмбеддингом
         for model in mlx_models:
             content = f"Модель MLX: {model['name']}. Путь: {model.get('path', 'N/A')}. Доступна для использования в корпорации."
-            embedding = None
-            if get_embedding:
-                try:
-                    embedding = await get_embedding(content)
-                except Exception as e:
-                    logger.debug(f"Ошибка создания эмбеддинга для MLX модели {model['name']}: {e}")
+            embedding = await _safe_embed(content, f"MLX модели {model['name']}")
 
             await conn.execute(
                 """
@@ -371,13 +482,15 @@ class CorporationKnowledgeSystem:
                 content,
                 str(embedding) if embedding else None,
                 json.dumps(
-                    {
-                        "source": "corporation_knowledge_system",
-                        "type": "mlx_model",
-                        "model_name": model["name"],
-                        "path": model.get("path"),
-                        "timestamp": knowledge["timestamp"],
-                    }
+                    _mark_system_node_pre_distilled(
+                        {
+                            "source": "corporation_knowledge_system",
+                            "type": "mlx_model",
+                            "model_name": model["name"],
+                            "path": model.get("path"),
+                            "timestamp": knowledge["timestamp"],
+                        }
+                    )
                 ),
             )
             saved_count += 1
@@ -398,12 +511,7 @@ class CorporationKnowledgeSystem:
             content = (
                 f"Доступные {script_type} скрипты корпорации ({len(type_scripts)}):\n{scripts_list}"
             )
-            embedding = None
-            if get_embedding:
-                try:
-                    embedding = await get_embedding(content)
-                except Exception as e:
-                    logger.debug(f"Ошибка создания эмбеддинга для скриптов {script_type}: {e}")
+            embedding = await _safe_embed(content, f"скриптов {script_type}")
 
             await conn.execute(
                 """
@@ -414,12 +522,14 @@ class CorporationKnowledgeSystem:
                 content,
                 str(embedding) if embedding else None,
                 json.dumps(
-                    {
-                        "source": "corporation_knowledge_system",
-                        "type": f"scripts_{script_type}",
-                        "count": len(type_scripts),
-                        "timestamp": knowledge["timestamp"],
-                    }
+                    _mark_system_node_pre_distilled(
+                        {
+                            "source": "corporation_knowledge_system",
+                            "type": f"scripts_{script_type}",
+                            "count": len(type_scripts),
+                            "timestamp": knowledge["timestamp"],
+                        }
+                    )
                 ),
             )
             saved_count += 1
@@ -475,12 +585,7 @@ class CorporationKnowledgeSystem:
                         ).strip()
 
                         content = f"Изображение {img['path']}: {description}"
-                        embedding = None
-                        if get_embedding:
-                            try:
-                                embedding = await get_embedding(content)
-                            except Exception:
-                                pass
+                        embedding = await _safe_embed(content, f"изображения {img['path']}")
 
                         await conn.execute(
                             """
@@ -491,12 +596,14 @@ class CorporationKnowledgeSystem:
                             content,
                             str(embedding) if embedding else None,
                             json.dumps(
-                                {
-                                    "source": "corporation_knowledge_system",
-                                    "type": "image_description",
-                                    "file_path": img["path"],
-                                    "timestamp": knowledge["timestamp"],
-                                }
+                                _mark_system_node_pre_distilled(
+                                    {
+                                        "source": "corporation_knowledge_system",
+                                        "type": "image_description",
+                                        "file_path": img["path"],
+                                        "timestamp": knowledge["timestamp"],
+                                    }
+                                )
                             ),
                         )
                         saved_count += 1
@@ -516,12 +623,7 @@ class CorporationKnowledgeSystem:
                 ]
             )
             content = f"Недавние изменения в корпорации ({len(recent_changes)}):\n{changes_text}"
-            embedding = None
-            if get_embedding:
-                try:
-                    embedding = await get_embedding(content)
-                except Exception as e:
-                    logger.debug(f"Ошибка создания эмбеддинга для изменений: {e}")
+            embedding = await _safe_embed(content, "недавних изменений")
 
             await conn.execute(
                 """
@@ -532,12 +634,14 @@ class CorporationKnowledgeSystem:
                 content,
                 str(embedding) if embedding else None,
                 json.dumps(
-                    {
-                        "source": "corporation_knowledge_system",
-                        "type": "recent_changes",
-                        "count": len(recent_changes),
-                        "timestamp": knowledge["timestamp"],
-                    }
+                    _mark_system_node_pre_distilled(
+                        {
+                            "source": "corporation_knowledge_system",
+                            "type": "recent_changes",
+                            "count": len(recent_changes),
+                            "timestamp": knowledge["timestamp"],
+                        }
+                    )
                 ),
             )
             saved_count += 1
@@ -551,12 +655,7 @@ class CorporationKnowledgeSystem:
 - Недавних изменений: {len(recent_changes)}
 Все знания доступны через search_knowledge."""
 
-        embedding = None
-        if get_embedding:
-            try:
-                embedding = await get_embedding(summary_content)
-            except Exception as e:
-                logger.debug(f"Ошибка создания эмбеддинга для сводки: {e}")
+        embedding = await _safe_embed(summary_content, "сводки корпорации")
 
         await conn.execute(
             """
@@ -567,12 +666,14 @@ class CorporationKnowledgeSystem:
             summary_content,
             str(embedding) if embedding else None,
             json.dumps(
-                {
-                    "source": "corporation_knowledge_system",
-                    "type": "system_summary",
-                    "version": "1.0",
-                    "timestamp": knowledge["timestamp"],
-                }
+                _mark_system_node_pre_distilled(
+                    {
+                        "source": "corporation_knowledge_system",
+                        "type": "system_summary",
+                        "version": "1.0",
+                        "timestamp": knowledge["timestamp"],
+                    }
+                )
             ),
         )
         saved_count += 1
@@ -660,7 +761,43 @@ async def update_all_agents_knowledge(pool=None):
     """Обновить знания всех агентов. Если передан pool (asyncpg), используем его для всех операций с БД."""
     print("DEBUG: Starting update_all_agents_knowledge", flush=True)
     system = CorporationKnowledgeSystem()
-    knowledge = await system.update_corporation_knowledge(pool=pool)
+    backpressure_enabled = _env_flag("KNOWLEDGE_INGEST_BACKPRESSURE_ENABLED", True)
+    force_allow = _env_flag("KNOWLEDGE_INGEST_FORCE_ALLOW", False)
+    high_watermark = int(os.getenv("KNOWLEDGE_INGEST_HIGH_WATERMARK", "24"))
+
+    eligible_now: Optional[int] = None
+    if ASYNCPG_AVAILABLE:
+        try:
+            if pool is not None:
+                conn_tail = await pool.acquire()
+            else:
+                conn_tail = await asyncpg.connect(system.db_url, command_timeout=10)
+            try:
+                eligible_now = await get_distill_eligible_now(conn_tail)
+            finally:
+                if pool is not None:
+                    await pool.release(conn_tail)
+                else:
+                    await conn_tail.close()
+        except Exception as e:
+            logger.debug("Не удалось прочитать distillation tail для ingest-гейта: %s", e)
+
+    defer_ingest = bool(
+        backpressure_enabled
+        and not force_allow
+        and eligible_now is not None
+        and eligible_now >= high_watermark
+    )
+    if defer_ingest:
+        logger.warning(
+            "⚠️ [INGEST-BACKPRESSURE] eligible_now=%s >= high_watermark=%s; skip bulk knowledge ingest this cycle.",
+            eligible_now,
+            high_watermark,
+        )
+
+    knowledge = await system.update_corporation_knowledge(
+        pool=pool, allow_db_write=not defer_ingest
+    )
 
     # Также извлекаем полные знания корпорации (системы, логика, умения)
     try:
@@ -676,11 +813,16 @@ async def update_all_agents_knowledge(pool=None):
                 sys.path.insert(0, knowledge_os_path)
             from app.corporation_complete_knowledge import CorporationCompleteKnowledge
 
-        complete_extractor = CorporationCompleteKnowledge()
-        complete_result = await complete_extractor.extract_all(pool=pool)
-        logger.info(
-            f"✅ Извлечено полных знаний корпорации: {complete_result['total_extracted']} (сохранено: {complete_result['saved_to_db']})"
-        )
+        if defer_ingest:
+            logger.warning(
+                "⚠️ [INGEST-BACKPRESSURE] Skipping CorporationCompleteKnowledge.extract_all due to high tail."
+            )
+        else:
+            complete_extractor = CorporationCompleteKnowledge()
+            complete_result = await complete_extractor.extract_all(pool=pool)
+            logger.info(
+                f"✅ Извлечено полных знаний корпорации: {complete_result['total_extracted']} (сохранено: {complete_result['saved_to_db']})"
+            )
     except Exception as e:
         logger.debug(f"Не удалось извлечь полные знания корпорации: {e}")
 

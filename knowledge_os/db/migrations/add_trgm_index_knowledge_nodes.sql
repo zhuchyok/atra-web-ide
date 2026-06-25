@@ -5,8 +5,12 @@
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_knowledge_nodes_content_trgm
+-- NOTE:
+-- This migration is executed by orchestrator via a regular transaction.
+-- CREATE INDEX CONCURRENTLY is not allowed inside transaction blocks,
+-- therefore we use a standard CREATE INDEX IF NOT EXISTS here.
+CREATE INDEX IF NOT EXISTS idx_knowledge_nodes_content_trgm
     ON knowledge_nodes USING GIN (content gin_trgm_ops);
 
-COMMENT ON INDEX idx_knowledge_nodes_content_trgm IS 
+COMMENT ON INDEX idx_knowledge_nodes_content_trgm IS
     'Trigram индекс для быстрых ILIKE запросов по content. Поддерживает content ILIKE %pattern%.';

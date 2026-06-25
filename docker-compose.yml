@@ -5,11 +5,18 @@
 # Открыть: http://localhost:3000
 # atra chat → Gateway 8081 → Victoria 8010 / Ollama fallback
 
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # ============================================
   # Gateway - Rust API (atra chat, /v1/chat/completions)
   # ============================================
   gateway:
+    logging: *default-logging
     build:
       context: .
       dockerfile: infrastructure/docker/gateway/Dockerfile
@@ -18,7 +25,7 @@ services:
     restart: always
     mem_limit: 2g
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8081/health || exit 1"]
+      test: ["CMD-SHELL", "bash -lc 'echo > /dev/tcp/127.0.0.1/8081' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -51,6 +58,7 @@ services:
   # Frontend - Svelte + Tailwind
   # ============================================
   frontend:
+    logging: *default-logging
     build: ./frontend
     container_name: atra-web-ide-frontend
     restart: unless-stopped
@@ -67,6 +75,7 @@ services:
   # Backend - FastAPI
   # ============================================
   backend:
+    logging: *default-logging
     build: ./backend
     container_name: atra-web-ide-backend
     restart: unless-stopped

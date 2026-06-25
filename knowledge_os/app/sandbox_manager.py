@@ -7,6 +7,7 @@ from cube_sandbox_manager import get_cube_manager
 
 logger = logging.getLogger(__name__)
 
+
 class SandboxManager:
     """
     [SINGULARITY 26.7] Hybrid Sandbox Factory.
@@ -25,16 +26,21 @@ class SandboxManager:
         # Initialize CubeSandbox (Level 7 backend)
         self.cube_manager = get_cube_manager()
         self.use_cube = os.environ.get("USE_CUBE_SANDBOX", "true").lower() == "true"
-        
+
         # [SINGULARITY 28.5] Enforce MicroVM isolation for Swarm
         self.enforce_microvm = os.environ.get("ENFORCE_MICROVM_ISOLATION", "true").lower() == "true"
-        
+
         # [SINGULARITY 28.5] Tmpfs support for MicroVMs
         self.use_tmpfs = os.environ.get("CUBE_USE_TMPFS", "true").lower() == "true"
-        
+
         self.network_name = "atra-sandbox-net"
         self.host_shared_dir = os.environ.get("HOST_SANDBOX_SHARED_DIR")
         self._ensure_docker_network()
+
+    @property
+    def client(self):
+        """Alias for docker_client for backward compatibility."""
+        return self.docker_client
 
     def _ensure_docker_network(self):
         """Legacy Docker network setup."""
@@ -60,28 +66,30 @@ class SandboxManager:
         # In a real CubeSandbox implementation, these would be MicroVM flags
         mem_limit = "256M"
         cpu_limit = "0.5"
-        
+
         # 1. Try CubeSandbox (High-density ARM64 KVM)
         if self.use_cube:
             try:
                 # [SINGULARITY 28.5] Wrap command with resource limits and tmpfs context
                 # Using 'timeout' and 'nice' as basic OS-level isolation
                 isolated_command = f"timeout 60s nice -n 10 {command}"
-                
+
                 result = await self.cube_manager.run_in_sandbox(expert_name, isolated_command)
                 if "error" not in result:
                     return {
                         **result,
                         "limits": {"memory": mem_limit, "cpu": cpu_limit},
-                        "storage": "tmpfs-simulated"
+                        "storage": "tmpfs-simulated",
                     }
             except Exception as e:
                 logger.error(f"⚠️ CubeSandbox failed, falling back to Docker: {e}")
 
         # 2. Fallback to Docker (Legacy)
         if self.enforce_microvm and self.use_cube:
-             logger.warning(f"🚨 [ISOLATION] Enforced MicroVM failed for {expert_name}, blocking fallback for safety.")
-             return {"error": "Enforced MicroVM isolation failed"}
+            logger.warning(
+                f"🚨 [ISOLATION] Enforced MicroVM failed for {expert_name}, blocking fallback for safety."
+            )
+            return {"error": "Enforced MicroVM isolation failed"}
         if not self.docker_client:
             return {"error": "No sandbox backend available (Docker/Cube)"}
 
@@ -103,6 +111,7 @@ class SandboxManager:
                     network=self.network_name,
                     mem_limit="512m",
                     nano_cpus=1000000000,
+                    restart_policy={"Name": "unless-stopped"},
                     working_dir="/workspace",
                     volumes={mount_path: {"bind": "/workspace", "mode": "rw"}},
                 )
@@ -114,7 +123,7 @@ class SandboxManager:
                 "exit_code": exec_result.exit_code,
                 "output": exec_result.output.decode("utf-8", errors="replace"),
                 "container": container_name,
-                "isolation": "container-cgroups"
+                "isolation": "container-cgroups",
             }
 
         except Exception as e:
@@ -124,7 +133,7 @@ class SandboxManager:
     def cleanup_sandbox(self, expert_name: str):
         """Cleanup both backends."""
         self.cube_manager.cleanup_sandbox(expert_name)
-        
+
         if self.docker_client:
             container_name = self.get_container_name(expert_name)
             try:
@@ -135,8 +144,10 @@ class SandboxManager:
             except docker.errors.NotFound:
                 pass
 
+
 # Global instance
 _manager = None
+
 
 def get_sandbox_manager():
     global _manager

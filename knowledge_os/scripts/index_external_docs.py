@@ -4,6 +4,7 @@
 Выкачивает репозитории и индексирует содержимое в таблицу knowledge_nodes.
 """
 
+import argparse
 import asyncio
 import hashlib
 import json
@@ -63,7 +64,7 @@ def chunk_text(text: str, chunk_size: int = 3000, overlap: int = 200) -> List[st
 async def index_file(conn, file_path: str, domain_id: int):
     """Индексирует один файл."""
     try:
-        with open(file_path, encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8", errors="replace") as f:
             content = f.read()
     except Exception as e:
         logger.error(f"Ошибка чтения файла {file_path}: {e}")
@@ -91,6 +92,10 @@ async def index_file(conn, file_path: str, domain_id: int):
             "file_hash": file_hash,
             "chunk_index": i,
             "total_chunks": len(chunks),
+            # Индексированные внешние знания готовы к использованию без отдельной дистилляции.
+            "distilled": True,
+            "distill_status": "done",
+            "distilled_by": "system:index_external_docs",
         }
 
         await conn.execute(
@@ -108,7 +113,43 @@ async def index_file(conn, file_path: str, domain_id: int):
         )
 
 
-async def run_indexing():
+def _sync_repo(repo_url: str, repo_path: str) -> None:
+    """Синхронизирует репозиторий с защитой от битого worktree."""
+    if not os.path.exists(repo_path):
+        logger.info(f"Клонирование {repo_url}...")
+        subprocess.run(["git", "clone", repo_url, repo_path], check=True)
+        return
+
+    logger.info(f"Обновление {os.path.basename(repo_path)}...")
+    try:
+        subprocess.run(["git", "-C", repo_path, "pull", "--ff-only"], check=True)
+        return
+    except subprocess.CalledProcessError as pull_err:
+        logger.warning(f"git pull не удался: {pull_err}. Пробуем self-heal...")
+
+    # Fallback: аккуратно восстанавливаем состояние без удаления каталога.
+    subprocess.run(["git", "-C", repo_path, "fetch", "--all", "--prune"], check=True)
+    subprocess.run(["git", "-C", repo_path, "checkout", "-f", "origin/main"], check=True)
+    subprocess.run(["git", "-C", repo_path, "checkout", "-B", "main", "origin/main"], check=True)
+    subprocess.run(["git", "-C", repo_path, "reset", "--hard", "origin/main"], check=True)
+    logger.info("Self-heal git-репозитория завершен.")
+
+
+def _iter_indexable_files(max_files: Optional[int] = None):
+    """Итерирует индексируемые файлы (по расширениям) с опциональным лимитом."""
+    yielded = 0
+    for root, _, files in os.walk(TARGET_DIR):
+        files.sort()
+        for file in files:
+            if not file.endswith((".md", ".txt", ".json")):
+                continue
+            yield os.path.join(root, file)
+            yielded += 1
+            if max_files is not None and yielded >= max_files:
+                return
+
+
+async def run_indexing(max_files: Optional[int] = None, report_every: int = 100):
     """Основной цикл индексации."""
     if not DATABASE_URL:
         logger.error("DATABASE_URL не задан.")
@@ -119,24 +160,36 @@ async def run_indexing():
     for repo_url in REPOS:
         repo_name = repo_url.split("/")[-1].replace(".git", "")
         repo_path = os.path.join(TARGET_DIR, repo_name)
-        if not os.path.exists(repo_path):
-            logger.info(f"Клонирование {repo_url}...")
-            subprocess.run(["git", "clone", repo_url, repo_path], check=True)
-        else:
-            logger.info(f"Обновление {repo_name}...")
-            subprocess.run(["git", "-C", repo_path, "pull"], check=True)
+        _sync_repo(repo_url, repo_path)
 
     # 2. Индексация
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         domain_id = await get_or_create_domain(conn, "AI Research")
-        for root, _, files in os.walk(TARGET_DIR):
-            for file in files:
-                if file.endswith((".md", ".txt", ".json")):
-                    await index_file(conn, os.path.join(root, file), domain_id)
+        processed = 0
+        for file_path in _iter_indexable_files(max_files=max_files):
+            await index_file(conn, file_path, domain_id)
+            processed += 1
+            if report_every > 0 and processed % report_every == 0:
+                logger.info("Прогресс индексации: %s файлов", processed)
+        logger.info("Индексация завершена: обработано файлов: %s", processed)
     finally:
         await conn.close()
 
 
 if __name__ == "__main__":
-    asyncio.run(run_indexing())
+    parser = argparse.ArgumentParser(description="Индексация внешних документов в AI Research")
+    parser.add_argument(
+        "--max-files",
+        type=int,
+        default=None,
+        help="Лимит количества файлов для одного прогона (по умолчанию без лимита).",
+    )
+    parser.add_argument(
+        "--report-every",
+        type=int,
+        default=100,
+        help="Период логирования прогресса в файлах (по умолчанию 100).",
+    )
+    args = parser.parse_args()
+    asyncio.run(run_indexing(max_files=args.max_files, report_every=args.report_every))

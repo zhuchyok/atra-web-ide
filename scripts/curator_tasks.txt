@@ -2,23 +2,23 @@
 какой статус проекта?
 что ты умеешь?
 напиши одну строку кода на Python: вывод текущей даты
-проверь файл /app/knowledge_os/app/debate_processor.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/enhanced_orchestrator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/enhanced_scout_researcher.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/expert_council_discussion.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/expert_synthesizer.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/cube_sandbox_manager.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/perpetual_evolution.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/recursive_evolution.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/sandbox_manager.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
 проверь файл /app/knowledge_os/app/swarm_intelligence.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/backend/app/routers/chat.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/actor_registry.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/agent_ab_testing.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/ai_core.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/constitutional_rewards.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/global_event_bus.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/local_router.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/proactive_dna_refactor.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/symbol_tuner.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/toil_detector.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/scripts/ci_check_test_count.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/app/ingestion/judge.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/app/expert_worker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/app/rd_guardian.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/scripts/backfill_distillation_v2.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/scripts/build_lora_dataset_from_distilled.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/app/distillation_tail_metrics.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/app/local_router.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/scripts/evaluate_lora_gate.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/scripts/sync_lancedb_from_postgres.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/scripts/turbo_distiller.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/app/ingestion/quality_gate.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/tests/test_ingestion_quality_gate.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/app/semantic_cache.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/app/enhanced_orchestrator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/app/expert_stream_routing.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/app/lancedb_service.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/scripts/verify_v31.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/tests/test_ingestion_quality_integration.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата

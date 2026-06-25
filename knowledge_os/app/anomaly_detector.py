@@ -169,15 +169,24 @@ class AnomalyDetector:
         self.request_history.append((current_time, prompt_hash))
         self.request_counts[identifier] += 1
 
-        # ВАЖНО: Запросы от worker/экспертов (tasks) НИКОГДА не блокируем
-        # Иначе все задачи уходят в deferred_to_human
-        if metadata and metadata.get("expert_name"):
-            logger.debug(
-                f"🔄 [ANOMALY] Пропуск проверок для эксперта: {metadata.get('expert_name')}"
-            )
-            return False, None
-
+        # ВАЖНО: Запросы от worker/экспертов (tasks) проверяем с пониженной строгостью
+        # (не блокируем, но логируем подозрительное)
         alerts = []
+        is_expert = bool(metadata and metadata.get("expert_name"))
+        if is_expert:
+            # Только проверка на инъекции, без rate limiting
+            has_injection, injection_reason = self.detect_injection(prompt)
+            if has_injection:
+                alert = AnomalyAlert(
+                    anomaly_type="injection",
+                    severity="medium",
+                    description=f"Expert injection attempt: {injection_reason}",
+                    detected_at=current_time,
+                )
+                alerts.append(alert)
+                logger.warning(f"🔄 [ANOMALY] Expert injection blocked: {injection_reason}")
+                await self._log_alert(alert)
+            return False, alerts if alerts else None
 
         # 1. Проверка на инъекции
         has_injection, injection_reason = self.detect_injection(prompt)

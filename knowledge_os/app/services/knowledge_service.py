@@ -7,9 +7,11 @@ import asyncpg
 
 try:
     from db_pool import get_pool
+    from ingestion.quality_gate import IngestionQualityGate
     from semantic_cache import get_embedding
 except ImportError:
     from app.db_pool import get_pool
+    from app.ingestion.quality_gate import IngestionQualityGate
     from app.semantic_cache import get_embedding
 
 logger = logging.getLogger(__name__)
@@ -23,6 +25,7 @@ class KnowledgeService:
 
     def __init__(self):
         self.db_url = os.getenv("DATABASE_URL")
+        self.quality_gate = IngestionQualityGate()
 
     async def _get_knowledge_context(
         self, query: str, limit: int = 7, project_context: Optional[str] = None
@@ -130,6 +133,22 @@ class KnowledgeService:
                             context += f"\n[КОРПОРАЦИЯ] (релевантность: {row['similarity']:.2f}):\n"
 
                         context += f"{row['content'][:1000]}\n"
+                        # v2 structured metadata (if present) improves decision-grounded RAG responses.
+                        core_thesis = meta.get("core_thesis")
+                        if core_thesis:
+                            context += f"THESIS: {str(core_thesis)[:280]}\n"
+                        decision_context = meta.get("decision_context")
+                        if decision_context:
+                            context += f"DECISION_CONTEXT: {str(decision_context)[:160]}\n"
+                        risk_level = meta.get("risk_level")
+                        if risk_level:
+                            context += f"RISK_LEVEL: {risk_level}\n"
+                        actionability = meta.get("actionability_score")
+                        if actionability is not None:
+                            context += f"ACTIONABILITY_SCORE: {actionability}\n"
+                        evidence_strength = meta.get("evidence_strength")
+                        if evidence_strength:
+                            context += f"EVIDENCE_STRENGTH: {evidence_strength}\n"
 
                 # Сохраняем в кэш на 5 минут
                 try:
@@ -145,6 +164,27 @@ class KnowledgeService:
 
     async def save_insight(self, content: str, expert_name: str, metadata: Dict = None):
         """Сохраняет новый инсайт в базу знаний."""
+        source_type = f"insight:{expert_name}"
+        decision = await self.quality_gate.evaluate_async(content, source_type=source_type)
+        pool = await get_pool()
+        if self.quality_gate.should_block(decision):
+            async with pool.acquire() as conn:
+                await self.quality_gate.log_reject(
+                    conn,
+                    content=content,
+                    source_type=source_type,
+                    reason=decision.reason,
+                    gate_stage="knowledge_service",
+                    metadata={
+                        "quality_score": decision.quality_score,
+                        "decision": decision.decision,
+                    },
+                )
+            logger.warning(
+                f"⛔ [KNOWLEDGE SERVICE] Insight rejected from {expert_name}: {decision.reason}"
+            )
+            return
+
         embedding = await get_embedding(content[:1000])
 
         # Сингулярность 10.0: Если эмбеддинг не получен, используем нулевой вектор нужной размерности
@@ -169,7 +209,6 @@ class KnowledgeService:
         else:
             embedding_str = embedding
 
-        pool = await get_pool()
         async with pool.acquire() as conn:
             # Сингулярность 10.0: Гарантируем, что metadata — это JSON-строка для PostgreSQL
             metadata_json = json.dumps(metadata or {})

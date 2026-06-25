@@ -10,6 +10,21 @@ import httpx
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("semantic_router")
+_REDIS_MANAGER_SINGLETON = None
+
+
+def _get_redis_manager_singleton():
+    global _REDIS_MANAGER_SINGLETON
+    if _REDIS_MANAGER_SINGLETON is not None:
+        return _REDIS_MANAGER_SINGLETON
+    try:
+        from app.redis_manager import RedisManager
+
+        _REDIS_MANAGER_SINGLETON = RedisManager()
+    except ImportError:
+        logger.debug("RedisManager not available for SemanticRouter cache")
+        _REDIS_MANAGER_SINGLETON = None
+    return _REDIS_MANAGER_SINGLETON
 
 
 class SemanticRouter:
@@ -31,13 +46,7 @@ class SemanticRouter:
         self.embed_model = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 
         # [SINGULARITY 24.0] Redis Cache for Embeddings
-        self.redis_manager = None
-        try:
-            from app.redis_manager import RedisManager
-
-            self.redis_manager = RedisManager()
-        except ImportError:
-            logger.debug("RedisManager not available for SemanticRouter cache")
+        self.redis_manager = _get_redis_manager_singleton()
 
         # Эталонные фразы для категорий (будут заменены на эмбеддинги при первом вызове)
         self.categories = {

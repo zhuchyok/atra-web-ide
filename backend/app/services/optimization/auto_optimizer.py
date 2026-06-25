@@ -217,14 +217,14 @@ class AutoOptimizer:
         if not isinstance(queries, list):
             return
         try:
-            from app.services.knowledge_os import KnowledgeOSClient
-            from app.services.rag_light import RAGLightService
+            from app.services.knowledge_os import knowledge_os_client
+            from app.services.rag_light import get_rag_light_service
         except ImportError:
             return
         try:
-            kos = KnowledgeOSClient()
+            kos = knowledge_os_client
             await kos.connect()
-            rag = RAGLightService(knowledge_os=kos)
+            rag = get_rag_light_service(knowledge_os=kos)
             preloaded = 0
             for q in queries[:15]:
                 try:
@@ -234,7 +234,6 @@ class AutoOptimizer:
                         preloaded += 1
                 except Exception:
                     pass
-            await kos.disconnect()
             if preloaded:
                 logger.info("📥 Предзагружено %s запросов в RAG кэш", preloaded)
         except Exception as e:
@@ -273,3 +272,14 @@ class AutoOptimizer:
                 for r in self.optimization_history[-10:]
             ],
         }
+
+
+_auto_optimizer_singleton: Optional[AutoOptimizer] = None
+
+
+def get_auto_optimizer_service() -> AutoOptimizer:
+    """Provider for process-wide AutoOptimizer singleton."""
+    global _auto_optimizer_singleton
+    if _auto_optimizer_singleton is None:
+        _auto_optimizer_singleton = AutoOptimizer()
+    return _auto_optimizer_singleton

@@ -135,8 +135,11 @@ class ExpertCouncil:
                     Будь краток, профессионален и конструктивен.
                     """
 
-                opinion = await run_smart_agent_async(
-                    prompt, expert_name=expert["name"], category="reasoning", is_vip=True
+                opinion = await asyncio.wait_for(
+                    run_smart_agent_async(
+                        prompt, expert_name=expert["name"], category="fast", is_vip=False
+                    ),
+                    timeout=60,
                 )
 
                 # Save to DB
@@ -202,9 +205,16 @@ class ExpertCouncil:
 
                 ВЕРНИ ФИНАЛЬНЫЙ ПЛАН ДЕЙСТВИЙ.
                 """
-            final_decision = await run_smart_agent_async(
-                synthesis_prompt, expert_name="Виктория", category="reasoning", is_vip=True
-            )
+            try:
+                final_decision = await asyncio.wait_for(
+                    run_smart_agent_async(
+                        synthesis_prompt, expert_name="Виктория", category="general", is_vip=False
+                    ),
+                    timeout=120,
+                )
+            except asyncio.TimeoutError:
+                logger.warning("⚠️ [COUNCIL] Victoria synthesis timed out, saving partial results")
+                final_decision = debate_history + "\n\n[COUNCIL] Victoria synthesis timed out. Partial results above."
 
             # Update session status
             await conn.execute(

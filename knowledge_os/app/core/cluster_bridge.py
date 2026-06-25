@@ -20,6 +20,14 @@ DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/kno
 CLUSTER_NAME = os.getenv("CLUSTER_NAME", "mac-studio-primary")
 HEARTBEAT_INTERVAL = 30  # seconds
 GOSSIP_INTERVAL = 60  # seconds
+_CLUSTER_BRIDGE_SINGLETON = None
+
+
+def _get_cluster_bridge_singleton():
+    global _CLUSTER_BRIDGE_SINGLETON
+    if _CLUSTER_BRIDGE_SINGLETON is None:
+        _CLUSTER_BRIDGE_SINGLETON = MultiClusterBridge()
+    return _CLUSTER_BRIDGE_SINGLETON
 
 
 class MultiClusterBridge:
@@ -147,7 +155,7 @@ class MultiClusterBridge:
 
 
 async def run_bridge_daemon():
-    bridge = MultiClusterBridge()
+    bridge = _get_cluster_bridge_singleton()
     conn = await asyncpg.connect(DB_URL)
     await bridge.initialize(conn)
     await conn.close()

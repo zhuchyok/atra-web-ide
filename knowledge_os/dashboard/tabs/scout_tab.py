@@ -21,7 +21,7 @@ def render_scout_tab():
 
 def render_simulator():
     """🚀 Симулятор бизнес-идей."""
-    st.subheader("🚀 Бизнес-симулятор Singularity")
+    st.subheader("🚀 Бизнес-симулятор Singularity 31.2+")
     with st.form("simulation_form"):
         idea = st.text_area(
             "Опишите вашу идею или стратегию для анализа:",
@@ -142,9 +142,7 @@ def render_simulator():
                     else:
                         st.info("⌛ Симуляция еще выполняется или не завершена.")
                 with col2:
-                    if st.button(
-                        "🗑️ Удалить", key=delete_key, type="secondary", use_container_width=True
-                    ):
+                    if st.button("🗑️ Удалить", key=delete_key, type="secondary", width="stretch"):
                         if delete_simulation(sim_id):
                             st.success("✅ Симуляция удалена")
                             st.cache_data.clear()
@@ -156,6 +154,7 @@ def render_simulator():
 def _create_simulation_task(sim_id, idea, project_context):
     """Создать задачу для Виктории, если прямой запуск не удался."""
     try:
+        inserted = 0
         with db_connection() as conn:
             if not conn:
                 return
@@ -178,8 +177,12 @@ def _create_simulation_task(sim_id, idea, project_context):
                         project_context,
                     ),
                 )
+                inserted = cur.rowcount or 0
                 conn.commit()
-        st.info("📋 Задача создана в системе. Виктория обработает её автоматически.")
+        if inserted > 0:
+            st.info("📋 Задача создана в системе. Виктория обработает её автоматически.")
+        else:
+            st.warning("⚠️ Задача не создана: эксперт Виктория не найден или INSERT пропущен.")
     except Exception as e:
         st.error(f"❌ Ошибка создания задачи: {e}")
 
@@ -207,6 +210,7 @@ def render_marketing():
                             st.error("Нет подключения к БД.")
                         else:
                             with conn.cursor() as cur:
+                                inserted = 0
                                 cur.execute(
                                     """
                                     INSERT INTO tasks (title, description, status, assignee_expert_id, creator_expert_id, metadata, project_context)
@@ -228,10 +232,16 @@ def render_marketing():
                                         project_ctx_marketing,
                                     ),
                                 )
+                                inserted = cur.rowcount or 0
                                 conn.commit()
-                            st.info(
-                                "📋 Задача создана. Отдел маркетинга (Артем) обработает её через worker."
-                            )
+                            if inserted > 0:
+                                st.info(
+                                    "📋 Задача создана. Отдел маркетинга (Артем) обработает её через worker."
+                                )
+                            else:
+                                st.warning(
+                                    "⚠️ Задача не создана: эксперт Артем не найден или INSERT пропущен."
+                                )
                 except Exception as e:
                     st.error(f"Не удалось создать задачу для маркетинга: {e}")
 
@@ -276,9 +286,7 @@ def render_scout():
         project_scout = st.selectbox(
             "Проект", ["— Не указан / внутренняя —"] + get_project_slugs(), key="scout_project"
         )
-        run_scout = st.form_submit_button(
-            "🕵️ Запустить максимальную разведку", use_container_width=True
-        )
+        run_scout = st.form_submit_button("🕵️ Запустить максимальную разведку", width="stretch")
 
         if run_scout:
             project_ctx_scout = (
@@ -398,9 +406,7 @@ def render_scout():
                 with col1:
                     st.markdown(rep.get("content", "Нет содержимого"))
                 with col2:
-                    if st.button(
-                        "🗑️ Удалить", key=delete_key, type="secondary", use_container_width=True
-                    ):
+                    if st.button("🗑️ Удалить", key=delete_key, type="secondary", width="stretch"):
                         if delete_scout_report(rep_id):
                             st.success("✅ Отчет удален")
                             st.cache_data.clear()

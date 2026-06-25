@@ -116,3 +116,61 @@ def test_ask_victoria_empty_goal_422(client_success):
     resp = client_success.post("/api/chat/ask-victoria", json={"goal": "   "})
     assert resp.status_code == 422
     assert "goal" in resp.text.lower() or "required" in resp.text.lower()
+
+
+def test_ask_victoria_timeout_message_not_hardcoded_60s():
+    mock_client = MagicMock(spec=VictoriaClient)
+    mock_client.run = AsyncMock(side_effect=TimeoutError())
+
+    async def _dep():
+        return mock_client
+
+    app.dependency_overrides[chat.get_victoria_client] = _dep
+    try:
+        with TestClient(app) as c:
+            resp = c.post("/api/chat/ask-victoria", json={"goal": "Сложная задача"})
+        assert resp.status_code == 503
+        assert "таймаут" in resp.text.lower()
+        assert "60с" not in resp.text.lower()
+    finally:
+        app.dependency_overrides.pop(chat.get_victoria_client, None)
+
+
+def test_ask_victoria_one_word_directive_without_word_returns_422(client_success):
+    resp = client_success.post(
+        "/api/chat/ask-victoria",
+        json={"goal": "Скажи одно слово:"},
+    )
+    assert resp.status_code == 422
+    assert "одно слово" in resp.text.lower()
+
+
+def test_ask_victoria_processing_returns_task_metadata():
+    mock_run = AsyncMock(
+        return_value={
+            "status": "processing",
+            "task_id": "abc-123",
+            "status_url": "/run/status/abc-123",
+        }
+    )
+    mock_client = MagicMock(spec=VictoriaClient)
+    mock_client.run = mock_run
+
+    async def _dep():
+        return mock_client
+
+    app.dependency_overrides[chat.get_victoria_client] = _dep
+    try:
+        with TestClient(app) as c:
+            resp = c.post(
+                "/api/chat/ask-victoria",
+                json={"goal": "Сделай долгий анализ"},
+                params={"format": "json"},
+            )
+        assert resp.status_code == 202
+        data = resp.json()
+        assert data["status"] == "processing"
+        assert data["task_id"] == "abc-123"
+        assert "status" in data["status_url"]
+    finally:
+        app.dependency_overrides.pop(chat.get_victoria_client, None)

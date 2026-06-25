@@ -1,9 +1,10 @@
 import os
+import re
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import streamlit as st
-from database_service import fetch_data
+from database_service import _normalize_metadata, fetch_data, fetch_data_freshness
 
 
 def format_msk(dt):
@@ -16,6 +17,58 @@ def format_msk(dt):
     return msk_dt.strftime("%d.%m.%Y %H:%M")
 
 
+@st.cache_data(ttl=30, max_entries=8)
+def resolve_backend_url():
+    """
+    Подбирает рабочий URL backend API для дашборда.
+    В контейнере localhost обычно указывает на сам dashboard, поэтому
+    пробуем явные адреса сервисов в сети и host gateway.
+    """
+    candidates = []
+    for env_key in ("ATRA_BACKEND_URL", "BACKEND_URL"):
+        val = os.getenv(env_key)
+        if val and val not in candidates:
+            candidates.append(val.rstrip("/"))
+
+    # Фолбэки по вероятности в docker/локальном режиме
+    for val in (
+        "http://atra-web-ide-backend:8000",
+        "http://backend:8000",
+        "http://host.docker.internal:8080",
+        "http://localhost:8080",
+    ):
+        if val not in candidates:
+            candidates.append(val)
+
+    tried = []
+    try:
+        import requests
+
+        for base in candidates:
+            for probe in ("/api/health", "/health"):
+                url = f"{base}{probe}"
+                try:
+                    r = requests.get(url, timeout=1.5)
+                    tried.append(f"{url} -> {r.status_code}")
+                    if r.status_code in (200, 204):
+                        return {
+                            "ok": True,
+                            "url": base,
+                            "tried": tried,
+                        }
+                except Exception as probe_err:
+                    tried.append(f"{url} -> ERR: {probe_err}")
+                    continue
+    except Exception as e:
+        tried.append(f"requests import error: {e}")
+
+    return {
+        "ok": False,
+        "url": candidates[0] if candidates else "http://localhost:8080",
+        "tried": tried,
+    }
+
+
 def render_system_tab():
     """Вкладка Система и Безопасность."""
     tabs_system = st.tabs(
@@ -25,7 +78,7 @@ def render_system_tab():
             "🛡️ Безопасность",
             "🚨 War Room",
             "🧪 Песочница",
-            "🚀 Singularity 14.0",
+            "🚀 Singularity 31.2+",
             "📁 Проекты",
             "🤖 Логи",
         ]
@@ -65,7 +118,7 @@ def render_self_healing():
 
         if proposals:
             for p in proposals:
-                meta = p.get("metadata") or {}
+                meta = _normalize_metadata(p.get("metadata"))
                 error_info = meta.get("error_info") or {}
                 patch_data = meta.get("patch_data") or {}
                 file_path = (
@@ -101,14 +154,12 @@ def render_self_healing():
 
                     with col_actions:
                         if st.button(
-                            "✅ Approve & Apply", key=f"approve_{p['id']}", use_container_width=True
+                            "✅ Approve & Apply", key=f"approve_{p['id']}", width="stretch"
                         ):
                             apply_self_healing_patch(p["id"], file_path, patch_data)
                             st.rerun()
 
-                        if st.button(
-                            "❌ Reject", key=f"reject_{p['id']}", use_container_width=True
-                        ):
+                        if st.button("❌ Reject", key=f"reject_{p['id']}", width="stretch"):
                             reject_self_healing_patch(p["id"])
                             st.rerun()
         else:
@@ -174,11 +225,10 @@ def render_expert_sandbox():
     with col_sel:
         selected_expert = st.selectbox("Агент в песочнице", expert_names)
 
-        # Инициализируем sb_status и backend_url значением по умолчанию
+        # Инициализируем sb_status и backend_url
         sb_status = {"status": "unknown"}
-        import os
-
-        backend_url = os.getenv("BACKEND_URL", "http://localhost:8080")
+        backend_probe = resolve_backend_url()
+        backend_url = backend_probe["url"]
 
         # Получаем реальный статус из API
         try:
@@ -212,9 +262,15 @@ def render_expert_sandbox():
         except Exception as e:
             st.error(f"Ошибка связи с API: {e}")
             st.info(f"Попытка подключения к: {backend_url}")
+            if not backend_probe.get("ok"):
+                st.caption("Проверенные адреса backend:")
+                for line in backend_probe.get("tried", [])[:6]:
+                    st.caption(f"- {line}")
 
         if st.button("🧹 Очистить песочницу"):
             try:
+                import requests
+
                 reset_resp = requests.post(
                     f"{backend_url}/api/sandbox/reset/{selected_expert}", timeout=5
                 )
@@ -243,27 +299,52 @@ def render_expert_sandbox():
 
     st.markdown("---")
     st.markdown("#### 🏗️ Автономные Микросервисы")
-    # Список реально запущенных сервисов через SandboxManager
+    # Показываем автономный контур по именам и compose-service, а не только legacy svc-*
     try:
         import docker
 
+        def _is_autonomous_service(container):
+            name = container.name or ""
+            labels = container.labels or {}
+            compose_service = labels.get("com.docker.compose.service", "")
+            patterns = (
+                r"^svc-",
+                r"^sandbox-",
+                r"^knowledge_os-expert-worker-",
+                r"^(victoria-agent|veronica-agent)$",
+                r"^(knowledge_evolution|knowledge_nightly|knowledge_os_worker|knowledge_os_orchestrator|performance-watchdog)$",
+            )
+            if any(re.match(pattern, name) for pattern in patterns):
+                return True
+            return any(
+                token in compose_service
+                for token in ("expert-worker", "sandbox", "victoria-agent", "veronica-agent")
+            )
+
         client = docker.from_env()
-        services = [c for c in client.containers.list() if c.name.startswith("svc-")]
+        services = [c for c in client.containers.list() if _is_autonomous_service(c)]
+        services.sort(key=lambda c: c.name)
         if services:
+            st.success(f"Найдено автономных сервисов: {len(services)}")
             for svc in services:
                 with st.expander(f"📦 {svc.name} (ID: {svc.id[:8]})"):
                     st.write(f"Статус: {svc.status}")
                     st.write(f"Образ: {svc.image.tags[0] if svc.image.tags else 'unknown'}")
-                    if st.button(f"🛑 Остановить {svc.name}"):
+                    if st.button(f"🛑 Остановить {svc.name}", key=f"stop_autonomous_{svc.id}"):
                         svc.stop()
                         st.rerun()
         else:
-            st.info("Автономные микросервисы еще не запущены.")
-    except:
-        st.warning("Не удалось загрузить список сервисов")
+            st.info("Автономные микросервисы не обнаружены среди запущенных контейнеров.")
+    except Exception as e:
+        st.warning("Не удалось загрузить список сервисов.")
+        st.caption(f"Причина: {e}")
+        st.caption(
+            "Если dashboard запущен в Docker, подключите /var/run/docker.sock "
+            "или используйте API backend для списка сервисов."
+        )
 
     st.markdown("---")
-    st.markdown("#### 🛡️ Система Самодиагностики (Singularity 14.0)")
+    st.markdown("#### 🛡️ Система Самодиагностики (Singularity 31.2+)")
 
     # Сбор метрик в реальном времени
     try:
@@ -295,7 +376,7 @@ def render_expert_sandbox():
                 df_metrics = pd.DataFrame(metrics)
                 st.dataframe(
                     df_metrics[["name", "cpu_percent", "memory_usage_mb", "net_tx_mb"]],
-                    use_container_width=True,
+                    width="stretch",
                 )
 
                 if anomalies:
@@ -329,13 +410,16 @@ def render_expert_sandbox():
     st.markdown("---")
     st.markdown("#### 🛠️ Последние эксперименты")
     try:
+        import requests
+
         exp_resp = requests.get(f"{backend_url}/api/sandbox/experiments", timeout=2)
         if exp_resp.status_code == 200:
             st.table(pd.DataFrame(exp_resp.json()))
         else:
             st.info("История экспериментов недоступна")
-    except:
+    except Exception as e:
         st.info("Нет данных об экспериментах")
+        st.caption(f"Причина: {e}")
 
 
 def render_war_room():
@@ -387,6 +471,44 @@ def render_health_status():
                 unsafe_allow_html=True,
             )
 
+    st.markdown("---")
+    st.markdown("#### 🕒 Свежесть источников данных")
+    freshness = fetch_data_freshness()
+    if freshness:
+        rows = []
+        stale_count = 0
+        for item in freshness:
+            age_minutes = item.get("age_minutes")
+            last_ts = item.get("last_ts")
+            if age_minutes is None:
+                freshness_flag = "⚪ нет данных"
+            elif age_minutes <= 60:
+                freshness_flag = "🟢 актуально"
+            elif age_minutes <= 24 * 60:
+                freshness_flag = "🟡 устаревает"
+            else:
+                freshness_flag = "🔴 устарело"
+                stale_count += 1
+
+            rows.append(
+                {
+                    "Источник": item.get("source"),
+                    "Последнее обновление (MSK)": format_msk(last_ts),
+                    "Возраст (мин)": f"{age_minutes:.1f}" if age_minutes is not None else "N/A",
+                    "Строк в таблице": int(item.get("total_rows") or 0),
+                    "Статус": freshness_flag,
+                }
+            )
+
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+        if stale_count > 0:
+            st.warning(
+                f"Обнаружены устаревшие источники: {stale_count}. "
+                "Это означает, что вкладки работают, но часть данных давно не поступала."
+            )
+    else:
+        st.info("Не удалось получить свежесть источников данных.")
+
 
 def render_security():
     """🛡️ Threat Detection."""
@@ -420,10 +542,11 @@ def render_security():
 
 def render_singularity_metrics():
     """🚀 Метрики Оркестрации."""
-    st.subheader("🚀 Эффективность Singularity 14.0")
-    
+    st.subheader("🚀 Эффективность Singularity 31.2+")
+
     time_range = st.session_state.get("global_time_range", "Последние 7 дней")
     from database_service import get_time_filter
+
     t_filter = get_time_filter(time_range, "created_at")
 
     # Метрики A/B теста оркестратора
@@ -468,10 +591,10 @@ def render_singularity_metrics():
             title="Распределение задач по версиям оркестратора",
             template="plotly_dark",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # П.4 пушка: виджет «ответил эксперт» vs fallback (из backend /metrics/summary)
-    backend_url = os.environ.get("ATRA_BACKEND_URL") or os.environ.get("BACKEND_URL")
+    backend_url = resolve_backend_url().get("url")
     if backend_url:
         try:
             import httpx
@@ -541,7 +664,7 @@ def render_projects():
                 },
                 disabled=["slug"],  # Запрещаем менять slug
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
                 key="projects_editor_v2",
             )
 
@@ -573,7 +696,7 @@ def render_projects():
                 with col2:
                     new_path = st.text_input("Путь к файлам", value="/workspace/")
 
-                submit = st.form_submit_button("🚀 Создать проект", use_container_width=True)
+                submit = st.form_submit_button("🚀 Создать проект", width="stretch")
 
                 if submit:
                     if not new_slug or not new_name:

@@ -175,7 +175,7 @@ async def log_ai_interaction(
                     expert_id, user_query, assistant_response,
                     metadata, token_usage, cost_usd, created_at
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, NOW() AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Moscow')
+                VALUES ($1, $2, $3, $4, $5, $6, NOW())
                 RETURNING id
             """,
                 expert_id,

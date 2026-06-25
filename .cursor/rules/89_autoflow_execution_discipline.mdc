@@ -10,3 +10,8 @@ alwaysApply: true
 - Before claiming completion, provide verification evidence (tests, runtime checks, or command output summary).
 - Prefer small, reversible steps with rollback-safe defaults for runtime/config changes.
 - If a request is ambiguous, ask one focused clarifying question before implementation.
+
+🚀 Singularity 31.2+:
+- Use Blackboard Service for task coordination.
+- Ensure all actions are logged in Knowledge Fabric.
+- Respect Swarm consensus and Constitutional Court decisions.

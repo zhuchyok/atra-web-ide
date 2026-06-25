@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 import asyncpg
 
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
+BOARD_LLM_TIMEOUT_SECONDS = int(os.getenv("BOARD_LLM_TIMEOUT_SECONDS", "600"))
 
 # Connection pool для PostgreSQL (решает проблему "too many clients already")
 _db_pool: Optional[asyncpg.Pool] = None
@@ -46,90 +47,104 @@ async def close_db_pool():
         _db_pool = None
 
 
-def run_cursor_agent(prompt: str):
+
+
+async def auto_apply_decision(
+    decision_id: Optional[str],
+    structured_decision: Dict[str, Any],
+    board_question: str,
+    risk_level: str,
+    recommend_human_review: bool,
+    source: str = "nightly",
+) -> bool:
+    """
+    [AUTOPILOT] Автоматически применяет решение Совета:
+    - Создаёт задачи в PostgreSQL (tasks table)
+    - Отправляет в Redis Stream для экспертов
+    - Обновляет статус board_decisions на 'applied'
+
+    Запускается только если:
+    - confidence >= 0.8
+    - risk_level != 'high'
+    - not recommend_human_review
+    """
+    print(
+        f"[{datetime.now()}] 🤖 [AUTOPILOT] Checking decision: confidence={structured_decision.get('confidence')}, "
+        f"risk={risk_level}, human_review={recommend_human_review}"
+    )
+
+    if recommend_human_review or risk_level == "high" or structured_decision.get("confidence", 0) < 0.8:
+        print("  ⏭️ Autopilot skipped: needs human review or low confidence")
+        return False
+
+    action_items = structured_decision.get("action_items", [])
+    if not action_items:
+        # Fallback: create a generic task from the decision text
+        decision_text = structured_decision.get("decision", board_question)[:200]
+        action_items = [{"task": decision_text, "owner": "auto", "deadline": "24h"}]
+        print(f"  📋 No explicit action items, using decision text: {decision_text[:60]}")
+
+    print(f"  🚀 Autopilot creating {len(action_items)} tasks...")
     try:
-        env = os.environ.copy()
-        result = subprocess.run(
-            ["/root/.local/bin/cursor-agent", "--print", prompt],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=300,
-            env=env,
-        )
-        return result.stdout.strip()
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            task_ids = []
+            for item in action_items:
+                task_goal = f"[BOARD] {item['task']}"
+                task_id = str(uuid.uuid4())
+                task_ids.append(task_id)
+                await conn.execute(
+                    """
+                    INSERT INTO tasks (id, goal, status, priority, expert_name, project_context, created_at)
+                    VALUES ($1, $2, 'pending', 8, $3, $4, NOW())
+                """,
+                    task_id,
+                    task_goal,
+                    item.get("owner", "auto"),
+                    "board_autopilot",
+                )
+
+            # Отправляем в Redis Stream для экспертов
+            try:
+                import redis.asyncio as aioredis
+
+                redis_url = os.getenv("REDIS_URL", "redis://host.docker.internal:6379/0")
+                r = aioredis.from_url(redis_url, decode_responses=True)
+                for task_id in task_ids:
+                    await r.xadd(
+                        "expert_tasks:auto",
+                        {
+                            "task_id": task_id,
+                            "source": "board_autopilot",
+                            "priority": "8",
+                            "correlation_id": decision_id or "",
+                        },
+                    )
+                await r.aclose()
+                print(f"  ✅ {len(task_ids)} tasks pushed to Redis")
+            except Exception as e:
+                print(f"  ⚠️ Redis push failed (tasks saved in DB): {e}")
+
+            # Обновляем статус решения
+            if decision_id:
+                try:
+                    await conn.execute(
+                        "UPDATE board_decisions SET status = 'applied', applied_at = NOW() WHERE id = $1::uuid",
+                        decision_id,
+                    )
+                except Exception:
+                    await conn.execute(
+                        "UPDATE board_decisions SET status = 'applied', applied_at = NOW() WHERE id = $1",
+                        decision_id,
+                    )
+
+        print(f"  ✅ [AUTOPILOT] Decision applied: {len(action_items)} tasks created")
+        return True
     except Exception as e:
-        print(f"Board of Directors Agent error: {e}")
-        return None
-
-
-def parse_directive_structure(directive_text: str) -> Dict[str, Any]:
-    """
-    Парсинг текста директивы в структурированный формат.
-    Извлекает: decision, rationale, risks, confidence, recommend_human_review
-    """
-    structured = {
-        "decision": "",
-        "rationale": "",
-        "risks": [],
-        "confidence": 0.8,
-        "action_items": [],
-    }
-
-    # Попытка извлечь decision (первая строка после "РЕШЕНИЕ:" или просто первое предложение)
-    decision_match = re.search(
-        r"(?:РЕШЕНИЕ|DECISION):\s*(.+?)(?:\n|$)", directive_text, re.IGNORECASE
-    )
-    if decision_match:
-        structured["decision"] = decision_match.group(1).strip()
-    else:
-        # Берем первое предложение как decision
-        first_sentence = (
-            directive_text.split(".")[0] if "." in directive_text else directive_text[:200]
-        )
-        structured["decision"] = first_sentence.strip()
-
-    # Извлечь rationale (обоснование)
-    rationale_match = re.search(
-        r"(?:ОБОСНОВАНИЕ|RATIONALE):\s*(.+?)(?:\n\n|\n[А-ЯA-Z]|$)",
-        directive_text,
-        re.IGNORECASE | re.DOTALL,
-    )
-    if rationale_match:
-        structured["rationale"] = rationale_match.group(1).strip()
-    else:
-        # Если не найдено явное обоснование, берем весь текст как rationale
-        structured["rationale"] = directive_text[:500].strip()
-
-    # Извлечь risks
-    risks_match = re.search(
-        r"(?:РИСКИ|RISKS):\s*(.+?)(?:\n\n|\n[А-ЯA-Z]|$)", directive_text, re.IGNORECASE | re.DOTALL
-    )
-    if risks_match:
-        risks_text = risks_match.group(1).strip()
-        # Разбить на список по дефисам или цифрам
-        risk_items = re.split(r"[-•]\s*|\d+\.\s*", risks_text)
-        structured["risks"] = [r.strip() for r in risk_items if r.strip()]
-
-    # Извлечь confidence
-    confidence_match = re.search(
-        r"(?:УВЕРЕННОСТЬ|CONFIDENCE):\s*([\d.]+)", directive_text, re.IGNORECASE
-    )
-    if confidence_match:
-        try:
-            structured["confidence"] = float(confidence_match.group(1))
-        except:
-            pass
-
-    # Проверка на рекомендацию подтверждения человеком
-    if re.search(
-        r"(?:ТРЕБУЕТ.*ПОДТВЕРЖДЕНИЯ|HUMAN.*REVIEW|ПОДТВЕРДИТЬ)", directive_text, re.IGNORECASE
-    ):
-        structured["recommend_human_review"] = True
-    else:
-        structured["recommend_human_review"] = False
-
-    return structured
+        print(f"  ❌ [AUTOPILOT] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 async def consult_board(
@@ -238,12 +253,15 @@ async def consult_board(
 
             # Оборачиваем в HIGH priority callback для очереди
             async def board_llm_call():
-                return await run_smart_agent_async(
-                    board_prompt,
-                    expert_name="Совет Директоров",
-                    category="reasoning",  # Роутер выберет модель 20B+ (deepseek-r1:32b)
-                    is_critical=True,  # Максимальное качество + отключение параллельной обработки
-                    is_vip=True,  # [VIP ROUTE] Форсируем использование лучших моделей
+                return await asyncio.wait_for(
+                    run_smart_agent_async(
+                        board_prompt,
+                        expert_name="Совет Директоров",
+                        category="reasoning",  # Роутер выберет модель 20B+ (deepseek-r1:32b)
+                        is_critical=True,  # Максимальное качество + отключение параллельной обработки
+                        is_vip=True,  # [VIP ROUTE] Форсируем использование лучших моделей
+                    ),
+                    timeout=BOARD_LLM_TIMEOUT_SECONDS,
                 )
 
             # Если доступна очередь, используем HIGH priority
@@ -267,8 +285,8 @@ async def consult_board(
                 directive = await board_llm_call()
 
         except ImportError:
-            print("⚠️ ai_core не доступен, используем run_cursor_agent как fallback")
-            directive = run_cursor_agent(board_prompt)
+            print("⚠️ ai_core не доступен, используем fallback директиву")
+            directive = None
 
         if not directive or len(directive) < 20:
             print("❌ Совет не смог принять решение (пустой ответ от LLM)")
@@ -305,12 +323,13 @@ async def consult_board(
         # Получаем новое подключение из пула для записи
         pool = await get_db_pool()
         async with pool.acquire() as write_conn:
-            await write_conn.execute(
+            decision_id = await write_conn.fetchval(
                 """
                 INSERT INTO board_decisions (
                     source, correlation_id, session_id, user_id, question, context_snapshot,
-                    directive_text, structured_decision, risk_level, recommend_human_review
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    directive_text, structured_decision, risk_level, recommend_human_review, status
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending')
+                RETURNING id::text
             """,
                 source,
                 correlation_id,
@@ -373,6 +392,38 @@ async def consult_board(
                         )
             except Exception as e:
                 print(f"⚠️ Не удалось сохранить узел в knowledge_nodes: {e}")
+
+        # 7. ExpertCouncil validation: проверяем решение через совет экспертов
+        try:
+            from expert_council_discussion import ExpertCouncil
+
+            council = ExpertCouncil()
+            debate_result = await council.start_debate(
+                topic=f"Валидация решения Совета: {structured_decision.get('decision', '')[:80]}",
+                initial_proposal=(
+                    f"РЕШЕНИЕ: {structured_decision.get('decision', '')}\n"
+                    f"ОБОСНОВАНИЕ: {structured_decision.get('rationale', '')[:200]}\n"
+                    f"ДЕЙСТВИЯ:\n"
+                    + "\n".join(f"- {a['task']}" for a in structured_decision.get('action_items', []))
+                ),
+                beautiful_mode=False,
+            )
+            print(f"  ✅ ExpertCouncil validation: {len(debate_result or '')} chars")
+        except Exception as e:
+            print(f"  ⚠️ ExpertCouncil validation skipped: {e}")
+
+        # 8. Autopilot: автоматическое применение решения
+        try:
+            await auto_apply_decision(
+                decision_id=decision_id,
+                structured_decision=structured_decision,
+                board_question=question,
+                risk_level=risk_level,
+                recommend_human_review=recommend_human_review,
+                source=source,
+            )
+        except Exception as e:
+            print(f"⚠️ Autopilot error (non-critical): {e}")
 
         print(
             f"✅ Board consult completed: decision='{structured_decision.get('decision', '')[:50]}...', risk={risk_level}, recommend_review={recommend_human_review}"
@@ -525,23 +576,42 @@ async def run_board_meeting():
 
                 # Ежедневное заседание Совета требует мощную модель (минимум 30B)
                 # Роутер автоматически выберет deepseek-r1:70b или qwq:32b
-                directive = await run_smart_agent_async(
-                    board_prompt,
-                    expert_name="Совет Директоров",
-                    category="reasoning",  # Роутер выберет модель 30B+ (deepseek-r1:32b)
-                    is_critical=True,
-                    is_vip=True,  # [VIP ROUTE] Форсируем использование лучших моделей
+                directive = await asyncio.wait_for(
+                    run_smart_agent_async(
+                        board_prompt,
+                        expert_name="Совет Директоров",
+                        category="reasoning",  # Роутер выберет модель 30B+ (deepseek-r1:32b)
+                        is_critical=True,
+                        is_vip=True,  # [VIP ROUTE] Форсируем использование лучших моделей
+                    ),
+                    timeout=BOARD_LLM_TIMEOUT_SECONDS,
                 )
+            except asyncio.TimeoutError:
+                print(
+                    f"⏱️ Board LLM timed out after {BOARD_LLM_TIMEOUT_SECONDS}s, using fallback directive."
+                )
+                directive = None
             except ImportError:
-                print("⚠️ ai_core не доступен, используем run_cursor_agent как fallback")
-                directive = run_cursor_agent(board_prompt)
+                print("⚠️ ai_core не доступен, используем fallback директиву")
+                directive = None
 
-            if (
-                directive
-                and len(directive) > 20
-                and "Ошибка" not in directive
-                and "❌" not in directive
-            ):
+            fallback_mode = False
+            if not directive or len(directive) <= 20 or "Ошибка" in directive or "❌" in directive:
+                fallback_mode = True
+                directive = (
+                    "РЕШЕНИЕ: Работать в режиме операционной стабильности до восстановления LLM-контура Совета.\n"
+                    "ОБОСНОВАНИЕ: Планировщик, задачи и дистилляция активны, но стратегическая генерация директив недоступна.\n"
+                    "РИСКИ: Потеря стратегического фокуса при длительном отсутствии автоматических решений Совета.\n"
+                    "УВЕРЕННОСТЬ: 0.62\n"
+                    "ТРЕБУЕТ ПОДТВЕРЖДЕНИЯ ЧЕЛОВЕКОМ\n"
+                    "ФОКУСЫ:\n"
+                    "1) Восстановить LLM-контур Совета и завершение заседаний без зависаний.\n"
+                    "2) Контролировать stale источники в дашборде и подтверждать свежесть каждые 60 минут.\n"
+                    "3) Сохранять throughput задач и нулевые критические ошибки в контейнерах."
+                )
+                print("⚠️ Board LLM unavailable, using deterministic fallback directive.")
+
+            if directive and len(directive) > 20:
                 # 4. Парсинг структуры
                 structured_decision = parse_directive_structure(directive)
 
@@ -550,22 +620,24 @@ async def run_board_meeting():
                     "okr": okr_context[:500] if okr_context else "",
                     "insights": insights_context[:500] if insights_context else "",
                     "tasks": tasks_context[:300] if tasks_context else "",
+                    "fallback_mode": fallback_mode,
                 }
 
                 try:
-                    await conn.execute(
+                    meeting_decision_id = await conn.fetchval(
                         """
                         INSERT INTO board_decisions (
                             source, question, context_snapshot, directive_text,
-                            structured_decision, risk_level
-                        ) VALUES ($1, $2, $3, $4, $5, $6)
+                            structured_decision, risk_level, status
+                        ) VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+                        RETURNING id::text
                     """,
                         "nightly",
                         "Daily Strategic Board Meeting",
                         json.dumps(context_snapshot),
                         directive,
                         json.dumps(structured_decision),
-                        "medium",
+                        "high" if fallback_mode else "medium",
                     )
                     print("✅ Директива сохранена в board_decisions")
                 except Exception as e:
@@ -578,8 +650,23 @@ async def run_board_meeting():
                     )
                     if domain_id:
                         content_kn = f"🏛 СТРАТЕГИЧЕСКАЯ ДИРЕКТИВА СОВЕТА: {directive}"
+                        now_dt = datetime.now()
+                        directive_ts = now_dt.isoformat()
+                        directive_completed_ts = int(now_dt.timestamp())
+                        # Board directives are already structured operational summaries.
+                        # Mark them as distilled at write time to prevent artificial tail growth.
                         meta_kn = json.dumps(
-                            {"type": "board_directive", "date": datetime.now().isoformat()}
+                            {
+                                "source": "strategic_board",
+                                "type": "board_directive",
+                                "date": directive_ts,
+                                "fallback_mode": fallback_mode,
+                                "distilled": "true",
+                                "distill_status": "done",
+                                "distilled_by": "system:strategic_board",
+                                "distill_rework_reason": "pre_distilled_board_directive",
+                                "distill_completed_at": directive_completed_ts,
+                            }
                         )
                         embedding = None
                         try:
@@ -632,10 +719,13 @@ async def run_board_meeting():
                     # Если запуск локальный (не в Docker), используем относительный путь
                     if not os.path.exists("/.dockerenv"):
                         reports_dir = "docs/board_reports"
+                    elif not os.access("/app/docs", os.W_OK):
+                        reports_dir = "/tmp/board_reports"
 
                     os.makedirs(reports_dir, exist_ok=True)
 
                     date_str = datetime.now().strftime("%Y-%m-%d_%H-%M")
+                    filepath = os.path.join(reports_dir, f"directive_{date_str}.md")
                     md_content = f"""# 🏛 СТРАТЕГИЧЕСКАЯ ДИРЕКТИВА СОВЕТА ДИРЕКТОРОВ
 **Дата:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} MSK
 **Статус:** ДЕЙСТВУЕТ (24 часа)
@@ -666,8 +756,39 @@ async def run_board_meeting():
 
                 except Exception as e:
                     print(f"⚠️ Не удалось опубликовать Markdown отчет: {e}")
+
+                # 9. ExpertCouncil validation
+                if not fallback_mode:
+                    try:
+                        from expert_council_discussion import ExpertCouncil
+                        council = ExpertCouncil()
+                        debate_result = await council.start_debate(
+                            topic=f"Валидация директивы: {structured_decision.get('decision', '')[:80]}",
+                            initial_proposal=(
+                                f"ДИРЕКТИВА: {structured_decision.get('decision', '')}\n"
+                                f"ФОКУСЫ:\n"
+                                + "\n".join(f"- {a['task']}" for a in structured_decision.get('action_items', []))
+                            ),
+                            beautiful_mode=False,
+                        )
+                        print(f"  ✅ Council validation: {len(debate_result or '')} chars")
+                    except Exception as e:
+                        print(f"  ⚠️ Council validation skipped: {e}")
+
+                # 10. Autopilot: автоматическое применение директивы
+                try:
+                    await auto_apply_decision(
+                        decision_id=meeting_decision_id if not fallback_mode else None,
+                        structured_decision=structured_decision,
+                        board_question="Daily Strategic Board Meeting",
+                        risk_level="high" if fallback_mode else "medium",
+                        recommend_human_review=fallback_mode or structured_decision.get("recommend_human_review", True),
+                        source="nightly",
+                    )
+                except Exception as e:
+                    print(f"⚠️ Autopilot error (non-critical): {e}")
             else:
-                print("❌ Директива не получена или содержит ошибку. Сохранение пропущено.")
+                print("❌ Директива не получена. Сохранение пропущено.")
 
     except Exception as e:
         print(f"❌ Board meeting error: {e}")

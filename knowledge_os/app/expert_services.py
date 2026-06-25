@@ -24,6 +24,7 @@ _DB_EXPERTS_TS = 0.0
 _DB_EXPERTS_LOCK = threading.Lock()
 # TTL кэша экспертов из БД (сек). Переопределение: env EXPERT_SERVICES_DB_TTL (см. docs/EXPERT_CONNECTION_ARCHITECTURE.md).
 _DB_EXPERTS_TTL = int(os.getenv("EXPERT_SERVICES_DB_TTL", "60"))
+_EXPERT_THREAD_EXECUTOR = None
 
 # Пути к employees.json: из knowledge_os/app/ → ../../configs/experts (atra-web-ide)
 # или из корня knowledge_os при запуске из контейнера
@@ -37,6 +38,106 @@ _EMPLOYEES_PATHS = [
     Path(os.getenv("EMPLOYEES_JSON", "")),
 ]
 _EMPLOYEES_CACHE: Optional[List[Dict[str, Any]]] = None
+_MAX_SKILLS_IN_PROMPT = int(os.getenv("EXPERT_MAX_SKILLS_IN_PROMPT", "3"))
+_MAX_SKILL_SNIPPET_CHARS = int(os.getenv("EXPERT_SKILL_SNIPPET_CHARS", "900"))
+
+
+def _get_expert_thread_executor():
+    global _EXPERT_THREAD_EXECUTOR
+    if _EXPERT_THREAD_EXECUTOR is None:
+        _EXPERT_THREAD_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+    return _EXPERT_THREAD_EXECUTOR
+
+
+def _run_sync_in_executor(func, timeout: int):
+    executor = _get_expert_thread_executor()
+    future = executor.submit(func)
+    return future.result(timeout=timeout)
+
+
+def _normalize_metadata(metadata: Any) -> Dict[str, Any]:
+    if isinstance(metadata, dict):
+        return metadata
+    if isinstance(metadata, str):
+        try:
+            parsed = json.loads(metadata)
+            return parsed if isinstance(parsed, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
+
+def _resolve_skill_md_path(skill_name: str) -> Optional[Path]:
+    skill_name = (skill_name or "").strip()
+    if not skill_name:
+        return None
+    candidates = [
+        Path(__file__).resolve().parent / "skills" / skill_name / "SKILL.md",
+        Path(os.path.expanduser("~/.atra/skills")) / skill_name / "SKILL.md",
+    ]
+    workspace_skills = os.getenv("WORKSPACE_SKILLS_DIR")
+    if workspace_skills:
+        candidates.append(Path(workspace_skills) / skill_name / "SKILL.md")
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _read_skill_snippet(skill_name: str, max_chars: int) -> str:
+    path = _resolve_skill_md_path(skill_name)
+    if not path:
+        return ""
+    try:
+        text = path.read_text(encoding="utf-8")
+        snippet = text[: max(200, max_chars)].strip()
+        return snippet
+    except Exception:
+        return ""
+
+
+def _build_assigned_skills_block(metadata: Any) -> str:
+    meta = _normalize_metadata(metadata)
+    assigned = meta.get("assigned_skills") or []
+    if not isinstance(assigned, list):
+        return ""
+
+    skill_names = []
+    for item in assigned:
+        if not isinstance(item, str):
+            continue
+        name = item.strip()
+        if name and name not in skill_names:
+            skill_names.append(name)
+    if not skill_names:
+        return ""
+
+    blocks = []
+    for skill_name in skill_names[: max(1, _MAX_SKILLS_IN_PROMPT)]:
+        snippet = _read_skill_snippet(skill_name, _MAX_SKILL_SNIPPET_CHARS)
+        if snippet:
+            blocks.append(f"## SKILL: {skill_name}\n{snippet}")
+        else:
+            blocks.append(
+                f"## SKILL: {skill_name}\nИспользуй этот навык как активный operational guideline."
+            )
+
+    if not blocks:
+        return ""
+
+    return (
+        "\n\n### ACTIVE_ASSIGNED_SKILLS (AUTO-INJECTED)\n"
+        "Ниже активные скиллы, назначенные этому эксперту. Применяй их как часть своей роли.\n\n"
+        + "\n\n".join(blocks)
+    )
+
+
+def _compose_expert_prompt(base_prompt: str, metadata: Any, dynamic_context: str = "") -> str:
+    static = base_prompt or ""
+    dynamic = dynamic_context or ""
+    skills_block = _build_assigned_skills_block(metadata)
+    parts = [p for p in [static, dynamic, skills_block] if p]
+    return "\n\n".join(parts) if parts else static
 
 
 def _load_experts_from_db() -> List[Dict[str, Any]]:
@@ -72,9 +173,7 @@ def _load_experts_from_db() -> List[Dict[str, Any]]:
             return []
 
     try:
-        with ThreadPoolExecutor(max_workers=1) as ex:
-            future = ex.submit(_fetch)
-            result = future.result(timeout=10)
+        result = _run_sync_in_executor(_fetch, timeout=10)
     except Exception as e:
         logger.debug("expert_services: DB fetch error: %s", e)
         result = []
@@ -225,16 +324,18 @@ def get_expert_system_prompt(expert_name_or_role: str) -> Optional[str]:
             async def _run():
                 conn = await asyncpg.connect(DB_URL)
                 row = await conn.fetchrow(
-                    "SELECT system_prompt FROM experts WHERE name = $1 OR role = $1 LIMIT 1",
+                    "SELECT system_prompt, metadata FROM experts WHERE name = $1 OR role = $1 LIMIT 1",
                     resolved,
                 )
                 if not row and resolved != expert_name_or_role:
                     row = await conn.fetchrow(
-                        "SELECT system_prompt FROM experts WHERE name = $1 OR role = $1 LIMIT 1",
+                        "SELECT system_prompt, metadata FROM experts WHERE name = $1 OR role = $1 LIMIT 1",
                         expert_name_or_role,
                     )
                 await conn.close()
-                return row["system_prompt"] if row and row.get("system_prompt") else None
+                if not row:
+                    return None
+                return _compose_expert_prompt(row.get("system_prompt", ""), row.get("metadata"))
 
             loop = asyncio.new_event_loop()
             try:
@@ -246,8 +347,7 @@ def get_expert_system_prompt(expert_name_or_role: str) -> Optional[str]:
             return None
 
     try:
-        with ThreadPoolExecutor(max_workers=1) as ex:
-            return ex.submit(_fetch).result(timeout=5)
+        return _run_sync_in_executor(_fetch, timeout=5)
     except Exception:
         return None
 
@@ -262,6 +362,7 @@ async def get_full_expert_prompt(expert_name_or_role: str, conn=None) -> Optiona
 
         try:
             from app.expert_aliases import resolve_expert_name_for_db
+
             resolved = resolve_expert_name_for_db(expert_name_or_role)
         except ImportError:
             resolved = expert_name_or_role
@@ -275,7 +376,7 @@ async def get_full_expert_prompt(expert_name_or_role: str, conn=None) -> Optiona
             try:
                 row = await _conn.fetchrow(
                     """
-                    SELECT e.id, e.system_prompt,
+                    SELECT e.id, e.system_prompt, e.metadata,
                            ec.content AS dynamic_context
                     FROM experts e
                     LEFT JOIN expert_context ec
@@ -287,11 +388,11 @@ async def get_full_expert_prompt(expert_name_or_role: str, conn=None) -> Optiona
                 )
                 if not row:
                     return None
-                static = row["system_prompt"] or ""
-                dynamic = row["dynamic_context"] or ""
-                if dynamic:
-                    return f"{static}\n\n{dynamic}"
-                return static
+                return _compose_expert_prompt(
+                    row.get("system_prompt", ""),
+                    row.get("metadata"),
+                    row.get("dynamic_context", ""),
+                )
             finally:
                 if _close:
                     await _conn.close()

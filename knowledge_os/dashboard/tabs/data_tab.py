@@ -1,5 +1,6 @@
 import json
 import os
+import traceback
 from datetime import datetime, timedelta, timezone
 
 import networkx as nx
@@ -23,10 +24,10 @@ def format_msk(dt):
 
 def render_data_tab():
     """Вкладка Интеллект (RAG) и Качество Знаний."""
-    
+
     time_range = st.session_state.get("global_time_range", "Последние 7 дней")
     st.caption(f"📅 Фильтр времени: **{time_range}**")
-    
+
     tabs = st.tabs(
         [
             "📚 AI Research KB",
@@ -483,15 +484,37 @@ def render_ai_research_kb():
     else:
         # Показываем последние добавленные
         st.markdown("### Последние находки")
-        latest = fetch_data("""
-            SELECT content, metadata->>'file_path' as path, created_at
+        freshness = fetch_data("""
+            SELECT
+                MAX(created_at) AS latest_created_at,
+                MAX(COALESCE(updated_at, created_at)) AS latest_touched_at
             FROM knowledge_nodes
             WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Research')
-            ORDER BY created_at DESC LIMIT 5
+        """)
+        if freshness and freshness[0] and freshness[0]["latest_touched_at"]:
+            latest_touch = freshness[0]["latest_touched_at"]
+            if latest_touch.tzinfo is None:
+                latest_touch = latest_touch.replace(tzinfo=timezone.utc)
+            age_days = (datetime.now(timezone.utc) - latest_touch).days
+            st.caption(
+                f"🕒 Последнее обновление AI Research: {format_msk(latest_touch)} ({age_days} дн. назад)"
+            )
+            if age_days >= 3:
+                st.warning(
+                    "Данные AI Research не обновлялись более 3 дней. "
+                    "Рекомендуется запустить индексацию."
+                )
+        latest = fetch_data("""
+            SELECT content, metadata->>'file_path' as path, created_at, COALESCE(updated_at, created_at) as touched_at
+            FROM knowledge_nodes
+            WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Research')
+            ORDER BY COALESCE(updated_at, created_at) DESC LIMIT 5
         """)
         if latest:
             for l in latest:
-                st.caption(f"📌 {l['path']} - {format_msk(l['created_at']).split()[0]}")
+                display_path = l.get("path") or "(path не указан)"
+                touched_at = l.get("touched_at") or l.get("created_at")
+                st.caption(f"📌 {display_path} - {format_msk(touched_at).split()[0]}")
                 st.markdown(f"{(l['content'] or '')[:200]}...")
         else:
             st.info("База AI Research пока пуста. Запустите скрипт индексации.")
@@ -500,9 +523,10 @@ def render_ai_research_kb():
 def render_data_health():
     """📊 Целостность данных (Knowledge OS Health)."""
     st.subheader("📊 Здоровье Базы Знаний")
-    
+
     time_range = st.session_state.get("global_time_range", "Последние 7 дней")
     from database_service import get_time_filter
+
     t_filter = get_time_filter(time_range, "created_at")
 
     try:
@@ -647,7 +671,7 @@ def render_mindmap():
                     height=700,
                 ),
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         elif view_mode == "🧬 Семантические Кластеры":
             st.markdown("### Кластеризация знаний (Созвездия)")
@@ -796,7 +820,7 @@ def render_mindmap():
                     height=700,
                 ),
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         elif view_mode == "🔍 Локальный поиск":
             search_query = st.text_input(
@@ -907,7 +931,7 @@ def render_mindmap():
                                 ),
                             ),
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width="stretch")
     except Exception as e:
         st.error(f"Ошибка визуализации: {e}")
         import traceback

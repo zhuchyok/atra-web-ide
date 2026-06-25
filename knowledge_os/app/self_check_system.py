@@ -54,11 +54,11 @@ class SelfCheckSystem:
 
     def __init__(
         self,
-        check_interval: int = 60,  # Интервал проверки (секунды)
+        check_interval: Optional[int] = None,
         auto_fix_enabled: bool = True,
         alert_on_critical: bool = True,
     ):
-        self.check_interval = check_interval
+        self.check_interval = check_interval or int(os.getenv("SELF_CHECK_INTERVAL_SEC", "300"))
         self.auto_fix_enabled = auto_fix_enabled
         self.alert_on_critical = alert_on_critical
         self.monitoring_active = False
@@ -124,8 +124,9 @@ class SelfCheckSystem:
         try:
             import httpx
 
+            url = os.getenv("VICTORIA_URL", "http://victoria-agent:8000/health")
             async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get("http://localhost:8010/health")
+                response = await client.get(url)
                 if response.status_code == 200:
                     data = response.json()
                     status = (
@@ -160,8 +161,9 @@ class SelfCheckSystem:
         try:
             import httpx
 
+            url = os.getenv("VERONICA_URL", "http://veronica-agent:8000/health")
             async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get("http://localhost:8011/health")
+                response = await client.get(url)
                 if response.status_code == 200:
                     data = response.json()
                     status = (
@@ -242,8 +244,9 @@ class SelfCheckSystem:
         try:
             import httpx
 
+            ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
             async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get("http://localhost:11434/api/tags")
+                response = await client.get(f"{ollama_url}/api/tags")
                 if response.status_code == 200:
                     data = response.json()
                     models = data.get("models", [])
@@ -305,25 +308,27 @@ class SelfCheckSystem:
         checks = []
 
         systems = [
-            ("Nightly Learner", "nightly_learner.py"),
-            ("Debate Processor", "debate_processor.py"),
-            ("Smart Worker", "smart_worker_autonomous.py"),
+            ("Nightly Learner", "knowledge_nightly"),
+            ("Orchestrator", "knowledge_os_orchestrator"),
+            ("Smart Worker", "knowledge_os_worker"),
         ]
 
-        for name, script_name in systems:
+        for name, container_name in systems:
             try:
                 result = subprocess.run(
-                    ["docker", "exec", "knowledge_os_api", "pgrep", "-f", script_name],
+                    ["docker", "inspect", container_name, "--format", "{{.State.Status}}"],
                     capture_output=True,
                     timeout=5,
                 )
 
-                if result.returncode == 0:
+                status = result.stdout.decode().strip()
+
+                if status == "running":
                     checks.append(
                         ComponentCheck(
                             name=name,
                             status=ComponentStatus.HEALTHY,
-                            message="Процесс запущен",
+                            message=f"Контейнер {container_name} запущен",
                             timestamp=datetime.now(),
                         )
                     )
@@ -332,7 +337,7 @@ class SelfCheckSystem:
                         ComponentCheck(
                             name=name,
                             status=ComponentStatus.UNHEALTHY,
-                            message="Процесс не найден",
+                            message=f"Контейнер {container_name}: {status}",
                             timestamp=datetime.now(),
                         )
                     )
@@ -341,7 +346,7 @@ class SelfCheckSystem:
                     ComponentCheck(
                         name=name,
                         status=ComponentStatus.UNKNOWN,
-                        message=f"Ошибка проверки: {e}",
+                        message=f"Ошибка проверки {container_name}: {e}",
                         timestamp=datetime.now(),
                     )
                 )
@@ -423,9 +428,9 @@ class SelfCheckSystem:
                 )
                 await conn.execute(
                     """
-                    INSERT INTO tasks (title, description, status, priority, metadata)
-                    VALUES ($1, $2, 'pending', 'high', $3::jsonb)
-                    ON CONFLICT (title) WHERE status IN ('pending', 'in_progress') DO UPDATE SET updated_at = NOW()
+                    INSERT INTO tasks (title, description, status, priority, metadata, project_context)
+                    VALUES ($1, $2, 'pending', 'high', $3::jsonb, 'self_check')
+                    ON CONFLICT (title, COALESCE(project_context, 'default')) WHERE status IN ('pending', 'in_progress') DO UPDATE SET updated_at = NOW()
                 """,
                     full_title,
                     description,
@@ -579,9 +584,12 @@ def get_self_check_system() -> SelfCheckSystem:
 # ✅ АВТОНОМНЫЙ ЗАПУСК - система запускается сама при импорте
 async def start_autonomous_self_check():
     """Автономный запуск системы самопроверки"""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s", force=True)
     system = get_self_check_system()
     await system.start_monitoring()
     logger.info("✅ [SELF-CHECK] Автономная система самопроверки запущена")
+    # Keep running forever
+    await asyncio.Event().wait()
 
 
 # Запуск при импорте модуля (если запущен как скрипт)

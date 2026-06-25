@@ -12,6 +12,16 @@ from ai_core import run_smart_agent_async
 from digital_constitution import CONSTITUTION_PRINCIPLES, get_constitution_context
 
 logger = logging.getLogger(__name__)
+_LOCAL_ROUTER_SINGLETON = None
+
+
+def _get_local_router_singleton():
+    global _LOCAL_ROUTER_SINGLETON
+    if _LOCAL_ROUTER_SINGLETON is None:
+        from local_router import LocalAIRouter
+
+        _LOCAL_ROUTER_SINGLETON = LocalAIRouter()
+    return _LOCAL_ROUTER_SINGLETON
 
 
 class ConstitutionalCourt:
@@ -48,9 +58,7 @@ class ConstitutionalCourt:
         """
 
         # Используем victoria-wisdom-v3.5 для строгого следования формату
-        from local_router import LocalAIRouter
-
-        router = LocalAIRouter()
+        router = _get_local_router_singleton()
         response_data = await router.run_local_llm(
             prompt, category="reasoning", model="victoria-wisdom-v3.5"
         )

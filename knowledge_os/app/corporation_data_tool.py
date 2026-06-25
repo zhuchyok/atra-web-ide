@@ -9,6 +9,7 @@ Victoria (или любой агент) может задать вопрос н�
 import asyncio
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -94,8 +95,10 @@ async def _generate_sql_from_question(question: str, llm_url: str) -> Optional[s
             return None
         data = resp.json()
         sql = (data.get("response") or data.get("text") or "").strip()
-        # Очистка от markdown
-        sql = sql.replace("```sql", "").replace("```", "").strip()
+        sql = _normalize_generated_sql(sql)
+        if not sql:
+            logger.warning("⚠️ Не удалось нормализовать SQL из ответа модели")
+            return None
         # Проверка безопасности
         sql_upper = sql.upper()
         if any(
@@ -111,6 +114,39 @@ async def _generate_sql_from_question(question: str, llm_url: str) -> Optional[s
     except Exception as e:
         logger.error(f"Ошибка генерации SQL: {e}")
         return None
+
+
+def _normalize_generated_sql(raw_sql: str) -> str:
+    """
+    Нормализует LLM-ответ в безопасный single-statement SQL:
+    - убирает markdown и служебный текст;
+    - извлекает первый SELECT ... [;];
+    - удаляет шумовые символы (например, "!!");
+    - схлопывает лишние пробелы.
+    """
+    if not raw_sql:
+        return ""
+
+    cleaned = raw_sql.replace("```sql", "").replace("```", "").strip()
+    # Берем только первый SELECT statement.
+    match = re.search(r"(?is)\bselect\b.*?(?:;|$)", cleaned)
+    if match:
+        cleaned = match.group(0)
+
+    # Удаляем явно шумовые символы, которые ломают SQL синтаксис.
+    cleaned = cleaned.replace("!", "")
+
+    # Оставляем только базовый безопасный набор символов SQL.
+    cleaned = re.sub(r"[^A-Za-zА-Яа-яЁё0-9_\s\*\.,\(\)'\"=%<>:;\-\n/]", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    # Гарантируем single statement.
+    if ";" in cleaned:
+        cleaned = cleaned.split(";", 1)[0].strip() + ";"
+    else:
+        cleaned = cleaned.strip() + ";"
+
+    return cleaned
 
 
 async def _execute_sql(sql: str) -> Dict[str, Any]:
@@ -439,7 +475,7 @@ async def query_tasks_queue_diagnostics(question: str) -> Dict[str, Any]:
         }
 
     lines = [
-        f"**Очередь задач (сейчас, pending + in_progress)**",
+        "**Очередь задач (сейчас, pending + in_progress)**",
     ]
     if backlog:
         for r in backlog:
@@ -456,7 +492,7 @@ async def query_tasks_queue_diagnostics(question: str) -> Dict[str, Any]:
 
     lines.append(f"\n**Новых задач создано за окно (created_at):** {created_n}")
 
-    lines.append(f"\n**Провалено (failed) за окно — детали (до 30):**")
+    lines.append("\n**Провалено (failed) за окно — детали (до 30):**")
     if failed_rows:
         for i, r in enumerate(failed_rows, 1):
             title = (r["title"] or "")[:120]

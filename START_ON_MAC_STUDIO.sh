@@ -1,83 +1,58 @@
 #!/bin/bash
 # ============================================================
-# ЗАПУСТИТЬ ЭТОТ СКРИПТ НА MAC STUDIO
-# Скопируйте и выполните на Mac Studio в терминале
+# 🚀 SINGULARITY 31.2: TOTAL STARTUP (MAC STUDIO)
 # ============================================================
 
-cd ~/Documents/atra-web-ide
-
-# Настройка PATH для Docker
-export PATH="/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
+set -e
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT"
 
 echo "=============================================="
-echo "🚀 ЗАПУСК ВСЕХ КОНТЕЙНЕРОВ НА MAC STUDIO"
+echo "💎 ЗАПУСК SINGULARITY 31.2 НА MAC STUDIO"
 echo "=============================================="
-echo ""
 
-# Проверка Docker
-echo "[1/3] Проверка Docker..."
+# 1. Проверка Docker
 if ! docker info &> /dev/null; then
-    echo "   ❌ Docker не запущен!"
-    echo "   💡 Запустите Docker Desktop"
+    echo "❌ Docker Desktop не запущен. Пожалуйста, запустите его."
     exit 1
 fi
-echo "   ✅ Docker готов"
-echo ""
 
-# Создание сети
-echo "[2/3] Проверка сети..."
+# 2. Проверка сети
 if ! docker network ls | grep -q atra-network; then
     docker network create atra-network
-    echo "   ✅ Сеть создана"
-else
-    echo "   ✅ Сеть уже существует"
-fi
-echo ""
-
-# Запуск контейнеров
-echo "[3/3] Запуск контейнеров..."
-if [ -f "knowledge_os/docker-compose.yml" ]; then
-    docker-compose -f knowledge_os/docker-compose.yml up -d 2>&1 | grep -v "level=warning" || true
-    echo ""
-    echo "   ⏳ Ожидание запуска (20 секунд)..."
-    sleep 20
-    echo ""
-    echo "   📊 Статус контейнеров:"
-    docker-compose -f knowledge_os/docker-compose.yml ps 2>&1 | grep -v "level=warning" || true
-else
-    echo "   ❌ docker-compose.yml не найден!"
-    exit 1
+    echo "✅ Сеть atra-network создана"
 fi
 
-echo ""
-echo "=============================================="
-echo "✅ ПРОВЕРКА СЕРВИСОВ"
-echo "=============================================="
-echo ""
+# 3. Запуск всей инфраструктуры (Core + Agents + UI + Monitoring)
+# Благодаря 'include' в docker-compose.yml, эта команда поднимет всё
+echo "🚀 Запуск всех стеков через Docker Compose..."
+docker-compose -f knowledge_os/docker-compose.yml up -d
 
-check_service() {
-    local name=$1
-    local url=$2
-    if curl -s -f --connect-timeout 3 "$url" >/dev/null 2>&1; then
-        echo "   ✅ $name: работает"
+echo "⏳ Ожидание стабилизации сервисов (15 секунд)..."
+sleep 15
+
+# 4. Проверка ключевых узлов
+echo "📊 Проверка состояния:"
+
+check_http() {
+    if curl -sf --connect-timeout 3 "$2" >/dev/null 2>&1; then
+        echo "   ✅ $1: OK"
     else
-        echo "   ⚠️  $name: не отвечает (может еще запускаться)"
+        echo "   ❌ $1: ОШИБКА"
     fi
 }
 
-check_service "Victoria (8010)" "http://localhost:8010/health"
-check_service "Veronica (8011)" "http://localhost:8011/health"
-check_service "Ollama/MLX (11434)" "http://localhost:11434/api/tags"
-check_service "Knowledge OS (8000)" "http://localhost:8000/health"
+check_http "Victoria Team Lead" "http://localhost:8010/health"
+check_http "Veronica Researcher" "http://localhost:8011/health"
+check_http "Knowledge API" "http://localhost:8002/health"
+check_http "Open WebUI" "http://localhost:3005/health"
+check_http "Dashboard" "http://localhost:8501"
 
-echo ""
 echo "=============================================="
-echo "✅ ГОТОВО!"
+echo "✅ СИСТЕМА ЗАПУЩЕНА И РАБОТАЕТ"
 echo "=============================================="
-echo ""
-echo "🌐 Доступные сервисы:"
-echo "   - Victoria: http://localhost:8010"
-echo "   - Veronica: http://localhost:8011"
-echo "   - Ollama/MLX: http://localhost:11434"
-echo "   - Knowledge OS: http://localhost:8000"
-echo ""
+echo "🌐 Ссылки:"
+echo "   - Интерфейс: http://localhost:3005"
+echo "   - Дашборд:   http://localhost:8501"
+echo "   - Графана:   http://localhost:3001"
+echo "=============================================="

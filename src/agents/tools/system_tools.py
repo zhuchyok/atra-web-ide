@@ -24,6 +24,30 @@ class SystemTools:
     """Инструменты для взаимодействия с операционной системой и серверами"""
 
     @staticmethod
+    def _resolve_workspace_path(path: Optional[str]) -> str:
+        """
+        Normalize user-provided paths between host and container workspaces.
+        This prevents false "not found" when users provide host paths in Open WebUI.
+        """
+        requested = (path or ".").strip() or "."
+        if requested.startswith("~/"):
+            requested = os.path.expanduser(requested)
+
+        if os.path.exists(requested):
+            return requested
+
+        host_workspace = os.getenv("ATRA_HOST_WORKSPACE", "/Users/bikos/Documents/atra-web-ide").rstrip("/")
+        container_workspace = os.getenv("ATRA_CONTAINER_WORKSPACE", "/workspace/atra-web-ide").rstrip("/")
+
+        if host_workspace and requested.startswith(host_workspace):
+            suffix = requested[len(host_workspace) :].lstrip("/")
+            mapped = os.path.join(container_workspace, suffix) if suffix else container_workspace
+            if os.path.exists(mapped):
+                return mapped
+
+        return requested
+
+    @staticmethod
     def _validate_command_safety(command: str) -> bool:
         """
         Проверка команды на безопасность перед выполнением.
@@ -174,9 +198,10 @@ class SystemTools:
     async def read_project_file(file_path: str) -> str:
         """Чтение файла из проекта"""
         try:
-            if not os.path.exists(file_path):
-                return f"Error: File '{file_path}' not found."
-            with open(file_path, encoding="utf-8") as f:
+            resolved_path = SystemTools._resolve_workspace_path(file_path)
+            if not os.path.exists(resolved_path):
+                return f"Error: File '{file_path}' not found (resolved='{resolved_path}')."
+            with open(resolved_path, encoding="utf-8") as f:
                 return f.read()
         except Exception as e:
             return f"File Error: {str(e)}"
@@ -185,7 +210,8 @@ class SystemTools:
     async def list_directory(path: str = ".") -> str:
         """Список файлов в директории"""
         try:
-            files = os.listdir(path)
+            resolved_path = SystemTools._resolve_workspace_path(path)
+            files = os.listdir(resolved_path)
             return "\n".join(files)
         except Exception as e:
             return f"List Directory Error: {str(e)}"
@@ -194,8 +220,9 @@ class SystemTools:
     async def grep_search(pattern: str, path: str = ".") -> str:
         """Поиск строки по всему проекту (аналог ripgrep)"""
         try:
+            resolved_path = SystemTools._resolve_workspace_path(path)
             # Используем системный grep для скорости
-            cmd = f"grep -rnE {shlex.quote(pattern)} {shlex.quote(path)} --exclude-dir=venv --exclude-dir=.git | head -n 20"
+            cmd = f"grep -rnE {shlex.quote(pattern)} {shlex.quote(resolved_path)} --exclude-dir=venv --exclude-dir=.git | head -n 20"
             result = subprocess.run(
                 cmd, shell=True, capture_output=True, text=True, timeout=30, check=False
             )
@@ -207,20 +234,21 @@ class SystemTools:
     async def apply_patch(file_path: str, old_text: str, new_text: str) -> str:
         """Точечная замена текста в файле (безопасное редактирование)"""
         try:
-            if not os.path.exists(file_path):
-                return f"Error: File '{file_path}' not found."
+            resolved_path = SystemTools._resolve_workspace_path(file_path)
+            if not os.path.exists(resolved_path):
+                return f"Error: File '{file_path}' not found (resolved='{resolved_path}')."
 
-            with open(file_path, encoding="utf-8") as f:
+            with open(resolved_path, encoding="utf-8") as f:
                 content = f.read()
 
             if old_text not in content:
                 return "Error: Old text not found in file. Patch failed."
 
             new_content = content.replace(old_text, new_text)
-            with open(file_path, "w", encoding="utf-8") as f:
+            with open(resolved_path, "w", encoding="utf-8") as f:
                 f.write(new_content)
 
-            return f"Successfully patched {file_path}."
+            return f"Successfully patched {resolved_path}."
         except Exception as e:
             return f"Patch Error: {str(e)}"
 

@@ -4,7 +4,7 @@ Knowledge OS Client
 """
 
 import logging
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import asyncpg
 from fastapi import Request
@@ -235,11 +235,23 @@ class KnowledgeOSClient:
 
 # Singleton (fallback когда пул не в app.state)
 knowledge_os_client = KnowledgeOSClient()
+_pooled_clients: Dict[int, KnowledgeOSClient] = {}
+
+
+def get_knowledge_os_client_for_pool(pool: asyncpg.Pool) -> KnowledgeOSClient:
+    """Return a stable client bound to a shared app pool."""
+    key = id(pool)
+    client = _pooled_clients.get(key)
+    if client is None:
+        client = KnowledgeOSClient(pool=pool)
+        client._own_pool = False
+        _pooled_clients[key] = client
+    return client
 
 
 async def get_knowledge_os_client(request: Request) -> KnowledgeOSClient:
     """Dependency для FastAPI. Использует пул из app.state (создан в lifespan)."""
     pool = getattr(request.app.state, "knowledge_os_pool", None)
     if pool is not None:
-        return KnowledgeOSClient(pool=pool)
+        return get_knowledge_os_client_for_pool(pool)
     return knowledge_os_client

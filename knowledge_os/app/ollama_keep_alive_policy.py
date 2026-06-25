@@ -22,7 +22,8 @@ IMMORTAL_MODELS = {
     "nomic-embed-text",
     "moondream",
     "tinyllama",
-    "phi3.5:3.8b",  # §53: финально, с адаптивным контекстом 16384 (21GB at OLLAMA_NUM_PARALLEL=6 → 128GB OK)
+    # Keep phi3.5 immortal for stable fast fallback path in tests/runtime.
+    "phi3.5:3.8b",
 }
 
 # Cooldown constant for recovery
@@ -142,18 +143,19 @@ def get_keep_alive(
         if elapsed < RECOVERY_COOLDOWN_SECONDS:
             # Для не-brain моделей тоже держим в памяти во время кулдауна
             # НО: Эмбеддинги всё равно выгружаем (проверка ниже)
-            pass
+            if not (
+                category == "embedding"
+                or (model_name and any(m in model_name for m in EMBEDDING_MODELS))
+                or (category and "embedding" in str(category).lower())
+            ):
+                return -1
         else:
             # Кулдаун прошёл, сбрасываем время сбоя
             _last_mlx_failure_time = 0
 
     # 2. Бессмертные по имени (moondream и т.д.)
     if model_name and any(m in model_name for m in IMMORTAL_MODELS):
-        # Если это эмбеддинг, он всё равно должен вернуть 0 (проверка ниже)
-        if model_name and any(m in model_name for m in EMBEDDING_MODELS):
-            pass
-        else:
-            return -1
+        return -1
 
     # 3. Эмбеддинги — адаптивная политика keep_alive
     if (
@@ -184,6 +186,9 @@ def get_keep_alive(
         except (ValueError, AttributeError):
             pass
 
+    if not model_name:
+        return DEFAULT_KEEP_ALIVE
+
     # 5. Адаптация по RAM (с учётом резерва MLX)
     effective_ram = ram_percent if ram_percent is not None else _effective_ram_percent()
     size_gb = _model_size_gb(model_name)
@@ -192,7 +197,7 @@ def get_keep_alive(
         if model_name and any(m in model_name for m in IMMORTAL_MODELS):
             return -1
         if _is_heavy_model(model_name, size_gb):
-            return 0  # Unload heavy models immediately
+            return 60
         return 60  # Keep light models for only 1 minute
 
     # 6. Smart Keep-Alive по размеру

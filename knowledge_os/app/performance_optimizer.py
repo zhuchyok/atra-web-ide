@@ -37,6 +37,7 @@ class QueryCache:
     def __init__(self, redis_url: str = REDIS_URL):
         self.redis_url = redis_url
         self.redis_client: Optional[redis.Redis] = None
+        self._memory_cache: Dict[str, Dict[str, Any]] = {}
 
     async def get_redis(self) -> redis.Redis:
         """Получение Redis клиента"""
@@ -52,9 +53,13 @@ class QueryCache:
 
     async def get(self, query: str, params: tuple = ()) -> Optional[Any]:
         """Получение результата из кэша"""
+        cache_key = self._make_cache_key(query, params)
+        now_ts = datetime.now().timestamp()
+        local_entry = self._memory_cache.get(cache_key)
+        if local_entry and float(local_entry.get("expires_at", 0)) > now_ts:
+            return local_entry.get("value")
         try:
             rd = await self.get_redis()
-            cache_key = self._make_cache_key(query, params)
             cached = await rd.get(cache_key)
 
             if cached:
@@ -62,33 +67,44 @@ class QueryCache:
             return None
         except Exception as e:
             logger.error(f"Cache get error: {e}")
-            return None
+            return local_entry.get("value") if local_entry else None
 
     async def set(self, query: str, params: tuple, result: Any, ttl: int = CACHE_TTL) -> bool:
         """Сохранение результата в кэш"""
+        cache_key = self._make_cache_key(query, params)
+        self._memory_cache[cache_key] = {
+            "value": result,
+            "expires_at": datetime.now().timestamp() + max(1, int(ttl)),
+        }
         try:
             rd = await self.get_redis()
-            cache_key = self._make_cache_key(query, params)
             await rd.setex(cache_key, ttl, json.dumps(result, default=str))
             return True
         except Exception as e:
             logger.error(f"Cache set error: {e}")
-            return False
+            return True
 
     async def invalidate(self, pattern: str) -> int:
         """Инвалидация кэша по паттерну"""
+        local_deleted = 0
+        local_keys = [k for k in self._memory_cache.keys() if pattern in k]
+        for key in local_keys:
+            self._memory_cache.pop(key, None)
+            local_deleted += 1
         try:
             rd = await self.get_redis()
             keys = await rd.keys(f"{CACHE_PREFIX}*{pattern}*")
             if keys:
-                return await rd.delete(*keys)
-            return 0
+                deleted = await rd.delete(*keys)
+                return int(deleted or 0) + local_deleted
+            return local_deleted
         except Exception as e:
             logger.error(f"Cache invalidate error: {e}")
-            return 0
+            return local_deleted
 
     async def clear_all(self) -> bool:
         """Очистка всего кэша"""
+        self._memory_cache.clear()
         try:
             rd = await self.get_redis()
             keys = await rd.keys(f"{CACHE_PREFIX}*")

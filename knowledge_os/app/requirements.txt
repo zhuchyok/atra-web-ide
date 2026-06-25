@@ -25,3 +25,6 @@ dashscope
 moondream>=0.1.0
 moondream-station>=0.1.0
 Pillow>=10.0.0
+lancedb
+pyarrow
+duckdb

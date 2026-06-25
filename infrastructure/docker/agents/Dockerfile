@@ -41,7 +41,7 @@ RUN apt-get update && apt-get install -y \
 
 COPY requirements.txt* ./
 # Сначала ставим тяжёлые аналитические пакеты отдельно (с явными ошибками при сбое)
-RUN pip install --no-cache-dir duckdb pyarrow pandas || true
+RUN pip install --no-cache-dir duckdb lancedb pyarrow pandas || true
 RUN pip install --no-cache-dir -r requirements.txt || \
     pip install fastapi uvicorn httpx pydantic aiohttp asyncpg python-dotenv moondream Pillow
 

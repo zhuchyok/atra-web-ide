@@ -19,13 +19,13 @@ echo "Victoria в /health: $victoria_status"
 echo ""
 
 echo "=== 2. POST /api/chat/ask-victoria (goal: Скажи одно слово: ок) timeout=${ASK_TIMEOUT}s ==="
-out=$(mktemp)
-code=$(curl -s -o "$out" -w "%{http_code}" -X POST "${BACKEND_URL}/api/chat/ask-victoria" \
+resp=$(curl -s -X POST "${BACKEND_URL}/api/chat/ask-victoria" \
   -H "Content-Type: application/json" \
   -d '{"goal":"Скажи одно слово: ок","project_context":"atra-web-ide"}' \
-  --max-time "$ASK_TIMEOUT" 2>/dev/null || echo "000")
-body=$(head -c 600 "$out")
-rm -f "$out"
+  --max-time "$ASK_TIMEOUT" -w $'\n%{http_code}' 2>/dev/null || echo $'\n000')
+code="${resp##*$'\n'}"
+body="${resp%$'\n'*}"
+body="$(printf '%s' "$body" | python3 -c "import sys; print(sys.stdin.read()[:600], end='')")"
 echo "HTTP $code"
 echo "Body (first 600 chars):"
 echo "$body"

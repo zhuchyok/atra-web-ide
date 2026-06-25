@@ -1547,7 +1547,10 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         for attempt in 1..=max_retries {
             match KnowledgeEngine::new(&database_url).await {
                 Ok(ke) => {
-                    info!("✅ KnowledgeEngine initialized successfully (attempt {})", attempt);
+                    info!(
+                        "✅ KnowledgeEngine initialized successfully (attempt {})",
+                        attempt
+                    );
                     ke_opt = Some(ke);
                     break;
                 }
@@ -1581,7 +1584,7 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(50);
 
-    let state = Arc::new(AppState { 
+    let state = Arc::new(AppState {
         client,
         knowledge_engine,
         workspace_root: workspace_root.clone(),
@@ -2589,7 +2592,7 @@ async fn knowledge_search(
     Query(params): Query<SearchQuery>,
 ) -> impl IntoResponse {
     info!("Searching knowledge for: {}", params.q);
-    
+
     let ke = match state.knowledge_engine.as_ref() {
         Some(ke) => ke,
         None => {
@@ -2612,11 +2615,11 @@ async fn knowledge_search(
                     let top_nodes = ranked_nodes.into_iter().take(5).collect::<Vec<_>>();
                     (StatusCode::OK, Json(top_nodes)).into_response()
                 }
-        Err(e) => {
-            error!("Knowledge search error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "Search failed", "details": e.to_string() })),
+                Err(e) => {
+                    error!("Knowledge search error: {}", e);
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({ "error": "Search failed", "details": e.to_string() })),
                     )
                         .into_response()
                 }
@@ -2754,7 +2757,7 @@ async fn proxy_chat(
     } else {
         (
             "Victoria",
-            "Ты Виктория, Team Lead Singularity 14.0. Отвечай профессионально, структурированно, с учётом контекста.",
+            "Ты Виктория, Team Lead Singularity 31.2+. Отвечай профессионально, структурированно, с учётом контекста.",
         )
     };
 
@@ -2768,18 +2771,18 @@ async fn proxy_chat(
                         .retrieve_similar_with_embeddings(embedding.clone(), 10)
                         .await
                     {
-            Ok(nodes) => {
+                        Ok(nodes) => {
                             let ranked_nodes = ke.rank_nodes_locally(embedding, nodes);
                             if !ranked_nodes.is_empty() {
                                 context = ranked_nodes
                                     .iter()
                                     .take(3)
-                        .map(|n| n.content.clone())
-                        .collect::<Vec<String>>()
-                        .join("\n---\n");
-                }
+                                    .map(|n| n.content.clone())
+                                    .collect::<Vec<String>>()
+                                    .join("\n---\n");
+                            }
                         }
-            Err(e) => error!("Knowledge Engine error: {}", e),
+                        Err(e) => error!("Knowledge Engine error: {}", e),
                     }
                 }
                 Err(e) => error!("Embedding error: {}", e),
@@ -2787,7 +2790,7 @@ async fn proxy_chat(
         }
     }
 
-        if let Some(messages) = payload["messages"].as_array_mut() {
+    if let Some(messages) = payload["messages"].as_array_mut() {
         let base_system = format!(
             "{} Обязательно отвечай только на русском. {}",
             role_instruction,
@@ -2807,21 +2810,21 @@ async fn proxy_chat(
         };
         let system_content = format!("{}{}", base_system, injection);
 
-            let mut system_msg_index = None;
-            for (i, msg) in messages.iter().enumerate() {
-                if msg["role"] == "system" {
-                    system_msg_index = Some(i);
-                    break;
-                }
+        let mut system_msg_index = None;
+        for (i, msg) in messages.iter().enumerate() {
+            if msg["role"] == "system" {
+                system_msg_index = Some(i);
+                break;
             }
+        }
 
-            if let Some(idx) = system_msg_index {
+        if let Some(idx) = system_msg_index {
             if let Some(existing) = messages[idx]["content"].as_str() {
                 messages[idx]["content"] = json!(format!("{}. {}", existing, system_content));
             } else {
                 messages[idx]["content"] = json!(system_content);
-                }
-            } else {
+            }
+        } else {
             messages.insert(
                 0,
                 json!({

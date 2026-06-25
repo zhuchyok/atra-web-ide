@@ -8,7 +8,9 @@ Enhanced Expert Evolver: Автоматическая эволюция эксп�
 - Специализация экспертов (углубление в узкие области)
 """
 
+import argparse
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -33,6 +35,30 @@ DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/kno
 EVOLUTION_THRESHOLD = 0.7  # Минимальный success_rate для эволюции
 REMOVAL_THRESHOLD = 0.3  # Минимальный success_rate для удаления
 SPECIALIZATION_THRESHOLD = 0.8  # Минимальный success_rate для специализации
+EVOLUTION_FORCE_MINIMUM_MUTATION = os.getenv(
+    "EVOLUTION_FORCE_MINIMUM_MUTATION", "true"
+).lower() in (
+    "true",
+    "1",
+    "yes",
+)
+EVOLUTION_ENABLE_EXPERT_REMOVAL = os.getenv("EVOLUTION_ENABLE_EXPERT_REMOVAL", "false").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+EVOLUTION_MIN_USAGE_FOR_REMOVAL = int(os.getenv("EVOLUTION_MIN_USAGE_FOR_REMOVAL", "20"))
+EVOLUTION_ROLLOUT_MODE = os.getenv("EVOLUTION_ROLLOUT_MODE", "direct").lower()
+EVOLUTION_HYBRID_SHADOW_RATIO = float(os.getenv("EVOLUTION_HYBRID_SHADOW_RATIO", "0.70"))
+EVOLUTION_HYBRID_MIN_USAGE_FOR_DIRECT = int(
+    os.getenv("EVOLUTION_HYBRID_MIN_USAGE_FOR_DIRECT", "25")
+)
+EVOLUTION_HYBRID_MIN_SUCCESS_FOR_DIRECT = float(
+    os.getenv("EVOLUTION_HYBRID_MIN_SUCCESS_FOR_DIRECT", "0.60")
+)
+EVOLUTION_HYBRID_MIN_COMPLETION_FOR_DIRECT = float(
+    os.getenv("EVOLUTION_HYBRID_MIN_COMPLETION_FOR_DIRECT", "0.60")
+)
 
 
 @dataclass
@@ -67,6 +93,23 @@ def run_cursor_agent(prompt: str) -> Optional[str]:
         return result.stdout.strip()
     except Exception as e:
         logger.error(f"Cursor Agent error: {e}")
+        return None
+
+
+async def run_mutation_agent(prompt: str) -> Optional[str]:
+    """Try cursor-agent first, then fallback to local router model."""
+    result = run_cursor_agent(prompt)
+    if result:
+        return result
+
+    try:
+        from local_router import LocalAIRouter
+
+        router = LocalAIRouter()
+        local_result = await router.run_local_llm(prompt, category="reasoning")
+        return local_result[0] if isinstance(local_result, tuple) else local_result
+    except Exception as e:
+        logger.error("Local mutation fallback error: %s", e)
         return None
 
 
@@ -260,6 +303,41 @@ class ExpertEvolver:
         self.db_url = db_url
         self.metrics_collector = ExpertMetricsCollector(db_url)
 
+    async def _record_mutation_event(
+        self,
+        conn: asyncpg.Connection,
+        expert_id: str,
+        mutated_prompt: str,
+        base_version: int,
+        source: str,
+        metrics: Optional[Dict] = None,
+        status: str = "promoted",
+    ) -> None:
+        """Persist mutation event for dashboard/status tracking."""
+        try:
+            await conn.execute(
+                """
+                INSERT INTO expert_mutations (
+                    expert_id, mutated_prompt, base_version, status, metrics
+                )
+                VALUES ($1, $2, $3, $4, $5::jsonb)
+                """,
+                expert_id,
+                mutated_prompt,
+                int(base_version),
+                status,
+                json.dumps(
+                    {
+                        "source": source,
+                        "applied_directly": status == "promoted",
+                        **(metrics or {}),
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        except Exception as e:
+            logger.warning("Failed to record mutation event for expert %s: %s", expert_id, e)
+
     async def evolve_expert(self, expert_id: str, metrics: ExpertMetrics) -> bool:
         """Эволюция эксперта на основе метрик"""
         try:
@@ -319,10 +397,41 @@ class ExpertEvolver:
                 ОТВЕТЬТЕ ТОЛЬКО ТЕКСТОМ НОВОГО ПРОМПТА.
                 """
 
-                new_prompt = run_cursor_agent(evolution_prompt)
+                new_prompt = await run_mutation_agent(evolution_prompt)
 
                 if new_prompt and len(new_prompt) > 100:
+                    base_version = expert["version"] or 0
                     new_version = (expert["version"] or 0) + 1
+                    use_shadow = _use_shadow_rollout(expert_id, metrics)
+                    mutation_metrics = {
+                        "new_version": new_version,
+                        "success_rate": metrics.success_rate,
+                        "response_time": metrics.response_time_avg,
+                        "knowledge_quality": metrics.knowledge_quality,
+                        "task_completion_rate": metrics.task_completion_rate,
+                        "usage_count": metrics.usage_count,
+                        "feedback_avg": metrics.feedback_avg,
+                        "rollout_mode": EVOLUTION_ROLLOUT_MODE,
+                        "rollout_shadow": use_shadow,
+                    }
+
+                    if use_shadow:
+                        await self._record_mutation_event(
+                            conn=conn,
+                            expert_id=expert_id,
+                            mutated_prompt=new_prompt,
+                            base_version=base_version,
+                            source="enhanced_metrics_evolution",
+                            metrics=mutation_metrics,
+                            status="shadow",
+                        )
+                        logger.info(
+                            "👻 Expert %s generated shadow mutation from metrics (v%s candidate, mode=%s)",
+                            expert["name"],
+                            new_version,
+                            EVOLUTION_ROLLOUT_MODE,
+                        )
+                        return True
 
                     await conn.execute(
                         """
@@ -347,6 +456,15 @@ class ExpertEvolver:
                             }
                         ),
                         expert_id,
+                    )
+                    await self._record_mutation_event(
+                        conn=conn,
+                        expert_id=expert_id,
+                        mutated_prompt=new_prompt,
+                        base_version=base_version,
+                        source="enhanced_metrics_evolution",
+                        metrics=mutation_metrics,
+                        status="promoted",
                     )
 
                     logger.info(f"✨ Expert {expert['name']} evolved to v{new_version}")
@@ -441,10 +559,33 @@ class ExpertEvolver:
 
 ЗАДАЧА: Сгенерируй ОБНОВЛЁННЫЙ system_prompt, который сохраняет личность эксперта и добавляет/учитывает инсайты выше. Не удаляй существующие сильные формулировки. Ответь ТОЛЬКО текстом нового промпта, без пояснений.
 """
-            new_prompt = run_cursor_agent(evolution_prompt)
+            new_prompt = await run_mutation_agent(evolution_prompt)
             if not new_prompt or len(new_prompt.strip()) < 100:
                 return False
+            base_version = expert["version"] or 0
             new_version = (expert["version"] or 0) + 1
+            use_shadow = _use_shadow_rollout(expert_id, metrics=None)
+            if use_shadow:
+                await self._record_mutation_event(
+                    conn=conn,
+                    expert_id=expert_id,
+                    mutated_prompt=new_prompt.strip(),
+                    base_version=base_version,
+                    source="insights_task",
+                    metrics={
+                        "new_version": new_version,
+                        "task_id": task_id,
+                        "rollout_mode": EVOLUTION_ROLLOUT_MODE,
+                        "rollout_shadow": use_shadow,
+                    },
+                    status="shadow",
+                )
+                logger.info(
+                    "👻 Expert %s generated shadow mutation from insights task (mode=%s)",
+                    expert["name"],
+                    EVOLUTION_ROLLOUT_MODE,
+                )
+                return True
             await conn.execute(
                 """
                 UPDATE experts
@@ -452,7 +593,7 @@ class ExpertEvolver:
                     metadata = metadata || jsonb_build_object(
                         'last_evolution', NOW(),
                         'evolution_source', 'insights_task',
-                        'evolution_task_id', $3
+                        'evolution_task_id', $3::text
                     )
                 WHERE id = $4
             """,
@@ -460,6 +601,19 @@ class ExpertEvolver:
                 new_version,
                 task_id,
                 expert_id,
+            )
+            await self._record_mutation_event(
+                conn=conn,
+                expert_id=expert_id,
+                mutated_prompt=new_prompt.strip(),
+                base_version=base_version,
+                source="insights_task",
+                metrics={
+                    "new_version": new_version,
+                    "task_id": task_id,
+                    "rollout_mode": EVOLUTION_ROLLOUT_MODE,
+                    "rollout_shadow": use_shadow,
+                },
             )
             logger.info(
                 "✨ Expert %s evolved to v%s from insights task", expert["name"], new_version
@@ -488,14 +642,22 @@ class ExpertEvolver:
         """Удаление неэффективных экспертов"""
         removed = []
 
+        if not EVOLUTION_ENABLE_EXPERT_REMOVAL:
+            logger.info("ℹ️ Expert removal disabled by EVOLUTION_ENABLE_EXPERT_REMOVAL=false")
+            return removed
+
         for metrics in metrics_list:
             # Критерии удаления:
             # 1. Низкий success_rate (< REMOVAL_THRESHOLD)
             # 2. Низкая активность (< 5 использований за 30 дней)
             # 3. Нет активности более 60 дней
-            should_remove = (
-                metrics.success_rate < REMOVAL_THRESHOLD and metrics.usage_count < 5
-            ) or (metrics.last_activity and (datetime.now() - metrics.last_activity).days > 60)
+            enough_signal = metrics.usage_count >= EVOLUTION_MIN_USAGE_FOR_REMOVAL
+            stale_long_enough = (
+                metrics.last_activity and (datetime.now() - metrics.last_activity).days > 60
+            )
+            should_remove = (enough_signal and metrics.success_rate < REMOVAL_THRESHOLD) or (
+                stale_long_enough and metrics.usage_count >= 5
+            )
 
             if should_remove:
                 try:
@@ -508,7 +670,7 @@ class ExpertEvolver:
                             SET metadata = metadata || jsonb_build_object(
                                 'removed_at', NOW(),
                                 'removal_reason', 'low_effectiveness',
-                                'removal_metrics', $1
+                                'removal_metrics', $1::jsonb
                             )
                             WHERE id = $2
                         """,
@@ -594,7 +756,7 @@ class ExpertEvolver:
                 ОТВЕТЬТЕ ТОЛЬКО ТЕКСТОМ НОВОГО ПРОМПТА.
                 """
 
-                new_prompt = run_cursor_agent(specialization_prompt)
+                new_prompt = await run_mutation_agent(specialization_prompt)
 
                 if new_prompt and len(new_prompt) > 100:
                     await conn.execute(
@@ -625,9 +787,59 @@ class ExpertEvolver:
             return False
 
 
-async def run_enhanced_evolution_cycle():
+def _resolve_expert_name_for_db(name: Optional[str]) -> Optional[str]:
+    if not name:
+        return None
+    try:
+        from app.expert_aliases import resolve_expert_name_for_db
+
+        return resolve_expert_name_for_db(name)
+    except Exception:
+        return name
+
+
+def _clamp_ratio(val: float) -> float:
+    return max(0.0, min(1.0, val))
+
+
+def _stable_rollout_bucket(expert_id: str) -> float:
+    digest = hashlib.sha1((expert_id or "").encode("utf-8")).hexdigest()
+    return int(digest[:8], 16) / 0xFFFFFFFF
+
+
+def _use_shadow_rollout(expert_id: str, metrics: Optional[ExpertMetrics]) -> bool:
+    """
+    Canary/Shadow rollout policy (world practice):
+    - direct: apply immediately
+    - shadow: evaluate in production shadow lane first
+    - hybrid: deterministic expert split + safety guards
+    """
+    mode = (EVOLUTION_ROLLOUT_MODE or "direct").lower()
+    if mode == "shadow":
+        return True
+    if mode == "direct":
+        return False
+    if mode != "hybrid":
+        logger.warning("Unknown EVOLUTION_ROLLOUT_MODE=%s, fallback to direct.", mode)
+        return False
+
+    shadow_ratio = _clamp_ratio(EVOLUTION_HYBRID_SHADOW_RATIO)
+    if metrics:
+        has_enough_signal = metrics.usage_count >= EVOLUTION_HYBRID_MIN_USAGE_FOR_DIRECT
+        strong_quality = (
+            metrics.success_rate >= EVOLUTION_HYBRID_MIN_SUCCESS_FOR_DIRECT
+            and metrics.task_completion_rate >= EVOLUTION_HYBRID_MIN_COMPLETION_FOR_DIRECT
+        )
+        if not (has_enough_signal and strong_quality):
+            return True
+
+    return _stable_rollout_bucket(expert_id) < shadow_ratio
+
+
+async def run_enhanced_evolution_cycle(expert_name: Optional[str] = None):
     """Основной цикл автоматической эволюции экспертов"""
     logger.info("🧬 Starting Enhanced Expert Evolution cycle...")
+    target_expert_name = _resolve_expert_name_for_db(expert_name)
 
     conn = await asyncpg.connect(DB_URL)
     evolver = ExpertEvolver()
@@ -662,13 +874,29 @@ async def run_enhanced_evolution_cycle():
                 )
                 continue
             # Выбираем до 3 экспертов (разные отделы, активные)
-            experts = await conn.fetch("""
-                SELECT id FROM experts
-                WHERE (is_active IS NULL OR is_active = TRUE)
-                  AND system_prompt IS NOT NULL AND LENGTH(TRIM(system_prompt)) > 50
-                ORDER BY RANDOM()
-                LIMIT 3
-            """)
+            if target_expert_name:
+                experts = await conn.fetch(
+                    """
+                    SELECT id
+                    FROM experts
+                    WHERE (is_active IS NULL OR is_active = TRUE)
+                      AND system_prompt IS NOT NULL
+                      AND LENGTH(TRIM(system_prompt)) > 50
+                      AND name = $1
+                    LIMIT 1
+                    """,
+                    target_expert_name,
+                )
+            else:
+                experts = await conn.fetch(
+                    """
+                    SELECT id FROM experts
+                    WHERE (is_active IS NULL OR is_active = TRUE)
+                      AND system_prompt IS NOT NULL AND LENGTH(TRIM(system_prompt)) > 50
+                    ORDER BY RANDOM()
+                    LIMIT 3
+                    """
+                )
             task_evolved = False
             for row in experts:
                 if await evolver.evolve_expert_from_insights(
@@ -693,6 +921,8 @@ async def run_enhanced_evolution_cycle():
 
     # Собираем метрики всех экспертов
     metrics_list = await collector.get_all_experts_metrics()
+    if target_expert_name:
+        metrics_list = [m for m in metrics_list if (m.name or "").strip() == target_expert_name]
 
     if not metrics_list:
         logger.warning("No experts found for evolution")
@@ -720,6 +950,86 @@ async def run_enhanced_evolution_cycle():
     removed = await evolver.remove_ineffective_experts(metrics_list)
     removed_count = len(removed)
 
+    # 4. Fail-safe: если не найдено кандидатов по строгим порогам,
+    # пробуем минимум одну эволюцию наиболее активного эксперта.
+    if EVOLUTION_FORCE_MINIMUM_MUTATION and evolved_count == 0 and insights_evolved == 0:
+        fallback_done = False
+        fallback_candidates = [
+            m for m in metrics_list if (m.usage_count > 0 or m.knowledge_created > 0)
+        ]
+        if fallback_candidates:
+            fallback_candidates.sort(
+                key=lambda m: (m.usage_count, m.knowledge_created, m.task_completion_rate),
+                reverse=True,
+            )
+            candidate = fallback_candidates[0]
+            logger.info(
+                "🛟 No strict evolution candidates, trying fallback mutation for expert %s",
+                candidate.name,
+            )
+            if await evolver.evolve_expert(candidate.expert_id, candidate):
+                evolved_count += 1
+                fallback_done = True
+
+        if not fallback_done:
+            logger.info("🛟 No metrics candidates available, trying insights fallback mutation")
+            conn = await asyncpg.connect(DB_URL)
+            try:
+                if target_expert_name:
+                    expert = await conn.fetchrow(
+                        """
+                        SELECT id
+                        FROM experts
+                        WHERE (is_active IS NULL OR is_active = TRUE)
+                          AND system_prompt IS NOT NULL
+                          AND LENGTH(TRIM(system_prompt)) > 50
+                          AND name = $1
+                        LIMIT 1
+                        """,
+                        target_expert_name,
+                    )
+                else:
+                    expert = await conn.fetchrow(
+                        """
+                        SELECT id
+                        FROM experts
+                        WHERE (is_active IS NULL OR is_active = TRUE)
+                          AND system_prompt IS NOT NULL
+                          AND LENGTH(TRIM(system_prompt)) > 50
+                        ORDER BY RANDOM()
+                        LIMIT 1
+                        """
+                    )
+                if expert:
+                    recent_insights = await conn.fetch(
+                        """
+                        SELECT content
+                        FROM knowledge_nodes
+                        WHERE is_verified = TRUE
+                        ORDER BY COALESCE(updated_at, created_at) DESC
+                        LIMIT 5
+                        """
+                    )
+                    insight_text = "\n\n".join(
+                        (row["content"] or "")[:600] for row in recent_insights if row["content"]
+                    )
+                    if not insight_text:
+                        insight_text = (
+                            "Оптимизируй системный промпт для более точной аргументации, "
+                            "структурированных ответов и устойчивой самопроверки."
+                        )
+                    if await evolver.evolve_expert_from_insights(
+                        conn,
+                        str(expert["id"]),
+                        insight_text,
+                        task_id=None,
+                    ):
+                        evolved_count += 1
+                        insights_evolved += 1
+                        fallback_done = True
+            finally:
+                await conn.close()
+
     logger.info("✅ Evolution cycle completed:")
     logger.info(f"   - Evolved: {evolved_count}")
     logger.info(f"   - Specialized: {specialized_count}")
@@ -727,4 +1037,7 @@ async def run_enhanced_evolution_cycle():
 
 
 if __name__ == "__main__":
-    asyncio.run(run_enhanced_evolution_cycle())
+    parser = argparse.ArgumentParser(description="Run enhanced expert evolution cycle.")
+    parser.add_argument("--expert_name", type=str, help="Run evolution for one expert only")
+    args = parser.parse_args()
+    asyncio.run(run_enhanced_evolution_cycle(expert_name=args.expert_name))

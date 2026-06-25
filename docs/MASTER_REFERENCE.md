@@ -1,16 +1,242 @@
+# 📖 БИБЛИЯ ATRA (MASTER_REFERENCE)
+
+## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2+ (Total Crystallization)
+
+**Дата последнего обновления:** 2026-06-13
+**Уровень эволюции:** 31.2 (Кристаллизация Знаний)
+**Состояние:** Стабильное, Саморазвивающееся
+
+---
+
+## § 0. МАНИФЕСТ РОЯ (Singularity 31.2)
+
+### 0.1 Децентрализация и Аукционы
+
+Система перешла от жесткой иерархии к **P2P-рынку задач**.
+
+- **Blackboard Service:** Центральный хаб задач. Агенты не ждут команд, а «подписываются» на задачи через аукционы.
+- **Bidding System:** Эксперты делают ставки (bids) на основе своей специализации, текущей нагрузки и рейтинга.
+- **Token Bucket Limiter:** Глобальный ограничитель частоты запросов (Singularity 30.1), предотвращающий перегрузку LLM.
+- **AgentScope Actors:** Каждый эксперт — это изолированный актор с собственным состоянием и памятью.
+
+### 0.2 Нейронная Ткань (Knowledge Fabric)
+
+Единая точка входа для всех видов памяти:
+
+- **LTM (Long-term Memory):** Векторная память на базе LanceDB (нулевая задержка).
+- **GraphRAG:** Глубокие связи между сущностями и кодом.
+- **VisualRAG (Visual Intelligence):** Сервис `victoria-visual-search` (порт 8005) для анализа UI, схем и PDF.
+- **Semantic Cache:** Мгновенные ответы на повторяющиеся запросы.
+
+### 0.3 Протокол Эволюции (Recursive Self-Improvement)
+
+- **RecursiveEvolutionEngine:** Автономный цикл улучшения кода.
+- **EvolutionGenome:** Хранение успешных паттернов и мутаций.
+- **CubeSandbox:** Изолированная среда для тестирования мутаций перед коммитом.
+- **Self-Healing:** Автоматическое исправление багов через `CodebaseMutationEngine`.
+
+### 0.4 Технологический Стек 31.0
+
+- **База данных:** PostgreSQL + pg_vector + LanceDB + DuckDB (для тяжелой аналитики).
+- **Транспорт:** Redis UDS (Unix Domain Sockets) для максимальной скорости внутри ноды.
+- **Безопасность:** mTLS между всеми микросервисами.
+- **API:** Rust Gateway (порт 8081) для высоконагруженных запросов.
+- **Уведомления:** ntfy.sh (основной канал), Telegram (fallback).
+
+### 0.5 Безопасность и Этика (Singularity 31.2)
+
+- **Цифровая Конституция:** Набор этических фильтров (Security First, Data-Driven, и др.) для всех агентов.
+- **Конституционный Суд:** Модуль `constitutional_court.py` для верификации решений экспертов.
+- **Chaos Injector:** «Chaos Monkey» для ИИ-агентов, проверяющий устойчивость системы к галлюцинациям и задержкам.
+
+### 0.6 Динамическая Организация
+
+- **Emergent Hierarchy:** Автоматическое формирование команд и иерархий под конкретную задачу.
+- **Metacognitive Learning:** Способность агентов к самооценке и планированию собственного обучения.
+
+### 0.7 Продвинутые Автономные Модули (Singularity 31.2)
+
+- **Adversarial Critic (Corporate Immunity):** Стресс-тестирование узлов знаний и SOP через «атаки» субагентов для выявления слабых мест.
+- **Toil Detector:** Автоматическое обнаружение рутинных, повторяющихся задач и генерация предложений по их автоматизации.
+- **Threat Detector:** Мониторинг входящих запросов и логов на предмет Prompt Injection, утечек данных и истощения ресурсов.
+- **Tacit Knowledge Miner:** Извлечение неявных стилевых предпочтений пользователя (naming, testing, error handling) для персонализации генерации кода.
+- **War Room Manager:** Тактический центр управления для координации экспертов в реальном времени при возникновении критических инцидентов.
+- **Success Retriever:** Система поиска наиболее успешных исторических решений для использования в качестве Few-Shot примеров.
+- **Symbol Tuner:** Механизм управления поведением агентов через явные символы-модификаторы (📏 concise, 📚 detailed, 🚀 fast).
+- **SOP Generator:** Автоматический синтез стандартных операционных процедур на основе успешно выполненных сложных задач.
+- **Voice of Experience:** Проактивное предупреждение об ошибках на основе анализа прошлых неудач системы.
+
+---
+
+## § Последние изменения (2026-06-13 v79) — Version Unification: Singularity 31.2+ ✅
+
+### Что изменилось сегодня (v79)
+
+#### 1. Унификация отображаемой версии в UI и API
+
+- Устранены расхождения, где в runtime/UI продолжали показываться старые версии (`14.0`, `15.0`, `20.0`) вместо текущей.
+- Во всех пользовательских точках отображения закреплено единое значение: **`Singularity 31.2+`**.
+- Обновлены dashboard-вкладки (`system`, `wisdom`, `scout`), frontend badge, backend description/root metadata, а также связанные user-facing строки в chat/query routing.
+
+#### 2. Синхронизация контуров интеграции
+
+- Обновлены формулировки и заголовки в OpenWebUI tool/config, чтобы внешний интерфейс не расходился с текущей версией ядра.
+- Синхронизированы runtime-строки в Python/Rust слоях, влияющие на восприятие версии при диагностике и работе операторов.
+
+#### 3. Верификация качества
+
+- Выполнен поиск по репозиторию для user-facing поверхностей dashboard/backend/frontend и устранены несоответствия.
+- Прогнан preflight quality gate: контейнеры `ok`, `contract_enforce=ok`, `stale_in_progress=0`, `error_rate_10m=0.0`.
+- Подтверждено отсутствие lint-ошибок в измененных файлах.
+
+---
+
+## § Последние изменения (2026-06-07 v78) — MLX Crash Stability Lock 🔒
+
+### Что изменилось сегодня (v78)
+
+#### 1. Постоянный инвариант для MLX на Mac Studio
+
+- Зафиксировано правило: **`MLX_MAX_CONCURRENT=1` всегда по умолчанию** для `com.atra.mlx-api-server`.
+- Причина (First Principles): падения Python были не логическими, а инфраструктурными — `SIGABRT` в `mlx::core::gpu::check_error(MTL::CommandBuffer*)` при GPU/Metal-перегрузке.
+- При `concurrent > 1` возрастает риск конфликтов в completion queue Metal и аварийных abort процесса.
+- Режим `1` снижает пиковую пропускную способность, но радикально повышает uptime и предсказуемость (KISS/Occam).
+
+#### 2. Операционное правило изменения
+
+- Повышение выше `1` допускается только как controlled experiment:
+  - отдельное окно наблюдения (не менее 24h),
+  - без новых crash-репортов `Python*.ips` по coalition `com.atra.mlx-*`,
+  - с немедленным rollback на `1` при первом подтвержденном `gpu::check_error`.
+- Формализован runbook-реестр рисков: `docs/runbooks/MLX_RUNTIME_RISK_REGISTER.md` (риски, триггеры, mitigation, rollback, checklist).
+- Формализован enterprise-подход к безопасному заимствованию мировых multi-agent практик: `docs/runbooks/AGENT_TEAMS_ADOPTION_MATRIX.md` и `docs/runbooks/AGENT_TEAMS_ADOPTION_ONE_PAGER.md` (adoption matrix, rollout gates, rollback criteria, стартовый checklist).
+
+---
+
+## § Последние изменения (2026-05-05 v77) — Singularity 31.2: Total Crystallization 🌌💎
+
+### Что изменилось сегодня (v77)
+
+#### 1. Кристаллизация Библии (MASTER_REFERENCE)
+
+- Проведен полный аудит системы, выявлено расхождение между документацией (v21.5) и кодом (v31.2).
+- `MASTER_REFERENCE.md` полностью переписан:
+  - Добавлен **Манифест Роя**: децентрализация, Blackboard, аукционы и AgentScope акторы.
+  - Описана **Нейронная Ткань (Knowledge Fabric)**: LanceDB, GraphRAG, VisualRAG и Semantic Cache.
+  - Зафиксирован **Протокол Эволюции**: автономный R&D, мутации и CubeSandbox.
+  - Обновлен **Технологический Стек 31.0**: DuckDB, Redis UDS, mTLS, Rust Gateway.
+- Устаревшие разделы перенесены в «Исторический контекст (Архив v21.5)».
+
+#### 2. Инъекция Знаний в Экспертов
+
+- Обновлен `system_prompt` для всех **85 экспертов** в базе данных.
+- В каждый промпт добавлен блок «🚀 ОБНОВЛЕНИЕ Singularity 31.2+», информирующий агентов о новых возможностях (Blackboard, Knowledge Fabric, Эволюция).
+- Теперь каждый агент Роя осознает свое место в децентрализованной структуре и умеет пользоваться новыми инструментами.
+
+#### 3. Безопасность и Организация
+
+- Документированы модули **Цифровой Конституции** и **Конституционного Суда**.
+- Внедрены принципы **Emergent Hierarchy** и **Metacognitive Learning** для динамической самоорганизации Роя.
+- Добавлен **Agent Chaos Injector** для тестирования отказоустойчивости.
+
+#### 4. Верификация
+
+- Создан `docs/VERIFICATION_CHECKLIST.md` для регулярной проверки здоровья системы.
+
+#### 5. Оптимизация для Mac Studio (Singularity 31.2.1)
+
+- **Рефакторинг Docker:** Монолитный `docker-compose.yml` разделен на 4 логических стека: `Core`, `Agents`, `UI`, `Monitoring`. Это повышает стабильность и упрощает управление.
+- **Cognitive Health Monitoring:** Внедрена система отслеживания «когнитивного здоровья» агентов через `last_success_ts` в heartbeat. Теперь оркестратор видит не только «жив ли процесс», но и «полезен ли он».
+- **Orchestrator Speedup:** Оптимизирована обработка очереди (backlog). Тяжелые фазы анализа (Phase 4+) теперь не отключаются при наличии всего одной задачи, а используют настраиваемый порог `ORCHESTRATOR_BACKLOG_THRESHOLD`.
+- **Infrastructure Hardening:** Все Redis-соединения переведены на Unix Domain Sockets (UDS). Секреты вынесены в `.env`. Исправлены критические `DeprecationWarning` в ядре.
+
+---
+
+## § Хронология Эволюции (Singularity 30.0 - 31.2)
+
+### Singularity 31.2: Total Crystallization
+
+- Финализация архитектуры Роя.
+- Полная синхронизация документации и кода.
+- Внедрение Метакогнитивного обучения.
+
+### Singularity 31.0: Quantum Leap Analytics
+
+- Интеграция **DuckDB** для ускоренной дистилляции знаний.
+- Масштабируемая аналитика данных в `KnowledgeDistiller`.
+
+### Singularity 30.6: Cloud Independence
+
+- Оптимизация `ai_core.py` для работы в условиях полной изоляции от облачных API.
+- Усиление локального RAG.
+
+### Singularity 30.5: Ultra-Fast Transport
+
+- Внедрение **Redis UDS** (Unix Domain Sockets) для снижения задержек межсервисного взаимодействия.
+- Обновление `expert_worker.py` и `elk_handler.py`.
+
+### Singularity 30.1: Traffic Control
+
+- Внедрение **Token Bucket Rate Limiter** в Blackboard Service.
+- Защита LLM от "Thundering Herd" эффекта.
+
+### Singularity 30.0: Background Autonomy
+
+- Внедрение **Preemption State Tracking**.
+- Поддержка фонового выполнения тяжелых задач в `ExpertWorker`.
+
+---
+
+## § Последние изменения (2026-05-04 v76) — Singularity 29.2: Runtime Execution Final Polish
+
+### Что изменилось сегодня (v76)
+
+#### 1. Lease Lock Hardening (orchestrator)
+
+- `resource_manager.py`: `lock:heavy_process` переведен на lease-паттерн (owner token + auto-renew + safe release через compare-and-delete).
+- Добавлен `HEAVY_PROCESS_LOCK_WAIT_SEC` (default 30s). При истечении ожидания lock процесс не блокируется бесконечно.
+- В `enhanced_orchestrator.py` добавлен ранний release глобального lock перед тяжелыми фазами (`ORCHESTRATOR_RELEASE_LOCK_BEFORE_HEAVY_PHASES=true`), чтобы длинные R&D фазы не удерживали критическую секцию.
+
+#### 2. Runtime Registry & Assignment Safety
+
+- Воркеры публикуют heartbeat в Redis hash `runtime:expert_heartbeats` (`RUNTIME_WORKER_HEARTBEAT_KEY`, `RUNTIME_WORKER_HEARTBEAT_TTL_SEC`).
+- Оркестратор назначает задачи только live-исполнителям (`ORCHESTRATOR_REQUIRE_RUNTIME_HEARTBEAT`, `ORCHESTRATOR_RUNTIME_CACHE_TTL_SEC`).
+- Phase 1.95 в оркестраторе: reopen non-live назначений + staged SLA recovery для stale `in_progress` (`ORCHESTRATOR_STALE_INPROGRESS_MINUTES`, `ORCHESTRATOR_STALE_INPROGRESS_MAX_RETRIES`):
+  - пока retries < cap: requeue/reassign;
+  - после cap: выставляется `metadata.stale_force_fallback=true` для контролируемого rule-fallback (без premature fallback до SLA).
+
+#### 3. Execution Path Anti-Stall
+
+- `expert_worker.py`: payload `expert_name` больше не может «отравить» исполнение — при mismatch воркер принудительно использует свою identity (`EXPERT_NAME`), логируя инцидент.
+- Blackboard autonomy path ограничен семафором по `SMART_WORKER_MAX_CONCURRENT`, чтобы избежать неограниченного `asyncio.create_task(process_task(...))`.
+- Исправлен метрик-утечка: stale dialogue skip теперь корректно снижает `worker_active`.
+
+#### 4. Финальные go-live гейты (операционный стандарт)
+
+- KPI окно 60 минут:
+  - `completed_10m >= 1` минимум в 4 из 6 срезов,
+  - отсутствуют stale `in_progress` сверх SLA,
+  - live heartbeat для активных экспертов непрерывно присутствует,
+  - `lock:heavy_process` не залипает и не удерживается тяжелыми фазами.
+
+---
+
 ## § Последние изменения (2026-04-27 v75) — Singularity 29.1: Infrastructure Self-Healing 🚑🛡️
 
 ### Что изменилось сегодня (v75)
 
 #### 1. Бессмертный Gateway
+
 - В `docker-compose.yml` для `gateway` добавлен `restart: always` и лимит памяти `2g`.
 - Внедрен **Healthcheck**: Docker теперь автоматически перезапустит шлюз, если он перестанет отвечать на HTTP-запросы.
 
 #### 2. Активная реанимация (Watchdog 2.0)
+
 - Модуль `performance_watchdog.py` расширен методом `check_and_heal_containers`.
 - Рой теперь каждые 10 минут проверяет статус критических узлов (`gateway`, `redis`, `db`, `worker`). Если контейнер упал или находится в статусе `unhealthy`, Watchdog принудительно его "реанимирует" (`docker start/restart`).
 
 #### 3. Устойчивость к OOM
+
 - Система стала более предсказуемой для macOS: лимиты памяти позволяют Docker Desktop лучше распределять ресурсы Mac Studio, предотвращая внезапные убийства процессов.
 
 ---
@@ -20,14 +246,17 @@
 ### Что изменилось сегодня (v74)
 
 #### 1. Отдел R&D (ExpertResearcher)
+
 - Создан модуль `expert_researcher.py` — автономный исследовательский центр Роя.
 - Реализован метод `run_nightly_inventory`, который сканирует систему на предмет техдолга и возможностей для радикального улучшения.
 
 #### 2. Творческая автономия
+
 - Рой теперь может генерировать **архитектурные предложения** (R&D Proposals) и публиковать их на Blackboard.
 - Интеграция с `CodebaseMutationEngine` позволяет автоматически запускать циклы оптимизации в ночное время.
 
 #### 3. Эволюционный скачок
+
 - Система перешла от "исправления ошибок" к "проектированию будущего". Рой теперь сам решает, какие новые способности ему нужны.
 
 ---
@@ -37,14 +266,17 @@
 ### Что изменилось сегодня (v73)
 
 #### 1. Автономный Git-цикл (Self-Commit)
+
 - `CodebaseMutationEngine` теперь обладает правами на `git add` и `git commit`.
 - Каждая успешная мутация, прошедшая тесты в песочнице, автоматически фиксируется в истории репозитория с тегом `🧬 [EVOLUTION]`.
 
 #### 2. Самодиагностика ядра (Self-Diagnostic)
+
 - В `BlackboardService` внедрен триггер `_trigger_efficiency_audit`.
 - Если аукцион неэффективен (например, нет ставок), система сама инициирует аудит своего кода и пытается найти архитектурное решение для оптимизации.
 
 #### 3. Замкнутая петля эволюции
+
 - Реализован полный цикл: **Аномалия -> Анализ -> Мутация -> Тест -> Git Commit**. Система стала субъектом собственной разработки.
 
 ---
@@ -54,14 +286,17 @@
 ### Что изменилось сегодня (v72)
 
 #### 1. Автономный Саморемонт (Self-Repair)
+
 - В `expert_worker.py` интегрирован `CodebaseMutationEngine`.
 - При возникновении Exception воркер теперь не просто падает, а пытается проанализировать traceback и применить исправление к своему коду через Victoria.
 
 #### 2. Авто-инфраструктура (Self-Provisioning)
+
 - Добавлен демон `monitor_queue_and_provision`, который следит за длиной очереди в Redis Stream.
 - При перегрузке система автоматически вызывает `docker-compose scale` для увеличения числа воркеров.
 
 #### 3. Эволюционная обратная связь
+
 - Усилена интеграция с `CodebaseMutationEngine` для инъекции "антител" (antibody) в DNA экспертов при критических сбоях.
 
 ---
@@ -71,18 +306,22 @@
 ### Что изменилось сегодня (v71)
 
 #### 1. Умный Аукцион (Smart Bidding)
+
 - `BlackboardService` расширен методами `post_bid` и `resolve_auction`.
 - Внедрена модель конкурентного захвата задач на основе рейтинга эксперта и здоровья системы.
 
 #### 2. Цифровые феромоны (Temporal Stigmergy)
+
 - В `CollectiveMemorySystem` реализован механизм `cleanup_decayed_traces`.
 - Следы действий агентов (traces) теперь имеют экспоненциальный распад и "испаряются" со временем.
 
 #### 3. Автономная Инфраструктура (Self-Healing)
+
 - `ResourceGuard` теперь выдает `health_score` (0.0-1.0).
 - Эксперты учитывают нагрузку на Mac Studio при подаче ставок на аукционе.
 
 #### 4. Adversarial Trust Gates
+
 - `AdversarialCritic` интегрирован как обязательный шлюз для высокоприоритетных задач (priority >= 8).
 - Решения Роя проходят через "Адвоката Дьявола" перед выдачей пользователю.
 
@@ -93,21 +332,25 @@
 ### Что изменилось сегодня (v67)
 
 #### 1. Эволюционная чистка (Digital Trash Removal)
+
 - Проведен полный sweep репозитория: удалены все файлы `.bak`, `.old` и временные `.tmp`.
 - Вычищены 11 диагностических скриптов (`analyze_recent_failures.py`, `check_backlog.py` и др.), которые мешали чистоте эволюции.
 - Удалены временные артефакты и скриншоты.
 
 #### 2. Knowledge Fabric (Единая шина памяти)
+
 - Создан модуль `knowledge_os/app/knowledge_fabric.py`.
 - Объединил **LTM (Long-term Memory)**, **Semantic Cache** и **GraphRAG** в единый интерфейс.
 - Эксперты теперь обращаются к «Ткани Знаний», которая сама маршрутизирует запросы между векторной БД и кэшем.
 
 #### 3. Expert Contract Standardization
+
 - Создан `knowledge_os/app/expert_contract.py` на базе **Pydantic**.
 - Внедрен жесткий протокол ответа для всех 86 экспертов (обязательные поля: `reasoning_trace`, `confidence_score`, `status`).
 - В `expert_worker.py` интегрирована автоматическая инъекция контракта в промпты.
 
 #### 4. Обновление Expert Worker
+
 - Интегрирована поддержка `KnowledgeFabric` для сохранения инсайтов.
 - Внедрена принудительная валидация контрактов в `process_async`.
 
@@ -118,12 +361,14 @@
 ### Что изменилось сегодня (v66)
 
 #### 1. Batch API (OpenAI pattern)
+
 - Создан `batch_api.py` — полная поддержка OpenAI Batch API
 - Эндпоинты: `/api/batch/jobs`, `/api/batch/jobs/{id}`, `/api/batch/input/upload`
 - JSONL формат для ввода/вывода
 - Обработка в фоне с asyncio.create_task()
 
 #### 2. Cost Analytics
+
 - Создан `cost_analytics.py` — tracking и оптимизация стоимости
 - Эндпоинты: `/api/cost/track`, `/api/cost/summary`, `/api/cost/leaderboard`
 - Бюджеты с алертами при 80% превышении
@@ -131,30 +376,35 @@
 - Рекомендации по оптимизации
 
 #### 3. TTS API (OpenAI pattern)
+
 - Создан `tts_api.py` — Text-to-Speech synthesis
 - Эндпоинты: `/api/tts/generate`, `/api/tts/voices`, `/api/tts/speak`
 - Поддержка 8+ голосов: alloy, echo, fable, onyx, nova, shimmer, ballad, sage
 - Fallback на Coqui и Edge TTS при недоступности OpenAI
 
 #### 4. Realtime API (OpenAI pattern)
+
 - Создан `realtime_api.py` — Realtime voice API pattern
 - Эндпоинты: `/api/realtime/sessions`, `/api/realtime/ws/{session_id}`
 - WebSocket streaming для real-time voice
 - Поддержка модальностей: text, audio
 
 #### 5. File Search API
+
 - Создан `filesearch_api.py` — полнотекстовый поиск по файлам
 - Эндпоинты: `/api/filesearch/search`, `/api/filesearch/upload`
 - Chunk-based indexing с overlapping
 - Relevance scoring и фильтрация
 
 #### 6. Memory API
+
 - Создан `memory_api.py` — in-memory KV store с TTL
 - Эндпоинты: `/api/memory/set`, `/api/memory/get/{key}`, `/api/memory/search`
 - Операции: increment, append, clear
 - Search по ключам и значениям
 
 #### 7. Monitoring API
+
 - Создан `monitoring_api.py` — metrics и alerting
 - Эндпоинты: `/api/monitoring/metrics`, `/api/monitoring/alerts`, `/api/monitoring/health`
 - CPU, memory, disk monitoring через psutil
@@ -167,60 +417,72 @@
 ### Что изменилось сегодня (v65)
 
 #### 1. Extended Thinking (Anthropic pattern)
+
 - В `victoria_enhanced.py` добавлен метод `_init_extended_thinking()` с ленивой инициализацией
 - `solve()` теперь поддерживает `method="extended_thinking"`
 - Возвращает `thinking_steps`, `confidence`, `thinking_time`
 
 #### 2. Structured Outputs (Anthropic pattern)
+
 - Создан `structured_output.py` — гарантированный JSON с валидацией через Pydantic
 - `StructuredOutput` класс: schema injection → parse JSON → validate → retry
 - Включает TaskResult, AnalysisResult, CodeReviewResult схемы
 
 #### 3. Computer Use Agent (Anthropic pattern)
+
 - Создан `computer_use_agent.py` — обёртка над BrowserOperator
 - Методы: `execute()`, `take_screenshot()`, `verify_ui()`, `fill_form()`, `click_element()`
 
 #### 4. Google Grounding
+
 - Создан `google_grounder.py` с Custom Search API
 - Fallback на DuckDuckGo при недоступности API
 
 #### 5. Swarm Studio UI (AutoGen pattern)
+
 - Обновлён до v1.1 с SSE streaming (`/api/stream`)
 - Добавлен endpoint чата с экспертами (`/api/experts/{name}/chat`)
 - Загрузка агентов из БД
 
 #### 6. Fine-tuner (OpenAI pattern)
+
 - Обновлён `fine_tuner.py` с реальным MLX fine-tuning API
 - Создаёт training.JSONL, отправляет в MLX
 
 #### 7. Prompt Injection Guard
+
 - Создан `prompt_guard.py` с многоуровневой защитой
 - Pattern-based + char-based + heuristic + LLM проверка
 
 #### 8. Function Calling (OpenAI tool_calls pattern)
+
 - Создан `function_caller.py` — LLM автоматически вызывает функции
 - `FunctionCaller` класс с `register()` и `call()` методами
 
 #### 9. System Prompt из БД
+
 - В `ai_core.py` добавлена загрузка `system_prompt` из БД для каждого эксперта
 - Инжектируется в начало промпта: `### ТЫ — {NAME}`
 
 #### 10. Expert Names во всех вызовах
+
 - Исправлены все вызовы `run_smart_agent_async()` — добавлен `expert_name`
 - Task Planner, Parallel Orchestrator и др.
 
 #### 11. Долгосрочное планирование
+
 - Создана таблица `checkpoints` в БД
 - Добавлены endpoint `/api/checkpoints` и `/api/plans`
 - Полная поддержка long-term planning с recovery
 
 #### 12. Skills Hot-Reload
+
 - `skill_registry.py`: добавлен параметр `allow_reload=True`
 - Endpoint `/api/experts/skills/reload` для горячей перезагрузки
 - Endpoint `/api/experts/skills/categories` для списка по категориям
 - 80 skills, 24 категории
 
-**Итоговый рейтинг: 100/100** ✅ 
+**Итоговый рейтинг: 100/100** ✅
 Все фичи от Anthropic, OpenAI, Google полностью внедрены!
 
 Файлы: `victoria_enhanced.py`, `structured_output.py`, `computer_use_agent.py`, `google_grounder.py`, `swarm_studio.py`, `fine_tuner.py`, `prompt_guard.py`, `function_caller.py`, `ai_core.py`, `skill_registry.py`, `swarm_studio.py`, `db/migrations/`.
@@ -232,22 +494,27 @@
 ### Что изменилось сегодня (v64)
 
 #### 1. Event Sourcing & Actor Persistence
+
 - В `VictoriaExpertActor` внедрена система Event Sourcing (таблицы `actor_states`, `actor_events` — миграция `20260411_actor_event_sourcing.sql`).
 - Реализованы методы `save_snapshot()`, `record_event()` и `recover_state()`: акторы переживают перезагрузки воркеров без потери контекста.
 
 #### 2. Dynamic Sub-Agent Spawning (Micro-Agent Factory)
+
 - `expert_generator.py` расширен поддержкой `is_micro=True` — временные узкоспециализированные агенты с промптом до 500 символов.
 - `enhanced_orchestrator.py`: при флаге `needs_micro_agent` в плане декомпозиции система автоматически порождает микро-агента через `recruit_expert`.
 
 #### 3. Autonomous Red-Team Auditor
+
 - Создан `red_team_auditor.py` — аудитор логики, работает 24/7 в цикле `perpetual_evolution.py`.
 - Применяет метод "5 Почему" и "Инверсию" к узлам знаний и результатам задач; при обнаружении галлюцинаций создаёт задачи на исправление (приоритет `high`).
 
 #### 4. Collective Reflection Loop
+
 - В `ai_core.py` внедрён `COLLECTIVE REFLECTION PROTOCOL`: каждый ответ агента содержит `<reasoning_trace>` с сомнениями, отброшенными альтернативами и оценкой уверенности (0-100%).
 - Трассы рассуждений анализируются Red-Team Auditor для перекрёстной верификации.
 
 #### 5. Victoria Visual Search — Production Fix
+
 - Исправлен `victoria-visual-search`: добавлен `Dockerfile` + `requirements.txt` (fastapi, uvicorn, faiss-cpu, numpy, packaging).
 - Сервис стабильно стартует на порту `8005`, FAISS-индекс создаётся в памяти при первом запуске.
 
@@ -261,7 +528,9 @@
 ### Что изменилось сегодня (v63)
 
 #### 1. Swarm Orchestration (Hybrid Model)
+
 Переход к гибридной модели управления мультиагентной системой:
+
 - **Victoria Router (Planning):** Виктория планирует цепочки экспертов (Handoff Chains) с заданными контрактами.
 - **Contract-based Handoffs:** Передача задач между экспертами через `explicit_handoffs.py` с валидацией по JSON Schema.
 - **Decentralized Execution:** Эксперты могут сами инициировать handoff через теги `HANDOFF:` и `TASK:` в ответах.
@@ -274,7 +543,9 @@
 ### Что изменилось сегодня (v62)
 
 #### 1. AgentScope Integration (AOP & Actors)
+
 Внедрение AgentScope переводит систему от процедурной оркестрации к модели **Actor-based Distributed Intelligence**:
+
 - **MsgHub (Team Intelligence):** В `ai_core.py` метод `generate_discussion` теперь использует `agentscope.msghub`. Эксперты общаются в реальном времени с поддержкой фазы **"Радикальной правды"** (Ray Dalio).
 - **Distributed Actors:** В `expert_worker.py` реализован `VictoriaExpertActor` на базе `AgentBase`. Изолированные состояния и принцип **"Let it crash"** (Erlang).
 - **Orchestration Pipelines:** В `enhanced_orchestrator.py` декомпозиция задач переведена на `agentscope.pipelines` (Decomposer -> Auditor).
@@ -282,7 +553,9 @@
 - **HITL Hooks:** В `human_in_the_loop.py` добавлены хуки для коррекции мнений акторов через RPC.
 
 #### 2. Omni-RAG v3: Multimodal Integration (v61)
+
 Внедрена поддержка визуального контекста для Knowledge OS:
+
 - **Инфраструктура:** Добавлен сервис `victoria-visual-search` в `docker-compose.yml` (порт 8005) на базе модели `Alibaba-NLP/GVE-2B` и FAISS.
 - **Индексация:** Создан `multimodal_indexer.py` для автоматического сканирования PDF, скриншотов и UI-дизайнов.
 - **Local Router:** Интегрирован метод `search_visual_context`. Теперь при наличии тега `#multimodal` или ключевых слов (интерфейс, схема, ui) Victoria автоматически получает визуальные описания в промпт.
@@ -297,15 +570,16 @@
 
 **Метод: 5 Почему (COGNITIVE_CODE.md)**
 
-| Уровень | Почему |
-|---|---|
-| 1 | Circuit Breaker перешёл в OPEN |
-| 2 | 3 подряд HTTP 503 от Ollama (`"server busy, maximum pending requests exceeded"`) |
-| 3 | Очередь Ollama переполнена: несколько воркеров одновременно послали запросы при перегруженном MLX |
-| 4 | `OLLAMA_NUM_PARALLEL` и `OLLAMA_MAX_QUEUE` не были заданы (дефолт=1 parallel) |
-| 5 | `failure_threshold=3` слишком агрессивен для кратковременных пиков нагрузки |
+| Уровень | Почему                                                                                            |
+| ------- | ------------------------------------------------------------------------------------------------- |
+| 1       | Circuit Breaker перешёл в OPEN                                                                    |
+| 2       | 3 подряд HTTP 503 от Ollama (`"server busy, maximum pending requests exceeded"`)                  |
+| 3       | Очередь Ollama переполнена: несколько воркеров одновременно послали запросы при перегруженном MLX |
+| 4       | `OLLAMA_NUM_PARALLEL` и `OLLAMA_MAX_QUEUE` не были заданы (дефолт=1 parallel)                     |
+| 5       | `failure_threshold=3` слишком агрессивен для кратковременных пиков нагрузки                       |
 
 **Исправления:**
+
 1. `knowledge_os/app/local_router.py`: `failure_threshold=3` → `5` — circuit breaker не открывается при кратковременном пике
 2. `.env`: добавлены `OLLAMA_NUM_PARALLEL=4` и `OLLAMA_MAX_QUEUE=16` — Ollama принимает параллельные запросы
 3. `launchctl setenv OLLAMA_NUM_PARALLEL 4` + `OLLAMA_MAX_QUEUE 16` — активно для новых процессов
@@ -340,7 +614,9 @@
 ### Что изменилось сегодня (v57)
 
 #### 1. Docker Network Alignment (Final Fix)
+
 Ликвидированы последние «хвосты» локальной конфигурации, мешавшие работе в Docker:
+
 - **.env Standard:** Запрещено использование `localhost` для межсервисного взаимодействия внутри Docker. Все URL переведены на имена сервисов:
   - `VERONICA_URL=http://veronica-agent:8000`
   - `DATABASE_URL=postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os`
@@ -348,7 +624,9 @@
 - **Result:** Восстановлено делегирование задач от Виктории к Веронике и стабильное подключение воркеров к БД.
 
 #### 2. VRAM & Swap Stabilization
+
 Устранена причина критического раздувания свопа на Mac Studio:
+
 - **Ollama Context Kick:** Внедрена процедура принудительного ограничения контекста (`num_ctx: 32768`) для тяжелых моделей через API после их загрузки. Это высвободило **18GB RAM** и снизило потребление `phi3.5` с 62GB до 32GB VRAM.
 - **Immortal Models Sync:** Модель `victoria-wisdom-v3.5:latest` добавлена в `IMMORTAL_MODELS` в `ollama_keep_alive_policy.py` для соответствия статусу «Total Dominance».
 
@@ -359,7 +637,9 @@
 ### Что изменилось сегодня (v56)
 
 #### 1. Expert Priority System (Singularity 25.0)
+
 Внедрена многоуровневая система приоритетов для экспертов корпорации (VIP, STANDARD, BACKGROUND):
+
 - **DB Schema:** В таблицу `experts` добавлена колонка `priority`.
 - **VIP Experts:** Виктория (Team Lead) и Владимир_CEO получили статус `VIP`.
 - **Priority Routing:** `LocalAIRouter` теперь автоматически приоритизирует запросы от VIP-экспертов, добавляя заголовок `X-Request-Priority: high`.
@@ -373,15 +653,18 @@
 ### Что изменилось сегодня (v55)
 
 #### 1. Adaptive Ollama Context Window (Singularity 24.8)
+
 Внедрена система динамического управления окном контекста для Ollama, предотвращающая аномальное потребление RAM:
+
 - **Dynamic num_ctx:** В `LocalAIRouter` добавлен метод `_get_adaptive_options()`, который рассчитывает `num_ctx` на основе доступной RAM.
-- **RAM-Aware Scaling:** 
+- **RAM-Aware Scaling:**
   - При RAM > 32GB свободно: используется максимум модели (до **128k** для Phi-3.5).
   - При RAM > 16GB свободно: окно ограничивается до **32k**.
   - При RAM < 16GB свободно: окно сжимается до **16k**.
 - **Result:** Модель `phi3.5:3.8b` больше не будет занимать 62GB VRAM без необходимости, автоматически «сдуваясь» при дефиците ресурсов.
 
 #### 2. Immortal Models Alignment (Final)
+
 - **Phi-3.5 Restoration:** Модель `phi3.5:3.8b` окончательно возвращена в список `IMMORTAL_MODELS` в `ollama_keep_alive_policy.py`. Теперь она всегда в памяти, но с адаптивным размером контекста.
 
 ---
@@ -391,19 +674,25 @@
 ### Что изменилось сегодня (v54)
 
 #### 1. Autonomous Systems Activation (Event Bus & Sentinel)
+
 Ликвидирован "спящий режим" автономных систем:
+
 - **Auto-Start Logic:** В `VictoriaEnhanced` внедрена логика автоматического запуска `Event Bus` и `Autonomous Sentinel` при старте. Ранее системы требовали ручного поднятия.
 - **Event Handlers:** Подключены базовые обработчики событий (создание файлов, ошибки логов, деградация производительности).
 - **Verification:** Проверена цепочка: Событие в шине → Обработка → Реакция системы.
 
 #### 2. DNS & Network Alignment (Docker-to-Host)
+
 Исправлена критическая проблема связи контейнеров с хостом (Mac Studio):
+
 - **Extra Hosts Fix:** В `docker-compose.yml` для `victoria-agent` исправлена конфигурация `extra_hosts`. Теперь `host.docker.internal` корректно разрешается в IP шлюза Docker.
 - **Service Discovery:** Восстановлен доступ к `Ollama` (11434) и `MLX` (11435), работающим на хосте. Ошибки `Name or service not known` устранены.
 - **DB Connection:** В `main.py`, `victoria_event_handlers.py` и `codebase_mutation_engine.py` исправлены `DATABASE_URL` для работы через `knowledge_pgbouncer` внутри Docker-сети.
 
 #### 3. Self-Healing & Mutation Engine (Phase 1)
+
 Восстановлена работоспособность системы самоисцеления:
+
 - **Mutation Trigger:** Исправлен баг в `VictoriaEventHandlers`, приводивший к `AttributeError` при ручном вызове Mutation Engine. Теперь поддерживаются как объекты `Event`, так и прямые словари данных.
 - **Solve Method Upgrade:** Метод `VictoriaEnhanced.solve()` расширен поддержкой произвольных аргументов (`**kwargs`) и параметра `method`, что необходимо для работы `Mutation Engine`.
 - **End-to-End Test:** Успешно выполнен тест самоисцеления: при обнаружении ошибки в логах система автоматически анализирует код и создает задачу `Self-Healing` в БД PostgreSQL.
@@ -415,13 +704,16 @@
 ### Что изменилось сегодня (v53)
 
 #### 1. Adaptive Resource Steering (RAM/Swap Optimization)
+
 Внедрена комплексная стратегия управления ресурсами Mac Studio при критической нагрузке:
+
 - **Elasticsearch Capping:** Лимиты памяти `atra-elasticsearch` снижены с **8GB** до **2GB**, Java Heap (`ES_JAVA_OPTS`) ограничен **1GB** (`-Xms1g -Xmx1g`). Это высвободило ~3.5GB физической RAM.
 - **Aggressive Model Unloading:** В `ollama_keep_alive_policy.py` добавлена логика `Aggressive Resource Steering`. При загрузке RAM > 85% тяжелые модели выгружаются **мгновенно** (`keep_alive=0`), легкие — через **60с**.
 - **DB Pool Consolidation:** Лимиты пула соединений в `expert_worker.py` снижены с **10** до **5**, синхронизированы с `db_pool.py`. Это уменьшает накладные расходы на управление соединениями и риск переполнения слотов PostgreSQL.
 - **Service Memory Hard-Limits:** Применены жесткие `mem_limit` в `docker-compose.yml` для `knowledge_postgres` (2GB) и `open-webui` (2GB), предотвращая неконтролируемое раздувание RSS.
 
 #### 2. Embedding Lifecycle Optimization
+
 - **Instant Unload:** Модели эмбеддингов (`nomic-embed-text`) теперь выгружаются немедленно после выполнения запроса, если RAM находится в критической зоне (>85%). Это предотвращает "зависание" 2-3GB VRAM после простых RAG-операций.
 
 ---
@@ -431,17 +723,23 @@
 ### Что изменилось сегодня (v52)
 
 #### 1. Health-Aware Backpressure (Singularity 24.7)
+
 Внедрена система динамического регулирования нагрузки на основе состояния железа:
-- **Dynamic Throttling:** В `enhanced_orchestrator.py` добавлен мониторинг RAM через `psutil`. 
+
+- **Dynamic Throttling:** В `enhanced_orchestrator.py` добавлен мониторинг RAM через `psutil`.
 - **Adaptive Limits:** При загрузке RAM > 85% лимит `max_pending` снижается до **1**, при > 70% — до **3**. Это предотвращает "заваливание" Mac Studio задачами в моменты пиковой нагрузки.
 
 #### 2. Retry Intelligence & Model Downgrading (Singularity 24.7)
+
 Повышена надежность выполнения диалоговых задач:
+
 - **Smart Fallback:** В `expert_worker.py` (Dialogue Fast Path) реализован механизм понижения сложности. Если задача на тяжелой модели (`wisdom`) проваливается, система автоматически пробует выполнить её на быстрой модели (`fast`).
 - **Resilience:** Пользователь гарантированно получает ответ, даже если основной интеллект временно перегружен.
 
 #### 3. Automated Failed Tasks Analysis (Singularity 24.7)
+
 Очистка "информационного шума" и проактивный аудит:
+
 - **Failed Tasks Analyzer:** Создан скрипт `scripts/failed_tasks_analyzer.py` для группировки и дедупликации проваленных задач.
 - **Noise Reduction:** При первом запуске удалено **93 дубликата** таймаутов.
 - **System Audit:** При обнаружении "таймаут-шторма" автоматически создается одна сводная задача `🚨 SYSTEM AUDIT: Timeout Storm` для DevOps-инженера (Игорь), что позволяет устранять корневые причины, а не симптомы.
@@ -453,16 +751,21 @@
 ### Что изменилось сегодня (v51)
 
 #### 1. Proactive Task Deduplication (Singularity 24.3)
+
 Внедрена система предотвращения дублирования задач на архитектурном уровне:
+
 - **DB Constraint:** Создан частичный уникальный индекс `idx_tasks_active_dedup` в PostgreSQL. Он блокирует создание идентичных задач (по title и project_context), если они уже находятся в очереди или в работе.
 - **Safe Creation API:** В `db_pool.py` реализован метод `create_task_safe`, обеспечивающий атомарную вставку с логикой `ON CONFLICT DO NOTHING`. Это устраняет race conditions при одновременной работе нескольких агентов.
 
 #### 2. Automated Queue Hygiene (Singularity 24.3)
+
 Обновлен системный Watchdog для поддержания чистоты базы знаний:
+
 - **Auto-Cleanup:** Скрипт `reset_stuck_tasks.py` теперь автоматически архивирует проваленные задачи старше 3 дней и отмененные старше 7 дней.
 - **Queue Depth Awareness:** В `ServiceMonitor` интегрирован счетчик `queue_depth`. При превышении порога в 100 задач система автоматически сигнализирует о перегрузке, позволяя воркерам адаптировать темп работы.
 
 #### 3. MLX Stability: UnboundLocalError Fix
+
 - **Robustness:** Исправлена критическая ошибка в `mlx_api_server.py`, приводившая к крашу сервера при попытке очистки памяти до инициализации ключа модели.
 
 ---
@@ -472,23 +775,31 @@
 ### Что изменилось сегодня (v46)
 
 #### 1. Worker Timeout Synchronization (Singularity 24.3)
+
 Устранено критическое расхождение таймаутов между ядром и исполнителями:
+
 - **Worker Limits:** В `smart_worker_autonomous.py` и `expert_worker.py` таймаут выполнения задачи увеличен с **600с** (10 мин) до **1800с** (30 мин).
 - **Alignment:** Теперь воркеры не прерывают тяжелые экспертные обсуждения и генерацию кода на моделях 35B+, давая им полное время, отведенное в `AI Core`.
 - **Result:** Устранены массовые сбои `timeout` (20% случаев) при высокой нагрузке на Mac Studio.
 
 #### 2. Strategist Local Routing: God Mode vs Docker (Singularity 24.3)
+
 Исправлена логика планирования для предотвращения `STRATEGIST FAILED`:
+
 - **Intelligent Routing:** В `ai_core.py` внедрена проверка модели стратега. Если используется модель Виктории (`victoria-wisdom-v3.5`), система форсирует **MLX** даже внутри Docker, обходя стандартный приоритет Ollama.
 - **Conflict Resolution:** Устранен конфликт между "Docker-безопасным" роутингом и "God Mode" (приоритет MLX для мозга Виктории). Планирование ТЗ теперь проходит локально без падения в облачный fallback.
 
 #### 3. Recursion Guard & Self-Healing (Singularity 24.3)
+
 Повышена отказоустойчивость логики делегирования:
+
 - **Recursion Protection:** В `execute_assignments.py` добавлен перехват `RecursionError` при вызове `asyncio.wait_for`.
 - **Graceful Fallback:** При обнаружении глубокой рекурсии (вложенные отмены задач) система автоматически переходит на прямой вызов агента, предотвращая краш воркера.
 
 #### 4. Knowledge Base: Mass Embedding Generation (Singularity 24.3)
+
 Восстановление векторной памяти корпорации:
+
 - **Background Processing:** Запущен `mass_embedding_generator.py` для обработки 86,000+ узлов (92% знаний), не имевших векторов.
 - **CPU Optimization:** Переход от текстового поиска (Trigram/BM25) к векторному (HNSW) снизит пиковую нагрузку на PostgreSQL (ранее до 218%).
 - **Pruning:** Успешно архивировано 3,410 неиспользуемых узлов через процедуру `prune_knowledge_nodes`.
@@ -500,13 +811,16 @@
 ### Что изменилось сегодня (v45)
 
 #### 1. GraphRAG Multi-Hop Optimization (Singularity 24.3)
+
 Глубокая оптимизация производительности и релевантности поиска в графе знаний:
+
 - **Adaptive Strength Threshold:** Внедрена динамическая фильтрация связей `l.strength > (0.7 + (gp.hop_count * 0.05))`. С каждым шагом (хопом) требования к силе связи растут, что эффективно отсекает семантический шум.
 - **Strict Depth Limiting:** Установлено жесткое ограничение в **3 хопа** на уровне SQL CTE и Python post-filtering. Это предотвращает "взрыв" графа и избыточную нагрузку на БД.
 - **Redis Path Caching:** Внедрено кэширование результатов обхода графа в Redis (`DomainCache`) на 1 час. Повторные запросы по тем же узлам выполняются мгновенно (Cache HIT).
 - **Query-Aware Scoring:** Итоговый вес узла теперь рассчитывается как комбинация силы связи (`strength * 0.4`), векторной близости (`similarity * 0.5`) и штрафа за глубину (`hop_count * 0.1`).
 
 #### 2. Connection Stability (Singularity 24.3)
+
 - **Sequential Hop Execution:** Переработан механизм вызова `fetch_hops`. Вместо параллельного `asyncio.gather`, вызывающего конфликты в `asyncpg`, запросы выполняются последовательно с гарантированным захватом нового соединения из пула для каждой операции.
 - **Robust Seed Retrieval:** Улучшена выборка начальных (seed) узлов — теперь система берет top-100 и делает финальную фильтрацию в Python, обеспечивая 100% наличие `similarity` в результатах.
 
@@ -517,11 +831,14 @@
 ### Что изменилось сегодня (v44)
 
 #### 1. Database Pool Expansion (Singularity 24.1)
+
 Устранение таймаутов при высокой нагрузке на БД:
+
 - **Pool Scaling:** В `ai_core.py` и `architecture_profiler.py` лимит соединений `max_size` увеличен с **5** до **20**.
 - **Safe Concurrency:** С учетом `max_connections=500` в PostgreSQL, это позволяет системе обрабатывать до 80+ параллельных запросов без риска `TimeoutError`.
 
 #### 2. Maintenance & Cleanup (Singularity 24.1)
+
 - **Task Reset:** Проведен аудит зависших задач через `reset_stuck_tasks.py`.
 - **Backpressure Tuning:** Подтверждена стабильность `SMART_WORKER_MAX_PENDING=80` при расширенных пулах.
 
@@ -532,17 +849,23 @@
 ### Что изменилось сегодня (v43)
 
 #### 1. MLX Dynamic KV Cache Quantization (Singularity 24.0)
+
 Оптимизация использования RAM на Mac Studio M4 Max:
+
 - **Adaptive Quantization:** В `mlx_api_server.py` внедрена логика динамического выбора квантования KV Cache (Q4/Q8/FP16) перед каждым инференсом.
 - **Memory-Aware:** При свободной RAM < 16GB используется **Q4**, < 32GB — **Q8**, иначе — **FP16**. Это предотвращает OOM при работе с тяжелыми моделями и длинным контекстом.
 
 #### 2. Dependency-Aware Regression Guard (Singularity 24.0)
+
 Защита от каскадных ошибок при изменении кода:
+
 - **Dependency Mapper:** Создан модуль `dependency_mapper.py`, строящий граф импортов проекта через AST-анализ.
 - **Regression Testing:** `QualityAssurance` и `CodebaseMutationEngine` теперь автоматически запускают тесты не только для измененного файла, но и для всех модулей, которые его импортируют.
 
 #### 3. Safe Vector Pruning: Memory Cycle (Singularity 24.0)
+
 Управление жизненным циклом знаний и вектором памяти:
+
 - **Knowledge Archive:** Создана таблица `knowledge_archive` для хранения вытесненных узлов.
 - **Soft Delete:** Узлы с `usage_count = 0` старше 30 дней автоматически перемещаются в архив (процедура `prune_knowledge_nodes`).
 - **Semantic Merge:** Внедрена логика слияния дубликатов (similarity > 0.95) в `memory_cycle.py`.
@@ -555,7 +878,9 @@
 ### Что изменилось сегодня (v42)
 
 #### 1. Ollama Stability: Heavy Model Support (Singularity 23.9)
+
 Устранена проблема пустых ответов при работе с тяжелыми моделями (35B MoE):
+
 - **Tag Synchronization:** В `local_router.py` унифицированы имена моделей — теперь всегда используется явный тег `:latest` для Victoria, что исключает путаницу в Ollama.
 - **TTFT Optimization:** Таймаут стриминга `LOCAL_ROUTER_STREAM_READ_TIMEOUT` увеличен до **30 минут** (1800с). Это дает тяжелым моделям достаточно времени на генерацию первого токена при высокой нагрузке.
 - **Empty Response Retry:** Внедрена логика принудительного повтора запроса (Retry) при получении пустого ответа. Система больше не считает пустой ответ успехом и пробует следующий узел или повторную попытку.
@@ -567,18 +892,23 @@
 ### Что изменилось сегодня (v41)
 
 #### 1. GraphRAG Optimization (Singularity 23.8)
+
 Глубокая оптимизация поиска по графу знаний:
+
 - **Recursive Query Tuing:** В `MultiHopRetriever.py` внедрена фильтрация по `strength > 0.7` и ограничение `LIMIT 50` для начальной выборки связей. Это предотвращает экспоненциальный рост графа при поиске.
 - **Metadata Indexing:** Созданы функциональные индексы GIN для JSONB полей `source`, `expert` и `project_slug`. Фильтрация RAG теперь работает на порядок быстрее.
 - **Community Detection 2.0:** Модуль `community_detector.py` переведен на использование централизованного пула соединений и пакетных транзакций.
 
 #### 2. Advanced CPU Offloading (Singularity 23.8)
+
 Максимальная отзывчивость системы:
+
 - **Regex Offloading:** В `ai_core.py` (Crystallizer) и `entity_extractor.py` регулярные выражения вынесены в `asyncio.to_thread`.
 - **JSON Mastery:** Все операции `json.dumps` и `json.loads` в критических путях теперь не блокируют event loop.
 - **Fluidity:** Даже при интенсивной экстракции сущностей и сохранении "кристаллов", API Виктории остается отзывчивым.
 
 #### 3. Memory Leak Investigation (Igor)
+
 - **RSS Analysis:** Проведен аудит `VmRSS` процессов внутри `victoria-agent`. Установлено, что основной объем памяти (831MB) потребляют рабочие потоки с активными контекстами.
 - **Watchdog Tuning:** Пороги `MEM WATCHDOG` подтверждены как адекватные (warn=12GB, restart=16GB).
 
@@ -589,18 +919,24 @@
 ### Что изменилось сегодня (v40)
 
 #### 1. HNSW Vector Optimization (Singularity 23.6)
+
 Радикальное ускорение RAG на больших объемах данных:
+
 - **HNSW Index:** В таблицу `knowledge_nodes` внедрен индекс HNSW (Hierarchical Navigable Small World) с параметрами `m=16`, `ef_construction=128`.
 - **Performance:** Скорость векторного поиска выросла в 5-10 раз, обеспечивая мгновенный доступ к знаниям даже при 100k+ узлов.
 - **Stability:** Увеличен `shm_size` до 256MB и `max_connections` до 500 для стабильной работы PostgreSQL под высокой нагрузкой.
 
 #### 2. CPU Offloading & Loop Fluidity (Singularity 23.6)
+
 Устранение микро-фризов в работе агентов:
+
 - **Async Offloading:** В `ai_core.py` и `perpetual_evolution.py` внедрен `asyncio.to_thread` для всех тяжелых CPU-операций (JSON parsing/dumps).
 - **Fluid Interface:** Event loop больше не блокируется при обработке больших объемов данных, обеспечивая плавную работу API и стриминга.
 
 #### 3. Autonomous Regression Guard (Singularity 23.7)
+
 Защита от каскадных сбоев при мутациях:
+
 - **Dependency-Aware Testing:** В `QualityAssurance` и `CodebaseMutationEngine` интегрирована проверка зависимостей.
 - **Sandbox Regression:** Теперь при проверке патча в песочнице запускаются не только тесты самого файла, но и связанные тесты модулей, которые могут пострадать от изменений.
 - **Результат:** Эволюция системы стала на 100% безопасной — мы гарантируем, что новое не ломает старое.
@@ -612,25 +948,33 @@
 ### Что изменилось сегодня (v39)
 
 #### 1. Real Docker Safety Sandbox (Singularity 23.1)
+
 Внедрена полноценная изоляция для автономных циклов и проверки кода:
+
 - **SandboxManager Integration:** `QualityAssurance` и `CodebaseMutationEngine` теперь используют `SandboxManager` для запуска Python-кода и тестов в изолированных Docker-контейнерах.
 - **Security:** Прямое выполнение subprocess на хосте/основном контейнере заменено на запуск в сети `atra-sandbox-net` с лимитами ресурсов (512MB RAM, 1 CPU).
 - **Verification:** Патчи и сгенерированный код теперь проходят "боевое крещение" в песочнице перед применением к основной кодовой базе.
 
 #### 2. Inference Latency Optimization (Singularity 23.2)
+
 Устранение задержек "холодного старта" моделей:
+
 - **InferenceOptimizer:** Создан новый сервис для упреждающей загрузки (Pre-loading) моделей в Ollama.
 - **Predictive Warm-up:** `ai_core.py` теперь предсказывает следующую необходимую модель на основе категории текущей задачи (reasoning -> coding) и прогревает её в фоне.
 - **Результат:** Время ожидания первого токена при переключении между экспертами снижено на 70-80%.
 
 #### 3. RAG Precision: Cross-Encoder Re-ranker (Singularity 23.3)
+
 Повышение точности поиска в базе знаний:
+
 - **Semantic Re-ranking:** Внедрен `RAGReranker` на базе модели `cross-encoder/ms-marco-MiniLM-L-6-v2`.
 - **IQ Boost:** Теперь результаты векторного поиска (top-8) переранжируются по семантической близости к запросу, и только 5 самых релевантных попадают в контекст.
 - **Результат:** Радикальное снижение "шума" в контексте и повышение точности ответов на технические вопросы.
 
 #### 4. GraphRAG Redis Caching (Singularity 23.4)
+
 Снижение нагрузки на PostgreSQL при сложных запросах:
+
 - **Semantic Cache for Graphs:** Результаты GraphRAG теперь кэшируются в Redis на 1 час.
 - **Performance:** Повторные или похожие архитектурные запросы теперь обрабатываются мгновенно (Cache HIT), не нагружая базу данных сложными multi-hop запросами.
 
@@ -641,7 +985,9 @@
 ### Что изменилось сегодня (v35)
 
 #### 1. Memory Crystals & U-Shape Context (Singularity 23.0)
+
 Внедрена система борьбы с проблемой «Lost in the Middle» и вечной памяти проекта:
+
 - **Memory Crystals:** Создана персистентная таблица `memory_crystals` в PostgreSQL для хранения ключевых архитектурных решений и параметров проекта.
 - **U-Shape Context:** Промпт теперь формируется по U-образной схеме: Кристаллы в начале (Attention TOP), сжатая история в середине, и Instruction Re-injection в конце (Attention BOTTOM).
 - **Auto-Crystallization:** В `ai_core.py` добавлен хук, который автоматически извлекает новые факты и решения из ответов Виктории и сохраняет их в БД.
@@ -650,7 +996,9 @@
 #### 2. Smart Task Throttling & Deduplication (Singularity 22.9)
 
 #### 2. Runtime Compliance (100% Verified)
+
 Завершен аудит Backend Services. Устранены последние нарушения стандартов 12-Factor:
+
 - **Zero Runtime Installs:** Все вызовы `pip install` в рантайме заменены на логирование требований.
 - **Victoria Telegram Bot:** Исправлена команда авто-установки Pillow/pypdf, теперь используется только `requirements.txt`.
 - **Standardization:** Все сервисы переведены на использование единого источника зависимостей.
@@ -662,13 +1010,17 @@
 ### Что изменилось сегодня (v34)
 
 #### 1. Iterative Discovery Engine (RAG 3.0)
+
 Внедрена система многошаговой разведки контекста перед финальным ответом:
+
 - **Recursive Enrichment:** Теперь при обнаружении тега `#complex` или в режиме `reasoning` агент может задавать уточняющие вопросы системе.
 - **Agent Asks -> System Answers:** Цикл из 3 итераций позволяет собрать недостающий код, данные из БД или документацию до формирования итогового решения.
 - **Интеграция в `ai_core.py`:** Новый модуль `iterative_discovery.py` управляет циклом разведки, предотвращая "галлюцинации" из-за нехватки данных.
 
 #### 2. Artifact-Driven Reporting (Curator 2.0)
+
 Улучшена система отчетности Куратора для глубокого анализа:
+
 - **Task Artifacts:** Каждый шаг кураторского прогона теперь сохраняет отдельный JSON-артефакт с полным ответом, трассировкой и метаданными.
 - **Deep Audit Readiness:** Это позволяет Cursor-агенту и другим инструментам проводить детальный ретроспективный анализ каждой задачи без повторных вызовов LLM.
 - **Интеграция в `curator_send_tasks_to_victoria.py`:** Автоматическое создание папок артефактов для каждого прогона.
@@ -680,36 +1032,48 @@
 ### Что изменилось сегодня (v33)
 
 #### 1. Real-time Multi-Agent Debate (Singularity 22.1)
+
 Внедрена система мгновенных дебатов между экспертами для критических и сложных задач:
+
 - **Интеграция в `ai_core.py`:** Перед выполнением задачи система проверяет её сложность (`is_critical` или ключевые слова "обсуди", "анализ").
 - **Consensus Engine:** Используется `ConsensusAgent` для запуска параллельных сессий между экспертами (Виктория, Игорь, Анна).
 - **Quorum Convergence:** Решение принимается только при достижении порога консенсуса > 0.7. Это радикально снижает галлюцинации в архитектурных решениях.
 
 #### 2. MLX Speculative Decoding (Singularity 22.2)
+
 Ускорение инференса на Mac Studio M4 Max:
+
 - **Draft Model Integration:** В `mlx_api_server.py` добавлена поддержка спекулятивного декодирования.
 - **Связка 35B + 1B:** Тяжелая модель `qwen-35b` (или `reasoning`) теперь использует легкую `phi-3.5-mini` в качестве черновика.
 - **Результат:** Прирост скорости генерации в 1.5-1.8 раза при сохранении качества "большой" модели.
 
 #### 3. Episodic Memory: Lessons Learned (Singularity 22.3)
+
 Прокачка памяти агента через фиксацию опыта:
+
 - **Lesson Extraction:** В `memory_block.py` добавлен паттерн `lesson:`, позволяющий модели сохранять важные выводы прямо в ходе диалога.
 - **System 1 Integration:** Извлеченные уроки попадают в блок `### [SYSTEM 1: Fast Facts & Anchors]` и автоматически учитываются в следующих запросах.
 - **Self-Correction:** Это позволяет Виктории "учиться на лету" и не повторять ошибки в рамках одной сессии.
 
 #### 4. Sandbox Grounding & Debate 2.0 (Singularity 22.4 - 22.5)
+
 Гарантия работоспособности и критический анализ:
+
 - **Sandbox Grounding:** В `quality_assurance.py` интегрирован механизм автоматического запуска Python-кода в изолированном процессе. Код проверяется на синтаксис и выполнение тестов перед выдачей пользователю.
 - **Debate 2.0 (The Skeptic):** В `consensus_agent.py` добавлена роль "Скептика". Теперь каждый дебат включает Pre-mortem анализ — поиск 3 причин, почему решение может провалиться. Это повышает надежность архитектурных ответов.
 
 #### 5. Dynamic KV Cache Management (Singularity 22.6)
+
 Оптимизация памяти Mac Studio M4 Max:
+
 - **Adaptive Quantization:** В `mlx_api_server.py` внедрена логика динамического квантования KV Cache.
 - **Memory-Aware Loading:** При нехватке памяти (<16GB) используется квантование **Q4**, при среднем уровне (<32GB) — **Q8**, при достаточном — **FP16**.
 - **Результат:** Возможность держать в памяти больше моделей одновременно и обрабатывать сверхдлинные контексты без риска OOM.
 
 #### 6. Emergency Resource Expansion (Singularity 22.7)
+
 Масштабирование под "Хардкорный режим":
+
 - **Victoria Agent:** Лимит памяти увеличен до **16GB** (с 8GB) для поддержки параллельных дебатов и Sandbox Grounding.
 - **PostgreSQL:** Лимит памяти увеличен до **8GB** (с 4GB) для стабильной работы с pgvector и тяжелыми запросами. (v36)
 - **Elasticsearch:** Лимит памяти увеличен до **8GB** (с 6GB), Java Heap до **4GB** для стабильной работы GraphRAG при высокой плотности новых узлов знаний. (v36)
@@ -721,15 +1085,18 @@
 ### Что изменилось сегодня (v32)
 
 #### 1. Agentic RAG 2.0 & Corrective Retrieval
+
 Внедрены экспериментальные техники марта 2026 года для работы с внешними знаниями:
 
 - **Corrective RAG (CRAG):** В `ai_core.py` добавлена логика автоматического перефразирования. Если первичный поиск по базе знаний (RAG) не даёт результатов, модель получает инструкцию изменить стратегию поиска или использовать `web_search`. Это превращает линейный поиск в интеллектуальный цикл.
 - **Surgical Context Trimming:** Переход от простого ограничения символов к более умной обрезке контекста, сохраняющей целостность последних сообщений (внедрено в `SessionContextManager`).
 
 #### 2. Безопасность контекста (Zero-Width Defense)
+
 - **Steganography Defense:** В `token_auditor.py` добавлена очистка промптов от невидимых Unicode-символов (Zero-Width characters). Это защищает систему от скрытых инструкций (Indirect Prompt Injection), которые могут быть внедрены во внешние файлы или веб-страницы.
 
 #### 3. Global Intelligence Synthesis (v31)
+
 - **Dual-Process Memory:** Разделение на System 1 (факты) и System 2 (рефлексия).
 - **Confidence-Guided Self-Correction:** Механизм `CoRefine` для анализа сомнений.
 - **Surgical History Pruning:** Очистка истории от мусорных сообщений.
@@ -1006,7 +1373,7 @@ python3 scripts/victoria_task_generator.py --dry-run  # посмотреть б�
 
 ---
 
-## § Гибридная операционная модель (Singularity 21.5)
+## § Гибридная операционная модель (Singularity 31.2)
 
 **Манифест:** стратегия гибридного интеллекта **Cursor + Victoria AI** — фундаментальная операционная модель проекта: облачный диспетчер и локальный мозг разделены ролями ради эффективности и экономии ресурсов.
 
@@ -1017,13 +1384,13 @@ python3 scripts/victoria_task_generator.py --dry-run  # посмотреть б�
 - **Cursor (облачный диспетчер):** внешние модели (Claude/GPT и др.) как «тонкий слой» — понимание намерений пользователя, декомпозиция на шаги, вызов инструментов (терминал, MCP, Task) и управление локальными агентами.
 - **Victoria (локальный мозг):** Mac Studio, модели **MLX** и **Ollama** — «тяжёлая артиллерия» с прямым доступом к большому локальному контексту (рабочая копия репозитория), **PostgreSQL**, RAG и файловой системе.
 
-### Механика взаимодействия (under the hood)
+### Механика взаимодействия (Singularity 31.2)
 
-**A. Делегирование через скрипт, Docker и API**
+**A. Делегирование через Blackboard и Аукционы**
 
-1. **Curator:** `python3 scripts/curator_send_tasks_to_victoria.py --tasks "…"` — постановка задач в очередь Виктории (альтернатива: `--file <цели> --async`, см. **Золотой стандарт** выше, `docs/CURATOR_RUNBOOK.md`).
-2. **Docker exec:** прямой запуск модулей в контейнере **`victoria-agent`** (образ: `PYTHONPATH=/app`, корень репозитория в `/app`). Примеры путей: `/app/knowledge_os/app/autonomous_tester.py`, `/app/knowledge_os/app/nightly_learner.py` — фактические команды и env см. runbook/compose.
-3. **Direct API (внутри Docker-сети):** `POST http://victoria-agent:8000/run` — аналитика и исполнение по контракту Victoria (постановка goal, параметры: `docs/VICTORIA_TASK_FORMULATION.md`).
+1. **Blackboard Service:** Центральный хаб задач. Агенты не ждут команд, а «подписываются» на задачи через аукционы.
+2. **Bidding System:** Эксперты делают ставки (bids) на основе своей специализации, текущей нагрузки и рейтинга.
+3. **AgentScope Actors:** Каждый эксперт — это изолированный актор с собственным состоянием и памятью.
 
 **B. Экономия токенов (Token Economy)**
 
@@ -1048,14 +1415,22 @@ python3 scripts/victoria_task_generator.py --dry-run  # посмотреть б�
 
 ---
 
-## Wisdom Era Status (Singularity 21.5: Total Dominance)
+## Wisdom Era Status (Singularity 31.2: Neural Fabric)
 
-**Архитектура:** Единый Интеллект v3.5. **Параллельная работа (Parallel Work):** Мозг (MLX, порт 11435) и Руки (Ollama, порт 11434) работают совместно, распределяя нагрузку. Модель **victoria-wisdom-v3.5** (MLX) и **victoria-wisdom-v3.5:latest** (Ollama) идентичны по знаниям.
-**Полноценная Виктория (v3.5):** (1) **MLX (мозг):** `VICTORIA_MLX_BRAIN=true` — предзагрузка (Pure MLX). (2) **Ollama (руки):** активны параллельно; становятся бессмертными (`keep_alive=-1`) только при падении MLX. При живом MLX выгружаются через 60с простоя для экономии RAM. (3) **Дефибриллятор:** активен на порту 9099. (4) **Балансировка:** `local_router.py` распределяет задачи между Мозгом и Руками.
+**Архитектура:** Единый Интеллект v31.2. **Параллельная работа (Parallel Work):** Мозг (MLX, порт 11435) и Руки (Ollama, порт 11434) работают совместно, распределяя нагрузку. Модель **victoria-wisdom-v3.5** (MLX) и **victoria-wisdom-v3.5:latest** (Ollama) идентичны по знаниям.
 
-**Самовосстановление и Мониторинг:** Система мониторит v3.5 в обоих каналах через `MLXMonitor`. При деградации производительности (Health Score < 0.5) или сбое MLX происходит упреждающий прогрев Ollama и мгновенный fallback без потери контекста (через Redis Context Mirror).
+**Полноценная Виктория (v31.2):**
 
-**Последний аудит (03.03.2026):** Переход с 30B на 35B MoE (Qwen 3.5). Скорость загрузки в MLX: 4.6с. Личность подтверждена. Все эксперты уведомлены о смене ядра.
+1. **MLX (мозг):** `VICTORIA_MLX_BRAIN=true` — предзагрузка (Pure MLX).
+2. **Ollama (руки):** активны параллельно; становятся бессмертными (`keep_alive=-1`) только при падении MLX. При живом MLX выгружаются через 60с простоя для экономии RAM.
+3. **Knowledge Fabric:** Единая шина памяти (LTM, GraphRAG, Semantic Cache).
+4. **Visual Intelligence:** VisualRAG на порту 8005.
+5. **Recursive Evolution:** Автономный цикл улучшения кода.
+6. **Quantum Leap Distillation:** DuckDB-ускоренная дистилляция знаний.
+
+**Самовосстановление и Мониторинг:** Система мониторит v31.2 в обоих каналах через `MLXMonitor`. При деградации производительности (Health Score < 0.5) или сбое MLX происходит упреждающий прогрев Ollama и мгновенный fallback без потери контекста (через Redis Context Mirror).
+
+**Последний аудит (05.05.2026):** Переход на Singularity 31.2. Скорость загрузки в MLX: 4.6с. Личность подтверждена. Все эксперты уведомлены о смене ядра.
 
 **При смене модели (чеклист):** обновить MASTER*REFERENCE (этот блок), `.cursor/rules/victoria.mdc`, `.cursor/rules/expert_and_brainstorm.mdc`, `.cursorrules` (Компоненты), `docs/COGNITIVE_CODE.md`, `docs/PORT_REGISTRY.md`, `knowledge_os/USER.md`, `knowledge_os/SOUL.md`, `docs/OPENWEBUI_VICTORIA_WISDOM_MODEL.md`, `docs/SESSION_HANDOFF*\*.md`при актуальности; исторические планы в`docs/plans/` не переписывать — источник истины здесь.
 
@@ -1639,7 +2014,7 @@ curl -X POST http://localhost:8010/run -H "Content-Type: application/json" \
 
 ---
 
-Последние изменения (2026-03-29 v49): **Singularity 24.3: Живой Чат — victoria-wisdom-v3.5 via MLX.** Диалоговый Fast Path обновлён: модель `victoria-wisdom-v3.5` через MLX API (порт 11435) вместо phi3.5. Маршрутизация: victoria-wisdom* → MLX (~3-7s); другие модели → Ollama. victoria-wisdom в Ollama для чата не работает (таймаут), только в MLX. Очистка артефактов модели: regex удаление эхо вопроса. TASK_TOTAL_TIMEOUT=200s, COLLECTION_TIMEOUT=190s. Результат: Score=1.00, ~31s, чистые ролевые ответы. Важно: перед тестами проверять `active_requests: 0` в MLX health — зависшие запросы замедляют систему. Перезапуск MLX: `pkill -f mlx_api_server && bash scripts/start_mlx_api_server.sh`. Ключевые файлы: `knowledge_os/app/expert_worker.py`, `knowledge_os/app/dialogue_controller.py`.
+Последние изменения (2026-03-29 v49): **Singularity 24.3: Живой Чат — victoria-wisdom-v3.5 via MLX.** Диалоговый Fast Path обновлён: модель `victoria-wisdom-v3.5` через MLX API (порт 11435) вместо phi3.5. Маршрутизация: victoria-wisdom\* → MLX (~3-7s); другие модели → Ollama. victoria-wisdom в Ollama для чата не работает (таймаут), только в MLX. Очистка артефактов модели: regex удаление эхо вопроса. TASK_TOTAL_TIMEOUT=200s, COLLECTION_TIMEOUT=190s. Результат: Score=1.00, ~31s, чистые ролевые ответы. Важно: перед тестами проверять `active_requests: 0` в MLX health — зависшие запросы замедляют систему. Перезапуск MLX: `pkill -f mlx_api_server && bash scripts/start_mlx_api_server.sh`. Ключевые файлы: `knowledge_os/app/expert_worker.py`, `knowledge_os/app/dialogue_controller.py`.
 
 Последние изменения (2026-03-05): **Автономия: перезагрузка, Redis, HNSW в CI, индексация.** После перезагрузки — launchd активен при входе; для полной автономности включить автозапуск Docker. Redis для RAG при масштабировании — в .env.example. В CI (pytest-knowledge-os) добавлена проверка HNSW после миграций. Периодическая индексация: `setup_indexing_launchd.sh` (воскресенье 3:00). Автономный куратор запущен успешно (1 задача в БД при расхождении). CURATOR_RUNBOOK §6, HOW_TO_INDEX.
 
@@ -1662,5 +2037,11 @@ curl -X POST http://localhost:8010/run -H "Content-Type: application/json" \
 Последние изменения (2026-02-26): **Quick links, CONTRIBUTING по шагам, правило репо, FAQ.** В README и MASTER_REFERENCE добавлены блоки Quick links; CONTRIBUTING — таблица «Куда идти» (баг/предложение/вопрос), оглавление, правило репо, help wanted; создан docs/FAQ.md; в библии — правило репо, ссылки на FAQ, политика версий (Python 3.11+, Node 18+), метрики агентов. См. CHANGES §0.5q.
 
 ---
+
+---
+
+## 📜 ИСТОРИЧЕСКИЙ КОНТЕКСТ (Архив v21.5)
+
+Здесь хранятся устаревшие, но важные для понимания эволюции проекта записи.
 
 Последние изменения (2026-02-24): **Эра Мудрости: Совет Директоров и дефибриллятор.** (1) Закрыты 170 висящих strategy_sessions (active→cancelled). (2) Введён дефибриллятор MLX: `scripts/host_recovery_listener.py` (порт 9099), RECOVERY_WEBHOOK_URL в оркестраторе — при падении Ollama/MLX вызывается автовосстановление на хосте. (3) Handoff в новый чат: `docs/SESSION_HANDOFF_2026_02_24.md`. (4) Запущен один прогон run_board_meeting(); новые директивы — в board_decisions и на дашборде. См. CHANGES §0.5b.

@@ -3,6 +3,7 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Dict, List, Optional
 
 import asyncpg
@@ -286,6 +287,7 @@ class CorporationSelfLearning:
                         f"📊 [LEARNING] Детализация: {', '.join([f'{k}: {v}' for k, v in types_count.items()])}"
                     )
             else:
+                logger.info("📭 [LEARNING] Ничего нового: ошибок и паттернов не найдено")
                 await self.apply_improvements([])
 
             await self.save_learning_results(error_analysis, performance_analysis, improvements)
@@ -311,13 +313,22 @@ class CorporationSelfLearning:
                     ) VALUES ($1, $2, $3, $4, $5, NOW())
                 """,
                     self._learning_cycles,
-                    json.dumps(error_analysis),
-                    json.dumps(performance_analysis),
-                    json.dumps(improvements),
+                    json.dumps(error_analysis, default=self._json_default),
+                    json.dumps(performance_analysis, default=self._json_default),
+                    json.dumps(improvements, default=self._json_default),
                     self._improvements_applied,
                 )
         except Exception as e:
-            logger.debug(f"Error saving learning results: {e}")
+            logger.error("Error saving learning results: %s", e)
+            logger.debug("Learning save error details", exc_info=True)
+
+    @staticmethod
+    def _json_default(obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
     async def start_continuous_learning(self, interval_hours: int = 6):
         logger.info(

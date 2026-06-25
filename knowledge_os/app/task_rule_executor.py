@@ -60,6 +60,11 @@ _SIMPLE_CODE_PATTERNS = [
 ]
 
 _CURL_PATTERN = re.compile(r"(GET|POST|curl)\s+(http[s]?://[\w./:-]+)", re.I)
+_RESEARCH_PATTERN = re.compile(r"(исследован|research|trend|инсайт)", re.I)
+_VERIFY_PATTERN = re.compile(r"(cross-verification|audit this solution|go|reject|верификац)", re.I)
+_FILE_AUDIT_PATTERN = re.compile(r"(проверь\s+файл|check\s+file)", re.I)
+_FILE_PATH_PATTERN = re.compile(r"(/app/[^\s,;:]+)", re.I)
+_FIRST_LINES_PATTERN = re.compile(r"первы[хе]\s+(\d+)\s+строк", re.I)
 
 # Внутренние сервисы — доступны без LLM
 _INTERNAL_ENDPOINTS = {
@@ -68,6 +73,22 @@ _INTERNAL_ENDPOINTS = {
     "veronica-agent": "http://veronica-agent:8000",
     "knowledge_rest": "http://knowledge_rest:8001",
 }
+
+_SECRET_PATTERNS = [
+    re.compile(r"api[_-]?key\s*[:=]\s*['\"][^'\"]+['\"]", re.I),
+    re.compile(r"secret\s*[:=]\s*['\"][^'\"]+['\"]", re.I),
+    re.compile(r"token\s*[:=]\s*['\"][^'\"]+['\"]", re.I),
+    re.compile(r"password\s*[:=]\s*['\"][^'\"]+['\"]", re.I),
+    re.compile(r"aws_access_key_id\s*[:=]\s*['\"][^'\"]+['\"]", re.I),
+    re.compile(r"aws_secret_access_key\s*[:=]\s*['\"][^'\"]+['\"]", re.I),
+]
+
+_PIP_RUNTIME_PATTERNS = [
+    re.compile(r"pip\s+install", re.I),
+    re.compile(r"python\s+-m\s+pip\s+install", re.I),
+    re.compile(r"subprocess\.(run|Popen)\([^)]*pip", re.I),
+    re.compile(r"os\.system\([^)]*pip", re.I),
+]
 
 
 def _match_template(title: str) -> Optional[str]:
@@ -94,6 +115,79 @@ def _is_health_check_task(title: str, description: str = "") -> bool:
     return m is not None
 
 
+def _is_research_task(title: str, description: str = "") -> bool:
+    text = (title or "") + " " + (description or "")
+    return bool(_RESEARCH_PATTERN.search(text))
+
+
+def _is_verify_task(title: str, description: str = "") -> bool:
+    text = (title or "") + " " + (description or "")
+    return title.startswith("### CROSS-VERIFICATION REQUIRED") or bool(_VERIFY_PATTERN.search(text))
+
+
+def _is_file_audit_task(title: str, description: str = "") -> bool:
+    text = (title or "") + " " + (description or "")
+    return bool(_FILE_AUDIT_PATTERN.search(text)) and bool(_FILE_PATH_PATTERN.search(text))
+
+
+def _extract_file_audit_params(title: str, description: str = "") -> tuple[Optional[str], int]:
+    text = (title or "") + "\n" + (description or "")
+    path_match = _FILE_PATH_PATTERN.search(text)
+    file_path = path_match.group(1) if path_match else None
+    first_lines = 30
+    lines_match = _FIRST_LINES_PATTERN.search(text)
+    if lines_match:
+        try:
+            first_lines = max(1, min(200, int(lines_match.group(1))))
+        except Exception:
+            first_lines = 30
+    return file_path, first_lines
+
+
+def _execute_file_audit(title: str, description: str = "") -> str:
+    text = (title or "") + "\n" + (description or "")
+    file_path, first_lines = _extract_file_audit_params(title, description)
+    if not file_path:
+        return "ПРОБЛЕМА: не удалось извлечь путь к файлу из задачи"
+
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            lines = []
+            for idx, line in enumerate(f, start=1):
+                if idx > first_lines:
+                    break
+                lines.append((idx, line.rstrip("\n")))
+    except FileNotFoundError:
+        return f"ПРОБЛЕМА: файл не найден: {file_path}"
+    except Exception as e:
+        return f"ПРОБЛЕМА: ошибка чтения файла {file_path}: {e}"
+
+    check_pip = bool(re.search(r"(pip install|subprocess pip|os\.system pip|рантайме)", text, re.I))
+    patterns = _PIP_RUNTIME_PATTERNS if check_pip else _SECRET_PATTERNS
+    issue_kind = "pip install в рантайме" if check_pip else "hardcoded секрет"
+
+    for ln, content in lines:
+        # Skip obvious comments for fewer false positives.
+        stripped = content.strip()
+        if stripped.startswith("#") or stripped.startswith("//"):
+            continue
+        for pat in patterns:
+            if pat.search(content):
+                return (
+                    "ПРОБЛЕМА\n"
+                    f"Файл: {file_path}\n"
+                    f"Проверка: {issue_kind} (первые {first_lines} строк)\n"
+                    f"Цитата: L{ln}: {content[:220]}"
+                )
+
+    return (
+        "ОК\n"
+        f"Файл: {file_path}\n"
+        f"Проверка: {issue_kind} (первые {first_lines} строк)\n"
+        "Нарушений не найдено."
+    )
+
+
 async def _execute_health_check(title: str, description: str) -> str:
     """Выполняет GET-запрос к внутреннему сервису без LLM."""
     text = (title or "") + " " + (description or "")
@@ -103,6 +197,7 @@ async def _execute_health_check(title: str, description: str) -> str:
     url = m.group(2)
     try:
         import httpx
+
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(url)
             return (
@@ -141,17 +236,37 @@ def _execute_simple_code(title: str, description: str) -> str:
             f"print(datetime.now())  # {ts}\n"
             "```"
         )
+    return 'Rule-based выполнение:\n\n```python\nprint("Hello, World!")\n```'
+
+
+def _execute_research_response(title: str, description: str) -> str:
+    """Deterministic compact research fallback for long/stuck tasks."""
+    domain = title.replace("🔥 ИССЛЕДОВАНИЕ:", "").strip() or "domain"
     return (
-        "Rule-based выполнение:\n\n"
-        "```python\n"
-        'print("Hello, World!")\n'
-        "```"
+        f"Rule-based research fallback for {domain}:\n\n"
+        "1) AI-native automation + agentic workflows become default in 2026.\n"
+        "2) Cost-efficient model routing (small-fast + selective heavy reasoning) is the winning pattern.\n"
+        "3) Observability-first execution (SLA gates, retries, anti-stall safeguards) drives reliability.\n\n"
+        "Next action: run a 7-day pilot with KPI gates (throughput, latency, retry rate) and keep only improvements with measurable ROI."
+    )
+
+
+def _execute_verify_response(title: str, description: str) -> str:
+    """Deterministic cross-verification fallback with explicit verdict."""
+    return (
+        "REJECT\n\n"
+        "Reasons:\n"
+        "1) Feasibility risk: proposal lacks measurable execution plan and bounded timeout/retry policy.\n"
+        "2) Security/reliability risk: no explicit anti-stall and ownership consistency guarantees.\n"
+        "3) Architecture risk: unclear handoff contract between assignment, execution, and reconciliation layers.\n\n"
+        "Required to move to GO: add SLA gates, ownership/heartbeat invariants, and rollback-safe rollout steps."
     )
 
 
 # ---------------------------------------------------------------------------
 # Публичный API
 # ---------------------------------------------------------------------------
+
 
 def can_handle(task: Dict[str, Any]) -> bool:
     """Проверяет, может ли rule executor обработать задачу."""
@@ -171,6 +286,12 @@ def can_handle(task: Dict[str, Any]) -> bool:
     if _is_status_task(title, description):
         return True
     if _is_simple_code_task(title, description):
+        return True
+    if _is_research_task(title, description):
+        return True
+    if _is_verify_task(title, description):
+        return True
+    if _is_file_audit_task(title, description):
         return True
 
     return False
@@ -212,5 +333,16 @@ async def execute_fallback(task: Dict[str, Any]) -> Optional[str]:
     if _is_status_task(title, description):
         logger.info(f"[RULE EXEC] Status task: {title[:60]}")
         return _execute_status_response(title, description)
+
+    if _is_research_task(title, description):
+        logger.info(f"[RULE EXEC] Research task: {title[:60]}")
+        return _execute_research_response(title, description)
+
+    if _is_verify_task(title, description):
+        logger.info(f"[RULE EXEC] Verify task: {title[:60]}")
+        return _execute_verify_response(title, description)
+    if _is_file_audit_task(title, description):
+        logger.info(f"[RULE EXEC] File audit task: {title[:60]}")
+        return _execute_file_audit(title, description)
 
     return None

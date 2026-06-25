@@ -1,5 +1,77 @@
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-06-13 v79) — Version Unification: Singularity 31.2+ ✅
+
+### Что изменилось сегодня (v79)
+
+#### 1. Единая версия на пользовательских поверхностях
+- Убраны расхождения отображаемой версии в dashboard/frontend/backend, где встречались старые маркеры (`14.0`, `15.0`, `20.0`).
+- Зафиксирован единый runtime/UI маркер: **`Singularity 31.2+`**.
+
+#### 2. Синхронизация интеграционных контуров
+- Обновлены связанные user-facing строки в chat routing и OpenWebUI tool/config.
+- Приведены к единому виду description/root metadata в backend и соответствующие подписи в интерфейсах.
+
+#### 3. Проверки
+- Выполнена верификация через поиск по dashboard/backend/frontend и ручной контроль ключевых файлов.
+- Пройден preflight quality gate (контейнеры/контракт/stale/error-rate в норме).
+
+---
+
+## § Последние изменения (2026-05-05 v77) — Singularity 31.2: Total Crystallization 🌌💎
+
+### Что изменилось сегодня (v77)
+
+#### 1. Кристаллизация Библии (MASTER_REFERENCE)
+- Проведен полный аудит системы, выявлено расхождение между документацией (v21.5) и кодом (v31.2).
+- `MASTER_REFERENCE.md` полностью переписан:
+    - Добавлен **Манифест Роя**: децентрализация, Blackboard, аукционы и AgentScope акторы.
+    - Описана **Нейронная Ткань (Knowledge Fabric)**: LanceDB, GraphRAG, VisualRAG и Semantic Cache.
+    - Зафиксирован **Протокол Эволюции**: автономный R&D, мутации и CubeSandbox.
+    - Обновлен **Технологический Стек 31.0**: DuckDB, Redis UDS, mTLS, Rust Gateway.
+- Устаревшие разделы перенесены в «Исторический контекст (Архив v21.5)».
+
+#### 2. Инъекция Знаний в Экспертов
+- Обновлен `system_prompt` для всех **85 экспертов** в базе данных.
+- В каждый промпт добавлен блок «🚀 ОБНОВЛЕНИЕ Singularity 31.2+», информирующий агентов о новых возможностях (Blackboard, Knowledge Fabric, Эволюция).
+- Теперь каждый агент Роя осознает свое место в децентрализованной структуре и умеет пользоваться новыми инструментами.
+
+#### 3. Верификация Куратором
+- Запущен контрольный прогон Куратора для проверки соответствия ответов новой Библии.
+- Результаты зафиксированы в `docs/curator_reports/`.
+
+---
+
+## § Последние изменения (2026-05-04 v76) — Singularity 29.2: Runtime Execution Final Polish
+
+### Что изменилось сегодня (v76)
+
+#### 1. Lease Lock (орchestrator)
+- `knowledge_os/app/resource_manager.py`: `lock:heavy_process` переведен на lease-схему (owner token + renew + safe release).
+- Добавлен параметр ожидания lock: `HEAVY_PROCESS_LOCK_WAIT_SEC` (по умолчанию 30s).
+- В `knowledge_os/app/enhanced_orchestrator.py` lock освобождается перед тяжелыми фазами (`ORCHESTRATOR_RELEASE_LOCK_BEFORE_HEAVY_PHASES=true`), чтобы не держать критическую секцию на длительных R&D циклах.
+
+#### 2. Runtime liveness routing
+- Воркеры публикуют presence в `runtime:expert_heartbeats` (`RUNTIME_WORKER_HEARTBEAT_KEY`, `RUNTIME_WORKER_HEARTBEAT_TTL_SEC`).
+- Оркестратор фильтрует назначения по live-heartbeat (`ORCHESTRATOR_REQUIRE_RUNTIME_HEARTBEAT`, `ORCHESTRATOR_RUNTIME_CACHE_TTL_SEC`).
+- Введена фаза `1.95` в оркестраторе: reopen non-live назначений + staged SLA recovery для stale `in_progress` (`ORCHESTRATOR_STALE_INPROGRESS_MINUTES`, `ORCHESTRATOR_STALE_INPROGRESS_MAX_RETRIES`):
+  - retries < cap: requeue/reassign;
+  - retries >= cap: маркировка `metadata.stale_force_fallback=true` и контролируемый rule-fallback только после SLA.
+
+#### 3. Анти-залипание execution path
+- `knowledge_os/app/expert_worker.py`: если `payload.expert_name` не совпадает с identity воркера, payload нормализуется к `EXPERT_NAME` (с логом mismatch).
+- В Blackboard autonomy добавлен bounded concurrency (семафор по `SMART_WORKER_MAX_CONCURRENT`) вместо неограниченного fan-out задач.
+- Исправлен `worker_active` gauge leak при skip устаревшей dialogue-задачи.
+
+#### 4. Финальный операционный гейт
+- Контур считается стабилизированным после 60-мин окна с проходом KPI:
+  - `completed_10m >= 1` в >= 4/6 срезов,
+  - нет stale `in_progress` сверх SLA,
+  - heartbeat активных экспертов непрерывен,
+  - отсутствует залипание `lock:heavy_process`.
+
+---
+
 ## § Последние изменения (2026-04-27 v75) — Singularity 29.1: Infrastructure Self-Healing 🚑🛡️
 
 ### Что изменилось сегодня (v75)

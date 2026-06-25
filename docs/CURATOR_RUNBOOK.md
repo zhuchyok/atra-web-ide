@@ -14,6 +14,21 @@
 
 **Правило: как давать задание Виктории (все должны знать).** Когда куратор (Cursor-агент или человек) даёт задание Виктории и должен проконтролировать результат — **всегда использовать скрипт** `scripts/curator_send_tasks_to_victoria.py` с `--file <файл с goal>` и `--async --max-wait 600`. Скрипт сам опрашивает статус и при завершении пишет отчёт в `docs/curator_reports/curator_YYYY-MM-DD_HH-MM-SS.json` и `.md`. «Виктория сделала» = появление этого файла; куратор открывает отчёт и при необходимости применяет правки. Не использовать голый `POST /run?async_mode=true` без скрипта — отчёт не сохранится. **Формулировка `goal`, параметры запроса и выбор endpoint** — [VICTORIA_TASK_FORMULATION.md](VICTORIA_TASK_FORMULATION.md). См. также VICTORIA_USAGE_GUIDE § «Куратор».
 
+Важно (2026-06 hardening): для сложных задач скрипт куратора автоматически поднимает ожидание до 20 минут (`1200s`), а для очень сложных (полный ре-аудит «каждый пункт/все вкладки/production-ready») — до 60 минут (`3600s`), даже если задан меньший `--max-wait`; многострочные критические ТЗ с no-clarify маркерами склеиваются в одну цель (чтобы не рвать контекст на отдельные строки); формальный `success` с ответом-уточнением на задаче «без уточнений» засчитывается как `quality_gate_failed`.
+
+**P0 (2026-06-04) — маршрут и таймауты (обязательно после pull):**
+
+1. `victoria-agent`: `USE_VICTORIA_ENHANCED=true`, `VICTORIA_STALE_TASK_TIMEOUT_SEC=4200` (70 мин, после grace куратора), `VICTORIA_SWARM_GATHER_TIMEOUT_SEC=1200`.
+2. Operational goals (`аудит` + `дашборд` / `без уточнений`) → **Enhanced**, in-process Swarm (3× ai_core) **отключён** (`task_detector.is_operational_execution_goal`).
+3. Куратор: после основного `max_wait` — grace poll `CURATOR_POLL_GRACE_SEC=120`; ошибки cleanup → `victoria_stale:...` в отчёте.
+4. Пересоздать контейнер после изменения compose:  
+   `docker compose -f knowledge_os/docker-compose.yml up -d victoria-agent --force-recreate`
+5. Canary (одна вкладка):  
+   `python scripts/curator_send_tasks_to_victoria.py --file scripts/curator_tasks_dashboard_reaudit_one_tab.txt --async --max-wait 1200`  
+   В логах Victoria: `USE_VICTORIA_ENHANCED: True`, `enhanced_solve` — **не** `Launching COMPLEX`.
+
+Важно (2026-06 worker provisioning): контур исполнения использует **3 постоянных воркера** (`Виктория`, `Анна`, `Роман`) и **2 динамических слота** (`expert-worker-dynamic-1/2`). Оркестратор назначает задачи только live-экспертам по heartbeat; если нужный эксперт не live — пытается автоподнять динамический воркер, ждёт warmup, при неудаче делает fallback на следующего live-эксперта и пишет метрики (`spawn_attempts`, `spawn_success`, `fallback_count`, `stuck_agent_run_count`). Idle-динамика автоматически выключается по TTL.
+
 Итого: куратор держит эталоны и базу знаний в актуальном состоянии; Victoria учится из этого контекста, а не из «урока» в каждый запрос.
 
 ---

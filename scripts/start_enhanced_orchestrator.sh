@@ -1,7 +1,7 @@
 #!/bin/bash
 # Скрипт для запуска Enhanced Orchestrator в автоматическом режиме
 # Запускается каждые 5 минут
-# Redis: knowledge_redis (atra-network). При "too many clients already" — увеличьте max_connections в PostgreSQL.
+# Redis: prefer knowledge_os_redis. При "too many clients already" — увеличьте max_connections в PostgreSQL.
 
 set -e
 
@@ -18,7 +18,7 @@ if ! docker ps > /dev/null 2>&1; then
     exit 1
 fi
 
-# Контейнер: victoria-agent предпочтителен (тот же что в cron; Redis=knowledge_redis)
+# Контейнер: victoria-agent предпочтителен (тот же что в cron)
 ORCH_CONTAINER=""
 if docker ps --format "{{.Names}}" | grep -q "victoria-agent"; then
     ORCH_CONTAINER="victoria-agent"
@@ -36,11 +36,13 @@ echo "   Используем контейнер: $ORCH_CONTAINER"
 run_orchestrator_cycle() {
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] Запуск Enhanced Orchestrator..."
 
-    # knowledge_os_api и victoria-agent в atra-network видят только knowledge_redis (не atra-redis)
-    if [ "$ORCH_CONTAINER" = "knowledge_os_api" ] || [ "$ORCH_CONTAINER" = "victoria-agent" ]; then
+    # Prefer current Knowledge OS Redis naming, fallback to legacy names.
+    if docker ps --format "{{.Names}}" | grep -q "^knowledge_os_redis$"; then
+        REDIS_CONTAINER="knowledge_os_redis"
+    elif docker ps --format "{{.Names}}" | grep -q "^knowledge_redis$"; then
         REDIS_CONTAINER="knowledge_redis"
-    elif docker ps --format "{{.Names}}" | grep -q "knowledge_redis"; then
-        REDIS_CONTAINER="knowledge_redis"
+    elif docker ps --format "{{.Names}}" | grep -q "^atra-redis$"; then
+        REDIS_CONTAINER="atra-redis"
     else
         REDIS_CONTAINER=$(docker ps --format "{{.Names}}" | grep -i redis | head -1)
     fi
@@ -82,7 +84,7 @@ fi
 # Режим "continuous": оркестратор всё время слушает (один процесс, цикл внутри Python)
 # Интервал по умолчанию 60 сек; при появлении нераспределённых задач — следующий цикл через 30 сек
 if [ "$1" = "continuous" ] || [ "$1" = "listen" ]; then
-    [ -z "$REDIS_URL" ] && REDIS_URL="redis://knowledge_redis:6379"
+    [ -z "$REDIS_URL" ] && REDIS_URL="redis://knowledge_os_redis:6379"
     echo "🔄 Режим непрерывной работы: оркестратор слушает задачи (--continuous --interval 60)"
     echo "   Для остановки нажмите Ctrl+C"
     echo "   Логи: /tmp/enhanced_orchestrator.log"
@@ -96,7 +98,7 @@ if [ "$1" = "continuous" ] || [ "$1" = "listen" ]; then
             python3 /app/knowledge_os/app/enhanced_orchestrator.py --continuous --interval "$ORCH_INTERVAL" --quick-poll "$ORCH_QUICK_POLL" 2>&1 | tee -a /tmp/enhanced_orchestrator.log
     else
         docker exec -e DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os \
-            -e REDIS_URL="${REDIS_URL:-redis://knowledge_redis:6379}" \
+            -e REDIS_URL="${REDIS_URL:-redis://knowledge_os_redis:6379}" \
             knowledge_os_api \
             python3 /app/enhanced_orchestrator.py --continuous --interval "$ORCH_INTERVAL" --quick-poll "$ORCH_QUICK_POLL" 2>&1 | tee -a /tmp/enhanced_orchestrator.log
     fi

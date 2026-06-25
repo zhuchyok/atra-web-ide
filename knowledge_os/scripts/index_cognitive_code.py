@@ -128,6 +128,10 @@ async def index_one_file(
             "chunk_index": i,
             "total_chunks": len(chunks),
             "project_context": os.getenv("INDEX_PROJECT_CONTEXT", ""),
+            # Системные индексаторы считаем pre-distilled, чтобы не накапливать pending-хвост.
+            "distilled": True,
+            "distill_status": "done",
+            "distilled_by": "system:index_cognitive_code",
         }
         source_ref = f"{source_ref_prefix}#{i}"
         await conn.execute(

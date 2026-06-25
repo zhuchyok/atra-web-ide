@@ -90,7 +90,7 @@ class ModelMemoryManager:
                     f"{self.ollama_url}/api/generate",
                     json={"model": model_name, "keep_alive": 0},
                 )
-                
+
                 if response.status_code == 200:
                     self.model_states[model_name] = ModelState.UNLOADED
                     if model_name in self.model_last_used:
@@ -101,7 +101,9 @@ class ModelMemoryManager:
                     logger.info(f"✅ [MEMORY] Модель {model_name} успешно выгружена из VRAM")
                     return True
                 else:
-                    logger.warning(f"⚠️ [MEMORY] Ошибка при выгрузке {model_name}: HTTP {response.status_code}")
+                    logger.warning(
+                        f"⚠️ [MEMORY] Ошибка при выгрузке {model_name}: HTTP {response.status_code}"
+                    )
                     return False
         except Exception as e:
             logger.error(f"❌ [MEMORY] Критическая ошибка выгрузки модели {model_name}: {e}")
@@ -129,6 +131,24 @@ class ModelMemoryManager:
 
         return unloaded_count
 
+    # [SINGULARITY 30.5] Predictive Unloading: Unload models before heavy tasks
+    async def predictive_unload(self, task_intensity: str):
+        """Проактивная выгрузка моделей на основе интенсивности предстоящей задачи."""
+        if task_intensity == "extreme":
+            logger.warning(
+                "🧠 [PREDICTIVE-GC] Extreme task detected. Clearing all non-immortal models proactively."
+            )
+            from ollama_keep_alive_policy import IMMORTAL_MODELS
+
+            loaded_models = await self.get_loaded_models()
+            for model_name in loaded_models:
+                # Skip Tier 0 (Immortal)
+                if any(m in model_name for m in IMMORTAL_MODELS):
+                    continue
+
+                logger.info(f"🧹 [PREDICTIVE-GC] Proactive unloading of {model_name}")
+                await self.unload_model(model_name)
+
     async def emergency_memory_cleanup(self) -> bool:
         """Экстренная очистка памяти при критической нехватке"""
         available_mb = await self.get_available_memory_mb()
@@ -138,18 +158,34 @@ class ModelMemoryManager:
                 f"🚨 КРИТИЧЕСКАЯ НЕХВАТКА ПАМЯТИ: {available_mb}MB свободно (минимум {MIN_FREE_MEMORY_MB}MB)"
             )
 
-            # Выгружаем все неиспользуемые модели
+            # [SINGULARITY 30.4] Hierarchical Cleanup: Define model tiers
+            # Tier 0: Immortal (Victoria, tiny models) - NEVER unload here
+            # Tier 1: Priority (Active R&D) - Unload only if RAM < 2GB
+            # Tier 2: Standard/Idle - Unload first
+
+            from ollama_keep_alive_policy import IMMORTAL_MODELS
+
+            # 1. Cleanup truly unused models first
             unloaded = await self.cleanup_unused_models()
 
-            # Если все еще нехватка, выгружаем старые модели
+            # 2. If still low, unload Tier 2 (non-immortal, idle)
             if await self.get_available_memory_mb() < MIN_FREE_MEMORY_MB:
                 # Сортируем модели по времени последнего использования
                 sorted_models = sorted(self.model_last_used.items(), key=lambda x: x[1])
 
-                # Выгружаем самые старые
-                for model_name, _ in sorted_models[:2]:  # Выгружаем 2 самые старые
-                    logger.warning(f"🚨 Экстренная выгрузка модели {model_name}")
+                for model_name, _ in sorted_models:
+                    # Skip Tier 0
+                    if any(m in model_name for m in IMMORTAL_MODELS):
+                        continue
+
+                    # Skip Tier 1 (Active R&D) if we have more than 2GB
+                    # For now, we treat all non-immortal as Tier 2 unless we add active task tracking
+
+                    logger.warning(f"🚨 Экстренная выгрузка модели {model_name} (Tier 2)")
                     await self.unload_model(model_name)
+
+                    if await self.get_available_memory_mb() >= MIN_FREE_MEMORY_MB:
+                        break
 
             final_available = await self.get_available_memory_mb()
             logger.info(f"✅ После очистки: {final_available}MB свободно")
@@ -182,6 +218,10 @@ class ModelMemoryManager:
 
                 await asyncio.sleep(MEMORY_CHECK_INTERVAL)
 
+            except asyncio.CancelledError:
+                logger.info("🔍 Мониторинг памяти остановлен")
+                self._running = False
+                break
             except Exception as e:
                 logger.error(f"Ошибка в мониторинге памяти: {e}")
                 await asyncio.sleep(MEMORY_CHECK_INTERVAL)

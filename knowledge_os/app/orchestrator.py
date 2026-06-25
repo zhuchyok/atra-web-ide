@@ -20,24 +20,34 @@ except ImportError:
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+_LOCAL_ROUTER_SINGLETON = None
+
+
+def _get_local_router():
+    global _LOCAL_ROUTER_SINGLETON
+    if _LOCAL_ROUTER_SINGLETON is None and LOCAL_ROUTER_AVAILABLE and LocalAIRouter:
+        _LOCAL_ROUTER_SINGLETON = LocalAIRouter()
+    return _LOCAL_ROUTER_SINGLETON
 
 
 async def run_local_llm(prompt: str, category: str = "reasoning"):
     """
     Запуск локальной LLM модели через LocalAIRouter
     Использует актуальные модели с Mac Studio:
-    - MLX: qwen2.5-coder:32b (coding), phi3.5:3.8b (reasoning/fast)
-    - Ollama: qwen2.5-coder:32b / qwq:32b (coding/reasoning), phi3.5:3.8b (fast)
+    - MLX: victoria-wisdom-v3.5 (coding), phi3.5:3.8b (reasoning/fast)
+    - Ollama: victoria-wisdom-v3.5:latest / qwq:32b (coding/reasoning), phi3.5:3.8b (fast)
     """
     if not LOCAL_ROUTER_AVAILABLE or not LocalAIRouter:
         print("⚠️ LocalAIRouter недоступен")
         return None
 
     try:
-        router = LocalAIRouter()
+        router = _get_local_router()
+        if router is None:
+            return None
         # Используем category для выбора оптимальной модели
         # reasoning → qwq:32b / phi3.5:3.8b
-        # coding → qwen2.5-coder:32b
+        # coding → victoria-wisdom-v3.5:latest
         result = await router.run_local_llm(prompt, category=category)
 
         if isinstance(result, tuple):
@@ -193,6 +203,29 @@ async def run_orchestration_cycle():
                     print(f"⚠️ [ORCHESTRATOR] Рекрутинг не выполнен: {rec_err}")
 
             curiosity_task = f"Проведи глубокое исследование новых технологий и трендов 2026 в области {desert['name']}. Найди 3 прорывных инсайта."
+            title_curiosity = f"🔥 СРОЧНОЕ ИССЛЕДОВАНИЕ: {desert['name']}"
+            cooldown_min = int(os.getenv("ORCHESTRATOR_CURIOSITY_RETRY_COOLDOWN_MIN", "30"))
+            recent_curiosity_failure = await conn.fetchval(
+                """
+                SELECT 1
+                FROM tasks
+                WHERE title = $1
+                  AND status = 'failed'
+                  AND updated_at > NOW() - ($2::text || ' minutes')::interval
+                  AND COALESCE(metadata->>'auto_fallback_reason', '') IN (
+                      'curiosity_no_llm_progress_timeout',
+                      'pending_curiosity_starvation_timeout'
+                  )
+                LIMIT 1
+                """,
+                title_curiosity,
+                str(cooldown_min),
+            )
+            if recent_curiosity_failure:
+                print(
+                    f"⏭️ [ORCHESTRATOR] Curiosity cooldown active for '{desert['name']}' ({cooldown_min} min)"
+                )
+                continue
 
             # Находим эксперта этого домена
             assignee = await conn.fetchrow(
@@ -206,7 +239,7 @@ async def run_orchestration_cycle():
                     VALUES ($1, $2, 'pending', $3, $4, $5)
                     ON CONFLICT (title) WHERE status IN ('pending', 'in_progress') DO UPDATE SET updated_at = NOW()
                 """,
-                    f"🔥 СРОЧНОЕ ИССЛЕДОВАНИЕ: {desert['name']}",
+                    title_curiosity,
                     curiosity_task,
                     assignee["id"],
                     victoria_id,

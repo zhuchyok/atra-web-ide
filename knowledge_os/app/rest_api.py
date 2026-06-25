@@ -7,6 +7,7 @@ REST API для внешних систем
 - Документация через OpenAPI/Swagger
 """
 
+import asyncio
 import json
 import os
 import sys
@@ -81,6 +82,46 @@ app.add_middleware(
 
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 API_KEY = os.getenv("API_KEY", "your-secret-api-key")
+_EVOLUTION_JOBS: Dict[str, Dict[str, Any]] = {}
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+async def _run_evolution_job(job_id: str, expert_name: Optional[str] = None) -> None:
+    script_path = os.path.join(os.path.dirname(__file__), "enhanced_expert_evolver.py")
+    cmd = [sys.executable, script_path]
+    if expert_name:
+        cmd.extend(["--expert_name", expert_name])
+
+    job = _EVOLUTION_JOBS.get(job_id)
+    if not job:
+        return
+    job["status"] = "running"
+    job["started_at"] = _utc_now_iso()
+    job["command"] = cmd
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        stdout_text = (stdout or b"").decode("utf-8", errors="ignore")
+        stderr_text = (stderr or b"").decode("utf-8", errors="ignore")
+        exit_code = proc.returncode or 0
+
+        job["exit_code"] = exit_code
+        job["finished_at"] = _utc_now_iso()
+        job["stdout_tail"] = stdout_text[-4000:]
+        job["stderr_tail"] = stderr_text[-4000:]
+        job["status"] = "completed" if exit_code == 0 else "failed"
+    except Exception as e:
+        job["status"] = "failed"
+        job["finished_at"] = _utc_now_iso()
+        job["error"] = str(e)
 
 
 # Единый пул БД (при переходе на Rust — замена в db_pool.py)
@@ -351,6 +392,76 @@ async def health_check():
         return {"status": "healthy", "database": "connected"}
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
+
+
+_SERVICE_HEALTH_URLS = {
+    "victoria": "http://victoria-agent:8000/health",
+    "veronica": "http://veronica-agent:8000/health",
+    "mlx": "http://host.docker.internal:11435/health",
+    "ollama": "http://host.docker.internal:11434/api/tags",
+    "swarm_studio": "http://swarm-studio:8006/",
+    "rest_api": "http://localhost:8002/health",
+}
+
+
+async def _check_redis() -> dict:
+    try:
+        import redis.asyncio as aioredis
+        r = aioredis.from_url("redis://knowledge_os_redis:6379", decode_responses=True, socket_connect_timeout=3)
+        await r.ping()
+        await r.aclose()
+        return {"name": "redis", "status": "ok"}
+    except Exception as e:
+        return {"name": "redis", "status": "error", "error": str(e)[:60]}
+
+
+async def _check_postgres() -> dict:
+    try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            await conn.execute("SELECT 1")
+        return {"name": "postgres", "status": "ok"}
+    except Exception as e:
+        return {"name": "postgres", "status": "error", "error": str(e)[:60]}
+
+
+@app.get("/api/health/all")
+async def health_all():
+    """Агрегированный статус всех сервисов."""
+    import httpx
+
+    results = {}
+    overall = "healthy"
+
+    async def _http_check(name: str, url: str):
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(url)
+                return name, {"status": "ok" if resp.status_code < 500 else "error", "code": resp.status_code}
+        except Exception as e:
+            return name, {"status": "error", "error": str(e)[:60]}
+
+    tasks = [_http_check(n, u) for n, u in _SERVICE_HEALTH_URLS.items()]
+    tasks += [_check_redis(), _check_postgres()]
+
+    for coro in tasks:
+        try:
+            result = await coro
+            if isinstance(result, tuple):
+                name, status = result
+                results[name] = status
+                if status.get("status") != "ok":
+                    overall = "degraded"
+            elif isinstance(result, dict):
+                name = result.pop("name", None)
+                if name:
+                    results[name] = result
+                    if result.get("status") != "ok":
+                        overall = "degraded"
+        except Exception:
+            pass
+
+    return {"overall": overall, "services": results}
 
 
 @app.get("/api/models")
@@ -1376,27 +1487,34 @@ class FilePatchRequest(BaseModel):
 @app.post("/api/experts/evolve")
 async def trigger_expert_evolution(expert_name: Optional[str] = None):
     """
-    Запустить процесс эволюции экспертов.
-    Если expert_name не задан, запускается для всех активных экспертов.
+    Запустить процесс enhanced-эволюции экспертов.
+    Возвращает job_id для последующего опроса статуса.
     """
     try:
-        # Запускаем скрипт эволюции в фоне
-        script_path = os.path.join(os.path.dirname(__file__), "expert_evolver.py")
-        cmd = [sys.executable, script_path]
-        if expert_name:
-            cmd.extend(["--expert_name", expert_name])
-
-        # Запускаем и не ждем завершения (background)
-        import subprocess
-
-        subprocess.Popen(cmd)
-
+        job_id = str(uuid.uuid4())
+        _EVOLUTION_JOBS[job_id] = {
+            "job_id": job_id,
+            "status": "queued",
+            "created_at": _utc_now_iso(),
+            "expert_name": expert_name,
+        }
+        asyncio.create_task(_run_evolution_job(job_id, expert_name=expert_name))
         return {
-            "status": "success",
-            "message": f"Процесс эволюции для {expert_name or 'всех'} запущен в фоне",
+            "status": "accepted",
+            "job_id": job_id,
+            "message": f"Enhanced evolution queued for {expert_name or 'all experts'}",
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/experts/evolve/status/{job_id}")
+async def get_expert_evolution_status(job_id: str):
+    """Получить статус асинхронного job эволюции."""
+    job = _EVOLUTION_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Evolution job not found")
+    return job
 
 
 class ExpertUpdate(BaseModel):
@@ -1406,9 +1524,14 @@ class ExpertUpdate(BaseModel):
     department: Optional[str] = None
 
 
+class ExpertSkillAssign(BaseModel):
+    expert_id: uuid.UUID
+    skill_name: str
+
+
 @app.post("/api/experts/update")
 async def update_expert_data(body: ExpertUpdate):
-    """Обновить данные эксперта и синхронизировать с .cursor/rules."""
+    """Обновить данные эксперта в БД."""
     try:
         pool = await _get_db()
         async with pool.acquire() as conn:
@@ -1436,9 +1559,6 @@ async def update_expert_data(body: ExpertUpdate):
                     *params,
                 )
 
-            # 3. Двусторонняя синхронизация: Обновляем файл в .cursor/rules (если мы не в Docker или есть доступ)
-            # В реальности это делает отдельный фоновый процесс или Sentinel
-
             return {"status": "success", "message": f"Эксперт {expert['name']} обновлен"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1461,6 +1581,62 @@ async def get_all_skills():
                         content = f.read()
                         skills.append({"name": skill_name, "description": content[:200] + "..."})
         return skills
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/experts/skills/assign")
+async def assign_skill_to_expert(body: ExpertSkillAssign):
+    """Назначить скилл эксперту (metadata.assigned_skills)."""
+    try:
+        skill_name = (body.skill_name or "").strip()
+        if not skill_name:
+            raise HTTPException(status_code=400, detail="skill_name is required")
+
+        skills_dir = "/app/knowledge_os/app/skills"
+        if not os.path.exists(skills_dir):
+            skills_dir = os.path.join(os.path.dirname(__file__), "skills")
+        skill_md = os.path.join(skills_dir, skill_name, "SKILL.md")
+        if not os.path.exists(skill_md):
+            raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
+
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            expert = await conn.fetchrow(
+                "SELECT id, name FROM experts WHERE id = $1",
+                body.expert_id,
+            )
+            if not expert:
+                raise HTTPException(status_code=404, detail="Expert not found")
+
+            await conn.execute(
+                """
+                UPDATE experts
+                SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                    'assigned_skills',
+                    (
+                        SELECT jsonb_agg(DISTINCT value)
+                        FROM jsonb_array_elements_text(
+                            COALESCE(metadata->'assigned_skills', '[]'::jsonb) || to_jsonb($2::text)
+                        ) AS value
+                    ),
+                    'skills_updated_at', NOW()
+                )
+                WHERE id = $1
+                """,
+                body.expert_id,
+                skill_name,
+            )
+
+            return {
+                "success": True,
+                "expert_id": str(expert["id"]),
+                "expert_name": expert["name"],
+                "skill_name": skill_name,
+                "message": f"Skill '{skill_name}' assigned to {expert['name']}",
+            }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

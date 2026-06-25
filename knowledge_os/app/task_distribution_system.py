@@ -8,6 +8,17 @@ import logging
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+_VICTORIA_ENHANCED_SINGLETON = None
+
+
+def _get_victoria_enhanced_singleton():
+    global _VICTORIA_ENHANCED_SINGLETON
+    if _VICTORIA_ENHANCED_SINGLETON is None:
+        from app.victoria_enhanced import VictoriaEnhanced
+
+        _VICTORIA_ENHANCED_SINGLETON = VictoriaEnhanced()
+    return _VICTORIA_ENHANCED_SINGLETON
+
 
 # Database connection
 try:
@@ -177,9 +188,7 @@ async def _collect_by_department_heads_enhanced(
             logger.warning(f"⚠️ Department Head не найден для '{department}'")
             # Реальная обработка без Department Head - используем Victoria для синтеза
             try:
-                from app.victoria_enhanced import VictoriaEnhanced
-
-                victoria = VictoriaEnhanced()
+                victoria = _get_victoria_enhanced_singleton()
 
                 synthesis_prompt = f"""
                 Синтезируй результаты от {len(dept_results)} сотрудников отдела {department}:

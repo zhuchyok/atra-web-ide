@@ -93,6 +93,29 @@ else
 fi
 echo ""
 
+# 3.5 Drift guard for Open WebUI ask_victoria valves (must stay proxy-safe)
+echo "   🔧 Проверка drift у ask_victoria valves..."
+python3 scripts/ensure_openwebui_ask_victoria_valves.py || echo "   ⚠️ Не удалось автоисправить valves (проверьте open-webui/webui.db)"
+echo "   🧭 Проверка policy Victoria (маршрутизация access/path запросов через ask_victoria)..."
+python3 scripts/ensure_openwebui_victoria_policy.py || echo "   ⚠️ Не удалось автоисправить policy модели Victoria"
+echo "   🧪 Проверка утечки reasoning-блоков без tool-call..."
+python3 scripts/check_openwebui_reasoning_leak.py || echo "   ⚠️ Обнаружены недавние reasoning-ответы без tool-call (исторический след или policy drift)"
+echo "   ♻️ Запуск авто-синхронизации policy для новых моделей Ollama..."
+mkdir -p "$ROOT/logs" "$ROOT/.tmp"
+if pgrep -f "openwebui_model_policy_watcher.py" >/dev/null 2>&1; then
+    echo "   ✅ watcher уже запущен"
+else
+    nohup python3 "$ROOT/scripts/openwebui_model_policy_watcher.py" \
+        >> "$ROOT/logs/openwebui_model_policy_watcher.log" 2>&1 &
+    sleep 1
+    if pgrep -f "openwebui_model_policy_watcher.py" >/dev/null 2>&1; then
+        echo "   ✅ watcher запущен (лог: logs/openwebui_model_policy_watcher.log)"
+    else
+        echo "   ⚠️ не удалось запустить watcher (проверьте logs/openwebui_model_policy_watcher.log)"
+    fi
+fi
+echo ""
+
 # 4. Проверка доступности сервисов и автоперезапуск при сбое
 echo "[4/5] Проверка доступности сервисов..."
 echo ""

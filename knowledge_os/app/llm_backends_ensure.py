@@ -12,6 +12,7 @@ import subprocess
 from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
+_LOCAL_ROUTER_SINGLETON = None
 
 try:
     import httpx
@@ -90,6 +91,15 @@ def _try_start_ollama() -> bool:
         return False
 
 
+def _get_local_router_singleton():
+    global _LOCAL_ROUTER_SINGLETON
+    if _LOCAL_ROUTER_SINGLETON is None:
+        from app.local_router import LocalAIRouter
+
+        _LOCAL_ROUTER_SINGLETON = LocalAIRouter()
+    return _LOCAL_ROUTER_SINGLETON
+
+
 async def ensure_llm_backends_available(
     mlx_url: Optional[str] = None,
     ollama_url: Optional[str] = None,
@@ -150,9 +160,7 @@ async def ensure_llm_backends_available(
     # 3) Обновить кэш LocalAIRouter (чтобы выбор модели шёл по актуальным узлам)
     if refresh_local_router_cache:
         try:
-            from app.local_router import LocalAIRouter
-
-            router = LocalAIRouter()
+            router = _get_local_router_singleton()
             await router.check_health(force_refresh=True)
             logger.debug("Кэш LocalAIRouter обновлён")
         except Exception as e:

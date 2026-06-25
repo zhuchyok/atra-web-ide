@@ -33,6 +33,8 @@ from database_service import (
 )
 
 logger = logging.getLogger(__name__)
+# Suppress known Streamlit bare-mode context noise in container logs.
+logging.getLogger("streamlit.runtime.scriptrunner_utils.script_run_context").setLevel(logging.ERROR)
 
 # Корпорация: корень и каталог приложения (дашборд = часть корпорации, ищем модули в корпорации)
 _DASHBOARD_DIR = os.path.dirname(os.path.abspath(__file__))  # knowledge_os/dashboard
@@ -516,9 +518,7 @@ def main():
     with col_header4:
         st.metric("Экспертов", total_experts)
     with col_header5:
-        if st.button(
-            "🔄", help="Обновить все данные", use_container_width=True, key="header_refresh"
-        ):
+        if st.button("🔄", help="Обновить все данные", width="stretch", key="header_refresh"):
             st.cache_data.clear()
             st.session_state["toast_message"] = ("Данные обновлены", "🔄")
             st.rerun()
@@ -527,12 +527,29 @@ def main():
 
     _svc_for_banner = check_services()
     _any_warning = any(s == "⚠️" for s in _svc_for_banner.values())
-    if _any_warning and not st.session_state.get("alert_banner_dismissed"):
-        warn_services = [n for n, s in _svc_for_banner.items() if s == "⚠️"]
+
+    # [SINGULARITY 26.9] Stale data detection (>24h)
+    _is_stale = False
+    if last_db_update:
+        if isinstance(last_db_update, datetime):
+            if last_db_update.tzinfo is None:
+                last_db_update = last_db_update.replace(tzinfo=timezone.utc)
+            _is_stale = (datetime.now(timezone.utc) - last_db_update).total_seconds() > 86400
+
+    if (_any_warning or _is_stale) and not st.session_state.get("alert_banner_dismissed"):
+        warn_text = ""
+        if _any_warning:
+            warn_services = [n for n, s in _svc_for_banner.items() if s == "⚠️"]
+            warn_text = f"⚠️ Сервисы недоступны: {', '.join(warn_services)}. Проверьте MLX (порт 11435) и Ollama (11434)."
+
+        if _is_stale:
+            stale_msg = f"🕰️ Данные устарели (последнее обновление: {update_status}). Проверьте воркеры (nightly/evolution)."
+            warn_text = f"{warn_text} | {stale_msg}" if warn_text else stale_msg
+
         st.markdown(
             f"""
             <div class="alert-banner" id="alert-banner">
-                <span>⚠️ Сервисы недоступны: {", ".join(warn_services)}. Проверьте MLX (порт 11435) и Ollama (11434).</span>
+                <span>{warn_text}</span>
             </div>
         """,
             unsafe_allow_html=True,
@@ -596,17 +613,23 @@ def main():
         ]
         section = st.radio("📂 Раздел", _sections, key="nav_section", label_visibility="collapsed")
         st.session_state.dashboard_section = section
-        
+
         st.markdown("---")
         st.markdown("📅 **Период данных**")
         time_range = st.selectbox(
             "Показывать данные за:",
-            ["Последние 24 часа", "Последние 3 дня", "Последние 7 дней", "Последние 30 дней", "За все время"],
+            [
+                "Последние 24 часа",
+                "Последние 3 дня",
+                "Последние 7 дней",
+                "Последние 30 дней",
+                "За все время",
+            ],
             index=2,
-            key="global_time_range_widget"
+            key="global_time_range_widget",
         )
         st.session_state.global_time_range = time_range
-        
+
         st.markdown("---")
         # Одна строка: сервисы
         svc_line = "  ".join(f"{s} {n}" for n, s in services_status.items())
@@ -666,36 +689,63 @@ def main():
         # Карточки метрик в одну строку (как в ТЗ: real-time метрики)
         time_range = st.session_state.get("global_time_range", "Последние 7 дней")
         from database_service import get_time_filter
+
         t_filter = get_time_filter(time_range, "created_at")
-        
+
         with st.spinner(""):
             results = fetch_parallel(
                 {
                     "tasks": (
-                        f"SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress, COUNT(*) FILTER (WHERE status = 'pending') as pending FROM tasks WHERE {t_filter}",
+                        f"SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress, COUNT(*) FILTER (WHERE status = 'pending') as pending, COUNT(*) FILTER (WHERE status = 'failed') as failed, COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled FROM tasks WHERE {t_filter}",
                         (),
                     ),
                     "experts": ("SELECT COUNT(*) as count FROM experts", ()),
+                    "task_sla": (
+                        """
+                        SELECT
+                            COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') AS created_24h,
+                            COUNT(*) FILTER (WHERE status = 'completed' AND updated_at > NOW() - INTERVAL '24 hours') AS completed_24h,
+                            COUNT(*) FILTER (WHERE status = 'failed' AND updated_at > NOW() - INTERVAL '24 hours') AS failed_24h,
+                            COUNT(*) FILTER (WHERE status = 'in_progress' AND updated_at < NOW() - INTERVAL '30 minutes') AS stale_in_progress,
+                            COUNT(*) FILTER (WHERE status = 'failed' AND (result IS NULL OR LENGTH(TRIM(result)) = 0)) AS failed_without_reason
+                        FROM tasks
+                        """,
+                        (),
+                    ),
                 }
             )
             _to = results.get("tasks", [])
             _ex = results.get("experts", [])
-            
+            _sla = results.get("task_sla", [])
+
             # Intellectual capital also needs filtering
-            _ic = fetch_data(f"SELECT COUNT(*) as total_nodes FROM knowledge_nodes WHERE {t_filter}")
+            _ic = fetch_data(
+                f"SELECT COUNT(*) as total_nodes FROM knowledge_nodes WHERE {t_filter}"
+            )
             _svc = check_services()
-        
+
         o_tasks = _to[0]["total"] if _to and _to[0] else 0
         o_in_progress = _to[0]["in_progress"] if _to and _to[0] else 0
         o_pending = _to[0]["pending"] if _to and _to[0] else 0
+        o_failed = _to[0].get("failed", 0) if _to and _to[0] else 0
+        o_cancelled = _to[0].get("cancelled", 0) if _to and _to[0] else 0
         o_nodes = _ic[0]["total_nodes"] if _ic and _ic[0] else 0
         o_experts = _ex[0]["count"] if _ex and _ex[0] else 0
         o_services_ok = sum(1 for s in _svc.values() if s == "✅")
         o_services_total = len(_svc)
+        s_created_24h = _sla[0].get("created_24h", 0) if _sla and _sla[0] else 0
+        s_completed_24h = _sla[0].get("completed_24h", 0) if _sla and _sla[0] else 0
+        s_failed_24h = _sla[0].get("failed_24h", 0) if _sla and _sla[0] else 0
+        s_stale_in_progress = _sla[0].get("stale_in_progress", 0) if _sla and _sla[0] else 0
+        s_failed_without_reason = _sla[0].get("failed_without_reason", 0) if _sla and _sla[0] else 0
 
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            render_metric_card("Задачи", f"{o_tasks:,}", delta=f"в работе {o_in_progress}")
+            render_metric_card(
+                "Задачи",
+                f"{o_tasks:,}",
+                delta=f"в работе {o_in_progress} · pending {o_pending} · failed {o_failed}",
+            )
         with c2:
             render_metric_card("Узлы знаний", f"{o_nodes:,}")
         with c3:
@@ -711,6 +761,34 @@ def main():
                 f"{o_services_ok}/{o_services_total}",
                 delta="PG · MLX · Ollama",
                 delta_color="normal" if o_services_ok == o_services_total else "inverse",
+            )
+
+        q1, q2, q3, q4 = st.columns(4)
+        with q1:
+            render_metric_card(
+                "Completed 24h",
+                f"{int(s_completed_24h):,}",
+                delta=f"created {int(s_created_24h):,}",
+            )
+        with q2:
+            render_metric_card(
+                "Failed 24h",
+                f"{int(s_failed_24h):,}",
+                delta_color="inverse" if int(s_failed_24h) > 0 else "normal",
+            )
+        with q3:
+            render_metric_card(
+                "Stale in_progress",
+                f"{int(s_stale_in_progress):,}",
+                delta=">30m",
+                delta_color="inverse" if int(s_stale_in_progress) > 0 else "normal",
+            )
+        with q4:
+            render_metric_card(
+                "Failed w/o reason",
+                f"{int(s_failed_without_reason):,}",
+                delta="contract",
+                delta_color="inverse" if int(s_failed_without_reason) > 0 else "normal",
             )
 
         # Подсказка при устаревших данных (ТЗ: hint если метрики не приходят > 12 сек)
@@ -746,7 +824,7 @@ def main():
                 label_visibility="collapsed",
             )
         with col_task:
-            if st.button("📋 Поставить задачу", key="overview_put_task", use_container_width=True):
+            if st.button("📋 Поставить задачу", key="overview_put_task", width="stretch"):
                 st.session_state.dashboard_section = "🛠️ Задачи и SLA"
                 st.session_state["nav_section"] = "🛠️ Задачи и SLA"
                 st.cache_data.clear()
@@ -799,7 +877,9 @@ def main():
         with col_p1:
             # Последние алерты безопасности
             try:
-                threats = fetch_data(f"SELECT anomaly_type, severity, detected_at FROM anomaly_detection_logs WHERE detected_at > NOW() - INTERVAL '7 days' ORDER BY detected_at DESC LIMIT 3")
+                threats = fetch_data(
+                    "SELECT anomaly_type, severity, detected_at FROM anomaly_detection_logs WHERE detected_at > NOW() - INTERVAL '7 days' ORDER BY detected_at DESC LIMIT 3"
+                )
                 if threats:
                     st.markdown("**🛡️ Безопасность**")
                     for t in threats:
@@ -813,29 +893,57 @@ def main():
         with col_p2:
             # Последние решения совета
             try:
-                decisions = fetch_data(f"SELECT content, created_at FROM knowledge_nodes WHERE metadata->>'type' = 'board_decision' AND {t_filter} ORDER BY created_at DESC LIMIT 3")
+                decisions = fetch_data(
+                    f"""
+                    SELECT content, created_at, metadata->>'type' as decision_type
+                    FROM knowledge_nodes
+                    WHERE metadata->>'type' IN ('board_decision', 'board_directive', 'board_consult')
+                      AND {t_filter}
+                    ORDER BY created_at DESC
+                    LIMIT 3
+                    """
+                )
                 if decisions:
                     st.markdown("**🏛️ Решения Совета**")
+                    now_utc = datetime.now(timezone.utc)
                     for d in decisions:
+                        created_at = d.get("created_at")
+                        if created_at and created_at.tzinfo is None:
+                            created_at = created_at.replace(tzinfo=timezone.utc)
+                        age_hours = (
+                            (now_utc - created_at).total_seconds() / 3600 if created_at else None
+                        )
+                        age_label = (
+                            "🟢 свежо" if age_hours is not None and age_hours <= 24 else "🔴 >24ч"
+                        )
                         st.caption(
-                            f"📜 {d['content'][:50]}... ({d['created_at'].strftime('%d.%m')})"
+                            f"📜 {d['content'][:50]}... ({d['created_at'].strftime('%d.%m')} · {age_label})"
                         )
                 else:
                     st.info("🏛️ Решений совета нет")
-            except:
-                pass
+            except Exception as e:
+                st.caption(f"🏛️ Решения Совета: данные недоступны ({str(e)[:40]}...)")
         with col_p3:
             # Новое в AI Research
             try:
-                latest_ai = fetch_data(f"SELECT metadata->>'file_path' as path FROM knowledge_nodes WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Research') AND {t_filter} ORDER BY created_at DESC LIMIT 3")
+                latest_ai = fetch_data(
+                    f"SELECT metadata->>'file_path' as path FROM knowledge_nodes WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Research') AND {t_filter} ORDER BY created_at DESC LIMIT 3"
+                )
                 if latest_ai:
                     st.markdown("**📚 AI Research**")
                     for ai in latest_ai:
-                        st.caption(f"📄 {ai['path'].split('/')[-1]}")
+                        raw_path = ai.get("path") if isinstance(ai, dict) else None
+                        file_name = raw_path.split("/")[-1] if raw_path else "unknown"
+                        st.caption(f"📄 {file_name}")
                 else:
-                    st.caption("📚 База мудрости пуста")
-            except:
-                pass
+                    ai_total = fetch_data(
+                        "SELECT COUNT(*) AS total FROM knowledge_nodes WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Research')"
+                    )
+                    ai_total_count = ai_total[0]["total"] if ai_total else 0
+                    st.caption("📚 Нет свежих AI Research данных за выбранный период")
+                    st.caption(f"Всего AI Research узлов в базе: {ai_total_count:,}")
+            except Exception as e:
+                st.caption(f"📚 AI Research: данные недоступны ({str(e)[:40]}...)")
 
         st.stop()
 

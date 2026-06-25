@@ -6,11 +6,11 @@ import sys
 import time
 from datetime import datetime
 from functools import partial
-from typing import List, Optional, Union, Dict, Any
+from typing import Any, Dict, List, Optional, Union
 
-from app.schemas import AgentResponse, TaskResult, parse_agent_response
 from app.memory.journal_manager import ExpertJournalManager
 from app.memory.memory_service import MemoryService
+from app.schemas import AgentResponse, TaskResult, parse_agent_response
 
 try:
     from aiohttp import web
@@ -21,7 +21,7 @@ except ImportError:
     web = None
 
 try:
-    from prometheus_client import Counter, Histogram, Gauge
+    from prometheus_client import Counter, Gauge, Histogram
 
     _PROMETHEUS_AVAILABLE = True
 except ImportError:
@@ -29,6 +29,8 @@ except ImportError:
     Counter = Histogram = Gauge = None
 
 logger = logging.getLogger(__name__)
+_LOCAL_ROUTER_FACTORY_CACHE = None
+_last_success_ts = 0
 
 if _PROMETHEUS_AVAILABLE:
     _smart_worker_tasks_total = Counter(
@@ -42,17 +44,16 @@ if _PROMETHEUS_AVAILABLE:
     )
 
 
+from app.worker.worker_logic import (
+    _auto_requeue_delegation,
+    _emit_delegation_metrics,
+    _structured_cancel_reason,
+)
 from app.worker.worker_memory import (
     ROLE_DEPARTMENT_TO_SKILLS,
     _read_skill_snippets_sync,
     _select_skills_by_relevance_sync,
 )
-from app.worker.worker_logic import (
-    _structured_cancel_reason,
-    _emit_delegation_metrics,
-    _auto_requeue_delegation,
-)
-
 
 # Маркеры запроса актуальных данных — при наличии вызываем веб-поиск (П.1 PRINCIPLE_EXPERTS_FIRST)
 _WEB_MARKERS = (
@@ -103,7 +104,10 @@ except ImportError:
     sys.exit(1)
 
 # Используем тот же формат, что и другие модули
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os?application_name=knowledge_pool")
+DB_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os?application_name=knowledge_pool",
+)
 
 # Максимум попыток выполнения задачи; после исчерпания — эскалация в Совет Директоров
 MAX_ATTEMPTS = int(os.getenv("SMART_WORKER_MAX_ATTEMPTS", "3"))
@@ -121,6 +125,7 @@ try:
     from app.db_pool import get_pool as _get_shared_pool
 except ImportError:
     from db_pool import get_pool as _get_shared_pool
+
 
 async def get_pool():
     """[SINGULARITY 10.0] Unified DB Pool: use shared pool from db_pool.py"""
@@ -147,6 +152,16 @@ async def run_cursor_agent_smart(prompt: str, expert_name: str, router=None):
     return await run_smart_agent_async(
         prompt, expert_name=expert_name, category="autonomous_worker", local_router=router
     )
+
+
+def _create_local_router():
+    """Provider/factory for task-scoped LocalAIRouter instances."""
+    global _LOCAL_ROUTER_FACTORY_CACHE
+    if _LOCAL_ROUTER_FACTORY_CACHE is None:
+        from local_router import LocalAIRouter
+
+        _LOCAL_ROUTER_FACTORY_CACHE = LocalAIRouter
+    return _LOCAL_ROUTER_FACTORY_CACHE()
 
 
 def _parse_batch_response(text: str, n: int) -> list:
@@ -240,9 +255,7 @@ async def process_batch_tasks(pool, tasks: list):
     router_instance = None
     if src or model:
         try:
-            from local_router import LocalAIRouter
-
-            router_instance = LocalAIRouter()
+            router_instance = _create_local_router()
             if src:
                 router_instance._preferred_source = src
             if model:
@@ -383,6 +396,7 @@ def _fast_file_check(task_title: str) -> str | None:
 
 
 async def process_task(pool, task):
+    global _last_success_ts
     task_id = task["id"]
     expert_name = task["assignee"]
     task_title = task["title"]
@@ -396,31 +410,31 @@ async def process_task(pool, task):
     # ─── FAST PATH: тривиальные file_check задачи — без LLM, за <1ms ───────────
     fast_result = _fast_file_check(task_title)
     if fast_result is not None:
-            # [SINGULARITY 29.0] Guaranteed DB persistence
-            try:
-                async with pool.acquire() as conn:
-                    await conn.execute(
-                        "UPDATE tasks SET status='completed', result=$1, updated_at=NOW(), completed_at=NOW(), last_real_progress_at=NOW() WHERE id=$2",
-                        fast_result,
-                        task_id,
-                    )
-            except Exception as db_err:
-                logger.error(f"Failed to save fast-path result for {task_id}: {db_err}")
-                    
-            # [SINGULARITY 29.1] Episodic Journaling (Fast Path)
-            try:
-                journal_mgr = ExpertJournalManager(pool)
-                await journal_mgr.add_entry(
-                    expert_id=task.get("assignee_expert_id"),
-                    task_id=task_id,
-                    summary=f"Fast-path file check: {task_title}",
-                    learnings=f"Result: {fast_result}",
-                    importance=3,
-                    metadata={"execution_mode": "fast_path"}
+        # [SINGULARITY 29.0] Guaranteed DB persistence
+        try:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE tasks SET status='completed', result=$1, updated_at=NOW(), completed_at=NOW(), last_real_progress_at=NOW() WHERE id=$2",
+                    fast_result,
+                    task_id,
                 )
-            except Exception as j_err:
-                logger.debug(f"Journaling failed for fast-path {task_id}: {j_err}")
-            return
+        except Exception as db_err:
+            logger.error(f"Failed to save fast-path result for {task_id}: {db_err}")
+
+        # [SINGULARITY 29.1] Episodic Journaling (Fast Path)
+        try:
+            journal_mgr = ExpertJournalManager(pool)
+            await journal_mgr.add_entry(
+                expert_id=task.get("assignee_expert_id"),
+                task_id=task_id,
+                summary=f"Fast-path file check: {task_title}",
+                learnings=f"Result: {fast_result}",
+                importance=3,
+                metadata={"execution_mode": "fast_path"},
+            )
+        except Exception as j_err:
+            logger.debug(f"Journaling failed for fast-path {task_id}: {j_err}")
+        return
     # ─────────────────────────────────────────────────────────────────────────────
 
     # Generate trace_id для полного трейсинга
@@ -479,7 +493,12 @@ async def process_task(pool, task):
             result = await conn.execute(
                 """
                 UPDATE tasks
-                SET status = 'in_progress', updated_at = NOW()
+                SET status = 'in_progress',
+                    updated_at = NOW(),
+                    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                        'processing_worker', $4::text,
+                        'processing_started_at', NOW()::text
+                    )
                 WHERE id = $1
                 AND (
                     status = 'pending'
@@ -493,6 +512,7 @@ async def process_task(pool, task):
                 task_id,
                 stuck_mins,
                 llm_stuck_mins,
+                expert_name,
             )
 
             # Если задача уже обрабатывается (не обновилась), пропускаем
@@ -518,6 +538,17 @@ async def process_task(pool, task):
                     task_id,
                 )
                 return
+
+            # Auto-inject assigned skills + dynamic expert context into runtime prompt.
+            try:
+                from app.expert_services import get_full_expert_prompt
+            except ImportError:
+                from expert_services import get_full_expert_prompt
+
+            full_expert_prompt = await get_full_expert_prompt(resolved_name, conn=conn)
+            if full_expert_prompt:
+                expert_config = dict(expert_config)
+                expert_config["system_prompt"] = full_expert_prompt
 
             # 🌟 МИРОВЫЕ ПРАКТИКИ: Обогащаем задачу контекстом файлов
             task_description = task["description"]
@@ -598,6 +629,8 @@ async def process_task(pool, task):
                     # Сохраняем результат
                     async with pool.acquire() as conn:
                         async with conn.transaction():
+                            # [SINGULARITY 31.2] Update last success timestamp for cognitive health
+                            _last_success_ts = int(time.time())
                             await conn.execute(
                                 "UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW() WHERE id = $1",
                                 task_id,
@@ -674,12 +707,14 @@ async def process_task(pool, task):
 
             # П.1 PRINCIPLE_EXPERTS_FIRST: веб-поиск при маркерах актуальности (sync DDGS в run_in_executor, таймаут 10 с)
             web_block = ""
-            
+
             # [SINGULARITY 29.2] Unified Memory Recall (Episodic + Semantic)
             memory_block = ""
             try:
                 memory_svc = MemoryService(pool)
-                memory_block = await memory_svc.recall(expert_config["id"], f"{task_title} {task_description}")
+                memory_block = await memory_svc.recall(
+                    expert_config["id"], f"{task_title} {task_description}"
+                )
             except Exception as m_err:
                 logger.debug(f"Memory recall failed: {m_err}")
 
@@ -716,6 +751,8 @@ async def process_task(pool, task):
                                 "SELECT result FROM simulations WHERE id = $1", int(sim_id)
                             )
                             if result_text:
+                                # [SINGULARITY 31.2] Update last success timestamp for cognitive health
+                                _last_success_ts = int(time.time())
                                 await conn.execute(
                                     "UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW() WHERE id = $1",
                                     task_id,
@@ -774,9 +811,7 @@ DESC: {task_description}
     preferred_model = task.get("preferred_model")
     if preferred_source or preferred_model:
         try:
-            from local_router import LocalAIRouter
-
-            router_instance = LocalAIRouter()
+            router_instance = _create_local_router()
             if preferred_source:
                 router_instance._preferred_source = preferred_source
             if preferred_model:
@@ -824,13 +859,47 @@ DESC: {task_description}
                         llm_timeout = min(llm_timeout, 3600)  # [FIX] Delegation tasks get 60 min
                 except ImportError:
                     pass
+            # [QUEUE-AGE GUARD] При большом хвосте pending сокращаем timeout
+            # для не-делегированных задач, чтобы быстрее освобождать слоты.
+            try:
+                is_delegated = bool(task_title and task_title.startswith("🤖 Делегировано"))
+                if not is_delegated:
+                    async with pool.acquire() as _bp_conn:
+                        pending_now = await _bp_conn.fetchval(
+                            "SELECT count(*) FROM tasks WHERE status = 'pending'"
+                        )
+                    pending_threshold = int(os.getenv("SMART_WORKER_BACKLOG_DEGRADE_PENDING", "8"))
+                    if int(pending_now or 0) >= pending_threshold:
+                        backlog_timeout = float(
+                            os.getenv("SMART_WORKER_BACKLOG_TIMEOUT_SEC", "240")
+                        )
+                        llm_timeout = min(llm_timeout, backlog_timeout)
+                        logger.info(
+                            "[QUEUE-AGE GUARD] backlog pending=%s >= %s, timeout capped to %.1fs for task %s",
+                            pending_now,
+                            pending_threshold,
+                            llm_timeout,
+                            task_id,
+                        )
+            except Exception as _bp_err:
+                logger.debug("Queue-age guard timeout capping failed for %s: %s", task_id, _bp_err)
             # [BUG FIX] Mark LLM call BEFORE the actual call so RAG-loop guard knows
             # we're past the RAG phase. Heartbeat updates updated_at every 15s and masks
             # stuck tasks — last_llm_call_at is the only reliable indicator of real progress.
             try:
                 async with pool.acquire() as _llm_mark_conn:
                     await _llm_mark_conn.execute(
-                        "UPDATE tasks SET last_llm_call_at = NOW() WHERE id = $1 AND status = 'in_progress'",
+                        """
+                        UPDATE tasks
+                        SET last_llm_call_at = NOW(),
+                            metadata = jsonb_set(
+                                COALESCE(metadata, '{}'::jsonb),
+                                '{last_llm_call_at}',
+                                to_jsonb(to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+                                true
+                            )
+                        WHERE id = $1 AND status = 'in_progress'
+                        """,
                         task_id,
                     )
             except Exception as _lm_err:
@@ -869,16 +938,50 @@ DESC: {task_description}
         # Обрабатываем разные типы ответов
         agent_resp = parse_agent_response(report)
         report = agent_resp.output or agent_resp.error or str(report)
-        
+
         if agent_resp.status == "processing":
             is_error = True
             _last_failure_reason = "delegation_queued_processing"
-            # Return to pending for polling
+            # [ANTI-LOOP] processing-ответ не должен крутиться бесконечно.
+            # Учитываем попытки и переводим в failed после лимита.
             async with pool.acquire() as conn:
-                await conn.execute(
-                    "UPDATE tasks SET status = 'pending', updated_at = NOW() WHERE id = $1",
-                    task_id
+                attempts_now = await conn.fetchval(
+                    """
+                    UPDATE tasks
+                    SET status = 'pending',
+                        updated_at = NOW(),
+                        metadata = jsonb_set(
+                            jsonb_set(
+                                COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                                    'last_error', 'delegation_queued_processing',
+                                    'last_attempt_failed', true
+                                ),
+                                '{processing_loop_count}',
+                                to_jsonb(COALESCE((metadata->>'processing_loop_count')::int, 0) + 1),
+                                true
+                            ),
+                            '{attempt_count}',
+                            to_jsonb(COALESCE((metadata->>'attempt_count')::int, 0) + 1),
+                            true
+                        )
+                    WHERE id = $1
+                    RETURNING COALESCE((metadata->>'attempt_count')::int, 0) + 1
+                    """,
+                    task_id,
                 )
+                if int(attempts_now or 0) >= MAX_ATTEMPTS:
+                    await conn.execute(
+                        """
+                        UPDATE tasks
+                        SET status = 'failed',
+                            updated_at = NOW(),
+                            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                                'auto_fallback_reason', 'delegation_processing_loop_exhausted'
+                            )
+                        WHERE id = $1
+                    """,
+                        task_id,
+                    )
             return
 
         # Логируем ответ для отладки
@@ -934,21 +1037,31 @@ DESC: {task_description}
                         f"🔄 [MODEL UPGRADE] Задача {task_id} требует более мощную модель: {next_model}"
                     )
                     # Сохраняем информацию о необходимости апгрейда и возвращаем в pending
+                    backoff_seconds = int(os.getenv("SMART_WORKER_MODEL_UPGRADE_RETRY_SEC", "60"))
                     async with pool.acquire() as conn:
                         await conn.execute(
                             """
                             UPDATE tasks
                             SET status = 'pending',
-                                metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('model_upgrade_needed', true, 'recommended_model', $2::text),
+                                retry_after = NOW() + make_interval(secs => $3::int),
+                                metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                                    'model_upgrade_needed', true,
+                                    'recommended_model', $2::text,
+                                    'next_retry_after', to_char((NOW() + make_interval(secs => $3::int)) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+                                ),
                                 updated_at = NOW(),
                                 last_real_progress_at = NOW()
                             WHERE id = $1
                         """,
                             task_id,
                             str(next_model) if next_model else "",
+                            backoff_seconds,
                         )
-                    print(f"[{datetime.now()}] 🔄 Task {task_id} reverted to PENDING for model upgrade to {next_model}")
-                    return # Прекращаем текущую обработку, так как задача ушла на апгрейд
+                    print(
+                        f"[{datetime.now()}] 🔄 Task {task_id} reverted to PENDING for model upgrade "
+                        f"to {next_model} (retry_after={backoff_seconds}s)"
+                    )
+                    return  # Прекращаем текущую обработку, так как задача ушла на апгрейд
             except Exception as e:
                 logger.debug(f"Model performance tracking failed: {e}")
 
@@ -966,7 +1079,9 @@ DESC: {task_description}
                 "Все источники недоступны",
                 "Ошибка связи",
             ]
-            is_error = any(indicator in str(report) for indicator in error_indicators) if report else True
+            is_error = (
+                any(indicator in str(report) for indicator in error_indicators) if report else True
+            )
 
         # [SWISS-CLOCK] Детектируем LLM-недоступность отдельно —
         # эти случаи нужно re-queue с задержкой, а не эскалировать как логические ошибки
@@ -1136,6 +1251,7 @@ DESC: {task_description}
                             f"🔄 [AUTO UPGRADE] Автоматически переключаемся на {next_model} для задачи {task_id}"
                         )
                         # Обновляем задачу с рекомендованной моделью
+                        backoff_seconds = min(300, 30 * (2 ** max(0, attempt_count - 1)))
                         async with pool.acquire() as conn:
                             await conn.execute(
                                 """
@@ -1143,12 +1259,14 @@ DESC: {task_description}
                                 SET status = 'pending',
                                     updated_at = NOW(),
                                     last_real_progress_at = NOW(),
+                                    retry_after = NOW() + make_interval(secs => $5::int),
                                     metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
                                         'last_attempt_failed', true,
                                         'attempt_count', $2::int,
                                         'last_error', $3::text,
                                         'model_upgrade_needed', true,
-                                        'recommended_model', $4::text
+                                        'recommended_model', $4::text,
+                                        'next_retry_after', to_char((NOW() + make_interval(secs => $5::int)) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
                                     )
                                 WHERE id = $1
                             """,
@@ -1156,15 +1274,18 @@ DESC: {task_description}
                                 attempt_count,
                                 str(report[:500]) if report and isinstance(report, str) else "",
                                 str(next_model),
+                                backoff_seconds,
                             )
                         print(
-                            f"[{datetime.now()}] 🔄 Task {task_id} upgraded to model {next_model} for retry"
+                            f"[{datetime.now()}] 🔄 Task {task_id} upgraded to model {next_model} "
+                            f"for retry_after={backoff_seconds}s"
                         )
                         return
                 except Exception as e:
                     logger.debug(f"Model upgrade check failed: {e}")
 
                 # Возвращаем в pending для повторной попытки
+                backoff_seconds = min(300, 30 * (2 ** max(0, attempt_count - 1)))
                 async with pool.acquire() as conn:
                     await conn.execute(
                         """
@@ -1172,15 +1293,23 @@ DESC: {task_description}
                         SET status = 'pending',
                             updated_at = NOW(),
                             last_real_progress_at = NOW(),
-                            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('last_attempt_failed', true, 'attempt_count', $2::int, 'last_error', $3::text)
+                            retry_after = NOW() + make_interval(secs => $4::int),
+                            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                                'last_attempt_failed', true,
+                                'attempt_count', $2::int,
+                                'last_error', $3::text,
+                                'next_retry_after', to_char((NOW() + make_interval(secs => $4::int)) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+                            )
                         WHERE id = $1
                     """,
                         task_id,
                         attempt_count,
                         str(report[:500]) if report and isinstance(report, str) else "",
+                        backoff_seconds,
                     )
                 print(
-                    f"[{datetime.now()}] ⚠️ Task {task_id} reverted to PENDING (attempt {attempt_count}/{MAX_ATTEMPTS}). Will retry later."
+                    f"[{datetime.now()}] ⚠️ Task {task_id} reverted to PENDING "
+                    f"(attempt {attempt_count}/{MAX_ATTEMPTS}, retry_after={backoff_seconds}s)."
                 )
             return  # НЕ помечаем как completed!
 
@@ -1278,111 +1407,21 @@ DESC: {task_description}
             except Exception as e:
                 logger.debug(f"Validation skip for task {task_id}: {e}")
 
-            # Сохраняем результат в отдельной транзакции (только если НЕ ошибка)
-            # П.1 пушка: метрика «задача получила веб-блок» — пишем в metadata для /metrics
-            meta_web = json.dumps({"had_web_block": True}) if web_block else "{}"
+        if not is_error:
+            # [FIX] Мark task as completed in the success path (was dead code inside if is_error:)
             async with pool.acquire() as conn:
-                async with conn.transaction():
-                    await conn.execute(
-                        "UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(), metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb WHERE id = $1",
-                        task_id,
-                        report,
-                        meta_web,
-                    )
-                    logger.info("Task %s marked completed in DB (updated_at=NOW()).", task_id)
-
-                    # Сохраняем в knowledge_nodes с embedding (для RAG/search) — знания внедряются в систему
-                    try:
-                        content_for_kn = f"📊 REPORT BY {expert_name}: {task_title}\n\n{report}"
-                        embedding = None
-                        try:
-                            from semantic_cache import get_embedding
-
-                            embedding = await get_embedding(
-                                content_for_kn[:8000]
-                            )  # лимит для embedding
-                        except Exception as emb_err:
-                            logger.debug("Embedding skip for knowledge_node: %s", emb_err)
-                        meta_kn = json.dumps(
-                            {
-                                "task_id": str(task_id),
-                                "expert": expert_name,
-                                "fallback_used": is_error,
-                                "department": expert_config["department"],
-                            }
-                        )
-                        if embedding:
-                            await conn.execute(
-                                """
-                                INSERT INTO knowledge_nodes (content, metadata, confidence_score, source_ref, embedding)
-                                VALUES ($1, $2, 0.85, $3, $4::vector)
-                            """,
-                                content_for_kn,
-                                meta_kn,
-                                "autonomous_worker",
-                                str(embedding),
-                            )
-                        else:
-                            await conn.execute(
-                                """
-                                INSERT INTO knowledge_nodes (content, metadata, confidence_score, source_ref)
-                                VALUES ($1, $2, 0.85, $3)
-                            """,
-                                content_for_kn,
-                                meta_kn,
-                                "autonomous_worker",
-                            )
-                        print(
-                            f"[{datetime.now()}] ✅ Knowledge saved for task {task_id}"
-                            + (" (with embedding)" if embedding else "")
-                        )
-                    except Exception as e:
-                        print(f"[{datetime.now()}] ⚠️ Error saving to knowledge_nodes: {e}")
-                        import traceback
-
-                        traceback.print_exc()
-                    # [SINGULARITY 29.0] Guaranteed DB persistence
-                    try:
-                        async with pool.acquire() as conn:
-                            await conn.execute(
-                                """
-                                UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(), completed_at = NOW(), last_real_progress_at = NOW()
-                                WHERE id = $1
-                            """,
-                                task_id,
-                                report,
-                            )
-                    except Exception as db_err:
-                        logger.error(f"Failed to save final result for {task_id}: {db_err}")
-
-                    # [SINGULARITY 29.1] Episodic Journaling (Standard Path)
-                    try:
-                        # Используем легкую модель для суммаризации (phi3.5)
-                        summary_prompt = f"Summarize the outcome of this task in 1-2 sentences and extract key learnings:\n\nTASK: {task_title}\nRESULT: {report[:2000]}"
-                        summary_resp = await run_smart_agent_async(
-                            summary_prompt, expert_name="System", category="fast"
-                        )
-                        summary_text = str(summary_resp.get("result") if isinstance(summary_resp, dict) else summary_resp)
-                        
-                        memory_svc = MemoryService(pool)
-                        await memory_svc.record_outcome(
-                            expert_id=task.get("assignee_expert_id"),
-                            task_id=task_id,
-                            summary=summary_text[:500],
-                            learnings=summary_text[500:2000],
-                            importance=5
-                        )
-                        logger.info(f"✅ Journal entry saved for task {task_id}")
-                    except Exception as j_err:
-                        logger.debug(f"Journaling failed for task {task_id}: {j_err}")
-                    
-                    print(f"[{datetime.now()}] ✅ Task {task_id} COMPLETED.")
-
-        if _PROMETHEUS_AVAILABLE:
+                await conn.execute(
+                    "UPDATE tasks SET status = 'completed', result = $1, updated_at = NOW(), completed_at = NOW() WHERE id = $2",
+                    report,
+                    task_id,
+                )
+            print(f"[{datetime.now()}] ✅ Task {task_id} COMPLETED.")
             duration = time.perf_counter() - task_start_time
-            _smart_worker_tasks_total.labels(status="completed").inc()
-            _smart_worker_task_duration_seconds.labels(category=task_category).observe(duration)
-            _smart_worker_active.dec()
+            if _PROMETHEUS_AVAILABLE:
+                _smart_worker_tasks_total.labels(status="completed").inc()
+                _smart_worker_task_duration_seconds.labels(category=task_category).observe(duration)
+                _smart_worker_active.dec()
+            return
     except Exception as e:
         _last_failure_reason = str(e)[:500]
         print(f"[{datetime.now()}] ❌ Error processing task {task_id}: {e}")
@@ -1405,6 +1444,20 @@ DESC: {task_description}
                 task_id,
                 _last_failure_reason,
             )
+
+        # [SINGULARITY 29.1] Episodic Journaling (Failure Path)
+        try:
+            journal_mgr = ExpertJournalManager(pool)
+            await journal_mgr.add_entry(
+                expert_id=task.get("assignee_expert_id"),
+                task_id=task_id,
+                summary=f"Task failed: {task_title}",
+                learnings=f"Error: {_last_failure_reason}",
+                importance=7,
+                metadata={"execution_mode": "failure", "error": _last_failure_reason},
+            )
+        except Exception as j_err:
+            logger.debug(f"Journaling failed for failure {task_id}: {j_err}")
     finally:
         # Очищаем предпочтительный источник и модель
         if router_instance:
@@ -1549,6 +1602,21 @@ DESC: {task_description}
             print(
                 f"[{datetime.now()}] ✅ Task {task_id} AUTO-COMPLETED after {attempt_count} attempts (mode={exec_mode}, board_escalated={not bool(rule_result)})."
             )
+
+            # [SINGULARITY 29.1] Episodic Journaling (Auto-Complete Path)
+            try:
+                journal_mgr = ExpertJournalManager(pool)
+                await journal_mgr.add_entry(
+                    expert_id=assignee_id or task.get("assignee_expert_id"),
+                    task_id=task_id,
+                    summary=f"Task auto-completed after {attempt_count} attempts: {task_title}",
+                    learnings=f"Reason: {last_error_text}",
+                    importance=6,
+                    metadata={"execution_mode": exec_mode, "auto_completed": True},
+                )
+            except Exception as j_err:
+                logger.debug(f"Journaling failed for auto-complete {task_id}: {j_err}")
+
             if _PROMETHEUS_AVAILABLE:
                 _smart_worker_tasks_total.labels(status="completed").inc()
                 _smart_worker_active.dec()
@@ -1636,6 +1704,35 @@ async def main():
         f"[{datetime.now()}] ⚡ Parallel processing: max {MAX_CONCURRENT_TASKS} concurrent, batch size: {BATCH_SIZE}, adaptive={ADAPTIVE_CONCURRENCY}"
     )
 
+    # [SINGULARITY 31.2] Global Worker Heartbeat for Orchestrator
+    async def _global_worker_heartbeat():
+        from redis_manager import redis_manager
+
+        RUNTIME_WORKER_HEARTBEAT_KEY = os.getenv(
+            "RUNTIME_WORKER_HEARTBEAT_KEY", "runtime:expert_heartbeats"
+        )
+        while True:
+            try:
+                client = await redis_manager.get_client()
+                # Report as 'Виктория' or from env
+                report_name = os.getenv("EXPERT_NAME", "Виктория")
+                payload = json.dumps(
+                    {
+                        "ts": int(time.time()),
+                        "consumer": f"smart_worker_{os.uname()[1]}",
+                        "pid": os.getpid(),
+                        "expert_name": report_name,
+                        "last_success_ts": _last_success_ts,
+                        "worker_type": "smart_autonomous",
+                    }
+                )
+                await client.hset(RUNTIME_WORKER_HEARTBEAT_KEY, report_name, payload)
+            except Exception as e:
+                logger.debug(f"Global heartbeat failed: {e}")
+            await asyncio.sleep(30)
+
+    asyncio.create_task(_global_worker_heartbeat())
+
     # Запускаем систему самообучения корпорации (Singularity 10.0)
     try:
         from corporation_self_learning import get_corporation_learner
@@ -1649,9 +1746,26 @@ async def main():
 
     # Интервал сброса зависших in_progress: по умолчанию 15 мин (раньше 1 ч — из‑за этого при 10 зависших только 5 pending обрабатывались за цикл, ~5 задач/час)
     STUCK_MINUTES = int(os.getenv("SMART_WORKER_STUCK_MINUTES", "15"))
+    BACKLOG_STUCK_MINUTES = int(os.getenv("SMART_WORKER_BACKLOG_STUCK_MINUTES", str(STUCK_MINUTES)))
+    BACKLOG_STUCK_PENDING_THRESHOLD = int(
+        os.getenv("SMART_WORKER_BACKLOG_STUCK_PENDING_THRESHOLD", "5")
+    )
     # [BUG FIX] RAG-loop stuck detection: сбрасываем задачи у которых нет LLM-вызова > N мин,
     # даже если heartbeat обновляет updated_at. Этот порог защищает от RAG infinite loop.
     LLM_STUCK_MINUTES = int(os.getenv("SMART_WORKER_LLM_STUCK_MINUTES", "10"))
+    BACKLOG_LLM_STUCK_MINUTES = int(
+        os.getenv("SMART_WORKER_BACKLOG_LLM_STUCK_MINUTES", str(LLM_STUCK_MINUTES))
+    )
+    HARD_INPROGRESS_TIMEOUT_MINUTES = int(
+        os.getenv("SMART_WORKER_HARD_INPROGRESS_TIMEOUT_MINUTES", "8")
+    )
+    BACKLOG_HARD_INPROGRESS_TIMEOUT_MINUTES = int(
+        os.getenv(
+            "SMART_WORKER_BACKLOG_HARD_INPROGRESS_TIMEOUT_MINUTES",
+            str(HARD_INPROGRESS_TIMEOUT_MINUTES),
+        )
+    )
+    HARD_CAP_MAX_RESETS = int(os.getenv("SMART_WORKER_HARD_CAP_MAX_RESETS", "1"))
     AUTO_REQUEUE_DELEGATION = os.getenv("AUTO_REQUEUE_DELEGATION", "true").lower() in (
         "true",
         "1",
@@ -1660,11 +1774,279 @@ async def main():
     AUTO_REQUEUE_BATCH = int(os.getenv("AUTO_REQUEUE_DELEGATION_BATCH", "10"))
     AUTO_REQUEUE_MAX_PER_TASK = int(os.getenv("AUTO_REQUEUE_MAX_PER_TASK", "3"))
     DELEGATION_ALERT_THRESHOLD = int(os.getenv("DELEGATION_STUCK_ALERT_THRESHOLD", "3"))
+    WATCHDOG_INTERVAL_SEC = int(os.getenv("SMART_WORKER_WATCHDOG_INTERVAL_SEC", "10"))
+    WORK_ITEM_TIMEOUT_SEC = int(os.getenv("SMART_WORKER_WORK_ITEM_TIMEOUT_SEC", "420"))
+
+    async def _watchdog_cycle():
+        async with pool.acquire() as conn:
+            pending_now = await conn.fetchval("SELECT count(*) FROM tasks WHERE status = 'pending'")
+            pending_now = int(pending_now or 0)
+            effective_stuck_minutes = (
+                BACKLOG_STUCK_MINUTES
+                if pending_now >= BACKLOG_STUCK_PENDING_THRESHOLD
+                else STUCK_MINUTES
+            )
+            effective_llm_stuck_minutes = (
+                BACKLOG_LLM_STUCK_MINUTES
+                if pending_now >= BACKLOG_STUCK_PENDING_THRESHOLD
+                else LLM_STUCK_MINUTES
+            )
+
+            stuck_result = await conn.execute(
+                """
+                UPDATE tasks
+                SET status = 'pending', updated_at = NOW(),
+                    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                        'stuck_reset', true, 'previous_status', 'in_progress',
+                        'cancel_reason', $2::jsonb
+                    )
+                WHERE status = 'in_progress'
+                  AND updated_at < NOW() - make_interval(mins => $1::int)
+            """,
+                effective_stuck_minutes,
+                json.dumps(
+                    _structured_cancel_reason(
+                        "stuck_in_progress_timeout",
+                        "smart_worker_watchdog",
+                        f"no progress by updated_at for >{effective_stuck_minutes} minutes",
+                    )
+                ),
+            )
+            if stuck_result and stuck_result.startswith("UPDATE"):
+                n = stuck_result.split()[-1]
+                if n != "0":
+                    print(
+                        f"[{datetime.now()}] 🔄 Вернуто в очередь зависших задач (>{effective_stuck_minutes} мин): {n}"
+                    )
+
+            rag_stuck_result = await conn.execute(
+                """
+                UPDATE tasks
+                SET status = 'pending', updated_at = NOW(),
+                    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                        'stuck_reset', true, 'reset_reason', 'rag_loop_no_llm_call',
+                        'previous_status', 'in_progress',
+                        'cancel_reason', $2::jsonb
+                    )
+                WHERE status = 'in_progress'
+                  AND created_at < NOW() - make_interval(mins => $1::int)
+                  AND (
+                      last_llm_call_at IS NULL
+                      OR last_llm_call_at < NOW() - make_interval(mins => $1::int)
+                  )
+            """,
+                effective_llm_stuck_minutes,
+                json.dumps(
+                    _structured_cancel_reason(
+                        "rag_loop_no_llm_call",
+                        "smart_worker_watchdog",
+                        f"last_llm_call_at is stale or null for >{effective_llm_stuck_minutes} minutes",
+                    )
+                ),
+            )
+            if rag_stuck_result and rag_stuck_result.startswith("UPDATE"):
+                n = rag_stuck_result.split()[-1]
+                if n != "0":
+                    print(
+                        f"[{datetime.now()}] 🔁 [RAG-LOOP GUARD] Сброшено задач без LLM-вызова (>{effective_llm_stuck_minutes} мин): {n}"
+                    )
+
+            effective_hard_inprogress_minutes = (
+                BACKLOG_HARD_INPROGRESS_TIMEOUT_MINUTES
+                if pending_now >= BACKLOG_STUCK_PENDING_THRESHOLD
+                else HARD_INPROGRESS_TIMEOUT_MINUTES
+            )
+            hard_stuck_result = await conn.execute(
+                """
+                UPDATE tasks
+                SET status = 'pending', updated_at = NOW(),
+                    metadata = jsonb_set(
+                        COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                            'stuck_reset', true, 'reset_reason', 'hard_in_progress_runtime_cap',
+                            'previous_status', 'in_progress',
+                            'cancel_reason', $2::jsonb
+                        ),
+                        '{attempt_count}',
+                        to_jsonb(COALESCE((metadata->>'attempt_count')::int, 0) + 1),
+                        true
+                    )
+                WHERE status = 'in_progress'
+                  AND COALESCE(metadata->>'processing_started_at', '') <> ''
+                  AND (metadata->>'processing_started_at')::timestamptz <
+                      NOW() - make_interval(mins => $1::int)
+            """,
+                effective_hard_inprogress_minutes,
+                json.dumps(
+                    _structured_cancel_reason(
+                        "hard_in_progress_runtime_cap",
+                        "smart_worker_watchdog",
+                        f"in_progress runtime exceeded {effective_hard_inprogress_minutes} minutes",
+                    )
+                ),
+            )
+            if hard_stuck_result and hard_stuck_result.startswith("UPDATE"):
+                n = hard_stuck_result.split()[-1]
+                if n != "0":
+                    print(
+                        f"[{datetime.now()}] ⛑️ [HARD CAP] Сброшено долгих in_progress задач (>{effective_hard_inprogress_minutes} мин): {n}"
+                    )
+            hard_cap_complete_result = await conn.execute(
+                """
+                UPDATE tasks
+                SET status = 'completed',
+                    retry_after = NULL,
+                    updated_at = NOW(),
+                    completed_at = COALESCE(completed_at, NOW()),
+                    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                        'auto_fallback_reason', 'hard_in_progress_runtime_cap_recovered',
+                        'recovered_by', 'smart_worker_watchdog',
+                        'recovered_at', NOW()::text
+                    )
+                WHERE status = 'pending'
+                  AND COALESCE(metadata->>'reset_reason', '') = 'hard_in_progress_runtime_cap'
+                  AND (
+                    COALESCE(metadata->>'completion_reason', '') = 'worker_success'
+                    OR COALESCE(result, '') <> ''
+                    OR completed_at IS NOT NULL
+                  )
+            """
+            )
+            if hard_cap_complete_result and hard_cap_complete_result.startswith("UPDATE"):
+                n = hard_cap_complete_result.split()[-1]
+                if n != "0":
+                    print(
+                        f"[{datetime.now()}] ✅ [HARD CAP] Восстановлено в completed по готовому result: {n}"
+                    )
+            curiosity_defer_result = await conn.execute(
+                """
+                UPDATE tasks
+                SET status = 'pending',
+                    retry_after = NOW() + INTERVAL '3 minutes',
+                    updated_at = NOW(),
+                    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                        'auto_fallback_reason', 'hard_in_progress_runtime_cap_curiosity_deferred',
+                        'next_retry_after', to_char((NOW() + INTERVAL '3 minutes') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+                    )
+                WHERE status = 'pending'
+                  AND COALESCE(metadata->>'reset_reason', '') = 'hard_in_progress_runtime_cap'
+                  AND COALESCE(metadata->>'reason', '') = 'curiosity_engine_starvation'
+                  AND COALESCE((metadata->>'attempt_count')::int, 0) >= $1::int
+                  AND COALESCE(result, '') = ''
+                  AND completed_at IS NULL
+            """,
+                HARD_CAP_MAX_RESETS,
+            )
+            if curiosity_defer_result and curiosity_defer_result.startswith("UPDATE"):
+                n = curiosity_defer_result.split()[-1]
+                if n != "0":
+                    print(
+                        f"[{datetime.now()}] ⏭️ [HARD CAP] Curiosity tasks deferred instead of failed: {n}"
+                    )
+
+            delegation_defer_result = await conn.execute(
+                """
+                UPDATE tasks
+                SET status = 'pending',
+                    retry_after = NOW() + INTERVAL '5 minutes',
+                    updated_at = NOW(),
+                    metadata = jsonb_set(
+                        COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                            'auto_fallback_reason', 'hard_in_progress_runtime_cap_delegation_deferred',
+                            'next_retry_after', to_char((NOW() + INTERVAL '5 minutes') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+                        ),
+                        '{hard_cap_defer_count}',
+                        to_jsonb(COALESCE((metadata->>'hard_cap_defer_count')::int, 0) + 1),
+                        true
+                    )
+                WHERE status = 'pending'
+                  AND COALESCE(metadata->>'reset_reason', '') = 'hard_in_progress_runtime_cap'
+                  AND COALESCE(metadata->>'reason', '') <> 'curiosity_engine_starvation'
+                  AND COALESCE(metadata->>'source', '') = 'victoria_monster_delegation'
+                  AND COALESCE((metadata->>'attempt_count')::int, 0) >= $1::int
+                  AND COALESCE((metadata->>'hard_cap_defer_count')::int, 0) < 2
+                  AND COALESCE(result, '') = ''
+                  AND completed_at IS NULL
+            """,
+                HARD_CAP_MAX_RESETS,
+            )
+            if delegation_defer_result and delegation_defer_result.startswith("UPDATE"):
+                n = delegation_defer_result.split()[-1]
+                if n != "0":
+                    print(
+                        f"[{datetime.now()}] ⏭️ [HARD CAP] Delegation tasks deferred before final fail: {n}"
+                    )
+
+            hard_fail_result = await conn.execute(
+                """
+                UPDATE tasks
+                SET status = 'failed', updated_at = NOW(),
+                    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                        'auto_fallback_reason', 'hard_in_progress_runtime_cap_exhausted'
+                    )
+                WHERE status = 'pending'
+                  AND COALESCE(metadata->>'reset_reason', '') = 'hard_in_progress_runtime_cap'
+                  AND COALESCE(metadata->>'reason', '') <> 'curiosity_engine_starvation'
+                  AND COALESCE((metadata->>'attempt_count')::int, 0) >= $1::int
+                  AND (
+                    COALESCE(metadata->>'source', '') <> 'victoria_monster_delegation'
+                    OR COALESCE((metadata->>'hard_cap_defer_count')::int, 0) >= 2
+                  )
+                  AND COALESCE(result, '') = ''
+                  AND completed_at IS NULL
+            """,
+                HARD_CAP_MAX_RESETS,
+            )
+            if hard_fail_result and hard_fail_result.startswith("UPDATE"):
+                n = hard_fail_result.split()[-1]
+                if n != "0":
+                    print(
+                        f"[{datetime.now()}] 🧯 [HARD CAP] Переведено в failed после исчерпания попыток: {n}"
+                    )
+
+            if AUTO_REQUEUE_DELEGATION:
+                restored_n = await _auto_requeue_delegation(
+                    conn,
+                    max_rows=AUTO_REQUEUE_BATCH,
+                    max_requeues_per_task=AUTO_REQUEUE_MAX_PER_TASK,
+                )
+                if restored_n > 0:
+                    print(
+                        f"[{datetime.now()}] ♻️ [AUTO_REQUEUE_DELEGATION] Restored tasks: {restored_n}"
+                    )
+
+            await _emit_delegation_metrics(conn, DELEGATION_ALERT_THRESHOLD)
+
+    async def _watchdog_loop():
+        while True:
+            try:
+                await _watchdog_cycle()
+            except Exception as watchdog_err:
+                logger.warning("Watchdog cycle failed: %s", watchdog_err)
+            await asyncio.sleep(max(2, WATCHDOG_INTERVAL_SEC))
+
+    asyncio.create_task(_watchdog_loop())
+    print(
+        f"[{datetime.now()}] 🛡️ Watchdog loop started (interval={WATCHDOG_INTERVAL_SEC}s, llm_stuck={LLM_STUCK_MINUTES}m/{BACKLOG_LLM_STUCK_MINUTES}m under backlog)"
+    )
 
     while True:
         try:
             # Вернуть зависшие in_progress (> N мин) в pending, чтобы воркер их подхватил
             async with pool.acquire() as conn:
+                pending_now = await conn.fetchval(
+                    "SELECT count(*) FROM tasks WHERE status = 'pending'"
+                )
+                pending_now = int(pending_now or 0)
+                effective_stuck_minutes = (
+                    BACKLOG_STUCK_MINUTES
+                    if pending_now >= BACKLOG_STUCK_PENDING_THRESHOLD
+                    else STUCK_MINUTES
+                )
+                effective_llm_stuck_minutes = (
+                    BACKLOG_LLM_STUCK_MINUTES
+                    if pending_now >= BACKLOG_STUCK_PENDING_THRESHOLD
+                    else LLM_STUCK_MINUTES
+                )
                 stuck_result = await conn.execute(
                     """
                     UPDATE tasks
@@ -1676,12 +2058,12 @@ async def main():
                     WHERE status = 'in_progress'
                       AND updated_at < NOW() - make_interval(mins => $1::int)
                 """,
-                    STUCK_MINUTES,
+                    effective_stuck_minutes,
                     json.dumps(
                         _structured_cancel_reason(
                             "stuck_in_progress_timeout",
                             "smart_worker_watchdog",
-                            f"no progress by updated_at for >{STUCK_MINUTES} minutes",
+                            f"no progress by updated_at for >{effective_stuck_minutes} minutes",
                         )
                     ),
                 )
@@ -1689,7 +2071,7 @@ async def main():
                     n = stuck_result.split()[-1]
                     if n != "0":
                         print(
-                            f"[{datetime.now()}] 🔄 Вернуто в очередь зависших задач (>{STUCK_MINUTES} мин): {n}"
+                            f"[{datetime.now()}] 🔄 Вернуто в очередь зависших задач (>{effective_stuck_minutes} мин): {n}"
                         )
 
                 # [BUG FIX] RAG-loop guard: задачи, у которых нет LLM-вызова > LLM_STUCK_MINUTES,
@@ -1710,12 +2092,12 @@ async def main():
                           OR last_llm_call_at < NOW() - make_interval(mins => $1::int)
                       )
                 """,
-                    LLM_STUCK_MINUTES,
+                    effective_llm_stuck_minutes,
                     json.dumps(
                         _structured_cancel_reason(
                             "rag_loop_no_llm_call",
                             "smart_worker_watchdog",
-                            f"last_llm_call_at is stale or null for >{LLM_STUCK_MINUTES} minutes",
+                            f"last_llm_call_at is stale or null for >{effective_llm_stuck_minutes} minutes",
                         )
                     ),
                 )
@@ -1723,7 +2105,7 @@ async def main():
                     n = rag_stuck_result.split()[-1]
                     if n != "0":
                         print(
-                            f"[{datetime.now()}] 🔁 [RAG-LOOP GUARD] Сброшено задач без LLM-вызова (>{LLM_STUCK_MINUTES} мин): {n}"
+                            f"[{datetime.now()}] 🔁 [RAG-LOOP GUARD] Сброшено задач без LLM-вызова (>{effective_llm_stuck_minutes} мин): {n}"
                         )
 
                 # [POLICY] Автовосстановление delegation-задач из failed/cancelled в pending.
@@ -1751,11 +2133,34 @@ async def main():
 
                     is_overloaded, overload_reason = await check_backends_overload()
                     if is_overloaded:
-                        print(
-                            f"[{datetime.now()}] ⏸️ BACKPRESSURE: {overload_reason}. Ожидание 10 сек..."
-                        )
-                        await asyncio.sleep(10)
-                        continue  # Не брать задачи, вернуться к началу цикла
+                        allow_probe_when_idle = os.getenv(
+                            "SMART_WORKER_OVERLOAD_ALLOW_PROBE", "true"
+                        ).lower() in ("true", "1", "yes")
+                        if allow_probe_when_idle:
+                            async with pool.acquire() as conn:
+                                pending_probe = int(
+                                    await conn.fetchval(
+                                        "SELECT count(*) FROM tasks WHERE status = 'pending'"
+                                    )
+                                    or 0
+                                )
+                                in_progress_probe = int(
+                                    await conn.fetchval(
+                                        "SELECT count(*) FROM tasks WHERE status = 'in_progress'"
+                                    )
+                                    or 0
+                                )
+                            if pending_probe > 0 and in_progress_probe == 0:
+                                print(
+                                    f"[{datetime.now()}] ⚠️ BACKPRESSURE soft-bypass: overloaded, but queue has pending={pending_probe} and no in_progress. Taking probe batch."
+                                )
+                                is_overloaded = False
+                        if is_overloaded:
+                            print(
+                                f"[{datetime.now()}] ⏸️ BACKPRESSURE: {overload_reason}. Ожидание 10 сек..."
+                            )
+                            await asyncio.sleep(10)
+                            continue  # Не брать задачи, вернуться к началу цикла
                 except ImportError:
                     pass  # Функция не реализована, продолжить без проверки
                 except Exception as e:
@@ -1769,12 +2174,34 @@ async def main():
                     pending_count = await conn.fetchval(
                         "SELECT count(*) FROM tasks WHERE status = 'pending'"
                     )
+                    in_progress_count = await conn.fetchval(
+                        "SELECT count(*) FROM tasks WHERE status = 'in_progress'"
+                    )
+                    llm_stuck_mins = int(os.getenv("SMART_WORKER_LLM_STUCK_MINUTES", "10"))
+                    stale_in_progress = await conn.fetchval(
+                        """
+                        SELECT count(*)
+                        FROM tasks
+                        WHERE status = 'in_progress'
+                          AND (
+                            last_llm_call_at IS NULL
+                            OR last_llm_call_at < NOW() - make_interval(mins => $1::int)
+                          )
+                        """,
+                        llm_stuck_mins,
+                    )
                     max_pending = int(os.getenv("SMART_WORKER_MAX_PENDING", "10"))
-                    if pending_count >= max_pending:
-                        # [WATCHDOG] Если задач слишком много — не берем новые из очереди,
-                        # чтобы дать системе разгрузиться.
+                    # [WATCHDOG FIX] Не блокируем воркер только из-за большого pending.
+                    # Иначе при всплеске очередь может "замерзнуть" (starvation).
+                    # Блокируем новый pick только если одновременно уже много in_progress.
+                    if (
+                        pending_count >= max_pending
+                        and in_progress_count >= max(1, MAX_CONCURRENT_TASKS)
+                        and int(stale_in_progress or 0) == 0
+                    ):
                         print(
-                            f"[{datetime.now()}] ⏸️ BACKPRESSURE: Too many pending tasks ({pending_count}/{max_pending}). Waiting 10s..."
+                            f"[{datetime.now()}] ⏸️ BACKPRESSURE: pending={pending_count}/{max_pending}, "
+                            f"in_progress={in_progress_count}, stale_in_progress={stale_in_progress}. Waiting 10s..."
                         )
                         await asyncio.sleep(10)
                         continue
@@ -1793,7 +2220,21 @@ async def main():
                     FROM tasks t
                     LEFT JOIN experts e ON t.assignee_expert_id = e.id
                     WHERE t.status = 'pending'
-                      AND (t.metadata->>'source' IN ('scout_orchestrator', 'dashboard_scout', 'enhanced_scout_orchestrator', 'dashboard_simulator', 'victoria_queue', 'expert_tasks') OR t.metadata->>'source' IS NULL)
+                      AND (
+                        t.metadata->>'source' IN (
+                          'scout_orchestrator', 'dashboard_scout', 'enhanced_scout_orchestrator',
+                          'dashboard_simulator', 'victoria_queue', 'expert_tasks',
+                          'victoria_monster_delegation'
+                        )
+                        OR t.metadata->>'source' IS NULL
+                      )
+                      AND (
+                        COALESCE(t.metadata->>'target_expert', '') = ''
+                        OR (
+                          t.assignee_expert_id IS NOT NULL
+                          AND t.metadata->>'source' = 'victoria_monster_delegation'
+                        )
+                      )
                       AND (t.metadata->>'next_retry_after' IS NULL OR (t.metadata->>'next_retry_after')::timestamptz < NOW())
                       AND (t.retry_after IS NULL OR t.retry_after < NOW())
                       AND COALESCE(t.metadata->>'source', '') != 'orchestration_tracking'
@@ -1827,6 +2268,25 @@ async def main():
                     except Exception as e:
                         logger.debug("Adaptive concurrency failed, using max: %s", e)
                         effective_n = MAX_CONCURRENT_TASKS
+                # [BURST MODE] При большом хвосте pending разрешаем мягкий burst,
+                # чтобы не накапливать очередь из легких задач.
+                try:
+                    burst_threshold = int(os.getenv("SMART_WORKER_BURST_PENDING_THRESHOLD", "8"))
+                    burst_max = int(
+                        os.getenv(
+                            "SMART_WORKER_BURST_MAX_CONCURRENT",
+                            str(MAX_CONCURRENT_TASKS),
+                        )
+                    )
+                    if pending_count >= burst_threshold and burst_max > effective_n:
+                        prev_n = effective_n
+                        effective_n = min(burst_max, len(tasks))
+                        print(
+                            f"[{datetime.now()}] ⚡ BURST MODE: pending={pending_count} "
+                            f"-> concurrency {prev_n}→{effective_n}"
+                        )
+                except Exception as e:
+                    logger.debug("Burst mode check failed: %s", e)
 
                 print(
                     f"[{datetime.now()}] Found {len(tasks)} pending tasks. Processing in parallel (max {effective_n} concurrent)..."
@@ -2106,13 +2566,58 @@ async def main():
                 async def process_work_item(item):
                     kind, payload = item
                     async with sem:
-                        if kind == "batch":
-                            ok = await process_batch_tasks(pool, payload)
-                            if not ok:
-                                for t in payload:
-                                    await process_task(pool, t)
-                        else:
-                            await process_task(pool, payload)
+                        try:
+                            if kind == "batch":
+                                ok = await asyncio.wait_for(
+                                    process_batch_tasks(pool, payload),
+                                    timeout=WORK_ITEM_TIMEOUT_SEC,
+                                )
+                                if not ok:
+                                    for t in payload:
+                                        await asyncio.wait_for(
+                                            process_task(pool, t),
+                                            timeout=WORK_ITEM_TIMEOUT_SEC,
+                                        )
+                            else:
+                                await asyncio.wait_for(
+                                    process_task(pool, payload),
+                                    timeout=WORK_ITEM_TIMEOUT_SEC,
+                                )
+                        except asyncio.TimeoutError:
+                            ids = (
+                                [str(t.get("id")) for t in payload]
+                                if kind == "batch"
+                                else [str(payload.get("id"))]
+                            )
+                            print(
+                                f"[{datetime.now()}] ⏱️ Work item timeout ({WORK_ITEM_TIMEOUT_SEC}s). ids={','.join(ids)}"
+                            )
+                            timeout_meta = json.dumps(
+                                {
+                                    "last_attempt_failed": True,
+                                    "last_error": f"work_item_timeout_{WORK_ITEM_TIMEOUT_SEC}s",
+                                    "reset_reason": "work_item_timeout",
+                                }
+                            )
+                            async with pool.acquire() as conn:
+                                for task_id in ids:
+                                    await conn.execute(
+                                        """
+                                        UPDATE tasks
+                                        SET status = 'pending',
+                                            updated_at = NOW(),
+                                            metadata = jsonb_set(
+                                                COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
+                                                '{attempt_count}',
+                                                to_jsonb(COALESCE((metadata->>'attempt_count')::int, 0) + 1),
+                                                true
+                                            )
+                                        WHERE id = $1
+                                          AND status = 'in_progress'
+                                    """,
+                                        task_id,
+                                        timeout_meta,
+                                    )
 
                 await asyncio.gather(
                     *[process_work_item(w) for w in work_items], return_exceptions=True
@@ -2139,7 +2644,7 @@ if __name__ == "__main__":
     run_as_metrics_only = "--metrics-only" in sys.argv
 
     async def metrics_handler(request):
-        from prometheus_client import generate_latest, REGISTRY
+        from prometheus_client import REGISTRY, generate_latest
 
         metrics = generate_latest(REGISTRY)
         return web.Response(body=metrics, content_type="text/plain")
@@ -2186,7 +2691,7 @@ if __name__ == "__main__":
     run_as_metrics_only = "--metrics-only" in sys.argv
 
     async def metrics_handler(request):
-        from prometheus_client import generate_latest, REGISTRY
+        from prometheus_client import REGISTRY, generate_latest
 
         metrics = generate_latest(REGISTRY)
         return web.Response(body=metrics, content_type="text/plain")

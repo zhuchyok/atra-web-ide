@@ -51,7 +51,7 @@ class MLXRequestQueue:
     - Таймауты для защиты от зависших запросов
     """
 
-    def __init__(self, max_concurrent: int = 5, max_queue_size: int = 50):
+    def __init__(self, max_concurrent: int = 1, max_queue_size: int = 50):
         self.max_concurrent = max_concurrent
         self.max_queue_size = max_queue_size
         self.active_requests = 0
@@ -269,7 +269,7 @@ def get_request_queue() -> MLXRequestQueue:
     """Получить глобальный экземпляр очереди"""
     global _request_queue
     if _request_queue is None:
-        max_concurrent = int(os.getenv("MLX_MAX_CONCURRENT", "5"))
+        max_concurrent = int(os.getenv("MLX_MAX_CONCURRENT", "1"))
         max_queue = int(os.getenv("MLX_MAX_QUEUE_SIZE", "50"))
         _request_queue = MLXRequestQueue(max_concurrent=max_concurrent, max_queue_size=max_queue)
         logger.info(

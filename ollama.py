@@ -20,19 +20,19 @@ class OllamaClient:
 
     # Модели (70b/104b удалены)
     MODELS = {
-        "complex": "qwen2.5-coder:32b",
-        "enterprise": "qwen2.5-coder:32b",
+        "complex": "victoria-wisdom-v3.5:latest",
+        "enterprise": "victoria-wisdom-v3.5:latest",
         "reasoning": "qwq:32b",
-        "complex_alt": "qwen2.5-coder:32b",
-        "coding": "qwen2.5-coder:32b",                 # ~20GB - Качественный код
+        "complex_alt": "victoria-wisdom-v3.5:latest",
+        "coding": "victoria-wisdom-v3.5:latest",                 # ~20GB - Качественный код
         "fast": "phi3.5:3.8b",                         # ~2.5GB - Быстрые задачи
-        "fast_light": "phi3:mini-4k",                  # ~2GB - Быстрые ответы
-        "default": "qwen2.5:3b",                       # ~2GB - По умолчанию
+        "fast_light": "phi3.5:3.8b-stable",                  # ~2GB - Быстрые ответы
+        "default": "qwen2.5-coder:14b",                       # ~2GB - По умолчанию
         "tiny": "tinyllama:1.1b-chat"                  # ~700MB - Очень быстрые
     }
 
     # Быстрая модель для чата (по умолчанию)
-    FAST_MODEL = "qwen2.5:3b"  # Используем быструю модель по умолчанию
+    FAST_MODEL = "qwen2.5-coder:14b"  # Используем быструю модель по умолчанию
 
     def __init__(self, base_url: Optional[str] = None):
         self.base_url = base_url or settings.ollama_url
