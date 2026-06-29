@@ -6,13 +6,14 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 
-app = FastAPI(title="Knowledge OS VectorCore")
+app = FastAPI(title="ATRA VectorCore — Embedding Service")
 
-# Initialize model once globally
-MODEL_NAME = "all-MiniLM-L6-v2"
+# Use 768d model compatible with existing DB vectors
+MODEL_NAME = os.getenv("VECTOR_MODEL_NAME", "nomic-ai/nomic-embed-text-v1.5")
 print(f"Loading SentenceTransformer model: {MODEL_NAME}...")
 model = SentenceTransformer(MODEL_NAME)
-print("Model loaded successfully.")
+EMBEDDING_DIM = model.get_sentence_embedding_dimension()
+print(f"Model loaded. Dims: {EMBEDDING_DIM}")
 
 
 class TextRequest(BaseModel):

@@ -46,23 +46,6 @@ async def close_db_pool():
         _db_pool = None
 
 
-def run_cursor_agent(prompt: str):
-    try:
-        env = os.environ.copy()
-        result = subprocess.run(
-            ["/root/.local/bin/cursor-agent", "--print", prompt],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=300,
-            env=env,
-        )
-        return result.stdout.strip()
-    except Exception as e:
-        print(f"Board of Directors Agent error: {e}")
-        return None
-
-
 def parse_directive_structure(directive_text: str) -> Dict[str, Any]:
     """
     Парсинг текста директивы в структурированный формат.
@@ -241,9 +224,9 @@ async def consult_board(
                 return await run_smart_agent_async(
                     board_prompt,
                     expert_name="Совет Директоров",
-                    category="reasoning",  # Роутер выберет модель 20B+ (deepseek-r1:32b)
-                    is_critical=True,  # Максимальное качество + отключение параллельной обработки
-                    is_vip=True,  # [VIP ROUTE] Форсируем использование лучших моделей
+                    category="reasoning",  # → victoria-wisdom-v3.5 на MLX (всегда загружена)
+                    is_critical=True,
+                    is_vip=False,  # не ждём VIP — MLX слот свободен
                 )
 
             # Если доступна очередь, используем HIGH priority
@@ -267,8 +250,8 @@ async def consult_board(
                 directive = await board_llm_call()
 
         except ImportError:
-            print("⚠️ ai_core не доступен, используем run_cursor_agent как fallback")
-            directive = run_cursor_agent(board_prompt)
+            print("⚠️ ai_core не доступен, используем fallback директиву")
+            directive = None
 
         if not directive or len(directive) < 20:
             print("❌ Совет не смог принять решение (пустой ответ от LLM)")
@@ -519,22 +502,45 @@ async def run_board_meeting():
 ФОРМАТ: СТРОГИЙ КОРПОРАТИВНЫЙ СТИЛЬ.
 """
 
-            # 3. Вызов LLM
+            # 3. Вызов LLM — через Victoria /run (полный pipeline, без перезаписи system prompt)
+            directive = None
             try:
-                from ai_core import run_smart_agent_async
+                import httpx
+                _board_req = {
+                    "goal": f"""
+Проведи заседание Совета Директоров.
 
-                # Ежедневное заседание Совета требует мощную модель (минимум 30B)
-                # Роутер автоматически выберет deepseek-r1:70b или qwq:32b
-                directive = await run_smart_agent_async(
-                    board_prompt,
-                    expert_name="Совет Директоров",
-                    category="reasoning",  # Роутер выберет модель 30B+ (deepseek-r1:32b)
-                    is_critical=True,
-                    is_vip=True,  # [VIP ROUTE] Форсируем использование лучших моделей
-                )
-            except ImportError:
-                print("⚠️ ai_core не доступен, используем run_cursor_agent как fallback")
-                directive = run_cursor_agent(board_prompt)
+Данные:
+- OKR: {okr_context or "не заданы"}
+- Задачи: {tasks_context or "нет данных"}
+- Новые знания: {insights_context or "нет"}
+
+Сформулируй ДИРЕКТИВУ СОВЕТА в формате:
+РЕШЕНИЕ: [главное направление]
+ОБОСНОВАНИЕ: [почему это важно]
+РИСКИ: [список рисков]
+УВЕРЕННОСТЬ: [0.0-1.0]
+ФОКУСЫ:
+1) [первый фокус]
+2) [второй фокус]
+3) [третий фокус]
+""",
+                    "project_context": "atra-web-ide",
+                    "async_mode": False,
+                }
+                async with httpx.AsyncClient(timeout=600.0) as client:
+                    resp = await client.post(
+                        "http://victoria-agent:8000/run",
+                        json=_board_req,
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        directive = data.get("output", "")
+            except Exception as e:
+                print(f"⚠️ Board LLM call failed: {e}")
+
+            if directive:
+                print(f"✅ ДИРЕКТИВА ПОЛУЧЕНА ({len(directive)} chars)")
 
             if (
                 directive

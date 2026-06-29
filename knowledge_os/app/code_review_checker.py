@@ -3,7 +3,6 @@ Code Review Checker - авто-чекер перед изменениями
 Концепция из agent.md: проверка на дубликаты, хардкоды, структуру перед применением изменений
 """
 
-import logging
 import os
 import re
 from pathlib import Path

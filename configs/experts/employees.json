@@ -1,6 +1,6 @@
 {
-  "_comment": "Единый источник для добавления новых: запись сюда, затем python scripts/sync_employees.py. Обратная синхронизация из БД: scripts/sync_employees_from_db.py.",
-  "updated": "2026-02-03",
+  "_comment": "Единый источник. sync_employees_from_db.py подтягивает экспертов из БД.",
+  "updated": "2026-06-27",
   "employees": [
     {
       "name": "Виктория",
@@ -441,6 +441,11 @@
       "name": "Test Expert",
       "role": "Test Role",
       "department": "Test Department"
+    },
+    {
+      "name": "Совет Директоров",
+      "role": "Коллегиальный орган управления",
+      "department": "Management"
     }
   ]
 }

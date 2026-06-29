@@ -130,7 +130,7 @@ async def run_canary_daemon():
             )
             _untested = [dict(r) for r in rows]
     except Exception as e:
-        logger.debug(f"[CANARY_DAEMON] Query failed: {e}")
+        logger.warning(f"[CANARY_DAEMON] Query failed: {e}")
 
     for mutation in _untested:
         try:

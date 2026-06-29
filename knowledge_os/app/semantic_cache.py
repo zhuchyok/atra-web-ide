@@ -241,40 +241,34 @@ async def get_embedding(text: str) -> Optional[list]:
 async def _execute_embedding_request(text: str) -> Optional[list]:
     """
     Внутренняя логика выполнения запроса с ретраями.
-    [SINGULARITY 31.3] Primary: sentence-transformers (local, reliable).
-    Fallback: Ollama /api/embeddings (fast when available).
+    [SINGULARITY 31.3] Primary: VectorCore microservice (port 8001).
+    Fallback: sentence-transformers (local).
     """
-    # [PRIMARY] sentence-transformers — всегда работает, локально
+    # [PRIMARY] VectorCore microservice (dedicated, no Ollama contention)
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.post(
+                "http://localhost:8100/encode",
+                json={"text": text[:2000]},
+            )
+            if resp.status_code == 200:
+                _emb = resp.json().get("embedding")
+                if _emb:
+                    logger.debug("✅ [EMBED] VectorCore OK")
+                    return _emb
+    except Exception:
+        pass
+
+    # [FALLBACK] Sentence-transformers local
     try:
         from sentence_transformers import SentenceTransformer
         _st_model = SentenceTransformer('nomic-ai/nomic-embed-text-v1.5')
         _emb = _st_model.encode(text[:2000])
-        logger.debug("✅ [EMBED] sentence-transformers primary OK")
+        logger.debug("✅ [EMBED] sentence-transformers fallback OK")
         return _emb.tolist()
     except Exception as _st_err:
         logger.debug(f"[EMBED] sentence-transformers failed: {_st_err}")
 
-    # [FALLBACK] Ollama /api/embeddings (быстро, но нестабильно)
-    max_retries = 2
-    for attempt in range(max_retries):
-        if attempt > 0:
-            await asyncio.sleep(1)
-        client = None
-        if get_http_client:
-            try:
-                client = await get_http_client()
-            except Exception:
-                pass
-        try:
-            if client is None:
-                async with httpx.AsyncClient(verify=False) as fallback_client:
-                    res = await _do_embed_request(fallback_client, text)
-            else:
-                res = await _do_embed_request(client, text)
-            if res:
-                return res
-        except Exception:
-            pass
     return None
 
 

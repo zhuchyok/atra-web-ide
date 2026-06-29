@@ -259,7 +259,7 @@ class VisionProcessor:
     ) -> Optional[str]:
         """Fallback на Ollama с поддержкой разных моделей"""
         # [OMNI-RAG] Используем moondream как основную модель для Ollama
-        models_to_try = ["minicpm-v:latest", "moondream:latest"]  # moondream text-only fallback
+        models_to_try = ["minicpm-v:latest"]  # единственная vision-модель, moondream images не поддерживает
 
         for node in self.fallback_nodes:
             for model_name in models_to_try:
