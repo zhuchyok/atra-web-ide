@@ -4760,6 +4760,16 @@ async def _run_task_background(
     store = _run_task_store[task_id]
     if correlation_id:
         store["correlation_id"] = correlation_id
+
+    # [SINGULARITY 31.3] Auto-sync store to Redis on every update
+    async def _sync_store():
+        if redis_manager:
+            try:
+                st = {k: v for k, v in store.items() if v is not None}
+                await redis_manager.update_task_status(task_id, st.get("status", "processing"), metadata=st)
+            except Exception:
+                pass
+
     # Сразу переводим в processing, иначе клиент при polling видит только queued до завершения
     if redis_manager:
         await redis_manager.update_task_status(
@@ -4807,6 +4817,7 @@ async def _run_task_background(
                         metadata={"knowledge": knowledge, "stage": "completed"},
                     )
                 else:
+                    await _sync_store()
                     store["status"] = "completed"
                     store["output"] = content
                     store["knowledge"] = knowledge
@@ -4839,6 +4850,7 @@ async def _run_task_background(
                     metadata={"knowledge": knowledge, "stage": "completed"},
                 )
             else:
+                await _sync_store()
                 store["status"] = "completed"
                 store["output"] = output
                 store["knowledge"] = knowledge
@@ -4868,6 +4880,7 @@ async def _run_task_background(
                     metadata={"knowledge": knowledge, "stage": "completed"},
                 )
             else:
+                await _sync_store()
                 store["status"] = "completed"
                 store["output"] = output
                 store["knowledge"] = knowledge
@@ -4921,6 +4934,7 @@ async def _run_task_background(
                         metadata={"knowledge": knowledge, "stage": "completed"},
                     )
                 else:
+                    await _sync_store()
                     store["status"] = "completed"
                     store["output"] = _normalize_output_for_user(quick_text)
                     store["knowledge"] = knowledge
@@ -4978,6 +4992,7 @@ async def _run_task_background(
                         metadata={"knowledge": knowledge, "stage": "completed"},
                     )
                 else:
+                    await _sync_store()
                     store["status"] = "completed"
                     store["output"] = _normalize_output_for_user(quick_text)
                     store["knowledge"] = knowledge
@@ -5006,6 +5021,7 @@ async def _run_task_background(
                     metadata={"knowledge": knowledge, "stage": "clarification"},
                 )
             else:
+                await _sync_store()
                 store["status"] = "completed"
                 store["output"] = clarification_text
                 store["knowledge"] = knowledge
@@ -5030,6 +5046,7 @@ async def _run_task_background(
                     metadata={"knowledge": knowledge, "stage": "decline"},
                 )
             else:
+                await _sync_store()
                 store["status"] = "completed"
                 store["output"] = output
                 store["knowledge"] = knowledge
@@ -5098,6 +5115,7 @@ async def _run_task_background(
                 clarification_text = "Victoria уточняет: " + (
                     "; ".join(questions) if questions else "Нужно уточнение."
                 )
+                await _sync_store()
                 store["status"] = "completed"
                 store["output"] = clarification_text
                 store["knowledge"] = {
@@ -5111,6 +5129,7 @@ async def _run_task_background(
     # Ранний ответ для вопросов о данных (метрики Mac Studio, корпорация) — без лимита 500 шагов
     quick_data = await _try_corporation_data_quick_response(goal, correlation_id)
     if quick_data:
+        await _sync_store()
         store["status"] = "completed"
         store["output"] = quick_data["output"]
         store["knowledge"] = quick_data.get("knowledge") or {}
@@ -5128,6 +5147,7 @@ async def _run_task_background(
     if is_operational_execution_goal(goal_for_exec):
         fast_output = await _try_dashboard_operational_fastpath(agent, goal_for_exec)
         if fast_output:
+            await _sync_store()
             store["status"] = "completed"
             store["output"] = fast_output
             store["knowledge"] = {
@@ -5188,8 +5208,10 @@ async def _run_task_background(
                         )
                         if knowledge_os_task_id:
                             store["knowledge_os_task_id"] = knowledge_os_task_id
+                    except NameError:
+                        pass  # async_mode not defined in background path
                     except Exception as db_e:
-                        logger.warning("Orchestration V2 DB record failed (non-critical): %s", db_e)
+                            logger.warning("Orchestration V2 DB record failed (non-critical): %s", db_e)
 
                     # План «как я» п.12.2 п.1: при EXECUTE_ASSIGNMENTS_IN_RUN=true — выполнить назначения и подставить результаты в контекст (фон)
                     _exec_env = os.getenv("EXECUTE_ASSIGNMENTS_IN_RUN", "").strip().lower()
@@ -5257,6 +5279,7 @@ async def _run_task_background(
                                         _inject_strategy_into_knowledge(
                                             store.setdefault("knowledge", {}), strategy_result
                                         )
+                                        await _sync_store()
                                         store["status"] = "completed"
                                         store["stage"] = "completed"
                                         store["output"] = _normalize_output_for_user(_exec_results)
@@ -5343,6 +5366,7 @@ async def _run_task_background(
                     "goal_preview": (goal_for_exec or "")[:120],
                 }
                 _inject_strategy_into_knowledge(knowledge, strategy_result)
+                await _sync_store()
                 store["status"] = "completed"
                 store["output"] = _normalize_output_for_user(veronica_result.get("output") or "")
                 if not isinstance(store["output"], str):
@@ -5473,6 +5497,7 @@ async def _run_task_background(
             else:
                 enhanced_result = solve_task.result()
             if enhanced_result is None or not isinstance(enhanced_result, dict):
+                await _sync_store()
                 store["status"] = "completed"
                 store["output"] = (
                     "Victoria Enhanced не вернула результат (solve вернул None или не dict)."
@@ -5485,6 +5510,7 @@ async def _run_task_background(
                 _inject_strategy_into_knowledge(store["knowledge"], strategy_result)
             else:
                 if enhanced_result.get("status") == "failed":
+                    await _sync_store()
                     store["status"] = "failed"
                     store["error"] = str(
                         enhanced_result.get("result") or "Victoria Enhanced failed"
@@ -5523,6 +5549,7 @@ async def _run_task_background(
                     "goal_preview": (goal_for_exec or "")[:120],
                 }
                 _inject_strategy_into_knowledge(knowledge, strategy_result)
+                await _sync_store()
                 store["status"] = "completed"
                 # Несколько ключей на случай разных путей Enhanced (CHANGES §56.1)
                 raw_result = enhanced_result.get("result") or enhanced_result.get("output") or ""
@@ -5595,6 +5622,7 @@ async def _run_task_background(
                     agent.run(goal_sanitized, max_steps=max_steps),
                     timeout=_bg_agent_timeout,
                 )
+                await _sync_store()
                 store["status"] = "completed"
                 try:
                     store["output"] = _normalize_output_for_user(result)
@@ -5640,6 +5668,7 @@ async def _run_task_background(
             "Victoria agent.run превысил лимит времени. "
             "Проверьте доступность MLX/Ollama и нагрузку очередей."
         )
+        await _sync_store()
         store["status"] = "failed"
         store["error"] = timeout_msg
         store["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -5666,6 +5695,7 @@ async def _run_task_background(
         if redis_manager:
             await redis_manager.update_task_status(task_id, "failed", result="Задача отменена")
         else:
+            await _sync_store()
             store["status"] = "failed"
             store["error"] = "Задача отменена"
         raise
@@ -5675,6 +5705,7 @@ async def _run_task_background(
         if redis_manager:
             await redis_manager.update_task_status(task_id, "failed", result=str(e))
         else:
+            await _sync_store()
             store["status"] = "failed"
             store["error"] = str(e)
     except BaseException as e:
@@ -5682,6 +5713,7 @@ async def _run_task_background(
         if redis_manager:
             await redis_manager.update_task_status(task_id, "failed", result=str(e)[:2000])
         else:
+            await _sync_store()
             store["status"] = "failed"
             store["error"] = str(e)[:2000]
         raise
@@ -7730,6 +7762,29 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
         raise HTTPException(status_code=400, detail="No user messages found")
 
     goal = user_messages[-1].content
+
+    # [SINGULARITY 31.3] Обработка изображений из сообщения
+    _images_to_process = []
+    for m in request.messages:
+        if isinstance(m.content, list):
+            for item in m.content:
+                if isinstance(item, dict) and item.get("type") == "image_url":
+                    url = item.get("image_url", {}).get("url", "")
+                    if url and url.startswith("data:image"):
+                        _images_to_process.append(url.split(",", 1)[1] if "," in url else "")
+    if _images_to_process:
+        try:
+            from app.vision_processor import VisionProcessor
+            vp = VisionProcessor()
+            descriptions = []
+            for idx, b64 in enumerate(_images_to_process[:3]):
+                desc = await vp.process_image(image_base64=b64, prompt="Опиши это изображение подробно")
+                if desc:
+                    descriptions.append(f"[Image {idx+1}: {desc}]")
+            if descriptions:
+                goal += "\n" + "\n".join(descriptions)
+        except Exception as e:
+            logger.warning(f"[VISION] Image processing failed: {e}")
 
     # Формируем историю чата для Виктории
     chat_history = []
