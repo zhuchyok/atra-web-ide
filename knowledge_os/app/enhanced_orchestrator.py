@@ -18,6 +18,8 @@ import traceback
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 
+from orchestrator_helpers import has_execution_backlog
+
 try:
     from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, generate_latest
 
@@ -2365,13 +2367,7 @@ async def run_enhanced_orchestration_cycle():
         )
 
         async def _has_execution_backlog(_conn) -> bool:
-            pending_now = await _conn.fetchval(
-                "SELECT count(*) FROM tasks WHERE status = 'pending'"
-            )
-            in_progress_now = await _conn.fetchval(
-                "SELECT count(*) FROM tasks WHERE status = 'in_progress'"
-            )
-            return bool((pending_now or 0) > 0 or (in_progress_now or 0) > 0)
+            return await has_execution_backlog(_conn)
 
         try:
             unassigned_count = await conn.fetchval(
