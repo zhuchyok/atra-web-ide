@@ -1590,24 +1590,10 @@ async def run_smart_agent_async_impl(
 ):
     start_time = time.time()
 
-    # [SINGULARITY 23.0] U-Shape Context Assembly — load memory crystals from DB
-    memory_crystals = ""
-    try:
-        _mc_pool = await _get_db_pool()
-        if _mc_pool:
-            async with _mc_pool.acquire() as _mc_conn:
-                _mc_rows = await _mc_conn.fetch(
-                    "SELECT crystal_type, content FROM memory_crystals WHERE project_context = $1 ORDER BY created_at DESC LIMIT 10",
-                    project_context or "atra-web-ide",
-                )
-                if _mc_rows:
-                    _mc_text = "\n".join(
-                        f"[{r['crystal_type'].upper()}] {r['content']}" for r in _mc_rows
-                    )
-                    memory_crystals = f"💎 ПАМЯТЬ ПРОЕКТА (MEMORY CRYSTALS):\n{_mc_text}\n"
-                    logger.info(f"💎 [MEMORY CRYSTALS] Loaded {len(_mc_rows)} crystals")
-    except Exception as _mc_err:
-        logger.debug(f"Memory crystals load failed: {_mc_err}")
+    # [SINGULARITY 31.3] Pipeline: memory crystals, threats, anti-hallucination
+    from app.ai_pipeline import load_memory_crystals, check_threats, inject_anti_hallucination, inject_wisdom, inject_expert_dna, clean_response, strip_think_blocks
+
+    memory_crystals = await load_memory_crystals(project_context)
 
     # [SINGULARITY 26.9] Queue complex tasks to Redis worker
     goal_lower = (prompt or "").lower()
@@ -1639,35 +1625,13 @@ async def run_smart_agent_async_impl(
     if not is_discussion_mode and expert_system_prompt:
         prompt = f"### ТЫ — {expert_name.upper()}\n{expert_system_prompt}\n\n{prompt}"
 
-    # [SINGULARITY 31.3] Threat Detection — проверяем промпт на инъекции и утечки
-    try:
-        from app.threat_detector import get_threat_detector
-        _td = get_threat_detector()
-        _td_results = _td.analyze(prompt, "")  # Returns list of threats
-        if _td_results:
-            _td_sev = max(
-                {"critical": 3, "high": 2, "medium": 1, "low": 0}.get(t.get("severity", "low"), 0)
-                for t in _td_results
-            )
-            _td_types = [t.get("threat_type", "unknown") for t in _td_results]
-            logger.warning(f"🛡️ [THREAT] {_td_types} (severity=max={_td_sev}) in prompt for {expert_name}")
-            if _td_sev >= 3:
-                return _build_error_response(f"[SECURITY] Prompt rejected: {_td_types}")
-    except Exception as _td_err:
-        logger.debug(f"[THREAT] Detection unavailable: {_td_err}")
+    # [SINGULARITY 31.3] Threat Detection — проверяем промпт
+    is_threat, threat_types = check_threats(prompt)
+    if is_threat:
+        return _build_error_response(f"[SECURITY] Prompt rejected: {threat_types}")
 
     # [SINGULARITY 27.0] Anti-Hallucination Instruction
-    if not is_discussion_mode and expert_name in ("Виктория", "Victoria", "victoria"):
-        anti_hallucination = """
-### [CRITICAL: ANTI-HALLUCINATION - ОБЯЗАТЕЛЬНО]
-Ты маленький помощник. Большая модель (Brain) планирует, ты только выполняешь.
-ПРАВИЛА:
-1. НИКОГДА не выдумывай факты, файлы, директории
-2. Если не знаешь — отвечай "Не знаю" или "Нужно уточнить"
-3. Не притворяйся, что помнишь разговор
-4. Выполняй ТОЛЬКО то, что сказано в запросе
-"""
-        prompt = anti_hallucination + "\n" + prompt
+    prompt = inject_anti_hallucination(prompt, expert_name, is_discussion_mode)
 
     # [SINGULARITY 23.0] U-Shape Context Assembly (TOP)
     if memory_crystals:
@@ -4134,6 +4098,7 @@ Use HANDOFF only if delegation genuinely improves the result.
 
     # Cleanup internal metadata markers from response
     response = _clean_response(response)
+    response = strip_think_blocks(response)
 
     return response
 
