@@ -1591,7 +1591,7 @@ async def run_smart_agent_async_impl(
     start_time = time.time()
 
     # [SINGULARITY 31.3] Pipeline: memory crystals, threats, anti-hallucination
-    from app.ai_pipeline import load_memory_crystals, check_threats, inject_anti_hallucination, inject_wisdom, inject_expert_dna, clean_response, strip_think_blocks
+    from app.ai_pipeline import load_memory_crystals, check_threats, inject_anti_hallucination, inject_wisdom, inject_expert_dna, clean_response, strip_think_blocks, inject_context_enrichment
 
     memory_crystals = await load_memory_crystals(project_context)
 
@@ -1709,89 +1709,11 @@ Use HANDOFF only if delegation genuinely improves the result.
     )
 
     # [SINGULARITY 20.0] Wisdom Injection: Meta-Strategies from Knowledge Base
-    meta_wisdom_context = ""
-    mentorship_context = ""
-    experience_context = ""
-    constitution_context = ""
-    try:
-        # 0. Digital Constitution
-        from digital_constitution import get_constitution_context
-
-        constitution_context = get_constitution_context()
-
-        pool = await _get_db_pool()
-        if pool:
-            async with pool.acquire() as conn:
-                # 1. Meta-Strategies
-                meta_nodes = await conn.fetch("""
-                    SELECT content FROM knowledge_nodes
-                    WHERE metadata->>'type' = 'meta_wisdom'
-                    AND is_verified = TRUE
-                    ORDER BY created_at DESC LIMIT 3
-                """)
-                if meta_nodes:
-                    meta_wisdom_context = "\n### 🏛 CORPORATE META-STRATEGIES (WISDOM):\n"
-                    for node in meta_nodes:
-                        meta_wisdom_context += f"- {node['content']}\n"
-                    logger.info(f"🏛 [WISDOM INJECTION] Injected {len(meta_nodes)} meta-strategies")
-
-                # 2. Mentorship Notes for current expert
-                mentorship_nodes = await conn.fetch(
-                    """
-                    SELECT content FROM knowledge_nodes
-                    WHERE metadata->>'type' = 'mentorship_note'
-                    AND metadata->>'target_expert' = $1
-                    ORDER BY created_at DESC LIMIT 2
-                """,
-                    expert_name,
-                )
-                if mentorship_nodes:
-                    mentorship_context = f"\n### 🎓 MENTORSHIP FEEDBACK FOR {expert_name}:\n"
-                    for node in mentorship_nodes:
-                        mentorship_context += f"- {node['content']}\n"
-                    logger.info(
-                        f"🎓 [MENTORSHIP INJECTION] Injected {len(mentorship_nodes)} notes for {expert_name}"
-                    )
-
-                # 3. [SINGULARITY 20.0] Voice of Experience: Predictive Warnings
-                try:
-                    from experience_retriever import get_experience_context
-
-                    experience_context = await get_experience_context(user_part, expert_name)
-                    if experience_context:
-                        logger.info(
-                            f"🧠 [VOICE OF EXPERIENCE] Injected proactive warnings for {expert_name}"
-                        )
-                except Exception as ee:
-                    logger.debug(f"⚠️ [VOICE OF EXPERIENCE] Error: {ee}")
-
-                # 4. [SINGULARITY 21.12] Success Retrieval: Collective Experience
-                try:
-                    from success_retriever import get_success_context
-
-                    # [SINGULARITY 21.17] Expert-Aware Success Retrieval
-                    success_context = await get_success_context(user_part, expert_name=expert_name)
-                    if success_context:
-                        experience_context += success_context
-                        logger.info(
-                            f"🏆 [SUCCESS RETRIEVAL] Injected successful examples for {expert_name}"
-                        )
-                except Exception as se:
-                    logger.debug(f"⚠️ [SUCCESS RETRIEVAL] Error: {se}")
-
-                # 5. [SINGULARITY 21.17] Deep Expert Specialization: DNA Injection
-                try:
-                    from expert_dna_manager import get_expert_dna_manager
-
-                    dna_mgr = get_expert_dna_manager()
-                    expert_dna = await dna_mgr.get_expert_dna(expert_name)
-                    if expert_dna:
-                        experience_context = expert_dna + "\n" + experience_context
-                        logger.info(f"🧬 [EXPERT DNA] Injected specialization for {expert_name}")
-                except Exception as de:
-                    logger.debug(f"⚠️ [EXPERT DNA] Error: {de}")
-    except Exception as we:
-        logger.debug(f"⚠️ [WISDOM/MENTORSHIP INJECTION] Error: {we}")
+    contexts = await inject_context_enrichment(expert_name, user_part, project_context)
+    meta_wisdom_context = contexts["meta_wisdom"]
+    mentorship_context = contexts["mentorship"]
+    experience_context = contexts["experience"]
+    constitution_context = contexts["constitution"]
 
     # --- [SINGULARITY 21.21] RECURSIVE TESTING PROMPT INJECTION ---
     recursive_test_instruction = """

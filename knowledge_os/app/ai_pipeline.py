@@ -78,6 +78,72 @@ def inject_wisdom(prompt: str, is_discussion: bool = False) -> str:
         return prompt
 
 
+async def inject_context_enrichment(
+    expert_name: str, user_part: str, project_context: Optional[str] = None
+) -> Dict[str, str]:
+    """Load wisdom, mentorship, experience, success, and DNA context from DB."""
+    result = {
+        "meta_wisdom": "",
+        "mentorship": "",
+        "experience": "",
+        "constitution": "",
+    }
+    try:
+        from digital_constitution import get_constitution_context
+        result["constitution"] = get_constitution_context()
+
+        from ai_core import _get_db_pool
+        pool = await _get_db_pool()
+        if pool:
+            async with pool.acquire() as conn:
+                # Meta-Strategies
+                rows = await conn.fetch(
+                    "SELECT content FROM knowledge_nodes WHERE metadata->>'type' = 'meta_wisdom' AND is_verified = TRUE ORDER BY created_at DESC LIMIT 3"
+                )
+                if rows:
+                    texts = "\n".join(f"- {r['content']}" for r in rows)
+                    result["meta_wisdom"] = f"\n### 🏛 CORPORATE META-STRATEGIES (WISDOM):\n{texts}\n"
+                    logger.info(f"🏛 [WISDOM] Injected {len(rows)} meta-strategies")
+
+                # Mentorship
+                rows = await conn.fetch(
+                    "SELECT content FROM knowledge_nodes WHERE metadata->>'type' = 'mentorship_note' AND metadata->>'target_expert' = $1 ORDER BY created_at DESC LIMIT 2",
+                    expert_name,
+                )
+                if rows:
+                    texts = "\n".join(f"- {r['content']}" for r in rows)
+                    result["mentorship"] = f"\n### 🎓 MENTORSHIP FOR {expert_name}:\n{texts}\n"
+
+        # Experience & Success
+        try:
+            from experience_retriever import get_experience_context
+            exp = await get_experience_context(user_part, expert_name)
+            if exp:
+                result["experience"] = exp
+        except Exception:
+            pass
+        try:
+            from success_retriever import get_success_context
+            suc = await get_success_context(user_part, expert_name=expert_name)
+            if suc:
+                result["experience"] += suc
+        except Exception:
+            pass
+
+        # Expert DNA
+        try:
+            from expert_dna_manager import get_expert_dna_manager
+            dna = await get_expert_dna_manager().get_expert_dna(expert_name)
+            if dna:
+                result["experience"] = dna + "\n" + result["experience"]
+                logger.info(f"🧬 [EXPERT DNA] Injected for {expert_name}")
+        except Exception:
+            pass
+    except Exception as e:
+        logger.debug(f"Context enrichment failed: {e}")
+    return result
+
+
 async def inject_expert_dna(prompt: str, expert_name: str) -> str:
     """Inject expert DNA rules."""
     try:
