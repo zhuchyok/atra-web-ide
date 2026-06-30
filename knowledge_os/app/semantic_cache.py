@@ -272,45 +272,6 @@ async def _execute_embedding_request(text: str) -> Optional[list]:
     return None
 
 
-async def _do_embed_request(client: httpx.AsyncClient, text: str) -> Optional[list]:
-    """Single embedding request (shared or ad-hoc client)."""
-    try:
-        # [FIX v31.1] Truncate text to avoid context length overflow in Ollama (nomic-embed-text limit is ~2048 tokens)
-        # We use a very safe limit of 2000 characters to prevent HTTP 500
-        safe_text = text[:2000] if text else ""
-
-        response = await client.post(
-            OLLAMA_EMBED_URL,
-            json={
-                "model": OLLAMA_MODEL,
-                "prompt": safe_text,
-            },  # [FIX] Removed keep_alive: 0 to avoid constant unloading
-            timeout=float(os.getenv("OLLAMA_EMBED_TIMEOUT_SEC", "8")),
-        )
-        if response.status_code == 503:
-            # [SINGULARITY 24.3] Не бросаем сразу, даем get_embedding шанс на ретрай
-            logger.debug("Ollama embeddings service busy (503).")
-            return None
-        if response.status_code != 200:
-            logger.error("Ollama error %d: %s", response.status_code, response.text)
-        response.raise_for_status()
-        raw = response.content
-        if not raw:
-            logger.warning("Embedding response empty")
-            return None
-        data = _json_loads(raw) if _json_loads else response.json()
-        if not isinstance(data, dict):
-            return None
-        return data.get("embedding")
-    except Exception as exc:  # pylint: disable=broad-exception-caught
-        logger.error(
-            "Embedding error (Ollama) for text '%s...': %s (Type: %s)",
-            text[:50],
-            exc,
-            type(exc).__name__,
-        )
-        return None
-
 
 class SemanticAICache:
     """
