@@ -1561,6 +1561,17 @@ async def run_smart_agent_async(
         except ImportError:
             pass
 
+    # [SINGULARITY 31.3] Try v2 pipeline if enabled (feature flag)
+    if os.getenv("USE_AI_PIPELINE_V2", "false").lower() in ("true", "1", "yes"):
+        try:
+            from app.ai_pipeline import run_smart_agent_async_v2
+            return await run_smart_agent_async_v2(
+                prompt, expert_name, category, require_cot, is_critical,
+                images, session_id, local_router, is_vip, project_context
+            )
+        except Exception as v2_err:
+            logger.debug(f"[V2] Fallback to v1: {v2_err}")
+
     return await run_smart_agent_async_impl(
         prompt,
         expert_name,
