@@ -8,6 +8,7 @@ Expert Services — список сотрудников и их услуг дл�
 
 import asyncio
 import json
+import logging
 import os
 import threading
 import time

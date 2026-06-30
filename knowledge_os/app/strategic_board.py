@@ -542,6 +542,11 @@ async def run_board_meeting():
             if directive:
                 print(f"✅ ДИРЕКТИВА ПОЛУЧЕНА ({len(directive)} chars)")
 
+            # [SINGULARITY 31.3] Фильтр: отбрасываем HTML-ответы и битые данные
+            if directive and ('<' in directive and '>' in directive and ('<!DOCTYPE' in directive or '<html' in directive or '<body' in directive)):
+                print("⚠️ LLM вернул HTML вместо директивы")
+                directive = None
+
             if (
                 directive
                 and len(directive) > 20
