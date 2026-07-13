@@ -123,7 +123,7 @@ class BrowserOperator:
             # Ensure browser is closed if needed (Agent usually handles this)
             pass
 
-async def verify_ui(self, url: str, requirements: str) -> Dict[str, Any]:
+    async def verify_ui(self, url: str, requirements: str) -> Dict[str, Any]:
         goal = f"Go to {url} and verify if it matches these requirements: {requirements}. Provide a detailed report and a screenshot."
         return await self.execute_task(goal)
 
@@ -140,25 +140,25 @@ async def verify_ui(self, url: str, requirements: str) -> Dict[str, Any]:
                 "message": "Neither browser-use nor playwright available",
                 "output": "Please install: pip install playwright browser-use",
             }
-        
+
         try:
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True)
                 page = await browser.new_page()
-                
+
                 url_match = None
                 if "http" in goal.lower():
                     for word in goal.split():
                         if word.startswith(("http://", "https://")):
                             url_match = word
                             break
-                
+
                 if url_match:
                     await page.goto(url_match)
                     await page.wait_for_load_state("networkidle")
                     content = await page.content()
                     await browser.close()
-                    
+
                     return {
                         "status": "completed",
                         "message": f"Loaded {url_match}",
@@ -168,7 +168,7 @@ async def verify_ui(self, url: str, requirements: str) -> Dict[str, Any]:
                 else:
                     await browser.close()
                     return {
-                        "status": "error", 
+                        "status": "error",
                         "message": "No URL found in task",
                         "output": goal,
                     }

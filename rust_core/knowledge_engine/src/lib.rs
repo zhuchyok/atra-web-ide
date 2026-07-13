@@ -201,7 +201,7 @@ impl KnowledgeEngine {
             // Fast path: use ANN (HNSW) first, then apply context filter.
             // This avoids large sequential scans on the whole table when context
             // filters are broad and keeps p95 latency predictable.
-            let ann_pool = std::cmp::min(std::cmp::max(fetch_limit * 25, 500), 5000);
+            let ann_pool = (fetch_limit * 25).clamp(500, 5000);
             let context_query = "
                 WITH ann AS (
                     SELECT id, content, metadata, created_at, updated_at, embedding, source_ref

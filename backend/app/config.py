@@ -9,9 +9,8 @@ import os
 from functools import lru_cache
 from typing import List, Optional, Union
 
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import field_validator
-from pydantic import model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +97,9 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             if v.startswith("["):
                 try:
-                    return json.loads(v)
+                    loaded = json.loads(v)
+                    if isinstance(loaded, list):
+                        return [str(origin).strip() for origin in loaded if str(origin).strip()]
                 except json.JSONDecodeError:
                     pass
             return [o.strip() for o in v.split(",") if o.strip()]

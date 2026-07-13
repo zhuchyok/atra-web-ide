@@ -1,6 +1,6 @@
 use clap::builder::styling::{AnsiColor, Styles};
 use clap::{CommandFactory, Parser, Subcommand, ValueHint};
-use clap_complete::{Shell, generate};
+use clap_complete::{generate, Shell};
 use colored::*;
 use dotenv::dotenv;
 use ignore::WalkBuilder;
@@ -228,8 +228,8 @@ fn gather_context(message: &str) -> String {
     let root = project_root();
 
     for word in message.split_whitespace() {
-        if word.starts_with('@') {
-            let file_ref = word[1..].trim_matches('"');
+        if let Some(stripped) = word.strip_prefix('@') {
+            let file_ref = stripped.trim_matches('"');
             let path = Path::new(file_ref);
 
             let (content_path, display_path): (std::path::PathBuf, String) =
@@ -240,16 +240,14 @@ fn gather_context(message: &str) -> String {
                     (p.clone(), p.to_string_lossy().to_string())
                 } else {
                     let mut found_path: Option<(std::path::PathBuf, String)> = None;
-                    for result in WalkBuilder::new(&root).build() {
-                        if let Ok(entry) = result {
-                            if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
-                                let lossy = entry.path().to_string_lossy();
-                                if lossy.ends_with(file_ref) || entry.path().ends_with(file_ref) {
-                                    if let Ok(_content) = fs::read_to_string(entry.path()) {
-                                        let path_str = entry.path().to_string_lossy().to_string();
-                                        found_path = Some((entry.path().to_path_buf(), path_str));
-                                        break;
-                                    }
+                    for entry in WalkBuilder::new(&root).build().flatten() {
+                        if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
+                            let lossy = entry.path().to_string_lossy();
+                            if lossy.ends_with(file_ref) || entry.path().ends_with(file_ref) {
+                                if let Ok(_content) = fs::read_to_string(entry.path()) {
+                                    let path_str = entry.path().to_string_lossy().to_string();
+                                    found_path = Some((entry.path().to_path_buf(), path_str));
+                                    break;
                                 }
                             }
                         }
@@ -298,7 +296,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(config_path) = cli.config.or_else(|| {
         let home = env::var("HOME").ok()?;
         let path = PathBuf::from(home).join(".config/atra/config.toml");
-        if path.exists() { Some(path) } else { None }
+        if path.exists() {
+            Some(path)
+        } else {
+            None
+        }
     }) {
         if let Ok(content) = fs::read_to_string(&config_path) {
             if let Ok(config) = toml::from_str::<toml::Value>(&content) {
@@ -762,7 +764,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Ok(res) if res.status().is_success() => {
                             let data: serde_json::Value = res.json().await?;
                             if data["success"].as_bool().unwrap_or(false) {
-                                println!("{} {}", "✔".green(), "Committed.");
+                                println!("{} Committed.", "✔".green());
                                 if let Some(s) = data["stdout"].as_str() {
                                     println!("{}", s);
                                 }

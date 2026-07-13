@@ -74,6 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Extract all links to chapters
     let link_selector = Selector::parse("a").unwrap();
     let mut chapter_urls = Vec::new();
+    #[allow(clippy::collapsible_if)]
     for link in document.select(&link_selector) {
         if let Some(href) = link.value().attr("href") {
             if href.ends_with(".html") && !href.contains("http") {

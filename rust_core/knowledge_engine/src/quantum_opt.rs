@@ -95,13 +95,12 @@ impl QuantumInspiredOptimizer {
 
             let mut pick = rng.gen_range(0.0_f32..total_score);
 
-            for i in 0..pool.len() {
-                let weight = scores[i];
-                if pick <= weight || i == pool.len() - 1 {
+            for (i, weight) in scores.iter().enumerate().take(pool.len()) {
+                if pick <= *weight || i == pool.len() - 1 {
                     sampled.push(pool.remove(i));
                     break;
                 }
-                pick -= weight;
+                pick -= *weight;
             }
         }
 
