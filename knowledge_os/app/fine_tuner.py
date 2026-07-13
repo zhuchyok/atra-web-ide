@@ -67,8 +67,9 @@ class FineTuner:
         model_name: str,
         training_data: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        import httpx
         import json
+
+        import httpx
 
         try:
             async with httpx.AsyncClient(timeout=300.0) as client:

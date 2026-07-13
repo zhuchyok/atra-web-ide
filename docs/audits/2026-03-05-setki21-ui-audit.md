@@ -224,6 +224,7 @@ WebFetch не поддерживает POST-запросы и сохранени
 1. **Playwright Integration:**
    - По документации, в проект `setki-21` уже интегрирован Playwright
    - Создать E2E тесты для админ-панели:
+
      ```typescript
      // tests/e2e/admin-dealers.spec.ts
      test("should show dealer tabs", async ({ page }) => {

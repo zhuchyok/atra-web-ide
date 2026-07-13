@@ -1,19 +1,21 @@
-import os
 import ast
 import logging
-from typing import Dict, Set, List
+import os
+from typing import Dict, List, Set
 
 logger = logging.getLogger(__name__)
+
 
 class DependencyMapper:
     """
     Dependency Mapper (Singularity 24.0).
     Строит граф импортов проекта для реализации Dependency-Aware Regression Guard.
     """
+
     def __init__(self, project_root: str = None):
         self.project_root = project_root or os.getcwd()
-        self.import_graph: Dict[str, Set[str]] = {} # file -> files that import it
-        self.reverse_graph: Dict[str, Set[str]] = {} # file -> files it imports
+        self.import_graph: Dict[str, Set[str]] = {}  # file -> files that import it
+        self.reverse_graph: Dict[str, Set[str]] = {}  # file -> files it imports
 
     def build_graph(self, target_dir: str = None):
         """Сканирует директорию и строит граф зависимостей."""
@@ -27,14 +29,16 @@ class DependencyMapper:
                     file_path = os.path.join(root, file)
                     rel_path = os.path.relpath(file_path, self.project_root)
                     self._process_file(file_path, rel_path)
-        
-        logger.info(f"📊 [DEPENDENCY MAPPER] Graph built: {len(self.reverse_graph)} modules indexed.")
+
+        logger.info(
+            f"📊 [DEPENDENCY MAPPER] Graph built: {len(self.reverse_graph)} modules indexed."
+        )
 
     def _process_file(self, file_path: str, rel_path: str):
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 tree = ast.parse(f.read(), filename=file_path)
-            
+
             imports = set()
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
@@ -43,7 +47,7 @@ class DependencyMapper:
                 elif isinstance(node, ast.ImportFrom):
                     if node.module:
                         imports.add(node.module)
-            
+
             self.reverse_graph[rel_path] = imports
             for imp in imports:
                 # Пытаемся сопоставить имя импорта с путем к файлу
@@ -59,13 +63,13 @@ class DependencyMapper:
     def _resolve_import(self, import_name: str, current_file: str) -> Optional[str]:
         """Преобразует имя импорта в относительный путь к файлу."""
         # Упрощенная логика резолвинга
-        parts = import_name.split('.')
-        
+        parts = import_name.split(".")
+
         # Проверяем как абсолютный путь от корня проекта
         potential_path = os.path.join(*parts) + ".py"
         if os.path.exists(os.path.join(self.project_root, potential_path)):
             return potential_path
-        
+
         # Проверяем как пакет (__init__.py)
         potential_pkg = os.path.join(*parts, "__init__.py")
         if os.path.exists(os.path.join(self.project_root, potential_pkg)):
@@ -77,15 +81,17 @@ class DependencyMapper:
         """Возвращает список файлов, которые импортируют данный файл."""
         rel_path = os.path.relpath(file_path, self.project_root)
         affected = self.import_graph.get(rel_path, set())
-        
+
         # Также проверяем если это пакет
         if rel_path.endswith("__init__.py"):
-            pkg_path = os.path.dirname(rel_path).replace(os.sep, '.')
+            pkg_path = os.path.dirname(rel_path).replace(os.sep, ".")
             affected.update(self.import_graph.get(pkg_path, set()))
-        
+
         return affected
 
+
 _mapper = None
+
 
 def get_dependency_mapper(project_root: str = None) -> DependencyMapper:
     global _mapper

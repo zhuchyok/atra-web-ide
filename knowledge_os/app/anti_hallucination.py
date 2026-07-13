@@ -61,9 +61,9 @@ class AntiHallucinationSystem:
         try:
             # [SINGULARITY 24.0] Используем локальный векторный кэш в RAM если доступен
             try:
-                from vector_cache import vector_cache
                 from semantic_cache import get_embedding
-                
+                from vector_cache import vector_cache
+
                 embedding = await get_embedding(query)
                 if embedding:
                     rows = await vector_cache.search(embedding, limit=limit)
@@ -139,12 +139,12 @@ class AntiHallucinationSystem:
             # Если модель говорит о технологиях, которых нет в контексте
             # (упрощенная логика для примера, можно расширить через NLP)
             context_text = " ".join([c["content"].lower() for c in context])
-            
+
             # Список критических терминов, которые часто галлюцинируют
             tech_keywords = ["database", "api", "function", "class", "module"]
             for kw in tech_keywords:
                 if kw in response.lower() and kw not in context_text:
-                    # Это может быть не галлюцинация, а общие знания, 
+                    # Это может быть не галлюцинация, а общие знания,
                     # но мы снижаем уверенность, если этого нет в SOP
                     confidence *= 0.9
 

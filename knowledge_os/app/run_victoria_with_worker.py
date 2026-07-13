@@ -7,14 +7,15 @@
 """
 
 import asyncio
+import json
 import multiprocessing
 import os
+import signal
 import sys
 import time
-import signal
-import redis
-import json
+
 import aiohttp
+import redis
 
 
 def run_victoria():

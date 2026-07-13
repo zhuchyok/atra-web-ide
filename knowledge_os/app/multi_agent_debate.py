@@ -195,7 +195,7 @@ Refine your own position to reach the best possible solution.
                 return result[0]
             return result
         except ImportError:
-            logger.warning(f"LocalAIRouter not available, using run_smart_agent_async")
+            logger.warning("LocalAIRouter not available, using run_smart_agent_async")
             from ai_core import run_smart_agent_async
 
             return await run_smart_agent_async(prompt, expert_name=participant.name)

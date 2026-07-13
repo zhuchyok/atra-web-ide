@@ -215,6 +215,7 @@ async def stream_dialogue(request: DialogueRequest):
     """
     import asyncio
     import json
+
     from fastapi.responses import StreamingResponse
 
     session_id = str(uuid4())

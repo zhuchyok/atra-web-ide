@@ -7,8 +7,8 @@ import asyncio
 import json
 import logging
 import os
-import time
 import random
+import time
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, Optional
@@ -268,6 +268,7 @@ class CircuitBreaker:
         """Отправляет Telegram алерт при критическом событии. Дедупликация: не старше 10 минут."""
         try:
             from datetime import timezone as _tz
+
             # Не отправляем алерт если событие старше 10 минут
             _now = datetime.now(_tz.utc)
             if self.last_failure_time:

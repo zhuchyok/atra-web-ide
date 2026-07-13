@@ -318,7 +318,7 @@ class DebateProcessor:
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 ON CONFLICT (title, COALESCE(project_context, 'default'))
-                WHERE status IN ('pending', 'in_progress') 
+                WHERE status IN ('pending', 'in_progress')
                 DO UPDATE SET updated_at = NOW()
                 RETURNING id
             """,

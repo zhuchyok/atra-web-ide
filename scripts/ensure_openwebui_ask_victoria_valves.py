@@ -96,4 +96,3 @@ print(c.execute("SELECT valves FROM tool WHERE id=?", (tool_id,)).fetchone()[0])
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

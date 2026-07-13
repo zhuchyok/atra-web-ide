@@ -501,7 +501,13 @@ services:
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: ["python", "-u", "-c", "from self_check_system import start_autonomous_self_check; import asyncio; asyncio.run(start_autonomous_self_check())"]
+    command:
+      [
+        "python",
+        "-u",
+        "-c",
+        "from self_check_system import start_autonomous_self_check; import asyncio; asyncio.run(start_autonomous_self_check())",
+      ]
 
   knowledge_nightly:
     build:
@@ -661,7 +667,13 @@ services:
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: ["python", "-u", "-c", "import uvicorn; from swarm_studio import app; uvicorn.run(app, host='0.0.0.0', port=8006)"]
+    command:
+      [
+        "python",
+        "-u",
+        "-c",
+        "import uvicorn; from swarm_studio import app; uvicorn.run(app, host='0.0.0.0', port=8006)",
+      ]
 
 networks:
   atra-network:

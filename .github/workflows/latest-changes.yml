@@ -17,45 +17,45 @@ on:
         description: PR number
         required: true
       debug_enabled:
-        description: 'Run with tmate debugging'
+        description: "Run with tmate debugging"
         required: false
-        default: 'false'
+        default: "false"
 
 jobs:
   latest-changes:
     runs-on: ubuntu-latest
     # Only run if PR was merged
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
-    
+
     steps:
       - name: Dump GitHub context
         env:
           GITHUB_CONTEXT: ${{ toJson(github) }}
         run: echo "$GITHUB_CONTEXT"
-      
+
       - uses: actions/checkout@v4
         with:
           # Use default GITHUB_TOKEN (no special token needed for public repos)
           token: ${{ secrets.GITHUB_TOKEN }}
           # Fetch full history for proper changelog generation
           fetch-depth: 0
-      
+
       # Allow debugging with tmate (optional)
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}
         with:
           limit-access-to-actor: true
-      
+
       - name: Generate latest changes
         uses: tiangolo/latest-changes@0.4.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           latest_changes_file: CHANGELOG.md
-          latest_changes_header: '## Latest Changes'
-          end_regex: '^## '
+          latest_changes_header: "## Latest Changes"
+          end_regex: "^## "
           debug_logs: true
-          label_header_prefix: '### '
+          label_header_prefix: "### "
           labels: >
             [
               {"label": "breaking", "header": "💥 Breaking Changes"},

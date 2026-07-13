@@ -1,7 +1,9 @@
 """
 Эндпоинты Prometheus метрик (День 5).
 """
+
 import logging
+
 from fastapi import APIRouter, Response
 from prometheus_client import CONTENT_TYPE_LATEST
 
@@ -33,6 +35,7 @@ async def metrics_endpoint():
 def _get_expert_fallback_counts():
     """П.4 пушка: текущие значения счётчиков expert vs fallback (для виджета и алертов)."""
     from app.metrics.prometheus_metrics import CHAT_EXPERT_ANSWER_TOTAL, CHAT_FALLBACK_TOTAL
+
     expert = 0
     try:
         for _labels, child in getattr(CHAT_EXPERT_ANSWER_TOTAL, "_metrics", {}).items():
@@ -79,6 +82,7 @@ async def metrics_summary():
 
     try:
         from app.metrics.prometheus_metrics import ASK_VICTORIA_TOTAL
+
         ask_v_metrics = getattr(ASK_VICTORIA_TOTAL, "_metrics", {}) or {}
         summary["ask_victoria_total"] = {}
         for _labels, child in ask_v_metrics.items():

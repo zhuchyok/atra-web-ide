@@ -1,9 +1,10 @@
 import json
 import logging
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
+
 
 def _structured_cancel_reason(reason_code: str, component: str, details: str = "") -> dict:
     """Структурированная причина системного сброса/отмены задачи."""
@@ -16,6 +17,7 @@ def _structured_cancel_reason(reason_code: str, component: str, details: str = "
     if details:
         payload["details"] = details[:500]
     return payload
+
 
 async def _emit_delegation_metrics(conn, alert_threshold: int) -> None:
     """Печатает метрики и алерт по stuck delegation задачам."""
@@ -47,6 +49,7 @@ async def _emit_delegation_metrics(conn, alert_threshold: int) -> None:
             )
     except Exception as _metrics_err:
         logger.debug("Delegation metrics failed: %s", _metrics_err)
+
 
 async def _auto_requeue_delegation(conn, max_rows: int, max_requeues_per_task: int) -> int:
     """Policy-driven восстановление delegation задач без активных дублей."""

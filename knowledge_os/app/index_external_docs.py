@@ -33,10 +33,10 @@ logger = logging.getLogger(__name__)
 
 REPOS = [
     "https://github.com/asgeirtj/system_prompts_leaks.git",
-    "https://github.com/openai/openai-cookbook.git", # Примеры и рецепты OpenAI
-    "https://github.com/deepseek-ai/DeepSeek-V3.git", # Документация и архитектура DeepSeek
-    "https://github.com/langchain-ai/langchain.git", # Основной фреймворк для RAG/LLM
-    "https://github.com/microsoft/autogen.git" # Агенты от Microsoft
+    "https://github.com/openai/openai-cookbook.git",  # Примеры и рецепты OpenAI
+    "https://github.com/deepseek-ai/DeepSeek-V3.git",  # Документация и архитектура DeepSeek
+    "https://github.com/langchain-ai/langchain.git",  # Основной фреймворк для RAG/LLM
+    "https://github.com/microsoft/autogen.git",  # Агенты от Microsoft
 ]
 URLS = ["https://docs.anthropic.com/en/docs/welcome"]
 
@@ -120,24 +120,24 @@ async def index_url(conn, url: str, domain_id: int):
     try:
         import httpx
         from bs4 import BeautifulSoup
-        
+
         logger.info(f"Загрузка контента с {url}...")
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             resp = await client.get(url)
             resp.raise_for_status()
-            
-        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        soup = BeautifulSoup(resp.text, "html.parser")
         # Убираем скрипты и стили
         for script in soup(["script", "style"]):
             script.extract()
-            
-        text = soup.get_text(separator=' ', strip=True)
+
+        text = soup.get_text(separator=" ", strip=True)
         if not text:
             logger.warning(f"Пустой контент по URL: {url}")
             return
 
         url_hash = hashlib.sha256(url.encode()).hexdigest()
-        
+
         # Проверка на дубликаты
         exists = await conn.fetchval(
             "SELECT id FROM knowledge_nodes WHERE metadata->>'source_url_hash' = $1", url_hash
@@ -204,17 +204,17 @@ async def run_indexing():
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         domain_id = await get_or_create_domain(conn, "AI Research")
-        
+
         # Индексация файлов из репозиториев
         for root, _, files in os.walk(TARGET_DIR):
             for file in files:
                 if file.endswith((".md", ".txt", ".json")):
                     await index_file(conn, os.path.join(root, file), domain_id)
-                    
+
         # Индексация произвольных URL
         for url in URLS:
             await index_url(conn, url, domain_id)
-            
+
     finally:
         await conn.close()
 

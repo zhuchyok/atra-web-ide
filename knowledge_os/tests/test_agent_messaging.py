@@ -1,6 +1,7 @@
 """Tests for agent_messaging.py — Agent-to-Agent messaging layer."""
 
 import json
+
 import pytest
 from app.agent_messaging import AgentMessage
 
@@ -18,7 +19,9 @@ class TestAgentMessage:
         assert msg.correlation_id == msg.msg_id
 
     def test_message_to_dict(self):
-        msg = AgentMessage(from_agent="Victoria", to_agent="*", verb="ASK", payload={"q": "status?"})
+        msg = AgentMessage(
+            from_agent="Victoria", to_agent="*", verb="ASK", payload={"q": "status?"}
+        )
         d = msg.to_dict()
         assert d["from_agent"] == "Victoria"
         assert d["to_agent"] == "*"
@@ -50,9 +53,13 @@ class TestAgentMessage:
         assert msg.to_agent == "*"
 
     def test_requires_response(self):
-        msg = AgentMessage(from_agent="A", to_agent="B", verb="ASK", payload="?", requires_response=True)
+        msg = AgentMessage(
+            from_agent="A", to_agent="B", verb="ASK", payload="?", requires_response=True
+        )
         assert msg.requires_response is True
 
     def test_custom_correlation_id(self):
-        msg = AgentMessage(from_agent="A", to_agent="B", verb="TELL", payload="x", correlation_id="custom-123")
+        msg = AgentMessage(
+            from_agent="A", to_agent="B", verb="TELL", payload="x", correlation_id="custom-123"
+        )
         assert msg.correlation_id == "custom-123"

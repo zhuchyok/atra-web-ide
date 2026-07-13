@@ -11,8 +11,8 @@ Run: pytest knowledge_os/tests/test_red_team_auditor.py -v
 
 import asyncio
 import json
-import sys
 import os
+import sys
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -37,6 +37,7 @@ TEST_DB_URL = os.getenv(
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def event_loop():
     loop = asyncio.new_event_loop()
@@ -55,9 +56,7 @@ async def db_conn():
 async def seed_knowledge_node(db_conn):
     """Создаёт временный узел знаний для тестов аудита."""
     # Получаем первый домен (нужен для FK)
-    domain_id = await db_conn.fetchval(
-        "SELECT id FROM domains ORDER BY created_at LIMIT 1"
-    )
+    domain_id = await db_conn.fetchval("SELECT id FROM domains ORDER BY created_at LIMIT 1")
     if not domain_id:
         domain_id = await db_conn.fetchval(
             "INSERT INTO domains (name) VALUES ('test_audit_domain') RETURNING id"
@@ -105,9 +104,11 @@ async def seed_completed_task(db_conn):
 # Import auditor (skip if asyncpg or app not available)
 # ---------------------------------------------------------------------------
 
+
 def _import_auditor():
     try:
         from red_team_auditor import RedTeamAuditor
+
         return RedTeamAuditor
     except Exception:
         return None
@@ -300,6 +301,4 @@ async def test_run_audit_cycle_creates_breach_task(db_conn, seed_knowledge_node)
     assert after > before, "Аудитор должен создавать задачи-нарушения в БД"
 
     # Cleanup
-    await db_conn.execute(
-        "DELETE FROM tasks WHERE metadata->>'source' = 'red_team_auditor'"
-    )
+    await db_conn.execute("DELETE FROM tasks WHERE metadata->>'source' = 'red_team_auditor'")

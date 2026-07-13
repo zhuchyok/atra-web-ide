@@ -230,7 +230,9 @@ class CorporationSelfLearning:
                         AND (metadata->>'last_error' = 'timeout' OR updated_at < NOW() - INTERVAL '30 minutes');
                     """)
                     if res != "UPDATE 0":
-                        logger.info(f"🛡️ [SELF-HEALING] Автоматически сброшено зависших задач: {res}")
+                        logger.info(
+                            f"🛡️ [SELF-HEALING] Автоматически сброшено зависших задач: {res}"
+                        )
         except Exception as e:
             logger.error(f"❌ [SELF-HEALING] Ошибка при автоочистке: {e}")
         for improvement in improvements:

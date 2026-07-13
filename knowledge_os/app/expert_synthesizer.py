@@ -3,6 +3,7 @@ import json
 import logging
 import os
 from typing import Any, Dict, Optional
+
 import asyncpg
 from ai_core import run_smart_agent_async
 
@@ -119,7 +120,7 @@ class ExpertSynthesizer:
 ФОКУС: {focus}
 
 ЗАДАНИЕ:
-Напиши профессиональный, глубокий системный промпт, который сделает этого эксперта лучшим в своей области. 
+Напиши профессиональный, глубокий системный промпт, который сделает этого эксперта лучшим в своей области.
 Используй стандарты Singularity 24.0.
 
 ВЕРНИ ТОЛЬКО JSON:
@@ -148,8 +149,8 @@ class ExpertSynthesizer:
                 """
                 INSERT INTO experts (name, role, system_prompt, department, metadata, is_active)
                 VALUES ($1, $2, $3, $4, $5::jsonb, true)
-                ON CONFLICT (name) DO UPDATE 
-                SET system_prompt = EXCLUDED.system_prompt, 
+                ON CONFLICT (name) DO UPDATE
+                SET system_prompt = EXCLUDED.system_prompt,
                     metadata = experts.metadata || EXCLUDED.metadata
             """,
                 expert_data["name"],

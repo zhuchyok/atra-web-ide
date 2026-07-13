@@ -41,8 +41,10 @@ def is_overflow_expert(expert_name: Optional[str]) -> bool:
     """Check if this is an overflow/fallback expert name (Инна, Юлия, etc)."""
     name = normalize_expert_name(expert_name).lower()
     # Over:low/fallback experts listen on overflow stream
-    overflow_names = {normalize_expert_name(n).lower() for n in
-                     os.getenv("EXPERT_OVERFLOW_NAMES", "Инна,Юлия").split(",")}
+    overflow_names = {
+        normalize_expert_name(n).lower()
+        for n in os.getenv("EXPERT_OVERFLOW_NAMES", "Инна,Юлия").split(",")
+    }
     return name in overflow_names
 
 
@@ -73,7 +75,9 @@ def worker_stream_name(expert_name: Optional[str]) -> str:
     return SHARED_EXPERT_STREAM
 
 
-async def ensure_consumer_group(client, stream_name: str, group: str = EXPERT_WORKERS_GROUP) -> None:
+async def ensure_consumer_group(
+    client, stream_name: str, group: str = EXPERT_WORKERS_GROUP
+) -> None:
     try:
         await client.xgroup_create(redis_stream_key(stream_name), group, mkstream=True)
     except Exception:

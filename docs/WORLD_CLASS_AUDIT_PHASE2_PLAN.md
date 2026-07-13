@@ -415,6 +415,7 @@ kill -SIGINT $!
 
 1. Убрать `#[tokio::main]`
 2. Создать runtime вручную:
+
    ```rust
    fn main() -> Result<()> {
        tracing_subscriber::fmt::init();
@@ -466,6 +467,7 @@ kill -SIGINT $!
    };
    ```
 3. В handler:
+
    ```rust
    async fn proxy_chat(State(state): State<AppState>, ...) -> Result<...> {
        let permit = state.chat_semaphore

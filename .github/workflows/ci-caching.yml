@@ -30,7 +30,7 @@ jobs:
           RESULT=$(python scripts/task_hash.py changed origin/main)
           echo "packages=$(echo $RESULT | jq -c '.changed_packages')" >> $GITHUB_OUTPUT
           echo "tasks=$(echo $RESULT | jq -c '.affected_tasks')" >> $GITHUB_OUTPUT
-          
+
           echo "Changed packages: $(echo $RESULT | jq -r '.changed_packages | join(", ")')"
           echo "Affected tasks: $(echo $RESULT | jq -r '.affected_tasks | join(", ")')"
 
@@ -40,7 +40,7 @@ jobs:
     if: needs.detect-changes.outputs.changed_packages != '[]'
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Run affected tasks
         run: |
           TASKS='${{ needs.detect-changes.outputs.affected_tasks }}'

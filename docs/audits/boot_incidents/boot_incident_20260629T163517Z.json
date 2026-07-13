@@ -15,9 +15,7 @@
     "has_previous_shutdown_cause": false,
     "has_dump_panic_events": false,
     "no_paniclog_data": false,
-    "tail_lines": [
-      "Timestamp               Ty Process[PID:TID]"
-    ]
+    "tail_lines": ["Timestamp               Ty Process[PID:TID]"]
   },
   "container_health": {
     "ok": false,

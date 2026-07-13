@@ -5,6 +5,7 @@
 - samples_collected: `15`
 
 ## Latest Snapshot
+
 - pending: `0`
 - in_progress: `1`
 - completed_10m: `1`
@@ -26,12 +27,14 @@
 - dynamic_slot_running: `0` / `0`
 
 ## Gate Results
+
 - 15m: pass=`False` active=`True` reason=`distillation_tail_violation` stability_ok=`False` throughput_ok=`True` throughput_eligible=`True` min_completed_required=`1` samples=`15` completed_delta=`3` completed10m_ratio=`1.00` max_pending=`1` max_in_progress=`2` max_stale=`0` distill_tail_ok=`False` max_eligible_now=`11` tail_breach_streak_max=`0` dynamic_alert_ok=`True` max_dynamic_alert_count=`0` error_rate_gate_ok=`False` max_failure_rate_10m_gate_pct=`33.33`
 - 1h: pass=`False` active=`True` reason=`distillation_tail_violation` stability_ok=`False` throughput_ok=`True` throughput_eligible=`True` min_completed_required=`3` samples=`15` completed_delta=`3` completed10m_ratio=`1.00` max_pending=`1` max_in_progress=`2` max_stale=`0` distill_tail_ok=`False` max_eligible_now=`11` tail_breach_streak_max=`0` dynamic_alert_ok=`True` max_dynamic_alert_count=`0` error_rate_gate_ok=`False` max_failure_rate_10m_gate_pct=`33.33`
 - 6h: pass=`False` active=`True` reason=`error_rate_violation` stability_ok=`False` throughput_ok=`False` throughput_eligible=`False` min_completed_required=`18` samples=`15` completed_delta=`3` completed10m_ratio=`1.00` max_pending=`1` max_in_progress=`2` max_stale=`0` distill_tail_ok=`False` max_eligible_now=`11` tail_breach_streak_max=`0` dynamic_alert_ok=`True` max_dynamic_alert_count=`0` error_rate_gate_ok=`False` max_failure_rate_10m_gate_pct=`33.33`
 - 24h: pass=`False` active=`True` reason=`error_rate_violation` stability_ok=`False` throughput_ok=`False` throughput_eligible=`False` min_completed_required=`72` samples=`15` completed_delta=`3` completed10m_ratio=`1.00` max_pending=`1` max_in_progress=`2` max_stale=`0` distill_tail_ok=`False` max_eligible_now=`11` tail_breach_streak_max=`0` dynamic_alert_ok=`True` max_dynamic_alert_count=`0` error_rate_gate_ok=`False` max_failure_rate_10m_gate_pct=`33.33`
 
 ## Sustained Distillation Tail SLO
+
 - ok: `True`
 - reason: `ok`
 - sample_count: `15`

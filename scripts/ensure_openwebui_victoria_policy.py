@@ -258,4 +258,3 @@ print(f"updated_models={len(updates)}")
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

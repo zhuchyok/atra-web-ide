@@ -23,6 +23,7 @@ VECTOR_CORE_URL = "http://localhost:8001"
 # [RERANKER v2] Инициализация Cross-Encoder (ленивая загрузка)
 _RERANKER_MODEL = None
 
+
 def get_reranker():
     global _RERANKER_MODEL
     if _RERANKER_MODEL is None:
@@ -37,25 +38,26 @@ async def rerank_results(query: str, results: List[Dict]) -> List[Dict]:
     """Переранжирование результатов с помощью Cross-Encoder [RERANKER v2]"""
     if not results:
         return []
-    
+
     try:
         model = await asyncio.to_thread(get_reranker)
-        
+
         # Формируем пары (query, content)
         pairs = [[query, r["content"]] for r in results]
-        
+
         # Получаем скоры (чем выше, тем релевантнее)
         scores = await asyncio.to_thread(model.predict, pairs)
-        
+
         # Обновляем similarity и сортируем
         for i, result in enumerate(results):
             # Нормализуем скор (MiniLM выдает логиты, приведем к 0..1 примерно)
             # Для ms-marco MiniLM скоры обычно в диапазоне [-10, 10]
             import math
+
             sig_score = 1 / (1 + math.exp(-scores[i]))
             result["rerank_score"] = float(scores[i])
             result["similarity"] = sig_score
-            
+
         sorted_results = sorted(results, key=lambda x: x["similarity"], reverse=True)
         return sorted_results
     except Exception as e:
@@ -91,18 +93,19 @@ async def get_embedding(text: str) -> List[float]:
     """Получение эмбеддинга через Ollama [HYBRID v2]"""
     try:
         from app.semantic_cache import get_embedding as get_ollama_embedding
+
         emb = await get_ollama_embedding(text)
         if emb:
             return emb
     except Exception as e:
         print(f"⚠️ Ошибка получения эмбеддинга через semantic_cache: {e}")
-    
+
     # Fallback на прямой запрос к Ollama если импорт не сработал
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            "http://localhost:11434/api/embeddings", 
-            json={"model": "nomic-embed-text", "prompt": text}, 
-            timeout=30.0
+            "http://localhost:11434/api/embeddings",
+            json={"model": "nomic-embed-text", "prompt": text},
+            timeout=30.0,
         )
         response.raise_for_status()
         return response.json()["embedding"]
@@ -184,11 +187,11 @@ async def keyword_search(
 ) -> List[Dict]:
     """Поиск по ключевым словам (BM25/FTS) [HYBRID v2]"""
     qp = QueryParams()
-    
+
     # Очищаем запрос для tsquery
-    clean_query = re.sub(r'[^\w\s]', ' ', query).strip()
+    clean_query = re.sub(r"[^\w\s]", " ", query).strip()
     ts_query = " & ".join(clean_query.split())
-    
+
     if not ts_query:
         return []
 
@@ -315,7 +318,7 @@ async def hybrid_search(
 
     # 2. Нормализуем веса (Reciprocal Rank Fusion или взвешенная сумма)
     # Используем взвешенную сумму: 0.7 Vector + 0.3 BM25
-    
+
     for result in semantic_results:
         node_id = str(result["id"])
         similarity = float(result.get("similarity", 0))
@@ -341,7 +344,7 @@ async def hybrid_search(
         v = combined[node_id].get("vector_score", 0)
         k = combined[node_id].get("keyword_score", 0)
         # Нормализация BM25 (ts_rank может быть > 1)
-        k_norm = min(1.0, k) 
+        k_norm = min(1.0, k)
         combined[node_id]["similarity"] = (v * 0.7) + (k_norm * 0.3)
 
     sorted_results = sorted(combined.values(), key=lambda x: x.get("similarity", 0), reverse=True)

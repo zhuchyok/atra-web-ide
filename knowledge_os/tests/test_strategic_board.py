@@ -1,6 +1,7 @@
 """Tests for strategic_board.py — Board of Directors autopilot."""
 
 import json
+
 import pytest
 from app.strategic_board import parse_directive_structure
 

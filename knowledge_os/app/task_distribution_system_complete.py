@@ -232,13 +232,10 @@ class TaskDistributionSystem:
 
             # Fail-safe: не запускаем refresh знаний на каждый парсинг задачи.
             # Это вызывало шторм эмбеддингов и деградацию latency.
-            refresh_enabled = (
-                os.getenv("TASK_DISTRIBUTION_REFRESH_CORP_KNOWLEDGE", "false").lower()
-                in ("1", "true", "yes")
-            )
-            refresh_interval = int(
-                os.getenv("TASK_DISTRIBUTION_REFRESH_INTERVAL_SEC", "1800")
-            )
+            refresh_enabled = os.getenv(
+                "TASK_DISTRIBUTION_REFRESH_CORP_KNOWLEDGE", "false"
+            ).lower() in ("1", "true", "yes")
+            refresh_interval = int(os.getenv("TASK_DISTRIBUTION_REFRESH_INTERVAL_SEC", "1800"))
             if refresh_enabled:
                 async with _CORP_REFRESH_LOCK:
                     global _CORP_REFRESH_LAST_TS

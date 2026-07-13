@@ -214,7 +214,10 @@ class ExpertCouncil:
                 )
             except asyncio.TimeoutError:
                 logger.warning("⚠️ [COUNCIL] Victoria synthesis timed out, saving partial results")
-                final_decision = debate_history + "\n\n[COUNCIL] Victoria synthesis timed out. Partial results above."
+                final_decision = (
+                    debate_history
+                    + "\n\n[COUNCIL] Victoria synthesis timed out. Partial results above."
+                )
 
             # Update session status
             await conn.execute(

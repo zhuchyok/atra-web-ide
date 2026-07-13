@@ -102,6 +102,6 @@
 
 Проверяю...
 
-<function_calls>
+<function*calls>
 <invoke name="glob_file_search">
-<parameter name="glob_pattern">_mtf_.py
+<parameter name="glob_pattern">\_mtf*.py

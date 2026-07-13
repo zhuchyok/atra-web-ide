@@ -10,12 +10,14 @@ except ImportError:
 
 logger = logging.getLogger("ActorRegistry")
 
+
 class ActorRegistry:
     """
     [SINGULARITY 28.0] Global Actor Registry.
     Tracks active actors across the cluster using Redis.
     Expert Name -> {container_id, pid, state_link, last_seen}
     """
+
     def __init__(self):
         self.redis = get_redis_manager()
         self.key_prefix = "actor_registry:"
@@ -24,7 +26,7 @@ class ActorRegistry:
         """Register or update an actor in the registry."""
         key = f"{self.key_prefix}{expert_name}"
         metadata["last_seen"] = os.popen("date -u +%Y-%m-%dT%H:%M:%SZ").read().strip()
-        await self.redis.set(key, json.dumps(metadata), expire=3600) # 1 hour TTL
+        await self.redis.set(key, json.dumps(metadata), expire=3600)  # 1 hour TTL
         logger.info(f"🧬 [REGISTRY] Actor {expert_name} registered: {metadata}")
 
     async def get_actor(self, expert_name: str) -> Optional[Dict[str, Any]]:
@@ -53,7 +55,9 @@ class ActorRegistry:
                 actors[name] = json.loads(data)
         return actors
 
+
 _registry = None
+
 
 def get_actor_registry() -> ActorRegistry:
     global _registry

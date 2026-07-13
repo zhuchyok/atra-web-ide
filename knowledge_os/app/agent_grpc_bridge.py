@@ -1,9 +1,10 @@
-import logging
 import asyncio
+import logging
 import os
-from typing import Any, Dict, Optional
-import grpc
 from concurrent import futures
+from typing import Any, Dict, Optional
+
+import grpc
 
 # Импорты будут работать после генерации кода из .proto
 # Пока создаем структуру моста
@@ -16,40 +17,45 @@ except ImportError:
 
 logger = logging.getLogger("AgentGRPCBridge")
 
+
 class AgentServiceServicer:
     """
     [SINGULARITY 28.5] gRPC Servicer for Expert Agents.
     Bridges gRPC calls to the local expert_worker logic.
     """
+
     def __init__(self, worker_callback):
         self.worker_callback = worker_callback
 
     async def ProcessTask(self, request, context):
         logger.info(f"📡 [gRPC] Received task {request.task_id} for {request.expert_name}")
-        
+
         # Конвертируем Struct в dict
         metadata = dict(request.metadata) if request.metadata else {}
-        
+
         # Вызываем локальную логику воркера
-        result = await self.worker_callback({
-            "task_id": request.task_id,
-            "expert_name": request.expert_name,
-            "description": request.description,
-            "category": request.category,
-            "metadata": metadata
-        })
-        
+        result = await self.worker_callback(
+            {
+                "task_id": request.task_id,
+                "expert_name": request.expert_name,
+                "description": request.description,
+                "category": request.category,
+                "metadata": metadata,
+            }
+        )
+
         # Формируем ответ
+        import datetime
+
         from google.protobuf.struct_pb2 import Struct
         from google.protobuf.timestamp_pb2 import Timestamp
-        import datetime
-        
+
         res_meta = Struct()
         res_meta.update(result.get("metadata", {}))
-        
+
         ts = Timestamp()
         ts.FromDatetime(datetime.datetime.utcnow())
-        
+
         return agent_protocol_pb2.TaskResponse(
             task_id=request.task_id,
             expert_name=request.expert_name,
@@ -58,8 +64,9 @@ class AgentServiceServicer:
             reasoning_trace=result.get("reasoning_trace", ""),
             confidence_score=result.get("confidence_score", 0.0),
             metadata=res_meta,
-            timestamp=ts
+            timestamp=ts,
         )
+
 
 class AgentGRPCServer:
     def __init__(self, worker_callback, port: int = 50051):
@@ -74,7 +81,7 @@ class AgentGRPCServer:
 
         self.server = grpc.aio.server()
         agent_protocol_pb2_grpc.add_AgentServiceServicer_to_server(self.servicer, self.server)
-        listen_addr = f'[::]:{self.port}'
+        listen_addr = f"[::]:{self.port}"
         self.server.add_insecure_port(listen_addr)
         logger.info(f"🚀 [gRPC] Agent Server starting on {listen_addr}")
         await self.server.start()
@@ -84,6 +91,7 @@ class AgentGRPCServer:
         if self.server:
             await self.server.stop(0)
             logger.info("🛑 [gRPC] Agent Server stopped")
+
 
 def get_grpc_server(worker_callback, port: int = 50051):
     return AgentGRPCServer(worker_callback, port)

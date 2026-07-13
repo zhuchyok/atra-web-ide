@@ -3,7 +3,6 @@
 import os
 
 import pytest
-
 from app.expert_stream_routing import (
     SHARED_EXPERT_STREAM,
     dedicated_stream_for_expert,

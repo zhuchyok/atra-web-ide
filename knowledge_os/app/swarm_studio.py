@@ -7,6 +7,7 @@ Usage:
 """
 
 import asyncio
+import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -15,7 +16,6 @@ from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
-import json
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +37,9 @@ async def _load_agents_from_db():
 
         conn = await asyncpg.connect(DATABASE_URL)
         rows = await conn.fetch("""
-            SELECT id, name, role, system_prompt, department, created_at 
-            FROM experts 
-            WHERE is_active = TRUE 
+            SELECT id, name, role, system_prompt, department, created_at
+            FROM experts
+            WHERE is_active = TRUE
             ORDER BY name
             LIMIT 50
         """)
@@ -109,9 +109,9 @@ async def dashboard():
         async function update() {
             const r = await fetch('/api/state');
             const s = await r.json();
-            document.getElementById('agents').innerHTML = 
+            document.getElementById('agents').innerHTML =
                 s.agents.map(a => `<div class="card agent">${a.name} - <span class="status-${a.status}">${a.status}</span></div>`).join('');
-            document.getElementById('tasks').innerHTML = 
+            document.getElementById('tasks').innerHTML =
                 s.tasks.map(t => `<div class="card task">${t.description} - ${t.status}</div>`).join('');
         }
         setInterval(update, 5000);
@@ -198,9 +198,9 @@ async def list_checkpoints(task_id: str = None, limit: int = 20):
         if task_id:
             rows = await conn.fetch(
                 """
-                SELECT * FROM checkpoints 
-                WHERE task_id = $1 
-                ORDER BY created_at DESC 
+                SELECT * FROM checkpoints
+                WHERE task_id = $1
+                ORDER BY created_at DESC
                 LIMIT $2
             """,
                 task_id,
@@ -209,8 +209,8 @@ async def list_checkpoints(task_id: str = None, limit: int = 20):
         else:
             rows = await conn.fetch(
                 """
-                SELECT * FROM checkpoints 
-                ORDER BY created_at DESC 
+                SELECT * FROM checkpoints
+                ORDER BY created_at DESC
                 LIMIT $1
             """,
                 limit,
@@ -239,9 +239,9 @@ async def list_plans(status: str = None):
 
         conn = await asyncpg.connect(DATABASE_URL)
         rows = await conn.fetch("""
-            SELECT goal_summary, outcome_summary, created_at 
-            FROM long_term_memory 
-            ORDER BY created_at DESC 
+            SELECT goal_summary, outcome_summary, created_at
+            FROM long_term_memory
+            ORDER BY created_at DESC
             LIMIT 20
         """)
         await conn.close()

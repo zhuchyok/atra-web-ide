@@ -210,7 +210,9 @@ class ReportGenerator:
                 if stats:
                     report_lines.append("## 📈 Статистика задач (последние 24ч)")
                     report_lines.append(f"- Всего задач за 24ч: {stats['total_requests'] or 0}")
-                    report_lines.append(f"- Задач за последний час: {stats['requests_last_hour'] or 0}")
+                    report_lines.append(
+                        f"- Задач за последний час: {stats['requests_last_hour'] or 0}"
+                    )
                     report_lines.append(f"- Завершено успешно: {stats['completed_today'] or 0}")
                     report_lines.append(f"- Ошибок: {stats['failed_today'] or 0}\n")
 

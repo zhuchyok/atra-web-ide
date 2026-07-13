@@ -93,6 +93,7 @@ class AutonomousTester:
         """Logs the healing proposal as a task in DB."""
         try:
             from db_pool import create_task_safe
+
             task_id = await create_task_safe(
                 title=f"💊 SELF-HEALING: Fix {test_name}",
                 description=proposal,

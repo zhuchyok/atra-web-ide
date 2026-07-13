@@ -118,7 +118,7 @@ class SmartWorkerIntegration:
                             estimated_duration_min, required_models
                         ) VALUES ($1, $2, 'pending', 'medium', $3, $4, $5, 'subtask', $6, 0.5, $7, $8)
                         ON CONFLICT (title, COALESCE(project_context, 'default'))
-                        WHERE status IN ('pending', 'in_progress') 
+                        WHERE status IN ('pending', 'in_progress')
                         DO UPDATE SET updated_at = NOW()
                         RETURNING id
                         """,
@@ -145,7 +145,7 @@ class SmartWorkerIntegration:
                                 task_type, parent_task_id
                             ) VALUES ($1, $2, 'pending', 'medium', $3, $4, $5, 'subtask', $6)
                             ON CONFLICT (title, COALESCE(project_context, 'default'))
-                            WHERE status IN ('pending', 'in_progress') 
+                            WHERE status IN ('pending', 'in_progress')
                             DO UPDATE SET updated_at = NOW()
                             RETURNING id
                             """,

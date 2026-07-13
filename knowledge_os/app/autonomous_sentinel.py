@@ -98,12 +98,15 @@ class AutonomousSentinel:
         if component in ["system_ram", "ollama_latency", "mlx_memory"]:
             try:
                 from model_memory_manager import get_memory_manager
+
                 mmm = get_memory_manager()
                 # Принудительная очистка неиспользуемых моделей
                 unloaded = await mmm.cleanup_unused_models()
                 if unloaded > 0:
-                    logger.info(f"🛡️ [SENTINEL] Memory Guard: Unloaded {unloaded} unused models to reclaim RAM")
-                
+                    logger.info(
+                        f"🛡️ [SENTINEL] Memory Guard: Unloaded {unloaded} unused models to reclaim RAM"
+                    )
+
                 # Если все еще критично, делаем экстренную очистку
                 await mmm.emergency_memory_cleanup()
             except Exception as mem_err:

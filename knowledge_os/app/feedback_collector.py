@@ -228,7 +228,9 @@ class FeedbackCollector:
                             await mutation._reinforce_expert_dna_on_success(
                                 expert_name, query, response
                             )
-                            logger.info(f"🧬 [DNA] Success reinforcement triggered for {expert_name}")
+                            logger.info(
+                                f"🧬 [DNA] Success reinforcement triggered for {expert_name}"
+                            )
                     except Exception as re_err:
                         logger.debug(f"Failed to trigger success reinforcement: {re_err}")
 

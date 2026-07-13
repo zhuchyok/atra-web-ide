@@ -1,9 +1,10 @@
 import asyncio
 import json
 import uuid
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from pathlib import Path
-from typing import AsyncGenerator, Optional
+from typing import Optional
 
 import aiohttp
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
@@ -83,7 +84,7 @@ async def send_realtime_message(
 
 async def stream_audio_response(session_id: str, text: str) -> AsyncGenerator[bytes, None]:
     url = "https://api.openai.com/v1/realtime"
-    headers = {"Authorization": f"Bearer NOT_SET", "Content-Type": "application/json"}
+    headers = {"Authorization": "Bearer NOT_SET", "Content-Type": "application/json"}
 
     session = _sessions.get(session_id)
     if not session:

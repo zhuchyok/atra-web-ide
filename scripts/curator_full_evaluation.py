@@ -267,12 +267,12 @@ def _poll_task(task_id: str, max_wait: int) -> Optional[str]:
 def evaluate_response(response: str, key_phrases: list[str], criteria: list[tuple[str, int]]) -> dict:
     if not response:
         return {"phrase_match": 0.0, "criteria_met": 0.0, "criteria_detail": [], "response_length": 0}
-    
+
     response_lower = response.lower()
     total_phrases = len(key_phrases)
     found_phrases = sum(1 for p in key_phrases if p.lower() in response_lower)
     phrase_ratio = found_phrases / total_phrases if total_phrases else 1.0
-    
+
     criteria_detail = []
     criteria_met = 0
     criteria_total = 0
@@ -289,9 +289,9 @@ def evaluate_response(response: str, key_phrases: list[str], criteria: list[tupl
             criteria_detail.append({"criterion": criterion_text, "score": max_score, "met": True})
         else:
             criteria_detail.append({"criterion": criterion_text, "score": 0, "met": False})
-    
+
     criteria_ratio = criteria_met / criteria_total if criteria_total else 1.0
-    
+
     return {
         "phrase_match": round(phrase_ratio, 2),
         "criteria_met": round(criteria_ratio, 2),

@@ -6,6 +6,7 @@ description: Координация нескольких AI агентов дл�
 # Multi-Agent Coordinator Skill
 
 ## Когда использовать
+
 - Параллельная обработка задач
 - Распределение работы между агентами
 - Сбор результатов от нескольких источников
@@ -14,6 +15,7 @@ description: Координация нескольких AI агентов дл�
 ## Архитектура
 
 ### Master Agent Pattern
+
 ```
 User Request
       ↓
@@ -29,6 +31,7 @@ Aggregate Results
 ### Примеры использования
 
 #### 1. Parallel Research
+
 ```python
 async def research_topic(topic):
     agents = [
@@ -37,15 +40,16 @@ async def research_topic(topic):
         Agent("docs", search_docs),
         Agent("social", search_social),
     ]
-    
+
     results = await asyncio.gather(*[
         agent.search(topic) for agent in agents
     ])
-    
+
     return aggregate(results)
 ```
 
 #### 2. Code Review Pipeline
+
 ```python
 async def review_pr(pr_diff):
     reviewers = [
@@ -54,17 +58,18 @@ async def review_pr(pr_diff):
         Reviewer("tests", check_tests),
         Reviewer("docs", check_docs),
     ]
-    
+
     findings = await asyncio.gather(*[
         reviewer.review(pr_diff) for reviewer in reviewers
     ])
-    
+
     return prioritize(findings)
 ```
 
 ## Agent Types
 
 ### Available Agent Types
+
 - **Research Agent** - поиск информации
 - **Code Review Agent** - review кода
 - **Test Agent** - генерация тестов
@@ -76,19 +81,21 @@ async def review_pr(pr_diff):
 ## Coordination Patterns
 
 ### Fan-out, Fan-in
+
 ```python
 async def fan_out_fan_in(tasks):
     # Fan-out: запустить все параллельно
     futures = [agent.process(task) for task in tasks]
-    
+
     # Fan-in: собрать результаты
     results = await asyncio.gather(*futures)
-    
+
     # Aggregate
     return aggregate(results)
 ```
 
 ### Pipeline
+
 ```python
 async def pipeline(stages):
     data = initial_input
@@ -98,6 +105,7 @@ async def pipeline(stages):
 ```
 
 ### Round Robin
+
 ```python
 async def round_robin(tasks, agents):
     results = []
@@ -109,6 +117,7 @@ async def round_robin(tasks, agents):
 ```
 
 ## Output
+
 ```json
 {
   "total_agents": 4,
@@ -120,6 +129,7 @@ async def round_robin(tasks, agents):
 ```
 
 ## Rate Limiting
+
 ```python
 # Ограничение параллельных агентов
 MAX_CONCURRENT = 10
@@ -127,6 +137,7 @@ semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 ```
 
 ## Commands
+
 ```
 /agents run <task>       # Запустить всех
 /agents status          # Статус агентов

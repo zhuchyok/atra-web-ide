@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import docker
+
 try:
     from app.event_bus import Event, EventType, get_event_bus
 except ImportError:

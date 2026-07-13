@@ -83,6 +83,7 @@
    - risk_monitor получает уведомление
 
 3. **risk_monitor обнаруживает проблему:**
+
    ```python
    publish_agent_event(
        EventType.RISK_ALERT,

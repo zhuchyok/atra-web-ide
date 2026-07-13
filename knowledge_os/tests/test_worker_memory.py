@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+
 import pytest
 
 
@@ -19,7 +20,7 @@ class TestLoadSkillsForExpert:
     @pytest.mark.asyncio
     async def test_load_skills_known_expert(self):
         """Known expert role should return non-empty skills."""
-        from app.worker.worker_memory import load_skills_for_expert, ROLE_DEPARTMENT_TO_SKILLS
+        from app.worker.worker_memory import ROLE_DEPARTMENT_TO_SKILLS, load_skills_for_expert
 
         for role in ROLE_DEPARTMENT_TO_SKILLS:
             result = await load_skills_for_expert(role, "task")

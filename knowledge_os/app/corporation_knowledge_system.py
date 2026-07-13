@@ -325,12 +325,16 @@ class CorporationKnowledgeSystem:
                     # Используем переданный пул или одно соединение (меньше слотов к БД в nightly)
                     if pool is not None:
                         async with pool.acquire() as conn:
-                            await self._save_corporation_knowledge_to_db(conn, knowledge, get_embedding)
+                            await self._save_corporation_knowledge_to_db(
+                                conn, knowledge, get_embedding
+                            )
                     else:
                         # Knowledge refresh can run longer under DB pressure.
                         conn = await asyncpg.connect(self.db_url, command_timeout=120)
                         try:
-                            await self._save_corporation_knowledge_to_db(conn, knowledge, get_embedding)
+                            await self._save_corporation_knowledge_to_db(
+                                conn, knowledge, get_embedding
+                            )
                         finally:
                             await conn.close()
                 except Exception as e:

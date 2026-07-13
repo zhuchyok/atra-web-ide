@@ -32,15 +32,21 @@ async def check_llm_health() -> Tuple[bool, bool]:
     ollama_ok = mlx_ok = False
     try:
         import httpx
+
         async with httpx.AsyncClient(timeout=3.0) as c:
-            r = await c.get(os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434") + "/api/tags")
+            r = await c.get(
+                os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434") + "/api/tags"
+            )
             ollama_ok = r.status_code == 200
     except Exception:
         pass
     try:
         import httpx
+
         async with httpx.AsyncClient(timeout=3.0) as c:
-            r = await c.get(os.getenv("MLX_BASE_URL", "http://host.docker.internal:11435") + "/health")
+            r = await c.get(
+                os.getenv("MLX_BASE_URL", "http://host.docker.internal:11435") + "/health"
+            )
             mlx_ok = r.status_code == 200
     except Exception:
         pass
@@ -61,7 +67,8 @@ async def prioritize_tasks(conn, victoria_id: str) -> int:
             if new_priority:
                 await conn.execute(
                     "UPDATE tasks SET priority = $1, updated_at = NOW() WHERE id = $2",
-                    new_priority, task["id"],
+                    new_priority,
+                    task["id"],
                 )
                 updated += 1
     except Exception as e:

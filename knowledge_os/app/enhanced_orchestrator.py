@@ -2299,7 +2299,12 @@ async def rebalance_workload(conn) -> int:
                             """,
                                 _ov_expert["id"],
                                 task["id"],
-                                json.dumps({"routed_to_overflow": True, "original_expert_id": str(expert_id)}),
+                                json.dumps(
+                                    {
+                                        "routed_to_overflow": True,
+                                        "original_expert_id": str(expert_id),
+                                    }
+                                ),
                             )
                             logger.info("  ↻ Task %s → overflow pool (%s)", task["id"], _ov_name)
                             reassignments += 1
@@ -3102,9 +3107,7 @@ async def run_enhanced_orchestration_cycle():
                 "1",
                 "yes",
             )
-            fallback_min_attempts = int(
-                os.getenv("ORCHESTRATOR_RULE_FALLBACK_MIN_ATTEMPTS", "3")
-            )
+            fallback_min_attempts = int(os.getenv("ORCHESTRATOR_RULE_FALLBACK_MIN_ATTEMPTS", "3"))
             failed_tasks = await conn.fetch(
                 """
                 SELECT id, title, description, metadata

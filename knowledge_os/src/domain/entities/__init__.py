@@ -2,7 +2,7 @@
 Entities Module
 """
 
-from .signal import Signal
-from .position import Position
+from .expert_dialogue import DialogueMode, DialogueStatus, ExpertDialogue, ExpertOpinion
 from .order import Order
-from .expert_dialogue import ExpertDialogue, ExpertOpinion, DialogueMode, DialogueStatus
+from .position import Position
+from .signal import Signal

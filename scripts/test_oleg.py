@@ -11,8 +11,8 @@ async def test():
     print("Starting request for Oleg...")
     try:
         r = await run_smart_agent_async(
-            "Привет, Олег! Расскажи о себе кратко.", 
-            expert_name="Олег", 
+            "Привет, Олег! Расскажи о себе кратко.",
+            expert_name="Олег",
             category="reasoning"
         )
         print(f"Result: {r}")

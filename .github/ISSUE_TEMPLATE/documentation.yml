@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Спасибо за помощь в улучшении документации!
-  
+
   - type: textarea
     id: issue
     attributes:
@@ -16,7 +16,7 @@ body:
       placeholder: "В разделе X написано Y, но должно быть Z..."
     validations:
       required: true
-  
+
   - type: input
     id: location
     attributes:
@@ -25,7 +25,7 @@ body:
       placeholder: "docs/PROJECT_ARCHITECTURE_AND_GUIDE.md"
     validations:
       required: true
-  
+
   - type: dropdown
     id: type
     attributes:
@@ -39,13 +39,13 @@ body:
         - Другое
     validations:
       required: true
-  
+
   - type: textarea
     id: suggestion
     attributes:
       label: Предлагаемое исправление
       description: Как это должно выглядеть?
-  
+
   - type: textarea
     id: additional
     attributes:

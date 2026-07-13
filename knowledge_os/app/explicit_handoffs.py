@@ -84,6 +84,7 @@ class Handoff:
         if self.validation_schema:
             try:
                 import jsonschema
+
                 jsonschema.validate(instance=self.context, schema=self.validation_schema)
                 logger.info(f"✅ Handoff {self.handoff_id} validated against full contract.")
             except ImportError:
@@ -92,7 +93,9 @@ class Handoff:
                 for field in required:
                     if field not in self.context:
                         self.error = f"Contract violation: missing required field '{field}'"
-                        logger.warning(f"❌ Handoff {self.handoff_id} contract violation: {self.error}")
+                        logger.warning(
+                            f"❌ Handoff {self.handoff_id} contract violation: {self.error}"
+                        )
                         raise ValueError(self.error)
             except Exception as e:
                 self.error = f"Contract validation failed: {e}"
@@ -102,6 +105,7 @@ class Handoff:
             # Fallback: если схема передана внутри контекста
             try:
                 import jsonschema
+
                 jsonschema.validate(instance=self.context, schema=self.context["contract"])
                 logger.info(f"✅ Handoff {self.handoff_id} validated against inline contract.")
             except Exception as e:
@@ -299,31 +303,74 @@ def get_handoff_manager() -> HandoffManager:
 # Маппинг: (паттерны в описании) → (эксперт-получатель, приоритет)
 _DETERMINISTIC_ROUTES: List[Dict] = [
     {
-        "keywords": ["тест", "test", "pytest", "coverage", "проверь работу", "unit test", "integration test"],
+        "keywords": [
+            "тест",
+            "test",
+            "pytest",
+            "coverage",
+            "проверь работу",
+            "unit test",
+            "integration test",
+        ],
         "expert": "Анна",
         "reason": "QA проверка — автоматический handoff к тестировщику",
         "priority": HandoffPriority.HIGH,
     },
     {
-        "keywords": ["deploy", "деплой", "docker", "kubernetes", "k8s", "nginx", "CI/CD", "restart", "rollout"],
+        "keywords": [
+            "deploy",
+            "деплой",
+            "docker",
+            "kubernetes",
+            "k8s",
+            "nginx",
+            "CI/CD",
+            "restart",
+            "rollout",
+        ],
         "expert": "Сергей",
         "reason": "DevOps задача — автоматический handoff к DevOps",
         "priority": HandoffPriority.HIGH,
     },
     {
-        "keywords": ["безопасност", "security", "уязвимост", "sql injection", "xss", "csrf", "audit безопасн"],
+        "keywords": [
+            "безопасност",
+            "security",
+            "уязвимост",
+            "sql injection",
+            "xss",
+            "csrf",
+            "audit безопасн",
+        ],
         "expert": "Алексей",
         "reason": "Security audit — автоматический handoff к аудитору",
         "priority": HandoffPriority.CRITICAL,
     },
     {
-        "keywords": ["метрики", "backtest", "sharpe", "drawdown", "аналитик", "отчёт", "отчет", "статистик"],
+        "keywords": [
+            "метрики",
+            "backtest",
+            "sharpe",
+            "drawdown",
+            "аналитик",
+            "отчёт",
+            "отчет",
+            "статистик",
+        ],
         "expert": "Максим",
         "reason": "Аналитика — автоматический handoff к дата-аналитику",
         "priority": HandoffPriority.MEDIUM,
     },
     {
-        "keywords": ["ml ", "модель", "обучени", "feature engineering", "pytorch", "tensorflow", "трейн"],
+        "keywords": [
+            "ml ",
+            "модель",
+            "обучени",
+            "feature engineering",
+            "pytorch",
+            "tensorflow",
+            "трейн",
+        ],
         "expert": "Дмитрий",
         "reason": "ML задача — автоматический handoff к ML-инженеру",
         "priority": HandoffPriority.MEDIUM,

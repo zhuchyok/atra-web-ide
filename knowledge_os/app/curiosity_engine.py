@@ -104,7 +104,7 @@ class CuriosityEngine:
                         INSERT INTO tasks (title, description, status, priority, creator_expert_id, domain_id, metadata)
                         VALUES ($1, $2, 'pending', 'medium', $3, $4, $5)
                         ON CONFLICT (title, COALESCE(project_context, 'default'))
-                        WHERE status IN ('pending', 'in_progress') 
+                        WHERE status IN ('pending', 'in_progress')
                         DO UPDATE SET updated_at = NOW()
                     """,
                         task_title,

@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 # Suppress noisy HTTP client logs so [NIGHTLY] markers stay visible
-for _lib in ('httpx', 'httpcore', 'urllib3'):
+for _lib in ("httpx", "httpcore", "urllib3"):
     logging.getLogger(_lib).setLevel(logging.WARNING)
 
 DB_URL = os.getenv(

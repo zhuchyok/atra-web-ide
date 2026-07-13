@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import httpx
+
 try:
     from app.event_bus import Event, EventType, get_event_bus
 except ImportError:

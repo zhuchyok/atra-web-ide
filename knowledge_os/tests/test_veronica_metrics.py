@@ -30,9 +30,7 @@ class TestVeronicaMetrics:
     def test_metrics_parseable(self):
         """Metrics should be parseable by prometheus_client."""
         metrics_text = (
-            "# HELP veronica_up Veronica uptime\n"
-            "# TYPE veronica_up gauge\n"
-            "veronica_up 1\n"
+            "# HELP veronica_up Veronica uptime\n# TYPE veronica_up gauge\nveronica_up 1\n"
         )
         lines = metrics_text.strip().split("\n")
         assert lines[0].startswith("# HELP")
@@ -49,5 +47,6 @@ class TestVeronicaMetrics:
         """Metrics should work without prometheus_client library."""
         # This is the key design requirement
         import sys
+
         # Don't actually unload - just verify the format is plaintext
         assert True

@@ -62,8 +62,8 @@ async def reset_stuck_tasks():
 
         # 3. [NEW] Очистка старых FAILED задач (>3 дней)
         cleanup_failed = await conn.execute("""
-            DELETE FROM tasks 
-            WHERE status = 'failed' 
+            DELETE FROM tasks
+            WHERE status = 'failed'
             AND updated_at < NOW() - INTERVAL '3 days'
         """)
         cleanup_failed_count = int(cleanup_failed.split()[-1])
@@ -72,8 +72,8 @@ async def reset_stuck_tasks():
 
         # 4. [NEW] Дедупликация PENDING (на случай, если индекс был создан позже)
         cleanup_dupes = await conn.execute("""
-            DELETE FROM tasks 
-            WHERE status = 'pending' 
+            DELETE FROM tasks
+            WHERE status = 'pending'
             AND id NOT IN (
                 SELECT id FROM (
                     SELECT id, ROW_NUMBER() OVER (PARTITION BY title, COALESCE(project_context, 'default') ORDER BY created_at DESC) as rn
@@ -88,13 +88,15 @@ async def reset_stuck_tasks():
 
         # 5. [NEW] Очистка старых CANCELLED задач (>7 дней)
         cleanup_cancelled = await conn.execute("""
-            DELETE FROM tasks 
-            WHERE status = 'cancelled' 
+            DELETE FROM tasks
+            WHERE status = 'cancelled'
             AND updated_at < NOW() - INTERVAL '7 days'
         """)
         cleanup_cancelled_count = int(cleanup_cancelled.split()[-1])
         if cleanup_cancelled_count > 0:
-            print(f"[{datetime.now()}] 🧹 Удалено старых CANCELLED задач: {cleanup_cancelled_count}")
+            print(
+                f"[{datetime.now()}] 🧹 Удалено старых CANCELLED задач: {cleanup_cancelled_count}"
+            )
 
         # Статистика
         stats = await conn.fetch("""

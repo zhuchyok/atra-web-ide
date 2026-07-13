@@ -1,6 +1,7 @@
 """Tests for distillation_engine.py — quality gate scoring."""
 
 import json
+
 import pytest
 
 
@@ -10,6 +11,7 @@ class TestQualityGateScoring:
     def test_quality_gate_imports(self):
         """Quality gate function should be importable."""
         from app.distillation_engine import KnowledgeDistiller
+
         assert hasattr(KnowledgeDistiller, "_compute_quality_gate")
 
     def test_quality_score_defaults(self):

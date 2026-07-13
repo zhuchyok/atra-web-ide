@@ -262,7 +262,8 @@ async def _execute_embedding_request(text: str) -> Optional[list]:
     # [FALLBACK] Sentence-transformers local
     try:
         from sentence_transformers import SentenceTransformer
-        _st_model = SentenceTransformer('nomic-ai/nomic-embed-text-v1.5')
+
+        _st_model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5")
         _emb = _st_model.encode(text[:2000])
         logger.debug("✅ [EMBED] sentence-transformers fallback OK")
         return _emb.tolist()
@@ -270,7 +271,6 @@ async def _execute_embedding_request(text: str) -> Optional[list]:
         logger.debug(f"[EMBED] sentence-transformers failed: {_st_err}")
 
     return None
-
 
 
 class SemanticAICache:

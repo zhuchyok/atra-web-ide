@@ -1,6 +1,7 @@
 """Tests for rest_api.py /api/health/all endpoint."""
 
 import json
+
 import pytest
 
 
@@ -29,32 +30,39 @@ class TestHealthAll:
             "services": {
                 "victoria": {"status": "ok"},
                 "veronica": {"status": "ok"},
-            }
+            },
         }
         assert mock_response["overall"] == "healthy"
         assert len(mock_response["services"]) == 2
 
     def test_degraded_detection(self):
         """If any service is error, overall should be degraded."""
-        mock = {"overall": "degraded", "services": {
-            "victoria": {"status": "ok"},
-            "redis": {"status": "error", "error": "timeout"}
-        }}
+        mock = {
+            "overall": "degraded",
+            "services": {
+                "victoria": {"status": "ok"},
+                "redis": {"status": "error", "error": "timeout"},
+            },
+        }
         assert mock["overall"] == "degraded"
         assert mock["services"]["redis"]["status"] == "error"
 
     def test_redis_check_type(self):
         """Redis check should return dict with status."""
-        from app.rest_api import _check_redis
         import asyncio
+
+        from app.rest_api import _check_redis
+
         result = asyncio.run(_check_redis())
         assert isinstance(result, dict)
         assert "status" in result
 
     def test_postgres_check_type(self):
         """Postgres check should return dict with status."""
-        from app.rest_api import _check_postgres
         import asyncio
+
+        from app.rest_api import _check_postgres
+
         result = asyncio.run(_check_postgres())
         assert isinstance(result, dict)
         assert "status" in result

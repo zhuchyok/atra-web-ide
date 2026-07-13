@@ -4,14 +4,7 @@ description: Минимизировать решение без потери н�
 category: engineering
 version: 1.0.0
 author: ATRA Corporation
-metadata:
-  {
-    "clawdbot":
-      {
-        "requires": {},
-        "emoji": "🧵",
-      },
-  }
+metadata: { "clawdbot": { "requires": {}, "emoji": "🧵" } }
 ---
 
 # Lean Mode (Ponytail-style, with ATRA guardrails)
@@ -81,4 +74,3 @@ metadata:
 - [ ] Поведение не изменилось неожиданно
 - [ ] Проверка smoke/test выполнена
 - [ ] Diff проще и понятнее, а не просто меньше строк
-

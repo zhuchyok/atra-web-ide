@@ -17,11 +17,11 @@ async def check_and_claim():
     client = await redis_manager.get_client()
     stream = 'stream:expert_tasks'
     group = 'expert_workers'
-    
+
     try:
         pending = await client.xpending(stream, group)
         print(f"Pending summary: {pending}")
-        
+
         count = pending.get('pending', 0)
         if count > 0:
             # Get detailed pending info

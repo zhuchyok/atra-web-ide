@@ -58,5 +58,7 @@ class TestAnomalyDetectorExpertCheck:
         metadata = {"expert_name": "Тест"}
         for i in range(5):
             # Use the internal method directly to track counts
-            detector.request_counts["expert-test"] = detector.request_counts.get("expert-test", 0) + 1
+            detector.request_counts["expert-test"] = (
+                detector.request_counts.get("expert-test", 0) + 1
+            )
         assert detector.request_counts["expert-test"] >= 5

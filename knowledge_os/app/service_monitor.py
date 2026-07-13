@@ -14,6 +14,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
 import httpx
+
 try:
     from app.event_bus import Event, EventType, get_event_bus
 except ImportError:
@@ -125,7 +126,9 @@ class ServiceMonitor:
             Service(
                 name="Victoria Agent",
                 service_type="http",
-                endpoint=f"http://victoria-agent:8000" if in_docker else f"http://127.0.0.1:{victoria_port}",
+                endpoint="http://victoria-agent:8000"
+                if in_docker
+                else f"http://127.0.0.1:{victoria_port}",
                 port=victoria_port,
                 health_check_path="/health",
             ),
@@ -141,7 +144,10 @@ class ServiceMonitor:
             Service(
                 name="Victoria Proxy",
                 service_type="http",
-                endpoint=os.getenv("PROXY_MONITOR_URL", "http://host.docker.internal:8040" if in_docker else "http://localhost:8040"),
+                endpoint=os.getenv(
+                    "PROXY_MONITOR_URL",
+                    "http://host.docker.internal:8040" if in_docker else "http://localhost:8040",
+                ),
                 port=8040,
                 health_check_path="/health",
                 check_interval=30,
@@ -300,7 +306,9 @@ class ServiceMonitor:
         # [SINGULARITY 24.3] Avoid flooding the EventBus with UNKNOWN/DOWN transitions during startup
         # or when services are flapping.
         if old_status == ServiceStatus.UNKNOWN and new_status == ServiceStatus.DOWN:
-            logger.info(f"ℹ️ Service {service.name} is DOWN on first check (expected during startup)")
+            logger.info(
+                f"ℹ️ Service {service.name} is DOWN on first check (expected during startup)"
+            )
             return
 
         # Определяем тип события
@@ -331,7 +339,7 @@ class ServiceMonitor:
         # Автоматический перезапуск для MLX API Server через Supervisor
         if service.name == "MLX API Server" and new_status == ServiceStatus.DOWN:
             await self._try_restart_mlx_server()
-            
+
         # [SINGULARITY 28.5] Self-healing for MicroVM nodes
         if "microvm" in service.name.lower() and new_status == ServiceStatus.DOWN:
             await self._self_heal_microvm(service.name)
@@ -346,7 +354,7 @@ class ServiceMonitor:
             # 1. Kill the stuck process (simulated)
             # In a real environment, we would use 'limactl stop' or 'firecracker-ctl'
             expert_name = vm_name.replace("microvm-", "")
-            
+
             # 2. Publish event to trigger task requeue
             event = Event(
                 event_id=f"self_heal_{vm_name}_{int(time.time())}",
@@ -462,38 +470,49 @@ class ServiceMonitor:
         pool = await get_pool()
         async with pool.acquire() as conn:
             # Находим задачи с таймаутами или ошибками связи
-            tasks = await conn.fetch("""
+            tasks = await conn.fetch(
+                """
                 SELECT id, title, goal, project_context, metadata
                 FROM tasks
                 WHERE status = 'failed'
                 AND (result ILIKE '%timeout%' OR result ILIKE '%Connect call failed%')
                 ORDER BY updated_at DESC
                 LIMIT $1
-            """, limit)
-            
+            """,
+                limit,
+            )
+
             for task in tasks:
                 logger.info(f"🔄 [RETRY] Перезапуск задачи {task['id']}: {task['title']}")
                 # Сбрасываем статус в pending
-                await conn.execute("""
-                    UPDATE tasks 
+                await conn.execute(
+                    """
+                    UPDATE tasks
                     SET status = 'pending', result = NULL, updated_at = NOW()
                     WHERE id = $1
-                """, task['id'])
-            
+                """,
+                    task["id"],
+                )
+
             return len(tasks)
 
     async def _check_queue_depth(self):
         """Проверить количество PENDING задач и опубликовать событие при перегрузке"""
         try:
             from app.db_pool import get_pool
+
             pool = await get_pool()
             async with pool.acquire() as conn:
-                pending_count = await conn.fetchval("SELECT count(*) FROM tasks WHERE status = 'pending'")
-                
+                pending_count = await conn.fetchval(
+                    "SELECT count(*) FROM tasks WHERE status = 'pending'"
+                )
+
                 max_queue = int(os.getenv("MAX_PENDING_TASKS_THRESHOLD", "100"))
-                
+
                 if pending_count > max_queue:
-                    logger.warning(f"⚠️ Очередь перегружена: {pending_count} задач (лимит: {max_queue})")
+                    logger.warning(
+                        f"⚠️ Очередь перегружена: {pending_count} задач (лимит: {max_queue})"
+                    )
                     event = Event(
                         event_id=f"queue_overload_{int(datetime.now(timezone.utc).timestamp())}",
                         event_type=EventType.PERFORMANCE_DEGRADED,
@@ -501,9 +520,9 @@ class ServiceMonitor:
                             "metric": "queue_depth",
                             "value": pending_count,
                             "threshold": max_queue,
-                            "status": "overloaded"
+                            "status": "overloaded",
                         },
-                        source="service_monitor"
+                        source="service_monitor",
                     )
                     await self.event_bus.publish(event)
         except Exception as e:

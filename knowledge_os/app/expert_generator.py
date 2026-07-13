@@ -123,7 +123,11 @@ async def recruit_expert(domain_name: str, is_micro: bool = False):
         logger.error("❌ asyncpg is not installed. Recruitment is disabled.")
         return
 
-    logger.info("🕵️ Autonomous Recruitment: Designing %sexpert for domain '%s'...", "micro-" if is_micro else "", domain_name)
+    logger.info(
+        "🕵️ Autonomous Recruitment: Designing %sexpert for domain '%s'...",
+        "micro-" if is_micro else "",
+        domain_name,
+    )
     conn = await asyncpg.connect(DB_URL)
 
     # 1. Анализируем лучшие мировые практики для этой роли (промпт мирового уровня)
@@ -131,9 +135,9 @@ async def recruit_expert(domain_name: str, is_micro: bool = False):
         recruitment_prompt = f"""
         Ты — Архитектор Микро-агентов. Создай узкоспециализированного временного агента.
         ОБЛАСТЬ: {domain_name}
-        ЗАДАЧА: Придумай имя и очень конкретный system_prompt (max 500 символов), 
+        ЗАДАЧА: Придумай имя и очень конкретный system_prompt (max 500 символов),
         фокусирующийся ТОЛЬКО на этой области.
-        
+
         ВЕРНИ ТОЛЬКО JSON:
         {{
             "name": "Имя",

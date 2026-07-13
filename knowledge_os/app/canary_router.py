@@ -28,6 +28,7 @@ async def get_active_mutations(expert_id: str) -> List[Dict[str, Any]]:
     """Get active shadow mutations for an expert."""
     try:
         import asyncpg
+
         pool = await _get_pool()
         async with pool.acquire() as conn:
             rows = await conn.fetch(
@@ -103,11 +104,15 @@ async def _judge_responses(production: str, canary: str) -> str:
 async def _get_pool():
     try:
         from app.db_pool import get_pool
+
         return await get_pool()
     except Exception:
         try:
             import asyncpg
-            db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
+
+            db_url = os.getenv(
+                "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
+            )
             return await asyncpg.create_pool(db_url, min_size=1, max_size=2)
         except Exception:
             return None
@@ -161,8 +166,10 @@ async def run_canary_daemon():
                         expert_name=expert["name"],
                     )
                 else:
-                    logger.info(f"[CANARY_DAEMON] Mutation {mutation['id'][:8]} produced error response")
+                    logger.info(
+                        f"[CANARY_DAEMON] Mutation {mutation['id'][:8]} produced error response"
+                    )
         except Exception as e:
-            logger.debug(f"[CANARY_DAEMON] Test failed for {mutation.get('id','')[:8]}: {e}")
+            logger.debug(f"[CANARY_DAEMON] Test failed for {mutation.get('id', '')[:8]}: {e}")
 
     return len(_untested)

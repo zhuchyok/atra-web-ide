@@ -8,32 +8,32 @@ async def scan_db():
         conn = await asyncpg.connect('postgresql://admin:secret@localhost:6432/knowledge_os')
         now = datetime.now()
         twelve_hours_ago = now - timedelta(hours=12)
-        
+
         stats_query = """
-            SELECT 
+            SELECT
                 COUNT(*) as total,
                 COUNT(*) FILTER (WHERE status = 'completed') as completed,
                 COUNT(*) FILTER (WHERE status = 'failed') as failed,
                 COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress,
                 COUNT(*) FILTER (WHERE status = 'pending') as pending
-            FROM tasks 
+            FROM tasks
             WHERE created_at > $1 OR updated_at > $1
         """
         stats = await conn.fetchrow(stats_query, twelve_hours_ago)
-        
+
         stuck_query = """
-            SELECT id, title, task_type, updated_at 
-            FROM tasks 
-            WHERE status = 'in_progress' 
+            SELECT id, title, task_type, updated_at
+            FROM tasks
+            WHERE status = 'in_progress'
             AND updated_at < $1
             LIMIT 10
         """
         stuck_tasks = await conn.fetch(stuck_query, now - timedelta(hours=1))
-        
+
         errors_query = """
-            SELECT id, title, result as error, updated_at 
-            FROM tasks 
-            WHERE status = 'failed' 
+            SELECT id, title, result as error, updated_at
+            FROM tasks
+            WHERE status = 'failed'
             AND updated_at > $1
             ORDER BY updated_at DESC
             LIMIT 5

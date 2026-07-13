@@ -3,23 +3,25 @@ import json
 import logging
 import os
 import uuid
-from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
 try:
+    from app.event_bus import Event, EventType, get_event_bus
     from app.redis_manager import get_redis_manager
-    from app.event_bus import get_event_bus, Event, EventType
 except ImportError:
+    from event_bus import Event, EventType, get_event_bus
     from redis_manager import get_redis_manager
-    from event_bus import get_event_bus, Event, EventType
 
 logger = logging.getLogger("GlobalEventBus")
+
 
 class GlobalEventBus:
     """
     [SINGULARITY 28.0] Global Event Bus.
     Synchronizes agent states and events across the cluster using Redis Pub/Sub.
     """
+
     def __init__(self):
         self.redis = get_redis_manager()
         self.local_bus = get_event_bus()
@@ -30,7 +32,7 @@ class GlobalEventBus:
         """Start listening to global events from Redis."""
         if self._listen_task:
             return
-            
+
         self._listen_task = asyncio.create_task(self._listen_loop())
         logger.info("🌍 [GLOBAL BUS] Started listening for cross-agent events.")
 
@@ -42,7 +44,7 @@ class GlobalEventBus:
             "payload": event.payload,
             "source": event.source,
             "timestamp": event.timestamp.isoformat(),
-            "correlation_id": event.correlation_id
+            "correlation_id": event.correlation_id,
         }
         client = await self.redis.get_client()
         await client.publish(self.channel, json.dumps(event_dict))
@@ -53,7 +55,7 @@ class GlobalEventBus:
         client = await self.redis.get_client()
         pubsub = client.pubsub()
         await pubsub.subscribe(self.channel)
-        
+
         async for message in pubsub.listen():
             if message["type"] == "message":
                 try:
@@ -64,7 +66,7 @@ class GlobalEventBus:
                         payload=data["payload"],
                         source=data["source"],
                         timestamp=datetime.fromisoformat(data["timestamp"]),
-                        correlation_id=data.get("correlation_id")
+                        correlation_id=data.get("correlation_id"),
                     )
                     # Avoid infinite loops: only publish if source is not local
                     # (In a real system, we'd use a unique node ID)
@@ -72,7 +74,9 @@ class GlobalEventBus:
                 except Exception as e:
                     logger.error(f"❌ [GLOBAL BUS] Failed to process global event: {e}")
 
+
 _global_bus = None
+
 
 def get_global_event_bus() -> GlobalEventBus:
     global _global_bus

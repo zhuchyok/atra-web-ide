@@ -1,6 +1,7 @@
 """Tests for ai_core.py security features: threat_detector, SafetyChecker, episodic EN."""
 
 import json
+
 import pytest
 
 
@@ -11,6 +12,7 @@ class TestSafeCloudResponse:
     async def test_safe_cloud_response_passthrough(self):
         """Should pass through normal responses unchanged."""
         from app.ai_core import _safe_cloud_response
+
         result = await _safe_cloud_response("hello world")
         assert result == "hello world"
 
@@ -18,6 +20,7 @@ class TestSafeCloudResponse:
     async def test_safe_cloud_response_system_error(self):
         """Should return SYSTEM errors unchanged."""
         from app.ai_core import _safe_cloud_response
+
         result = await _safe_cloud_response("[SYSTEM: All LLM sources unavailable]")
         assert result.startswith("[SYSTEM:")
 
@@ -25,6 +28,7 @@ class TestSafeCloudResponse:
     async def test_safe_cloud_response_empty(self):
         """Should return empty string unchanged."""
         from app.ai_core import _safe_cloud_response
+
         assert await _safe_cloud_response("") == ""
         assert await _safe_cloud_response(None) is None
 
@@ -40,9 +44,23 @@ class TestEpisodicMemoryKeywords:
 
     def test_english_keywords_detected(self):
         """English preference keywords should now trigger save."""
-        en_keywords = ["always", "never", "prefer", "i like", "i use", "i want",
-                       "always use", "never use", "my preference", "i usually",
-                       "i tend to", "i'd like", "i prefer", "i need", "from now on"]
+        en_keywords = [
+            "always",
+            "never",
+            "prefer",
+            "i like",
+            "i use",
+            "i want",
+            "always use",
+            "never use",
+            "my preference",
+            "i usually",
+            "i tend to",
+            "i'd like",
+            "i prefer",
+            "i need",
+            "from now on",
+        ]
         user_part = "I always use TypeScript for frontend"
         assert any(kw in user_part.lower() for kw in en_keywords)
 

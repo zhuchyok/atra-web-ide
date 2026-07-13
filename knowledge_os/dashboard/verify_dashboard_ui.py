@@ -5,15 +5,20 @@
   cd knowledge_os/dashboard && ../.venv/bin/python verify_dashboard_ui.py
 Или: ./scripts/run_dashboard_ui_verify.sh
 """
+
 import os
+import subprocess
 import sys
 import time
-import subprocess
 
 DASH = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(DASH))
 VENV = os.path.join(ROOT, ".venv")
-PY = os.path.join(VENV, "bin", "python") if os.path.isfile(os.path.join(VENV, "bin", "python")) else sys.executable
+PY = (
+    os.path.join(VENV, "bin", "python")
+    if os.path.isfile(os.path.join(VENV, "bin", "python"))
+    else sys.executable
+)
 BASE_URL = os.environ.get("DASHBOARD_URL", "http://127.0.0.1:8501")
 
 
@@ -21,6 +26,7 @@ def ensure_dashboard_running():
     """Проверить, что на 8501 что-то отвечает; при необходимости запустить в фоне."""
     try:
         import urllib.request
+
         req = urllib.request.Request(BASE_URL, method="GET")
         urllib.request.urlopen(req, timeout=3)
         return True
@@ -29,7 +35,16 @@ def ensure_dashboard_running():
     # Запуск в фоне
     print("Запуск дашборда в фоне...")
     proc = subprocess.Popen(
-        [PY, "-m", "streamlit", "run", "app.py", "--server.port=8501", "--server.address=127.0.0.1", "--server.headless=true"],
+        [
+            PY,
+            "-m",
+            "streamlit",
+            "run",
+            "app.py",
+            "--server.port=8501",
+            "--server.address=127.0.0.1",
+            "--server.headless=true",
+        ],
         cwd=DASH,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -38,6 +53,7 @@ def ensure_dashboard_running():
         time.sleep(1)
         try:
             import urllib.request
+
             urllib.request.urlopen(BASE_URL, timeout=2)
             print("Дашборд поднят.")
             return True
@@ -86,9 +102,15 @@ def run_playwright_checks():
                 try:
                     # Нижние пункты сайдбара: прокрутить вниз перед поиском
                     if i >= 5:
-                        page.evaluate("const s = document.querySelector('[data-testid=stSidebar]'); if(s) s.scrollTop = s.scrollHeight")
+                        page.evaluate(
+                            "const s = document.querySelector('[data-testid=stSidebar]'); if(s) s.scrollTop = s.scrollHeight"
+                        )
                         page.wait_for_timeout(500)
-                    search = label.split()[0] if label.startswith("Инстр") else (label.split()[0] if label.startswith("Систем") else label)
+                    search = (
+                        label.split()[0]
+                        if label.startswith("Инстр")
+                        else (label.split()[0] if label.startswith("Систем") else label)
+                    )
                     safe = search.replace("'", "\\'").replace('"', '\\"')
                     # Сначала пробуем JS-клик по сайдбару (надёжнее для нижних пунктов)
                     clicked = page.evaluate(f"""() => {{
@@ -108,7 +130,11 @@ def run_playwright_checks():
                         opt.scroll_into_view_if_needed(timeout=5000)
                         opt.click(timeout=8000)
                     page.wait_for_timeout(2500)
-                    content = page.locator("main").inner_text() if page.locator("main").count() else page.locator("body").inner_text()
+                    content = (
+                        page.locator("main").inner_text()
+                        if page.locator("main").count()
+                        else page.locator("body").inner_text()
+                    )
                     if "Критическая ошибка" in content or "Traceback" in content:
                         errors.append(f"Раздел «{short}»: ошибка на странице")
                     else:

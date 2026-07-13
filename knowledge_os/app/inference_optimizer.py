@@ -2,11 +2,12 @@ import asyncio
 import logging
 import os
 import time
-from typing import Optional, List, Dict
+from typing import Dict, List, Optional
 
 import aiohttp
 
 logger = logging.getLogger(__name__)
+
 
 class InferenceOptimizer:
     """
@@ -38,9 +39,9 @@ class InferenceOptimizer:
                             "model": model_name,
                             "prompt": " ",
                             "stream": False,
-                            "keep_alive": keep_alive
+                            "keep_alive": keep_alive,
                         },
-                        timeout=aiohttp.ClientTimeout(total=60)
+                        timeout=aiohttp.ClientTimeout(total=60),
                     ) as resp:
                         if resp.status == 200:
                             self.preloaded_models.add(model_name)
@@ -59,7 +60,7 @@ class InferenceOptimizer:
             "coding": ["lfm2.5-thinking:1.2b"],
             "general": ["lfm2.5-thinking:1.2b"],
         }
-        
+
         models_to_preload = predictions.get(current_category, [])
         for model in models_to_preload:
             asyncio.create_task(self.warm_up_model(model, keep_alive=60))
@@ -67,7 +68,9 @@ class InferenceOptimizer:
     def reset_cache(self):
         self.preloaded_models.clear()
 
+
 _optimizer = None
+
 
 def get_inference_optimizer():
     global _optimizer

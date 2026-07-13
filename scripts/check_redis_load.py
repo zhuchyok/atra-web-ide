@@ -12,16 +12,16 @@ async def check_redis():
     client = await redis_manager.get_client()
     stream_name = "stream:expert_tasks"
     group_name = "expert_worker_group"
-    
+
     try:
         stream_info = await client.xinfo_stream(stream_name)
         groups_info = await client.xinfo_groups(stream_name)
-        
+
         pending_total = 0
         for group in groups_info:
             if group['name'] == group_name:
                 pending_total = group['pending']
-        
+
         print(json.dumps({
             "stream_length": stream_info['length'],
             "pending_in_group": pending_total,

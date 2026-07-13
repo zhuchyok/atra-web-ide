@@ -166,38 +166,83 @@ class ReActAgent:
         Фильтрует список доступных инструментов на основе цели задачи для повышения точности.
         """
         goal_lower = goal.lower()
-        
+
         # Если инструментов мало, отдаем все
         if len(all_tools) <= 5:
             return all_tools
-            
+
         relevant = []
-        
+
         # Группы инструментов
-        fs_tools = ["read_file", "write_file", "edit_file", "list_files", "grep_search", "batch_read", "batch_grep", "apply_patch", "create_file"]
+        fs_tools = [
+            "read_file",
+            "write_file",
+            "edit_file",
+            "list_files",
+            "grep_search",
+            "batch_read",
+            "batch_grep",
+            "apply_patch",
+            "create_file",
+        ]
         web_tools = ["web_search", "fetch_url", "searxng_search", "google_search"]
-        system_tools = ["execute_command", "get_server_status", "restart_service", "docker_ps", "get_logs"]
-        
+        system_tools = [
+            "execute_command",
+            "get_server_status",
+            "restart_service",
+            "docker_ps",
+            "get_logs",
+        ]
+
         # Логика фильтрации
-        is_fs_task = any(kw in goal_lower for kw in ["файл", "код", "директори", "папк", "read", "write", "edit", "patch", "аудит", "file"])
-        is_web_task = any(kw in goal_lower for kw in ["найти в сети", "поиск", "интернет", "url", "сайт", "web", "search"])
-        is_system_task = any(kw in goal_lower for kw in ["сервер", "процесс", "docker", "контейнер", "restart", "status", "command", "log"])
-        
+        is_fs_task = any(
+            kw in goal_lower
+            for kw in [
+                "файл",
+                "код",
+                "директори",
+                "папк",
+                "read",
+                "write",
+                "edit",
+                "patch",
+                "аудит",
+                "file",
+            ]
+        )
+        is_web_task = any(
+            kw in goal_lower
+            for kw in ["найти в сети", "поиск", "интернет", "url", "сайт", "web", "search"]
+        )
+        is_system_task = any(
+            kw in goal_lower
+            for kw in [
+                "сервер",
+                "процесс",
+                "docker",
+                "контейнер",
+                "restart",
+                "status",
+                "command",
+                "log",
+            ]
+        )
+
         if is_fs_task:
             relevant.extend([t for t in fs_tools if t in all_tools])
         if is_web_task:
             relevant.extend([t for t in web_tools if t in all_tools])
         if is_system_task:
             relevant.extend([t for t in system_tools if t in all_tools])
-            
+
         # Всегда добавляем базовые инструменты
         base_tools = ["finish", "ask_question", "think", "delegate_task"]
         relevant.extend([t for t in base_tools if t in all_tools])
-        
+
         # Если ничего не подошло, отдаем все (fallback)
         if not relevant:
             return all_tools
-            
+
         # Удаляем дубликаты
         return list(set(relevant))
 
@@ -233,7 +278,9 @@ class ReActAgent:
 
         # [SINGULARITY 21.34] Progressive Tool Disclosure
         available_tools = self._get_relevant_tools(self.initial_goal or "", available_tools)
-        logger.info(f"🎯 [PROGRESSIVE DISCLOSURE] Filtered to {len(available_tools)} relevant tools")
+        logger.info(
+            f"🎯 [PROGRESSIVE DISCLOSURE] Filtered to {len(available_tools)} relevant tools"
+        )
 
         # [SILENT THOUGHT] Внутренний аудит перед действием
         silent_audit_prompt = f"""Ты - Виктория. Перед тем как выбрать инструмент, проведи внутренний аудит.
@@ -321,14 +368,18 @@ class ReActAgent:
 
         while self.memory.iteration < self.memory.max_iterations:
             self.memory.iteration += 1
-            print(f"DEBUG_PRINT: Iteration {self.memory.iteration}, state: {self.memory.current_state}")
+            print(
+                f"DEBUG_PRINT: Iteration {self.memory.iteration}, state: {self.memory.current_state}"
+            )
 
             try:
                 # 1. Think
                 if self.memory.current_state == ReActState.THINK:
                     print("DEBUG_PRINT: Entering think state")
                     thought = await self.think(goal, context)
-                    print(f"DEBUG_PRINT: Think finished, thought length: {len(thought) if thought else 0}")
+                    print(
+                        f"DEBUG_PRINT: Think finished, thought length: {len(thought) if thought else 0}"
+                    )
                     step = ReActStep(state=ReActState.THINK, thought=thought)
                     self.memory.steps.append(step)
                     self.memory.current_state = ReActState.ACT
@@ -721,7 +772,7 @@ class ReActAgent:
             # We look for something that looks like a JSON object or array
             # Starting with { or [ and ending with } or ]
             json_blocks = re.findall(r"([\{\[].*[\}\]])", response_clean, re.DOTALL)
-            
+
             # If still not found, fallback to greedier match
             if not json_blocks:
                 json_blocks = re.findall(r"([\{\[].*)", response_clean, re.DOTALL)
@@ -762,7 +813,7 @@ class ReActAgent:
                                 balance_square += 1
                             elif char == "]":
                                 balance_square -= 1
-                            
+
                             if balance_curly == 0 and balance_square == 0:
                                 last_valid_index = i
                                 break
@@ -782,11 +833,11 @@ class ReActAgent:
                             )
 
                     action_data = json.loads(block_to_parse)
-                    
+
                     # Если это список, берем первый элемент (если он есть)
                     if isinstance(action_data, list) and action_data:
                         action_data = action_data[0]
-                    
+
                     if not isinstance(action_data, dict):
                         continue
 
@@ -1215,14 +1266,16 @@ class ReActAgent:
         # [SINGULARITY 21.15] Определение типа задачи для выбора между Мозгом (MLX) и Руками (Ollama)
         # Если в промпте есть "ТВОЕ РАССУЖДЕНИЕ" или "ВЫБЕРИ действие", это шаг исполнения (руки).
         # Если промпт про стратегию или архитектуру — это мозг.
-        is_reasoning_task = any(kw in prompt.lower() for kw in ["стратегия", "архитектура", "план", "анализ"])
-        
+        is_reasoning_task = any(
+            kw in prompt.lower() for kw in ["стратегия", "архитектура", "план", "анализ"]
+        )
+
         # [SINGULARITY 21.25] Принудительное использование Ollama если указано в промпте
         force_ollama = "[force_ollama]" in prompt or "preferred_source: ollama" in prompt.lower()
         if force_ollama:
             logger.info("⚡ [REACT] Принудительное использование Ollama (force_ollama)")
             is_reasoning_task = False
-        
+
         # [SINGULARITY 21.6] Force Wisdom 30B for all steps if configured
         _force_model = os.getenv("VICTORIA_FORCE_STEP_MODEL")
         if _force_model:
@@ -1233,16 +1286,17 @@ class ReActAgent:
             if not hasattr(self, "_models_to_try_cache"):
                 # По умолчанию используем модель, переданную в конструктор
                 self._models_to_try_cache = [self.model_name]
-                
+
                 # Попытка добавить альтернативные модели (Ollama)
                 try:
                     import httpx
+
                     # Не блокируем инициализацию долгим сканированием, просто добавляем базовые
                     # В будущем здесь можно сделать асинхронное сканирование
                     pass
                 except Exception:
                     pass
-            
+
             models_to_try = self._models_to_try_cache
 
         # Таймаут на LLM вызов
@@ -1261,7 +1315,6 @@ class ReActAgent:
                     urls = [u for u in [self.ollama_url, self.mlx_url] if u]
 
                 for llm_url in urls:
-
                     if not llm_url:
                         continue
                     try:
@@ -1285,13 +1338,17 @@ class ReActAgent:
                                 )
                                 return result
                         elif response.status_code == 503:
-                            logger.warning(f"⚠️ [GENERATE] 503 Service Unavailable на {llm_url}, пробуем следующую URL...")
+                            logger.warning(
+                                f"⚠️ [GENERATE] 503 Service Unavailable на {llm_url}, пробуем следующую URL..."
+                            )
                             continue
                         elif response.status_code == 404:
                             logger.warning(f"⚠️ [GENERATE] 404 на {llm_url} модель={model}")
                             continue
                     except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.WriteTimeout) as e:
-                        logger.warning(f"⏱️ [GENERATE] Таймаут на {llm_url} ({repr(e)}), пробуем следующую URL...")
+                        logger.warning(
+                            f"⏱️ [GENERATE] Таймаут на {llm_url} ({repr(e)}), пробуем следующую URL..."
+                        )
                         continue
                     except Exception as e:
                         logger.warning(f"⚠️ [GENERATE] Ошибка модели {model}: {repr(e)}")

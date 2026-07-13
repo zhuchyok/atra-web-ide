@@ -16,10 +16,12 @@ logger = logging.getLogger(__name__)
 
 # ─── Phase 1: Prompt Preparation ─────────────────────────────────────────
 
+
 async def load_memory_crystals(project_context: Optional[str] = None) -> str:
     """Load memory crystals from DB."""
     try:
         from ai_core import _get_db_pool
+
         pool = await _get_db_pool()
         if pool:
             async with pool.acquire() as conn:
@@ -40,11 +42,15 @@ def check_threats(prompt: str) -> Tuple[bool, List[str]]:
     """Check prompt for security threats."""
     try:
         from app.threat_detector import get_threat_detector
+
         td = get_threat_detector()
         results = td.analyze(prompt, "")
         if results:
             types = [t.get("threat_type", "unknown") for t in results]
-            sev = max({"critical": 3, "high": 2, "medium": 1, "low": 0}.get(t.get("severity", "low"), 0) for t in results)
+            sev = max(
+                {"critical": 3, "high": 2, "medium": 1, "low": 0}.get(t.get("severity", "low"), 0)
+                for t in results
+            )
             return sev >= 3, types
     except Exception:
         pass
@@ -73,6 +79,7 @@ def inject_wisdom(prompt: str, is_discussion: bool = False) -> str:
         return prompt
     try:
         from ai_core import _inject_wisdom_strategies
+
         return _inject_wisdom_strategies(prompt)
     except Exception:
         return prompt
@@ -90,9 +97,11 @@ async def inject_context_enrichment(
     }
     try:
         from digital_constitution import get_constitution_context
+
         result["constitution"] = get_constitution_context()
 
         from ai_core import _get_db_pool
+
         pool = await _get_db_pool()
         if pool:
             async with pool.acquire() as conn:
@@ -102,7 +111,9 @@ async def inject_context_enrichment(
                 )
                 if rows:
                     texts = "\n".join(f"- {r['content']}" for r in rows)
-                    result["meta_wisdom"] = f"\n### 🏛 CORPORATE META-STRATEGIES (WISDOM):\n{texts}\n"
+                    result["meta_wisdom"] = (
+                        f"\n### 🏛 CORPORATE META-STRATEGIES (WISDOM):\n{texts}\n"
+                    )
                     logger.info(f"🏛 [WISDOM] Injected {len(rows)} meta-strategies")
 
                 # Mentorship
@@ -117,6 +128,7 @@ async def inject_context_enrichment(
         # Experience & Success
         try:
             from experience_retriever import get_experience_context
+
             exp = await get_experience_context(user_part, expert_name)
             if exp:
                 result["experience"] = exp
@@ -124,6 +136,7 @@ async def inject_context_enrichment(
             pass
         try:
             from success_retriever import get_success_context
+
             suc = await get_success_context(user_part, expert_name=expert_name)
             if suc:
                 result["experience"] += suc
@@ -133,6 +146,7 @@ async def inject_context_enrichment(
         # Expert DNA
         try:
             from expert_dna_manager import get_expert_dna_manager
+
             dna = await get_expert_dna_manager().get_expert_dna(expert_name)
             if dna:
                 result["experience"] = dna + "\n" + result["experience"]
@@ -148,6 +162,7 @@ async def inject_expert_dna(prompt: str, expert_name: str) -> str:
     """Inject expert DNA rules."""
     try:
         from app.expert_dna_manager import get_expert_dna_manager
+
         dna_mgr = get_expert_dna_manager()
         dna = await dna_mgr.get_expert_dna(expert_name)
         if dna:
@@ -159,12 +174,17 @@ async def inject_expert_dna(prompt: str, expert_name: str) -> str:
 
 # ─── Phase 2: Context & Strategy ─────────────────────────────────────────
 
+
 async def get_cache_and_context(
-    prompt: str, expert_name: str, category: Optional[str], project_context: Optional[str],
-    images: Optional[list] = None
+    prompt: str,
+    expert_name: str,
+    category: Optional[str],
+    project_context: Optional[str],
+    images: Optional[list] = None,
 ) -> Tuple[Optional[str], str]:
     """Check cache and load RAG context in parallel."""
-    from ai_core import _get_knowledge_context, _get_cache_manager
+    from ai_core import _get_cache_manager, _get_knowledge_context
+
     cache = _get_cache_manager(category)
 
     tasks = []
@@ -180,10 +200,12 @@ async def get_cache_and_context(
 
 # ─── Phase 3: Episodic & Distillation ─────────────────────────────────────
 
+
 async def get_episodic_memory(user_key: str, project_context: Optional[str]) -> str:
     """Load episodic memory for user."""
     try:
         from ai_core import get_episodic_memory_manager
+
         em = get_episodic_memory_manager()
         if em:
             return await em.get_episodes(user_key, project_context) or ""
@@ -196,6 +218,7 @@ async def get_distilled_rules() -> str:
     """Load self-distillation rules."""
     try:
         from ai_core import get_distillation_engine
+
         de = get_distillation_engine()
         if de:
             return await de.get_active_rules() or ""
@@ -206,10 +229,14 @@ async def get_distilled_rules() -> str:
 
 # ─── Phase 4: Cloud Execution ────────────────────────────────────────────
 
-async def run_cloud(prompt: str, category: Optional[str] = None, is_vip: bool = False) -> Tuple[Optional[str], Optional[Dict]]:
+
+async def run_cloud(
+    prompt: str, category: Optional[str] = None, is_vip: bool = False
+) -> Tuple[Optional[str], Optional[Dict]]:
     """Run LLM via cloud fallback."""
     try:
         from ai_core import _run_cloud_agent_async
+
         response = await _run_cloud_agent_async(prompt, category=category, is_vip=is_vip)
         return response, None
     except Exception as e:
@@ -218,10 +245,12 @@ async def run_cloud(prompt: str, category: Optional[str] = None, is_vip: bool = 
 
 # ─── Phase 5: Response Processing ────────────────────────────────────────
 
+
 def clean_response(response: Any) -> str:
     """Normalize LLM response for user."""
     try:
         from ai_core import _normalize_output_for_user
+
         return _normalize_output_for_user(response)
     except Exception:
         return str(response) if response else ""
@@ -241,6 +270,7 @@ import os as _os
 from datetime import datetime as _datetime
 from typing import Optional as _Optional
 
+
 async def run_smart_agent_async_v2(
     prompt: str,
     expert_name: str = "Виктория",
@@ -258,21 +288,39 @@ async def run_smart_agent_async_v2(
     Uses extracted phases from ai_pipeline. Falls back to original if error.
     """
     import time
+
     start = time.time()
 
     try:
         from ai_core import (
-            _get_db_pool, _get_local_router, _get_cache_manager,
-            audit_efficiency, _build_error_response, _get_expert_id,
-            _normalize_output_for_user, _run_local_llm, _run_cloud_agent_async,
-            _get_knowledge_context, get_episodic_memory_manager, get_distillation_engine
+            _build_error_response,
+            _get_cache_manager,
+            _get_db_pool,
+            _get_expert_id,
+            _get_knowledge_context,
+            _get_local_router,
+            _normalize_output_for_user,
+            _run_cloud_agent_async,
+            _run_local_llm,
+            audit_efficiency,
+            get_distillation_engine,
+            get_episodic_memory_manager,
         )
     except ImportError:
         # Fallback to original
         from ai_core import run_smart_agent_async
+
         return await run_smart_agent_async(
-            prompt, expert_name, category, require_cot, is_critical, images,
-            session_id, local_router, is_vip, project_context
+            prompt,
+            expert_name,
+            category,
+            require_cot,
+            is_critical,
+            images,
+            session_id,
+            local_router,
+            is_vip,
+            project_context,
         )
 
     # Phase 1: Prepare prompt
@@ -309,13 +357,14 @@ async def run_smart_agent_async_v2(
     response = clean_response(response)
     response = strip_think_blocks(response)
 
-    logger.info(f"[V2] {expert_name} → {source} ({len(response)} chars, {time.time()-start:.1f}s)")
+    logger.info(
+        f"[V2] {expert_name} → {source} ({len(response)} chars, {time.time() - start:.1f}s)"
+    )
     return response
 
 
 async def _call_llm_with_router(
-    prompt: str, expert_name: str, category: _Optional[str],
-    is_vip: bool, router
+    prompt: str, expert_name: str, category: _Optional[str], is_vip: bool, router
 ) -> tuple:
     """Try local router first, then fallback."""
     if router:
@@ -323,5 +372,6 @@ async def _call_llm_with_router(
         if result and len(str(result)) > 10:
             return result, "local"
     from ai_core import _run_cloud_agent_async
+
     result = await _run_cloud_agent_async(prompt, category=category, is_vip=is_vip)
     return result, "cloud"

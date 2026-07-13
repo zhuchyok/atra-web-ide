@@ -17,7 +17,7 @@ async def measure_request(model: str, prompt: str):
         "messages": [{"role": "user", "content": prompt}],
         "stream": False
     }
-    
+
     start_time = time.perf_counter()
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
@@ -25,12 +25,12 @@ async def measure_request(model: str, prompt: str):
             response.raise_for_status()
             data = response.json()
             end_time = time.perf_counter()
-            
+
             content = data["choices"][0]["message"]["content"]
             tokens = len(content.split()) # Грубая оценка токенов по словам
             duration = end_time - start_time
             tps = tokens / duration if duration > 0 else 0
-            
+
             return {
                 "duration": duration,
                 "tokens": tokens,
@@ -45,7 +45,7 @@ async def run_benchmarks():
     print(f"🚀 Запуск замеров для модели: {MODELS_TO_TEST[0]}")
     print(f"📝 Промпт: {TEST_PROMPT}")
     print("-" * 50)
-    
+
     results = []
     for i in range(ITERATIONS):
         print(f"🔄 Итерация {i+1}/{ITERATIONS}...")
@@ -56,7 +56,7 @@ async def run_benchmarks():
         else:
             print(f"   ❌ Ошибка: {res['error']}")
         await asyncio.sleep(1) # Пауза между тестами
-    
+
     if results:
         avg_dur = statistics.mean([r["duration"] for r in results])
         avg_tps = statistics.mean([r["tps"] for r in results])

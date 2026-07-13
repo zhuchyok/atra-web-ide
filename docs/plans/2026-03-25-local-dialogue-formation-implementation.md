@@ -13,6 +13,7 @@
 ### Task 1: Подготовка инфраструктуры (ai_core.py)
 
 **Files:**
+
 - Modify: `knowledge_os/app/ai_core.py`
 
 **Step 1: Определение структуры TeamDiscussionEngine**
@@ -22,6 +23,7 @@
 Настроить вызов локальной модели через порт 11435 с флагом `single_pass_team=True`.
 
 **Step 3: Commit**
+
 ```bash
 git add knowledge_os/app/ai_core.py
 git commit -m "feat: add TeamDiscussionEngine skeleton to ai_core"
@@ -30,6 +32,7 @@ git commit -m "feat: add TeamDiscussionEngine skeleton to ai_core"
 ### Task 2: Маппинг личностей и формирование промпта
 
 **Files:**
+
 - Modify: `knowledge_os/app/ai_core.py`
 - Read: `docs/TEAM_PERSONALITIES.md`
 
@@ -40,6 +43,7 @@ git commit -m "feat: add TeamDiscussionEngine skeleton to ai_core"
 Реализовать сборку финального промпта, включающего задачу, контекст кода и инструкции по ролям.
 
 **Step 3: Commit**
+
 ```bash
 git add knowledge_os/app/ai_core.py
 git commit -m "feat: implement personality mapping for local team generation"
@@ -48,6 +52,7 @@ git commit -m "feat: implement personality mapping for local team generation"
 ### Task 3: Тестирование и Fallback
 
 **Files:**
+
 - Create: `knowledge_os/tests/test_local_team.py`
 - Modify: `knowledge_os/app/ai_core.py`
 
@@ -58,6 +63,7 @@ git commit -m "feat: implement personality mapping for local team generation"
 Добавить `try...except` блок: если MLX недоступен или выдает мусор, переключаться на стандартный облачный режим.
 
 **Step 3: Commit**
+
 ```bash
 git add knowledge_os/tests/test_local_team.py knowledge_os/app/ai_core.py
 git commit -m "test: add local team generation tests and fallback logic"

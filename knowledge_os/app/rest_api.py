@@ -407,7 +407,10 @@ _SERVICE_HEALTH_URLS = {
 async def _check_redis() -> dict:
     try:
         import redis.asyncio as aioredis
-        r = aioredis.from_url("redis://knowledge_os_redis:6379", decode_responses=True, socket_connect_timeout=3)
+
+        r = aioredis.from_url(
+            "redis://knowledge_os_redis:6379", decode_responses=True, socket_connect_timeout=3
+        )
         await r.ping()
         await r.aclose()
         return {"name": "redis", "status": "ok"}
@@ -437,7 +440,10 @@ async def health_all():
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(url)
-                return name, {"status": "ok" if resp.status_code < 500 else "error", "code": resp.status_code}
+                return name, {
+                    "status": "ok" if resp.status_code < 500 else "error",
+                    "code": resp.status_code,
+                }
         except Exception as e:
             return name, {"status": "error", "error": str(e)[:60]}
 

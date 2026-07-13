@@ -58,7 +58,7 @@ jobs:
 
       - name: Run MyPy (backend)
         run: mypy backend/app --ignore-missing-imports
-        continue-on-error: true  # Not blocking yet
+        continue-on-error: true # Not blocking yet
 
   # Rust: Clippy linting & format check
   rust-lint:

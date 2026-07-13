@@ -1,10 +1,12 @@
-import logging
 import asyncio
+import logging
 from typing import Any, Dict, List, Optional
+
 from app.long_term_memory import get_ltm
 from app.semantic_cache import SemanticAICache
 
 logger = logging.getLogger("KnowledgeFabric")
+
 
 class KnowledgeFabric:
     """
@@ -23,7 +25,7 @@ class KnowledgeFabric:
         Unified query across all knowledge systems.
         """
         logger.info(f"🔍 [FABRIC] Querying knowledge for: {text[:50]}...")
-        
+
         # 1. Check Semantic Cache (Fastest)
         cached_result = await self.cache.get_cache(text)
         if cached_result:
@@ -32,16 +34,16 @@ class KnowledgeFabric:
 
         # 2. Query Long-term Memory (Vector similarity)
         memories = await self.ltm.recall_memories(text, limit=limit)
-        
+
         # 3. Query Graph relations (Simulated for now, integration with knowledge_graph.py)
         # In a full implementation, we would also pull related nodes from the graph
-        
-        combined_content = "\n\n".join([m['content'] for m in memories])
-        
+
+        combined_content = "\n\n".join([m["content"] for m in memories])
+
         return {
             "source": "unified_memory",
             "content": combined_content,
-            "metadata": {"memory_count": len(memories)}
+            "metadata": {"memory_count": len(memories)},
         }
 
     async def store(self, content: str, source: str, metadata: Dict[str, Any] = None):
@@ -49,16 +51,18 @@ class KnowledgeFabric:
         Unified storage. Automatically indexes in LTM and updates Graph.
         """
         logger.info(f"💾 [FABRIC] Storing knowledge from {source}")
-        
+
         # 1. Store in LTM (Vector)
         memory_id = await self.ltm.store_memory(content, source, metadata)
-        
+
         # 2. Update Cache
         await self.cache.set_cache(content, content, ttl=3600)
-        
+
         return memory_id
 
+
 _fabric = None
+
 
 def get_knowledge_fabric() -> KnowledgeFabric:
     global _fabric

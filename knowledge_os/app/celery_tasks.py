@@ -7,9 +7,10 @@
 - Webhook callback: клиент получает уведомление о завершении
 """
 
-import os
 import asyncio
-from typing import Optional, Dict, Any
+import os
+from typing import Any, Dict, Optional
+
 from celery import Celery
 from celery.signals import worker_init
 

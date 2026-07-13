@@ -67,7 +67,6 @@ IMPORTANT: Ответ ДОЛЖЕН быть валидным JSON по схем�
         context: Optional[str] = None,
         category: Optional[str] = None,
     ) -> BaseModel:
-        
         system_prompt = self._build_system_prompt()
         full_prompt = f"{system_prompt}\n\nКонтекст: {context or ''}\n\nЗапрос: {user_prompt}"
 
@@ -86,7 +85,6 @@ IMPORTANT: Ответ ДОЛЖЕН быть валидным JSON по схем�
         raise StructuredOutputError(f"Failed after {self.max_retries} attempts")
 
     async def _call_llm(self, prompt: str, category: Optional[str] = None) -> str:
-        
         url = MLX_URL.rstrip("/")
         is_mlx = "11435" in url
 

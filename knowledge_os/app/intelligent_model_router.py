@@ -433,7 +433,7 @@ class IntelligentModelRouter:
         elif isinstance(category, str):
             category = category.lower()
         elif category is not None:
-            # Если это объект другого типа (например, сам TaskCategory, но без .value, что странно, 
+            # Если это объект другого типа (например, сам TaskCategory, но без .value, что странно,
             # или если мы хотим быть максимально безопасными)
             category = str(category).lower()
 

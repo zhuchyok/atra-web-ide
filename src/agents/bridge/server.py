@@ -7,8 +7,8 @@ from typing import Any, Optional
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
-from starlette.responses import Response
 from pydantic import BaseModel
+from starlette.responses import Response
 
 from src.agents.bridge.project_registry import get_main_project, get_projects_registry
 from src.agents.core.base_agent import AtraBaseAgent as BaseAgent
@@ -314,10 +314,12 @@ agent = VeronicaAgent()
 
 # [SINGULARITY 31.3] Agent-to-Agent messaging for Veronica
 try:
-    from app.agent_messaging import start_presence_broadcast, listen
+    from app.agent_messaging import listen, start_presence_broadcast
 
     asyncio.create_task(listen("Вероника"))
-    asyncio.create_task(start_presence_broadcast("Вероника", ["execution", "file_ops", "web_search"]))
+    asyncio.create_task(
+        start_presence_broadcast("Вероника", ["execution", "file_ops", "web_search"])
+    )
     logger.info("🔗 [AGENT_MSG] Veronica subscribed to agent messaging")
 except Exception as e:
     logger.warning(f"⚠️ [AGENT_MSG] Init failed: {e}")
@@ -466,6 +468,7 @@ async def health():
 async def metrics():
     """Prometheus metrics for Veronica (plaintext without prometheus_client dependency)."""
     from datetime import datetime
+
     ts = int(datetime.now().timestamp())
     return Response(
         content=(
@@ -477,7 +480,7 @@ async def metrics():
             f"veronica_up 1\n"
             f"# HELP veronica_tasks_total Total tasks processed\n"
             f"# TYPE veronica_tasks_total counter\n"
-            f"veronica_tasks_total{{status=\"ok\"}} 0\n"
+            f'veronica_tasks_total{{status="ok"}} 0\n'
         ),
         media_type="text/plain",
     )

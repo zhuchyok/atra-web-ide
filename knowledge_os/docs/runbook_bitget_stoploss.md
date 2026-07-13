@@ -18,11 +18,13 @@
    sqlite3 trading.db "SELECT * FROM risk_flags WHERE flag='bitget_stoploss_missing';"
    ```
 2. Запуск проверки вручную:
+
    ```bash
    .venv/bin/python scripts/run_risk_monitor.py --check-bitget-stoploss
    ```
 
    - Если вывод `stoploss_missing=[]`, флаг сброшен.
+
 3. Проверить лог nightly-скрипта:
    ```bash
    tail -n 50 logs/test_results.log

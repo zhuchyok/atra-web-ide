@@ -7,9 +7,9 @@
 - OpenTelemetry совместимый формат
 """
 
+import logging
 import os
 import uuid
-import logging
 from contextvars import ContextVar
 from typing import Optional
 

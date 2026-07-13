@@ -212,7 +212,9 @@ async def execute_assignments_async(
                                     timeout=timeout_per_expert,
                                 )
                             except RecursionError:
-                                logger.error(f"⚠️ [MONSTER] RecursionError detected during wait_for for {expert_name}. Attempting recovery.")
+                                logger.error(
+                                    f"⚠️ [MONSTER] RecursionError detected during wait_for for {expert_name}. Attempting recovery."
+                                )
                                 # Fallback to a direct call without wait_for if recursion happens in asyncio internals
                                 report = await run_smart_agent_async(
                                     subtask_desc,

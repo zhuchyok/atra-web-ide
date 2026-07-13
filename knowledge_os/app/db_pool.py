@@ -25,9 +25,7 @@ DB_URL = os.getenv(
     "DATABASE_URL",
     "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os?application_name=knowledge_pool",
 )
-AGENT_TEAMS_PILOT_CONTEXT = os.getenv(
-    "AGENT_TEAMS_PILOT_CONTEXT", "pilot:agent-teams-v1"
-).strip()
+AGENT_TEAMS_PILOT_CONTEXT = os.getenv("AGENT_TEAMS_PILOT_CONTEXT", "pilot:agent-teams-v1").strip()
 AGENT_TEAMS_PILOT_TAG = os.getenv("AGENT_TEAMS_PILOT_TAG", "agent-teams-v1").strip()
 
 # Читаем из env, чтобы можно было тюнить без rebuild (например, при включённом PgBouncer ставим 20)

@@ -1,20 +1,24 @@
 import logging
 import os
+from typing import Any, Dict, Tuple
+
 import psutil
-from typing import Dict, Any, Tuple
 
 logger = logging.getLogger("ResourceGuard")
+
 
 class ResourceGuard:
     """
     [SINGULARITY 21.25] Global Resource Controller.
     Coordinates autonomous tasks based on Mac Studio hardware load.
     """
-    
-    def __init__(self, 
-                 ram_threshold_pct: float = 85.0, 
-                 cpu_threshold_pct: float = 75.0,
-                 thermal_threshold: int = 1):
+
+    def __init__(
+        self,
+        ram_threshold_pct: float = 85.0,
+        cpu_threshold_pct: float = 75.0,
+        thermal_threshold: int = 1,
+    ):
         self.ram_threshold = ram_threshold_pct
         self.cpu_threshold = cpu_threshold_pct
         self.thermal_threshold = thermal_threshold
@@ -50,9 +54,12 @@ class ResourceGuard:
         if os.uname().sysname == "Darwin":
             try:
                 from app.mac_studio_monitor import get_mac_studio_monitor
+
                 monitor = get_mac_studio_monitor()
                 stats = await monitor.get_full_stats()
-                thermal_level = int(stats.get("hardware", {}).get("temperature", {}).get("thermal_level", "0"))
+                thermal_level = int(
+                    stats.get("hardware", {}).get("temperature", {}).get("thermal_level", "0")
+                )
                 # thermal_level: 0=nominal, 1=fair, 2=serious, 3=critical
                 thermal_score = max(0.0, 1.0 - (thermal_level / 3.0))
             except Exception:
@@ -62,7 +69,9 @@ class ResourceGuard:
         final_score = (ram_score * 0.4) + (cpu_score * 0.4) + (thermal_score * 0.2)
         return round(max(0.0, min(1.0, final_score)), 2)
 
+
 _guard = None
+
 
 def get_resource_guard() -> ResourceGuard:
     global _guard
@@ -70,6 +79,6 @@ def get_resource_guard() -> ResourceGuard:
         _guard = ResourceGuard(
             ram_threshold_pct=float(os.getenv("GUARD_RAM_THRESHOLD", "85.0")),
             cpu_threshold_pct=float(os.getenv("GUARD_CPU_THRESHOLD", "75.0")),
-            thermal_threshold=int(os.getenv("GUARD_THERMAL_THRESHOLD", "1"))
+            thermal_threshold=int(os.getenv("GUARD_THERMAL_THRESHOLD", "1")),
         )
     return _guard

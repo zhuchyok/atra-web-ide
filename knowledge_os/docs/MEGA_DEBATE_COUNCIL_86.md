@@ -150,4 +150,4 @@
 
 ---
 
-_Полный автоматический прогон мега-дебатов со всеми 86 экспертами из БД: `python knowledge_os/scripts/mega_debate.py` (тема по умолчанию — этот принцип). Результат: `knowledge_os/docs/MEGA_DEBATE_<date>.md` и `.json`._
+_Полный автоматический прогон мега-дебатов со всеми 86 экспертами из БД: `python knowledge_os/scripts/mega_debate.py` (тема по умолчанию — этот принцип). Результат: `knowledge_os/docs/MEGA_DEBATE_<date>.md`и`.json`.\_

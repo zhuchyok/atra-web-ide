@@ -95,7 +95,9 @@ class QualityAssurance:
                 issues.append(f"Sandbox Grounding Failed: {error_msg}")
                 logger.warning(f"🧪 [SANDBOX GROUNDING] Code failed verification: {error_msg}")
             else:
-                logger.info(f"🧪 [SANDBOX GROUNDING] Code verified successfully (score: {grounding_score})")
+                logger.info(
+                    f"🧪 [SANDBOX GROUNDING] Code verified successfully (score: {grounding_score})"
+                )
 
         # 1. Safety Check (критично!)
         safety_ok, safety_warning, safety_score = await self._check_safety(response, response_type)
@@ -375,9 +377,10 @@ class QualityAssurance:
         Извлекает код из ответа и запускает его в изолированном Docker-контейнере,
         проверяя не только новый код, но и связанные зависимости.
         """
-        import re
         import os
+        import re
         import uuid
+
         from sandbox_manager import get_sandbox_manager
 
         # Извлекаем блоки кода Python
@@ -386,7 +389,7 @@ class QualityAssurance:
             return True, 1.0, None  # Кода нет, проверка не нужна
 
         combined_code = "\n\n".join(code_blocks)
-        
+
         # Ограничиваем опасные операции (базовый уровень)
         forbidden = ["os.remove", "os.system", "shutil.rmtree", "subprocess.", "socket."]
         for f in forbidden:
@@ -402,16 +405,18 @@ class QualityAssurance:
         sandbox_id = f"grounding_{uuid.uuid4().hex[:8]}"
         shared_dir = "./knowledge_os/sandbox_shared"
         os.makedirs(shared_dir, exist_ok=True)
-        
+
         tmp_filename = f"{sandbox_id}.py"
         tmp_path = os.path.join(shared_dir, tmp_filename)
-        
+
         try:
             with open(tmp_path, "w") as f:
                 f.write(combined_code)
 
             # 1. Проверка синтаксиса в Docker
-            compile_res = await sandbox.run_in_sandbox("QA", f"python3 -m py_compile {tmp_filename}")
+            compile_res = await sandbox.run_in_sandbox(
+                "QA", f"python3 -m py_compile {tmp_filename}"
+            )
             if compile_res.get("exit_code", 1) != 0:
                 return False, 0.3, f"Syntax Error: {compile_res.get('output')}"
 
@@ -419,14 +424,15 @@ class QualityAssurance:
             # [SINGULARITY 24.0] Dependency-Aware Regression Guard
             try:
                 from dependency_mapper import get_dependency_mapper
+
                 mapper = get_dependency_mapper()
                 affected_files = mapper.get_affected_files(tmp_path)
             except Exception as e:
                 logger.warning(f"⚠️ dependency_mapper error: {e}, skipping regression guard")
                 affected_files = []
-            
-            test_commands = [f"python3 {tmp_filename}"] # Основной запуск
-            
+
+            test_commands = [f"python3 {tmp_filename}"]  # Основной запуск
+
             # Если в коде есть тесты, запускаем pytest
             if "def test_" in combined_code or "assert " in combined_code:
                 test_commands.append(f"pytest {tmp_filename}")
@@ -456,22 +462,25 @@ class QualityAssurance:
         # Базовая реализация: ищем файл с префиксом test_ в той же папке или в папке tests/
         base_name = os.path.basename(file_path)
         dir_name = os.path.dirname(file_path)
-        
+
         test_candidates = [
             os.path.join(dir_name, f"test_{base_name}"),
             os.path.join(dir_name, "tests", f"test_{base_name}"),
-            os.path.join(os.path.dirname(dir_name), "tests", f"test_{base_name}")
+            os.path.join(os.path.dirname(dir_name), "tests", f"test_{base_name}"),
         ]
-        
+
         for candidate in test_candidates:
             if os.path.exists(candidate):
                 return candidate
         return None
 
-    async def _run_subprocess_grounding_fallback(self, combined_code: str) -> Tuple[bool, float, Optional[str]]:
+    async def _run_subprocess_grounding_fallback(
+        self, combined_code: str
+    ) -> Tuple[bool, float, Optional[str]]:
         """Fallback to local subprocess if Docker is not available."""
-        import tempfile
         import subprocess
+        import tempfile
+
         tmp_path = None
         try:
             with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as tmp:
@@ -479,9 +488,12 @@ class QualityAssurance:
                 tmp_path = tmp.name
 
             process = await asyncio.create_subprocess_exec(
-                "python3", "-m", "py_compile", tmp_path,
+                "python3",
+                "-m",
+                "py_compile",
+                tmp_path,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
             )
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=5.0)
 
@@ -490,9 +502,10 @@ class QualityAssurance:
 
             if "def test_" in combined_code or "assert " in combined_code:
                 test_process = await asyncio.create_subprocess_exec(
-                    "python3", tmp_path,
+                    "python3",
+                    tmp_path,
                     stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                    stderr=asyncio.subprocess.PIPE,
                 )
                 stdout, stderr = await asyncio.wait_for(test_process.communicate(), timeout=5.0)
                 if test_process.returncode != 0:

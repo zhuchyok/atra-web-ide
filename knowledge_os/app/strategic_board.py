@@ -506,6 +506,7 @@ async def run_board_meeting():
             directive = None
             try:
                 import httpx
+
                 _board_req = {
                     "goal": f"""
 Проведи заседание Совета Директоров.
@@ -543,7 +544,11 @@ async def run_board_meeting():
                 print(f"✅ ДИРЕКТИВА ПОЛУЧЕНА ({len(directive)} chars)")
 
             # [SINGULARITY 31.3] Фильтр: отбрасываем HTML-ответы и битые данные
-            if directive and ('<' in directive and '>' in directive and ('<!DOCTYPE' in directive or '<html' in directive or '<body' in directive)):
+            if directive and (
+                "<" in directive
+                and ">" in directive
+                and ("<!DOCTYPE" in directive or "<html" in directive or "<body" in directive)
+            ):
                 print("⚠️ LLM вернул HTML вместо директивы")
                 directive = None
 

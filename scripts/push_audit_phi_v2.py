@@ -46,7 +46,7 @@ async def push_tasks():
         }
         # Force push by clearing lock first
         await redis_manager.release_task_lock(t['id'])
-        
+
         # Update metadata in DB as well
         pool = await get_db_pool()
         async with pool.acquire() as conn:
@@ -55,7 +55,7 @@ async def push_tasks():
                 t['id'],
                 json.dumps(task_data['metadata'])
             )
-            
+
         await redis_manager.push_to_stream('expert_tasks', task_data)
         print(f"✅ Task {t['id']} for {t['name']} pushed to Redis and DB updated (phi3.5 hint)")
 

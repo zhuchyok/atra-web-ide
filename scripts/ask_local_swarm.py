@@ -45,13 +45,13 @@ async def ask_local_swarm(query: str):
     print("DEBUG: Starting EventBus...")
     bus = get_event_bus()
     await bus.start()
-    
+
     print("DEBUG: Starting Redis Bridge...")
     bridge = await start_redis_bridge(bus)
-    
+
     # [SINGULARITY 24.3] DEBUG: Проверим, какой RedisManager использует мост
     print(f"DEBUG: RedisManager URL in bridge instance: {bridge.redis_manager.url}")
-    
+
     # [SINGULARITY 24.3] ПРОВЕРКА: может ли мост реально подключиться к Redis?
     try:
         client = await bridge.redis_manager.get_client()
@@ -150,16 +150,16 @@ async def ask_local_swarm(query: str):
         payload={"query": query, "dialogue_id": dialogue_id},
         source="cursor_bridge"
     )
-    
+
     print(f"DEBUG: Publishing event {event.event_id} via local bus...")
     await bus.publish(event)
 
     print("⏳ Ожидание ответов экспертов...")
-    
+
     try:
         # Ждем консенсуса с таймаутом
         await asyncio.wait_for(consensus_event.wait(), timeout=300)
-        
+
         if final_result:
             print("\n" + "=" * 50)
             print("🤝 [ИТОГОВЫЙ КОНСЕНСУС РОЯ]")
@@ -167,7 +167,7 @@ async def ask_local_swarm(query: str):
             print("-" * 50)
             print(final_result.get("final_answer"))
             print("=" * 50 + "\n")
-            
+
     except asyncio.TimeoutError:
         print("\n⚠️ Таймаут ожидания консенсуса. Возможно, эксперты еще работают.")
     finally:
@@ -178,6 +178,6 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Использование: python scripts/ask_local_swarm.py \"ваш вопрос\"")
         sys.exit(1)
-    
+
     query = " ".join(sys.argv[1:])
     asyncio.run(ask_local_swarm(query))

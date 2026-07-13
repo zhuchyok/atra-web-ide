@@ -102,8 +102,12 @@ def _normalize_workspace_paths(goal: str) -> str:
     text = (goal or "").strip()
     if not text:
         return text
-    host_workspace = os.getenv("ATRA_HOST_WORKSPACE", "/Users/bikos/Documents/atra-web-ide").rstrip("/")
-    container_workspace = os.getenv("ATRA_CONTAINER_WORKSPACE", "/workspace/atra-web-ide").rstrip("/")
+    host_workspace = os.getenv("ATRA_HOST_WORKSPACE", "/Users/bikos/Documents/atra-web-ide").rstrip(
+        "/"
+    )
+    container_workspace = os.getenv("ATRA_CONTAINER_WORKSPACE", "/workspace/atra-web-ide").rstrip(
+        "/"
+    )
     if host_workspace and container_workspace and host_workspace in text:
         return text.replace(host_workspace, container_workspace)
     return text
@@ -190,7 +194,9 @@ def _deterministic_fs_fastpath(goal: str) -> Optional[str]:
     if path is None:
         return "ACCESS_ERROR: Path is outside allowed workspace scope."
 
-    is_read = any(k in g for k in ("прочитай", "покажи содержимое файла", "read_file", "первые строки"))
+    is_read = any(
+        k in g for k in ("прочитай", "покажи содержимое файла", "read_file", "первые строки")
+    )
     is_list = any(k in g for k in ("покажи", "список", "list_directory", "файлы", "папк"))
     if path.is_file() or (is_read and not path.is_dir()):
         if not path.exists():
@@ -232,7 +238,9 @@ def _extract_key_lines(text: str, limit: int = 8) -> List[str]:
 
 
 def _extract_embedded_excerpt(goal: str, block_name: str) -> str:
-    pattern = rf"\[{re.escape(block_name)}\]\s*(.*?)(?=\n\[[A-Z_ ]+ excerpt\]|\nproject_context=|\Z)"
+    pattern = (
+        rf"\[{re.escape(block_name)}\]\s*(.*?)(?=\n\[[A-Z_ ]+ excerpt\]|\nproject_context=|\Z)"
+    )
     m = re.search(pattern, goal or "", flags=re.DOTALL)
     return (m.group(1) or "").strip() if m else ""
 
@@ -259,7 +267,9 @@ def _deterministic_bible_fastpath(goal: str) -> Optional[str]:
         found.append(("MASTER_REFERENCE", "embedded:ask_victoria_context", embedded_master))
     embedded_changes = _extract_embedded_excerpt(g, "CHANGES excerpt")
     if embedded_changes:
-        found.append(("CHANGES_FROM_OTHER_CHATS", "embedded:ask_victoria_context", embedded_changes))
+        found.append(
+            ("CHANGES_FROM_OTHER_CHATS", "embedded:ask_victoria_context", embedded_changes)
+        )
 
     for label, raw_path, max_chars in doc_specs:
         safe = _safe_workspace_path(raw_path)
@@ -285,15 +295,15 @@ def _deterministic_bible_fastpath(goal: str) -> Optional[str]:
             for item in key:
                 lines.append(f"- {item}")
         else:
-            first_line = next((ln.strip() for ln in excerpt.splitlines() if ln.strip()), "(пустой документ)")
+            first_line = next(
+                (ln.strip() for ln in excerpt.splitlines() if ln.strip()), "(пустой документ)"
+            )
             lines.append(f"- {first_line[:220]}")
     lines.append("\nГотова применять эти правила в следующих ответах и задачах.")
     return "\n".join(lines)
 
 
-async def _deterministic_org_fastpath(
-    goal: str, knowledge_os: KnowledgeOSClient
-) -> Optional[str]:
+async def _deterministic_org_fastpath(goal: str, knowledge_os: KnowledgeOSClient) -> Optional[str]:
     """
     Fast-path for simple organizational questions about experts.
     Avoids heavy enhanced pipeline and long-task hangs.
@@ -783,14 +793,19 @@ async def ask_victoria_status(
     """Proxy Victoria long-task status for Open WebUI tool polling."""
     if not (task_id or "").strip():
         if format == "json":
-            return JSONResponse(status_code=422, content={"status": "error", "result": "task_id required"})
+            return JSONResponse(
+                status_code=422, content={"status": "error", "result": "task_id required"}
+            )
         return PlainTextResponse("task_id required", status_code=422)
     try:
         status_url = f"{victoria.base_url}/run/status/{task_id.strip()}"
         async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=5.0)) as client:
             r = await client.get(status_url)
             if r.status_code == 404:
-                payload = {"status": "error", "result": "Task not found (possibly expired/restarted)."}
+                payload = {
+                    "status": "error",
+                    "result": "Task not found (possibly expired/restarted).",
+                }
             else:
                 r.raise_for_status()
                 st = r.json()
@@ -801,18 +816,26 @@ async def ask_victoria_status(
                 elif s == "failed":
                     payload = {"status": "error", "result": st.get("error") or "Task failed."}
                 else:
-                    payload = {"status": "processing", "result": "Task is still running.", "poll_after_sec": 3}
+                    payload = {
+                        "status": "processing",
+                        "result": "Task is still running.",
+                        "poll_after_sec": 3,
+                    }
         if format == "json":
             if payload.get("status") == "processing":
                 return JSONResponse(status_code=202, content=payload, headers={"Retry-After": "3"})
             return JSONResponse(content=payload)
         if payload.get("status") == "processing":
-            return PlainTextResponse(payload.get("result", ""), status_code=202, headers={"Retry-After": "3"})
+            return PlainTextResponse(
+                payload.get("result", ""), status_code=202, headers={"Retry-After": "3"}
+            )
         return PlainTextResponse(payload.get("result", ""))
     except Exception as e:
         logger.warning("ask_victoria_status error: %s", e)
         if format == "json":
-            return JSONResponse(status_code=503, content={"status": "error", "result": "Status check failed"})
+            return JSONResponse(
+                status_code=503, content={"status": "error", "result": "Status check failed"}
+            )
         return PlainTextResponse("Status check failed", status_code=503)
 
 

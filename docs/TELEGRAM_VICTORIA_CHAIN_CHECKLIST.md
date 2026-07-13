@@ -24,7 +24,7 @@
 - [ ] **veronica-agent** запущен: `curl -s http://localhost:8011/health` → 200 (если запросы идут в Veronica).
 - [ ] **PostgreSQL (knowledge_postgres)** доступна для Victoria: в контейнере victoria-agent переменная `DATABASE_URL` указывает на работающую БД.
 - [ ] В таблице `experts` есть эксперт с именем **«Вероника»** (кириллица) и ролью, содержащей «Local Developer». Проверка:  
-      `SELECT name, role FROM experts WHERE name = 'Вероника' OR role ILIKE '%Local Developer%';`
+       `SELECT name, role FROM experts WHERE name = 'Вероника' OR role ILIKE '%Local Developer%';`
 
 ### 2. Актуальность кода
 

@@ -22,6 +22,7 @@ class CommunityDetector:
         Использует централизованный пул и пакетные операции.
         """
         import uuid
+
         from app.db_pool import get_pool
 
         try:
@@ -40,8 +41,10 @@ class CommunityDetector:
                     w = float(l["strength"])
                     nodes.add(s)
                     nodes.add(t)
-                    if s not in adj: adj[s] = []
-                    if t not in adj: adj[t] = []
+                    if s not in adj:
+                        adj[s] = []
+                    if t not in adj:
+                        adj[t] = []
                     adj[s].append((t, w))
                     adj[t].append((s, w))
 
@@ -51,7 +54,7 @@ class CommunityDetector:
                 # 3. Улучшенный Label Propagation (Weighted)
                 labels = {node: node for node in nodes}
                 node_list = list(nodes)
-                
+
                 for _ in range(iterations):
                     changed = False
                     np.random.shuffle(node_list)
@@ -74,7 +77,8 @@ class CommunityDetector:
                 # 4. Группируем по меткам (Уровень 1)
                 communities = {}
                 for node, label in labels.items():
-                    if label not in communities: communities[label] = []
+                    if label not in communities:
+                        communities[label] = []
                     communities[label].append(node)
 
                 # 5. Иерархическая обработка
@@ -86,9 +90,15 @@ class CommunityDetector:
                             for neighbor, weight in adj.get(node, []):
                                 neighbor_label = labels[neighbor]
                                 if neighbor_label != comm_id:
-                                    external_weights[neighbor_label] = external_weights.get(neighbor_label, 0) + weight
+                                    external_weights[neighbor_label] = (
+                                        external_weights.get(neighbor_label, 0) + weight
+                                    )
 
-                        hierarchical_map[comm_id] = max(external_weights, key=external_weights.get) if external_weights else comm_id
+                        hierarchical_map[comm_id] = (
+                            max(external_weights, key=external_weights.get)
+                            if external_weights
+                            else comm_id
+                        )
                     else:
                         hierarchical_map[comm_id] = comm_id
 
@@ -107,7 +117,9 @@ class CommunityDetector:
                             )
                             WHERE id = ANY($3::uuid[])
                         """,
-                            comm_id, parent_id, uuid_list,
+                            comm_id,
+                            parent_id,
+                            uuid_list,
                         )
 
                 logger.info(f"✅ Обнаружено {len(communities)} сообществ. Иерархия выстроена.")

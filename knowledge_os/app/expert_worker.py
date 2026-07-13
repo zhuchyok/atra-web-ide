@@ -209,7 +209,7 @@ def _run_monster_pip_runtime_audit(description: str, metadata: Dict) -> Optional
 
     findings: List[str] = []
     try:
-        with open(resolved_path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(resolved_path, encoding="utf-8", errors="ignore") as f:
             for idx, line in enumerate(f, 1):
                 normalized = line.lower()
                 if "pip" not in normalized or "install" not in normalized:
@@ -222,19 +222,12 @@ def _run_monster_pip_runtime_audit(description: str, metadata: Dict) -> Optional
                 ):
                     findings.append(f"L{idx}: {line.strip()[:220]}")
     except Exception as err:
-        return (
-            "ПРОБЛЕМА\n"
-            f"Файл: {resolved_path}\n"
-            f"Не удалось провести проверку файла: {err}"
-        )
+        return f"ПРОБЛЕМА\nФайл: {resolved_path}\nНе удалось провести проверку файла: {err}"
 
     if findings:
         citations = "\n".join(f"- {line}" for line in findings[:5])
         return (
-            "ПРОБЛЕМА\n"
-            f"Файл: {resolved_path}\n"
-            "Найдены признаки runtime pip install:\n"
-            f"{citations}"
+            f"ПРОБЛЕМА\nФайл: {resolved_path}\nНайдены признаки runtime pip install:\n{citations}"
         )
 
     return (
@@ -253,9 +246,8 @@ def _run_monster_secret_header_audit(description: str, metadata: Dict) -> Option
         return None
 
     prompt = (description or "").lower()
-    is_secret_prompt = (
-        ("hardcoded" in prompt or "секрет" in prompt or "парол" in prompt)
-        and ("первых 30 строк" in prompt or "first 30 lines" in prompt)
+    is_secret_prompt = ("hardcoded" in prompt or "секрет" in prompt or "парол" in prompt) and (
+        "первых 30 строк" in prompt or "first 30 lines" in prompt
     )
     if not is_secret_prompt:
         return None
@@ -273,7 +265,7 @@ def _run_monster_secret_header_audit(description: str, metadata: Dict) -> Option
     key_markers = ("password", "passwd", "secret", "token", "apikey", "api_key", "private_key")
     safe_markers = ("os.getenv", "environ.get", "${", "<secret>", "changeme", "example", "dummy")
     try:
-        with open(resolved_path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(resolved_path, encoding="utf-8", errors="ignore") as f:
             for idx, line in enumerate(f, 1):
                 if idx > 30:
                     break
@@ -290,11 +282,7 @@ def _run_monster_secret_header_audit(description: str, metadata: Dict) -> Option
                 if re.search(r"=\s*[\"'][^\"']{3,}[\"']", stripped):
                     suspicious.append(f"L{idx}: {stripped[:220]}")
     except Exception as err:
-        return (
-            "ПРОБЛЕМА\n"
-            f"Файл: {resolved_path}\n"
-            f"Не удалось провести проверку файла: {err}"
-        )
+        return f"ПРОБЛЕМА\nФайл: {resolved_path}\nНе удалось провести проверку файла: {err}"
 
     if suspicious:
         citations = "\n".join(f"- {line}" for line in suspicious[:5])
@@ -305,11 +293,7 @@ def _run_monster_secret_header_audit(description: str, metadata: Dict) -> Option
             f"{citations}"
         )
 
-    return (
-        "ОК\n"
-        f"Файл: {resolved_path}\n"
-        "В первых 30 строках hardcoded секреты/пароли не обнаружены."
-    )
+    return f"ОК\nФайл: {resolved_path}\nВ первых 30 строках hardcoded секреты/пароли не обнаружены."
 
 
 async def _publish_worker_runtime_heartbeat(expert_name: str):
@@ -692,6 +676,7 @@ async def process_task(task_data: dict):
     _expert_skills_context = ""
     try:
         from app.worker_memory import load_skills_for_expert
+
         _expert_skills_context = await load_skills_for_expert(expert_name, description)
         if _expert_skills_context:
             description = _expert_skills_context + "\n\n" + description
@@ -2363,7 +2348,8 @@ async def worker_loop():
 
     # [SINGULARITY 31.3] Agent messaging for all worker paths
     try:
-        from app.agent_messaging import start_presence_broadcast, listen
+        from app.agent_messaging import listen, start_presence_broadcast
+
         # Add suffix to avoid identity collision with main agents (e.g. Виктория)
         _agent_id = f"{expert_name}-Worker"
         asyncio.create_task(listen(_agent_id))
@@ -2999,8 +2985,11 @@ async def worker_loop():
             # Если висит >5 мин — это остаток от прошлого запуска или упавший background task.
             _stale_cutoff_ms = 300_000
             _p_range = await client.xpending_range(
-                f"stream:{STREAM_NAME}", GROUP_NAME,
-                min="-", max="+", count=10,
+                f"stream:{STREAM_NAME}",
+                GROUP_NAME,
+                min="-",
+                max="+",
+                count=10,
             )
             _stale_pending = [p for p in _p_range if p["time_since_delivered"] > _stale_cutoff_ms]
             if _stale_pending:
@@ -3010,7 +2999,8 @@ async def worker_loop():
                     try:
                         _msg_data = await client.xrange(
                             f"stream:{STREAM_NAME}",
-                            min=_p["message_id"], max=_p["message_id"],
+                            min=_p["message_id"],
+                            max=_p["message_id"],
                         )
                         if _msg_data:
                             _raw = _msg_data[0][1].get(b"payload") or _msg_data[0][1].get("payload")
@@ -3043,11 +3033,12 @@ async def worker_loop():
             # попадёт в all_messages и будет повторно разобран.
             if pending_mine:
                 # Только сообщения idle <= 5min — свежие (background ещё работает)
-                _fresh_pending = [p for p in _p_range if p["time_since_delivered"] <= _stale_cutoff_ms]
+                _fresh_pending = [
+                    p for p in _p_range if p["time_since_delivered"] <= _stale_cutoff_ms
+                ]
                 _fresh_ids = set(p["message_id"] for p in _fresh_pending)
                 pending_mine = [
-                    (s, [m for m in ms if m[0] in _fresh_ids])
-                    for s, ms in pending_mine
+                    (s, [m for m in ms if m[0] in _fresh_ids]) for s, ms in pending_mine
                 ]
                 pending_mine = [(s, ms) for s, ms in pending_mine if ms]
                 if not pending_mine:
@@ -3095,12 +3086,18 @@ async def worker_loop():
                             continue
                         payload["contract"] = normalized_contract
                         payload_expert = payload.get("expert_name")
-                        _expert_pool = os.getenv("EXPERT_POOL_MODE", "false").lower() in ("true", "1", "yes")
+                        _expert_pool = os.getenv("EXPERT_POOL_MODE", "false").lower() in (
+                            "true",
+                            "1",
+                            "yes",
+                        )
                         if payload_expert and payload_expert != expert_name:
                             if _expert_pool:
                                 logger.info(
                                     "🔄 [POOL] Adopting expert '%s' (was '%s') for task %s",
-                                    payload_expert, expert_name, payload.get("task_id"),
+                                    payload_expert,
+                                    expert_name,
+                                    payload.get("task_id"),
                                 )
                                 expert_name = payload_expert
                             else:
@@ -3244,9 +3241,7 @@ async def worker_loop():
                         # Сразу xack чтобы выйти из PENDING — Phase 3a не дропнет свежую таску.
                         async def _run_task(_p=payload, _id=msg_id):
                             try:
-                                await client.xack(
-                                    f"stream:{STREAM_NAME}", GROUP_NAME, _id
-                                )
+                                await client.xack(f"stream:{STREAM_NAME}", GROUP_NAME, _id)
                             except Exception as _xack_err:
                                 logger.warning(
                                     f"⚠️ [WORKER] Failed to early-xack {_id}: {_xack_err}"
@@ -3254,14 +3249,8 @@ async def worker_loop():
                             try:
                                 await process_task(_p)
                             except Exception as e:
-                                logger.error(
-                                    f"❌ [WORKER] Ошибка обработки сообщения {_id}: {e}"
-                                )
-                                _task_id = (
-                                    _p.get("task_id")
-                                    if isinstance(_p, dict)
-                                    else None
-                                )
+                                logger.error(f"❌ [WORKER] Ошибка обработки сообщения {_id}: {e}")
+                                _task_id = _p.get("task_id") if isinstance(_p, dict) else None
                                 if _task_id:
                                     try:
                                         async with db_pool.acquire() as conn:
@@ -3331,7 +3320,8 @@ def run_worker_with_metrics(port=8001):
     async def run_both():
         # [SINGULARITY 31.3] Agent messaging init
         try:
-            from app.agent_messaging import start_presence_broadcast, listen
+            from app.agent_messaging import listen, start_presence_broadcast
+
             _en = os.getenv("EXPERT_NAME", "expert")
             asyncio.create_task(listen(_en))
             asyncio.create_task(start_presence_broadcast(_en, [_en.lower()]))
@@ -3404,10 +3394,12 @@ if __name__ == "__main__":
         else:
             run_worker_with_metrics(metrics_port)
     else:
+
         async def _run_with_messaging():
             # [SINGULARITY 31.3] Agent messaging init
             try:
-                from app.agent_messaging import start_presence_broadcast, listen
+                from app.agent_messaging import listen, start_presence_broadcast
+
                 _en = os.getenv("EXPERT_NAME", "expert")
                 asyncio.create_task(listen(_en))
                 asyncio.create_task(start_presence_broadcast(_en, [_en.lower()]))

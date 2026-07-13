@@ -36,8 +36,12 @@ class SystemTools:
         if os.path.exists(requested):
             return requested
 
-        host_workspace = os.getenv("ATRA_HOST_WORKSPACE", "/Users/bikos/Documents/atra-web-ide").rstrip("/")
-        container_workspace = os.getenv("ATRA_CONTAINER_WORKSPACE", "/workspace/atra-web-ide").rstrip("/")
+        host_workspace = os.getenv(
+            "ATRA_HOST_WORKSPACE", "/Users/bikos/Documents/atra-web-ide"
+        ).rstrip("/")
+        container_workspace = os.getenv(
+            "ATRA_CONTAINER_WORKSPACE", "/workspace/atra-web-ide"
+        ).rstrip("/")
 
         if host_workspace and requested.startswith(host_workspace):
             suffix = requested[len(host_workspace) :].lstrip("/")

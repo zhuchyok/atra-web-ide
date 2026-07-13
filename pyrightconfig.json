@@ -1,10 +1,5 @@
 {
-  "include": [
-    "backend",
-    "knowledge_os",
-    "src",
-    "scripts"
-  ],
+  "include": ["backend", "knowledge_os", "src", "scripts"],
   "exclude": [
     "**/node_modules",
     "**/__pycache__",
@@ -21,10 +16,7 @@
     "data",
     "mirror"
   ],
-  "extraPaths": [
-    "knowledge_os/app",
-    "knowledge_os"
-  ],
+  "extraPaths": ["knowledge_os/app", "knowledge_os"],
   "venvPath": "knowledge_os",
   "venv": ".venv",
   "typeCheckingMode": "basic"

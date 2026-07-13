@@ -151,7 +151,7 @@ def _execute_file_audit(title: str, description: str = "") -> str:
         return "ПРОБЛЕМА: не удалось извлечь путь к файлу из задачи"
 
     try:
-        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        with open(file_path, encoding="utf-8", errors="replace") as f:
             lines = []
             for idx, line in enumerate(f, start=1):
                 if idx > first_lines:

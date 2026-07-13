@@ -9,19 +9,19 @@ from redis_manager import redis_manager
 
 async def debug_blackboard_stuck():
     client = await redis_manager.get_client()
-    
+
     # 1. Проверяем все задачи на Blackboard
     all_goals = await client.hgetall("blackboard:goals")
     print(f"--- Blackboard Goals ({len(all_goals)}) ---")
-    
+
     status_counts = {}
     stuck_tasks = []
-    
+
     for task_id, raw_data in all_goals.items():
         data = json.loads(raw_data)
         status = data.get("status")
         status_counts[status] = status_counts.get(status, 0) + 1
-        
+
         if status in ["bidding_open", "unclaimed"]:
             stuck_tasks.append({
                 "id": task_id,
@@ -29,9 +29,9 @@ async def debug_blackboard_stuck():
                 "goal": data.get("goal")[:50] + "...",
                 "timestamp": data.get("timestamp")
             })
-            
+
     print(f"Status distribution: {status_counts}")
-    
+
     # 2. Проверяем активные аукционы
     print("\n--- Active Auctions ---")
     keys = await client.keys("blackboard:bids:*")

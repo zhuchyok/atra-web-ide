@@ -6,6 +6,7 @@ description: Docker та Kubernetes - контейнеризація та орк
 # Docker & Kubernetes Skill
 
 ## Когда использовать
+
 - Контейнеризація додатків
 - K8s deployment
 - Docker Compose для локальної розробки
@@ -14,6 +15,7 @@ description: Docker та Kubernetes - контейнеризація та орк
 ## Docker Basics
 
 ### Dockerfile
+
 ```dockerfile
 FROM node:20-alpine
 WORKDIR /app
@@ -25,8 +27,9 @@ CMD ["node", "server.js"]
 ```
 
 ### Docker Compose
+
 ```yaml
-version: '3.8'
+version: "3.8"
 services:
   app:
     build: .
@@ -48,6 +51,7 @@ volumes:
 ## Kubernetes
 
 ### Basic Deployment
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -64,17 +68,18 @@ spec:
         app: my-app
     spec:
       containers:
-      - name: my-app
-        image: my-app:latest
-        ports:
-        - containerPort: 3000
-        resources:
-          limits:
-            memory: "256Mi"
-            cpu: "500m"
+        - name: my-app
+          image: my-app:latest
+          ports:
+            - containerPort: 3000
+          resources:
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
 ```
 
 ### Service
+
 ```yaml
 apiVersion: v1
 kind: Service
@@ -84,12 +89,13 @@ spec:
   selector:
     app: my-app
   ports:
-  - port: 80
-    targetPort: 3000
+    - port: 80
+      targetPort: 3000
   type: LoadBalancer
 ```
 
 ### Ingress
+
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -97,16 +103,16 @@ metadata:
   name: my-app
 spec:
   rules:
-  - host: myapp.example.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: my-app
-            port:
-              number: 80
+    - host: myapp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: my-app
+                port:
+                  number: 80
 ```
 
 ## Helm Charts

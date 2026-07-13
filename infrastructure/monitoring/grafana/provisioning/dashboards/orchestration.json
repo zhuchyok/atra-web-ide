@@ -2,11 +2,7 @@
   "dashboard": {
     "title": "Orchestration System Monitor",
     "uid": "orchestration-monitor",
-    "tags": [
-      "orchestration",
-      "singularity",
-      "tasks"
-    ],
+    "tags": ["orchestration", "singularity", "tasks"],
     "timezone": "browser",
     "panels": [
       {

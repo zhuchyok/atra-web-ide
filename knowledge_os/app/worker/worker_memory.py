@@ -1,7 +1,7 @@
-import os
 import logging
-from typing import List, Optional, Dict, Any
+import os
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +16,7 @@ ROLE_DEPARTMENT_TO_SKILLS = {
     "documentation": ["code-documentation", "doc-coauthoring"],
     "general": ["ask-questions-if-underspecified", "code-review"],
 }
+
 
 def _read_skill_snippets_sync(skill_folders: List[str], max_chars_per_skill: int = 2000) -> str:
     """Читает первые max_chars_per_skill символов из SKILL.md для каждой папки."""
@@ -43,6 +44,7 @@ def _read_skill_snippets_sync(skill_folders: List[str], max_chars_per_skill: int
         return ""
     return "\n\n📋 ИНСТРУКЦИИ ИЗ СКИЛЛОВ (используй при решении):\n" + "\n\n---\n\n".join(parts)
 
+
 def _get_skill_description_sync(skills_dir: str, folder: str) -> str:
     """Читает из SKILL.md description из frontmatter или имя папки."""
     path = os.path.join(skills_dir, folder, "SKILL.md")
@@ -59,7 +61,10 @@ def _get_skill_description_sync(skills_dir: str, folder: str) -> str:
     except Exception:
         return folder.replace("-", " ")
 
-def _select_skills_by_relevance_sync(task_title: str, task_description: str, max_skills: int = 3) -> List[str]:
+
+def _select_skills_by_relevance_sync(
+    task_title: str, task_description: str, max_skills: int = 3
+) -> List[str]:
     """Выбирает до max_skills скиллов по ключевым словам задачи."""
     skills_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "skills")
     if not os.path.isdir(skills_dir):

@@ -2,15 +2,17 @@
 """Victoria Worker - processes code tasks from PostgreSQL queue (not Redis)"""
 
 import asyncio
-import redis
 import json
-import aiohttp
 import os
 import sys
+
+import aiohttp
 import asyncpg
+import redis
 
-
-POSTGRES_URL = os.getenv("POSTGRES_DIRECT_URL", "postgresql://admin:secret@knowledge_postgres:5432/knowledge_os")
+POSTGRES_URL = os.getenv(
+    "POSTGRES_DIRECT_URL", "postgresql://admin:secret@knowledge_postgres:5432/knowledge_os"
+)
 REDIS_URL = os.getenv("REDIS_URL", "redis://knowledge_os_redis:6379/0")
 
 r = redis.from_url(REDIS_URL, decode_responses=False)
@@ -53,7 +55,7 @@ async def process_task(conn, goal: str, task_id: str):
                     await conn.execute(
                         "UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(), completed_at = NOW() WHERE id = $1",
                         task_id,
-                        output
+                        output,
                     )
                     print(f"Done {task_id} (DB updated)", flush=True)
                     return
@@ -74,7 +76,7 @@ async def process_task(conn, goal: str, task_id: str):
                     await conn.execute(
                         "UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(), completed_at = NOW() WHERE id = $1",
                         task_id,
-                        output
+                        output,
                     )
                     print(f"Done {task_id} (fallback, DB updated)", flush=True)
                     return
@@ -84,14 +86,14 @@ async def process_task(conn, goal: str, task_id: str):
     await conn.execute(
         "UPDATE tasks SET status = 'failed', result = $2, updated_at = NOW() WHERE id = $1",
         task_id,
-        str(e)
+        str(e),
     )
 
 
 async def worker_loop():
     """Main loop - read from PostgreSQL tasks table"""
     print("Worker starting...", flush=True)
-    
+
     # Connect to PostgreSQL
     pool = await asyncpg.create_pool(POSTGRES_URL, min_size=2, max_size=5)
     print("Connected to PostgreSQL", flush=True)
@@ -108,36 +110,36 @@ async def worker_loop():
                     UPDATE tasks
                     SET status = 'in_progress', updated_at = NOW()
                     WHERE id IN (
-                        SELECT id FROM tasks 
-                        WHERE status = 'pending' 
+                        SELECT id FROM tasks
+                        WHERE status = 'pending'
                         AND metadata->>'source' = 'victoria_queue'
                         ORDER BY created_at ASC
                         LIMIT 1
                     )
                     RETURNING id, title, description, metadata
                 """)
-                
+
                 # Check if we got a task (result contains UPDATE with row count)
                 if "UPDATE 1" in result:
                     # Fetch the claimed task
                     task = await conn.fetchrow("""
-                        SELECT id, title, description, metadata 
-                        FROM tasks 
-                        WHERE metadata->>'source' = 'victoria_queue' 
+                        SELECT id, title, description, metadata
+                        FROM tasks
+                        WHERE metadata->>'source' = 'victoria_queue'
                         AND status = 'in_progress'
-                        ORDER BY created_at ASC 
+                        ORDER BY created_at ASC
                         LIMIT 1
                     """)
-                    
+
                     if task:
-                        task_id = str(task['id'])
-                        goal = task['description'] or task['title'] or ''
-                        
+                        task_id = str(task["id"])
+                        goal = task["description"] or task["title"] or ""
+
                         print(f"Processing task {task_id}: {goal[:50]}...", flush=True)
-                        
+
                         # Process the task
                         await process_task(conn, goal, task_id)
-                        
+
                         print(f"Finished processing attempt for task {task_id}", flush=True)
 
         except Exception as e:

@@ -154,7 +154,7 @@ def _run_fast_security_audit(goal: str) -> Optional[str]:
         return None
 
     try:
-        with open(resolved_path, "r", encoding="utf-8", errors="ignore") as handle:
+        with open(resolved_path, encoding="utf-8", errors="ignore") as handle:
             lines = list(handle.readlines())
     except Exception as err:
         return f"ПРОБЛЕМА\nФайл: {resolved_path}\nНе удалось прочитать файл: {err}"
@@ -163,11 +163,15 @@ def _run_fast_security_audit(goal: str) -> Optional[str]:
         findings = []
         for idx, line in enumerate(lines, 1):
             lowered = line.lower()
-            if "pip" in lowered and "install" in lowered and (
-                "subprocess." in lowered
-                or "os.system(" in lowered
-                or "python -m pip install" in lowered
-                or "python3 -m pip install" in lowered
+            if (
+                "pip" in lowered
+                and "install" in lowered
+                and (
+                    "subprocess." in lowered
+                    or "os.system(" in lowered
+                    or "python -m pip install" in lowered
+                    or "python3 -m pip install" in lowered
+                )
             ):
                 findings.append(f"L{idx}: {line.strip()[:220]}")
         if findings:

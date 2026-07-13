@@ -37,7 +37,7 @@ class LocalVoiceControl:
         logger.info("👂 [VOICE] Listening for commands (Offline mode)...")
         # В реальной реализации здесь будет захват аудио через sounddevice
         # и сохранение во временный файл.
-        
+
         # Пример обработки файла:
         # result = self.model.transcribe("command.wav")
         # await self.send_to_victoria(result["text"])

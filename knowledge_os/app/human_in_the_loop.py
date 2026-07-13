@@ -140,6 +140,7 @@ class HumanInTheLoop:
         # [AGENT SCOPE] HITL Hook
         try:
             from agentscope.rpc import RpcClient
+
             # В AgentScope HITL может быть реализован через RPC или специальные хуки
             logger.info(f"🔗 [AGENT SCOPE] Triggering HITL Hook for {action}")
         except ImportError:
