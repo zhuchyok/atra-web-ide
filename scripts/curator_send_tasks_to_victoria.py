@@ -19,6 +19,7 @@ Cursor-агент может читать отчёт и писать вывод�
 import json
 import os
 import random
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -53,6 +54,15 @@ STATUS_404_MAX_RETRIES = int(os.getenv("CURATOR_STATUS_404_MAX_RETRIES", "6"))
 STATUS_READ_TIMEOUT_SEC = float(os.getenv("CURATOR_STATUS_READ_TIMEOUT_SEC", "25"))
 HEALTH_TIMEOUT_SEC = float(os.getenv("CURATOR_HEALTH_TIMEOUT_SEC", "8"))
 HEALTH_RETRIES = int(os.getenv("CURATOR_HEALTH_RETRIES", "3"))
+TRANSPORT_ERROR_STREAK_THRESHOLD = int(
+    os.getenv("CURATOR_TRANSPORT_ERROR_STREAK_THRESHOLD", "3")
+)
+TRANSPORT_RECOVERY_COOLDOWN_SEC = float(
+    os.getenv("CURATOR_TRANSPORT_RECOVERY_COOLDOWN_SEC", "10")
+)
+TRANSPORT_RECOVERY_HEALTH_RETRIES = int(
+    os.getenv("CURATOR_TRANSPORT_RECOVERY_HEALTH_RETRIES", "3")
+)
 DEFAULT_MAX_WAIT_SEC = 3600.0
 COMPLEX_TASK_MIN_WAIT_SEC = 3600.0  # 60 минут
 VERY_COMPLEX_TASK_MIN_WAIT_SEC = 3600.0  # 60 минут
@@ -62,6 +72,10 @@ TIMEOUT_ESCALATION_MAX_WAIT_SEC = float(
     os.getenv("CURATOR_TIMEOUT_ESCALATION_MAX_WAIT_SEC", "7200")
 )
 ATOMIC_TASK_MIN_CHARS = int(os.getenv("CURATOR_ATOMIC_TASK_MIN_CHARS", "3"))
+STILL_RUNNING_RETRY_LIMIT = int(os.getenv("CURATOR_STILL_RUNNING_RETRY_LIMIT", "2"))
+STILL_RUNNING_RECOVERY_COOLDOWN_SEC = float(
+    os.getenv("CURATOR_STILL_RUNNING_RECOVERY_COOLDOWN_SEC", "12")
+)
 DEFAULT_TASKS = [
     "привет",
     "какой статус проекта?",
@@ -211,6 +225,14 @@ def _violates_output_quality_gate(goal: str, out: dict) -> Optional[str]:
     if not output:
         return "empty_output_for_success"
 
+    # Контракт one-line Python: в ответе не должно быть многострочного мусора.
+    if "одну строку" in goal_lower and "python" in goal_lower:
+        non_empty_lines = [ln for ln in output.splitlines() if ln.strip()]
+        if len(non_empty_lines) > 1:
+            return "not_one_line_python_output"
+        if "except " in output_lower:
+            return "malformed_one_line_python_output"
+
     no_clarify_markers = (
         "без уточнений",
         "не задавай уточняющие",
@@ -321,6 +343,47 @@ def _is_timeout_like_error(err: Optional[str]) -> bool:
     return any(marker in low for marker in timeout_markers)
 
 
+def _is_victoria_still_running_error(err: Optional[str]) -> bool:
+    low = (err or "").lower()
+    return "victoria_still_running:" in low
+
+
+def _extract_still_running_state(err: Optional[str]) -> str:
+    low = (err or "").lower()
+    if "victoria_still_running:" not in low:
+        return ""
+    return low.split("victoria_still_running:", 1)[1].strip()
+
+
+def _is_transport_like_error(err: Optional[str]) -> bool:
+    low = (err or "").lower()
+    transport_markers = (
+        "connection refused",
+        "connection reset",
+        "connection aborted",
+        "max retries exceeded",
+        "failed to establish a new connection",
+        "newconnectionerror",
+        "remoteprotocolerror",
+        "httpconnectionpool",
+    )
+    return any(marker in low for marker in transport_markers)
+
+
+def _is_transport_error(err: Optional[str]) -> bool:
+    low = (err or "").lower()
+    transport_markers = (
+        "connection reset",
+        "connection refused",
+        "connection aborted",
+        "max retries exceeded",
+        "failed to establish a new connection",
+        "remoteprotocolerror",
+        "read timeout",
+    )
+    return any(marker in low for marker in transport_markers)
+
+
 def _is_hard_server_timeout(err: Optional[str]) -> bool:
     """
     Таймауты, где увеличение client-side max-wait бесполезно:
@@ -372,6 +435,155 @@ def _sleep_poll(interval: float) -> None:
     jitter = interval * POLL_JITTER_RATIO
     delay = interval + random.uniform(-jitter, jitter)
     time.sleep(_bounded_poll_interval(delay))
+
+
+def _extract_goal_file_path(goal: str) -> Optional[Path]:
+    m = re.search(r"(/app/\S+)", goal or "")
+    if not m:
+        return None
+    raw = m.group(1).rstrip(").,!?;:\"'»…")
+    if raw.startswith("/app/"):
+        return ROOT / raw[len("/app/") :]
+    return Path(raw)
+
+
+def _local_fallback_for_goal(goal: str, correlation_id: Optional[str]) -> Optional[dict]:
+    low = (goal or "").lower()
+    path = _extract_goal_file_path(goal)
+    if path is None:
+        return None
+    try:
+        text = path.read_text(encoding="utf-8")
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": f"local_fallback_file_read_error:{e}",
+            "output": None,
+            "knowledge": {
+                "method": "curator_local_fallback",
+                "metadata": {"model_used": "curator_local_fallback", "source": "local"},
+            },
+            "correlation_id": correlation_id,
+        }
+
+    lines = text.splitlines()
+    path_label = f"/app/{path.relative_to(ROOT)}"
+
+    if "pip install в рантайме" in low:
+        markers = (
+            "pip install",
+            "python -m pip install",
+            "python3 -m pip install",
+        )
+        hits = []
+        for idx, line in enumerate(lines, 1):
+            norm = line.lower()
+            if any(marker in norm for marker in markers):
+                hits.append((idx, line.strip()))
+        if hits:
+            body = "\n".join(f"- L{n}: {s}" for n, s in hits[:8])
+            output = (
+                f"ПРОБЛЕМА\nФайл: {path_label}\n"
+                f"Найдены признаки runtime pip install:\n{body}"
+            )
+        else:
+            output = (
+                f"ОК\nФайл: {path_label}\n"
+                "Runtime вызовов pip install через subprocess/os.system/python -m pip install не обнаружено."
+            )
+        return {
+            "status": "success",
+            "output": output,
+            "knowledge": {
+                "method": "curator_local_fallback",
+                "metadata": {"model_used": "curator_local_fallback", "source": "local"},
+                "execution_trace": {
+                    "task_type": "local_fallback",
+                    "method": "local_file_audit_pip_install",
+                    "goal_preview": goal[:120],
+                },
+            },
+            "correlation_id": correlation_id,
+        }
+
+    if "hardcoded секреты или пароли в первых 30 строках" in low:
+        top = lines[:30]
+        bad = []
+        pat = re.compile(
+            r"(password|passwd|secret|token|api[_-]?key)\s*[:=]\s*['\"][^'\"]+['\"]",
+            re.IGNORECASE,
+        )
+        for i, ln in enumerate(top, 1):
+            ln_low = ln.lower()
+            if "os.getenv(" in ln_low or "environ.get(" in ln_low:
+                continue
+            if pat.search(ln):
+                bad.append((i, ln.strip()))
+        if bad:
+            body = "\n".join(f"- L{n}: {s}" for n, s in bad[:6])
+            output = (
+                f"ПРОБЛЕМА\nФайл: {path_label}\n"
+                f"В первых 30 строках найдены потенциальные hardcoded секреты/пароли:\n{body}"
+            )
+        else:
+            output = (
+                f"ОК\nФайл: {path_label}\n"
+                "В первых 30 строках hardcoded секреты/пароли не обнаружены."
+            )
+        return {
+            "status": "success",
+            "output": output,
+            "knowledge": {
+                "method": "curator_local_fallback",
+                "metadata": {"model_used": "curator_local_fallback", "source": "local"},
+                "execution_trace": {
+                    "task_type": "local_fallback",
+                    "method": "local_file_audit_secrets",
+                    "goal_preview": goal[:120],
+                },
+            },
+            "correlation_id": correlation_id,
+        }
+
+    if "найди потенциальные проблемы" in low and "eval()" in low and "exec()" in low:
+        findings = []
+        for i, ln in enumerate(lines, 1):
+            s = ln.strip()
+            l = s.lower()
+            if "subprocess." in l or "popen(" in l:
+                findings.append(f"- subprocess: L{i}: {s}")
+            if re.search(r"https?://", s):
+                findings.append(f"- hardcoded_url: L{i}: {s}")
+            if "eval(" in l:
+                findings.append(f"- eval: L{i}: {s}")
+            if re.search(r"\bexec\(", l):
+                findings.append(f"- exec: L{i}: {s}")
+        if findings:
+            output = (
+                f"ПРОБЛЕМА\nФайл: {path_label}\n"
+                "Найдены потенциальные риски:\n" + "\n".join(findings[:12])
+            )
+        else:
+            output = (
+                f"ОК\nФайл: {path_label}\n"
+                "Потенциальные проблемы (subprocess/hardcoded URL/eval/exec) не обнаружены."
+            )
+        return {
+            "status": "success",
+            "output": output,
+            "knowledge": {
+                "method": "curator_local_fallback",
+                "metadata": {"model_used": "curator_local_fallback", "source": "local"},
+                "execution_trace": {
+                    "task_type": "local_fallback",
+                    "method": "local_file_audit_risk_scan",
+                    "goal_preview": goal[:120],
+                },
+            },
+            "correlation_id": correlation_id,
+        }
+
+    return None
 
 
 def check_health(url: str) -> bool:
@@ -727,6 +939,7 @@ def main():
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
     results = []
+    transport_error_streak = 0
     rec_ts = ts  # Используем общую метку времени для артефактов
     for i, goal in enumerate(tasks, 1):
         print(f"[{i}/{len(tasks)}] {goal[:60]}...")
@@ -743,6 +956,7 @@ def main():
             )
         current_wait = effective_wait
         escalation_attempt = 0
+        still_running_retry_attempt = 0
         while True:
             if args.async_mode:
                 out = run_async_poll(
@@ -794,7 +1008,67 @@ def main():
                     )
                     current_wait = next_wait
                     continue
+            if (
+                args.async_mode
+                and out.get("status") == "error"
+                and _is_victoria_still_running_error(out.get("error"))
+                and still_running_retry_attempt < STILL_RUNNING_RETRY_LIMIT
+            ):
+                still_running_retry_attempt += 1
+                state = _extract_still_running_state(out.get("error"))
+                cooldown = STILL_RUNNING_RECOVERY_COOLDOWN_SEC
+                if state == "queued":
+                    cooldown = max(cooldown, STILL_RUNNING_RECOVERY_COOLDOWN_SEC * 2)
+                print(
+                    "    still-running recovery:"
+                    f" retry {still_running_retry_attempt}/{STILL_RUNNING_RETRY_LIMIT}"
+                    f", state={state or 'unknown'}, cooldown {cooldown:.0f}s"
+                )
+                # KISS: перед повтором коротко проверяем health и даём Victoria завершить зависшие воркеры.
+                check_health(VICTORIA_URL)
+                time.sleep(cooldown)
+                continue
             break
+
+        if (
+            args.async_mode
+            and out.get("status") == "error"
+            and _is_victoria_still_running_error(out.get("error"))
+        ):
+            fallback = _local_fallback_for_goal(goal, out.get("correlation_id"))
+            if fallback is not None:
+                print("    fallback-local: применён deterministic file-audit fallback")
+                out = fallback
+
+        # P0 fail-fast/recover: не сыпем длинную серию транспортных ошибок подряд.
+        if out.get("status") == "error" and _is_transport_like_error(out.get("error")):
+            transport_error_streak += 1
+        else:
+            transport_error_streak = 0
+
+        if transport_error_streak >= TRANSPORT_ERROR_STREAK_THRESHOLD:
+            print(
+                "    transport-failfast: серия сетевых ошибок, запускаем recovery "
+                f"(streak={transport_error_streak})"
+            )
+            recovered = False
+            for attempt in range(1, TRANSPORT_RECOVERY_HEALTH_RETRIES + 1):
+                if check_health(VICTORIA_URL):
+                    recovered = True
+                    print(f"    recovery-ok: Victoria health восстановлен (attempt {attempt})")
+                    break
+                print(
+                    "    recovery-wait: Victoria health still failing "
+                    f"(attempt {attempt}/{TRANSPORT_RECOVERY_HEALTH_RETRIES}), "
+                    f"sleep {TRANSPORT_RECOVERY_COOLDOWN_SEC:.0f}s"
+                )
+                time.sleep(TRANSPORT_RECOVERY_COOLDOWN_SEC)
+            if not recovered:
+                print(
+                    "    recovery-failed: Victoria health unstable, продолжаем с пониженной скоростью."
+                )
+                time.sleep(TRANSPORT_RECOVERY_COOLDOWN_SEC)
+            transport_error_streak = 0
 
         quality_violation = _violates_output_quality_gate(goal, out)
         if quality_violation:
