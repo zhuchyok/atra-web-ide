@@ -1,5 +1,107 @@
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-18 v83) — Expert Dialogue P1: Lightweight Real Path ⚡
+
+### Что изменилось сегодня (v83)
+
+#### 1. Lightweight-first в `expert-dialogue`
+- Добавлен primary fast-path в `backend/app/routers/expert_dialogue.py`:
+  - `_run_lightweight_dialogue(...)` как первый контур,
+  - `_try_victoria_lightweight_fast(...)` (короткий budget, без длинных retry),
+  - `_build_local_lightweight_decision(...)` как быстрый содержательный backup.
+- Heavy-mode и safe fallback оставлены как последующие уровни.
+
+#### 2. Контракт и latency
+- В normalized payload добавлен `lightweight_used`.
+- Для lightweight отключён Victoria synthesis (убран второй latency-хвост).
+- Safe fallback остаётся только страховкой.
+
+#### 3. Верификация
+- `GET /health` -> `200`.
+- `POST /api/expert-dialogue/start`:
+  - `debate` -> `200`, ~6.05s
+  - `sequential` -> `200`, ~6.01s
+  - `collaboration` -> `200`, ~6.01s
+- Во всех случаях: без fallback-фразы, `synthesis_by_victoria=false`.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v83.
+
+---
+
+## § Последние изменения (2026-07-18 v82) — Orchestrator Safe Extract Batch ✅
+
+### Что изменилось сегодня (v82)
+
+- Продолжен behavior-preserving распил `enhanced_orchestrator.py` → `orchestrator_phases.py`.
+- Вынесено: Phase **1.95, 1.97, 2.2, 2.5, 4**, хвост **10–16** (`phase_heavy_tail`), плюс ранее 0/0.5/1/1.6/1.9/2/3.
+- Размеры: `orchestrator_phases.py` ~751 LOC; `enhanced_orchestrator.py` ~3504 LOC.
+- Верификация: orchestrator healthy; 8010/8011 200; фазы 1.95–3 + Phase 4 в логах `orchestrator_phases`; smoke `phase_heavy_tail`.
+- Отложено (риск): 1.5, 1.8, 5–8; `ai_core.py` не трогали.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v82.
+
+---
+
+## § Последние изменения (2026-07-18 v81) — Expert Dialogue API Hardening ✅
+
+### Что изменилось сегодня (v81)
+
+#### 1. Стабилизация import/runtime контура
+- Добавлен compatibility shim `backend/app/redis_manager.py` для legacy импорта `app.redis_manager`.
+- В `backend/requirements.txt` добавлен `aiofiles>=24.1.0` для collaboration-ветки.
+
+#### 2. Bounded execution для `expert-dialogue`
+- В `backend/app/routers/expert_dialogue.py` введён таймаут режима:
+  - `EXPERT_DIALOGUE_ENGINE_TIMEOUT_SEC` (default `35`),
+  - запуск mode-движков через отдельный thread-event-loop,
+  - контролируемый выход в safe fallback вместо бесконечного ожидания.
+
+#### 3. Корректный fallback-контракт
+- Исправлена нормализация payload: `fallback_used` сохраняется.
+- При fallback отключается Victoria synthesis, чтобы не получать второй длинный хвост ожидания.
+
+#### 4. Верификация
+- `GET /health` -> `200`.
+- `POST /api/expert-dialogue/start` для `debate`, `sequential`, `collaboration` -> `200`, bounded latency (~35s), `synthesis_by_victoria=false`, controlled fallback.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v81.
+
+---
+
+## § Последние изменения (2026-07-18 v80) — Singularity 31.2.2: Hardening Mac Studio ✅
+
+### Что изменилось сегодня (v80)
+
+#### 1. Portability
+- Убраны hardcoded `/Users/bikos/...` из runtime (`ai_core`, `expert_dna_manager`, `skill_mapper`, `sop_generator`, `mlx_api_server`, `indexing_daemon`, `curiosity_engine`, start scripts, tests).
+- Используются `PROJECT_ROOT` / `WORKSPACE_ROOT` / `$HOME` / `os.getcwd()`.
+
+#### 2. Task Dedup
+- Все `INSERT INTO tasks ... ON CONFLICT` синхронизированы с `idx_tasks_active_dedup` (title + COALESCE(project_context,'default'::varchar) для pending/in_progress).
+
+#### 3. Healthchecks
+- Заменён неработающий `pgrep` (нет в slim-образах) на `grep -a -q <entrypoint> /proc/1/cmdline`.
+- HTTP health сохранён для Victoria/Veronica/REST/UI/monitoring.
+
+#### 4. Resources
+- `OLLAMA_GLOBAL_MAX_SLOTS=4`, `OLLAMA_NUM_PARALLEL=5` в agents compose + `.env`.
+
+#### 5. Architecture
+- Modular compose (Core/Agents/UI/Monitoring) подтверждён.
+- Phase 0 вынесен в `orchestrator_phases.py`.
+- `knowledge_evolution` CMD = `run_evolution_loop.py`.
+- DB bootstrap `knowledge_os` + seed 90 экспертов.
+
+#### 6. Библия
+- `docs/MASTER_REFERENCE.md` обновлён: статус 31.2.2+, полный лог v80, хронология.
+
+#### 7. Верификация
+- 8010/8011/8002 healthy; workers/orchestrator/evolution healthy; paths=0; slots 4/5; Phase 0 ok.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v80.
+
+---
+
 ## § Последние изменения (2026-06-13 v79) — Version Unification: Singularity 31.2+ ✅
 
 ### Что изменилось сегодня (v79)

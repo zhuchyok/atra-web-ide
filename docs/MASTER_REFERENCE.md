@@ -1,10 +1,233 @@
 # 📖 БИБЛИЯ ATRA (MASTER_REFERENCE)
 
-## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2+ (Total Crystallization)
+## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
-**Дата последнего обновления:** 2026-06-13
-**Уровень эволюции:** 31.2 (Кристаллизация Знаний)
-**Состояние:** Стабильное, Саморазвивающееся
+**Дата последнего обновления:** 2026-07-18
+**Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
+**Состояние:** Стабильное, portable runtime, self-healing Docker healthchecks; safe orchestrator modularization in progress
+**Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-18 v83) — Expert Dialogue P1: Lightweight Real Path ⚡
+
+### Что изменилось сегодня (v83)
+
+#### 1. Lightweight-first execution для `expert-dialogue`
+
+- В `backend/app/routers/expert_dialogue.py` добавлен primary fast-path:
+  - `_run_lightweight_dialogue(...)` — первый контур ответа для всех режимов (`debate`, `sequential`, `collaboration`),
+  - `_try_victoria_lightweight_fast(...)` — короткий вызов Victoria без длинных retry-цепочек,
+  - `_build_local_lightweight_decision(...)` — локальный структурированный ответ как быстрый backup (не safe-fallback).
+- Full heavy-mode (`expert_council` / `multi_agent_debate` / `collective_brainstorming`) сохранён как следующий уровень при сбое lightweight.
+
+#### 2. Контракт ответа и анти-хвост latency
+
+- В нормализацию payload добавлен флаг `lightweight_used`.
+- Для lightweight-ответа отключён этап Victoria synthesis (иначе появлялся второй длинный хвост ожидания).
+- Safe fallback остаётся только страховкой при деградации нижележащих контуров.
+
+#### 3. Live-smoke верификация P1 (2026-07-18)
+
+- `GET /health` -> `200`.
+- `POST /api/expert-dialogue/start`:
+  - `mode=debate` -> `200`, ~`6.05s`, `synthesis_by_victoria=false`, без fallback-фразы.
+  - `mode=sequential` -> `200`, ~`6.01s`, `synthesis_by_victoria=false`, без fallback-фразы.
+  - `mode=collaboration` -> `200`, ~`6.01s`, `synthesis_by_victoria=false`, без fallback-фразы.
+- Целевой SLA P1 (`5-12s`) достигнут на всех 3 режимах в live-smoke.
+
+#### 4. Операционный инвариант v83
+
+- `expert-dialogue` должен сначала пытаться выдать содержательный lightweight-ответ в пределах короткого SLA.
+- Heavy-mode и safe-fallback используются только если fast-path не дал корректный результат.
+
+---
+
+## § Последние изменения (2026-07-18 v82) — Orchestrator Safe Extract Batch ✅
+
+### Что вынесено (behavior-preserving)
+
+Модуль: `knowledge_os/app/orchestrator_phases.py` (~627 строк).  
+Caller: `knowledge_os/app/enhanced_orchestrator.py` (~3599 строк; было ~3780+).
+
+| Фаза    | Функция                                     | Статус runtime                                                        |
+| ------- | ------------------------------------------- | --------------------------------------------------------------------- |
+| 0 / 0.5 | `phase_0_auto_fix` / `phase_0_5_migrations` | logs `orchestrator_phases`                                            |
+| 1       | `phase_1_prioritize`                        | logs ok                                                               |
+| 1.6     | `phase_1_6_batch_group`                     | logs ok                                                               |
+| 1.9     | `phase_1_9_execution_optimizer`             | logs ok                                                               |
+| 1.95    | `phase_1_95_reconcile`                      | logs ok                                                               |
+| 1.97    | `phase_1_97_scale_down`                     | logs ok                                                               |
+| 2       | `phase_2_assign`                            | logs ok                                                               |
+| 2.2     | `phase_2_2_dispatch`                        | logs ok (+ dispatch)                                                  |
+| 2.5     | `phase_2_5_rule_fallback`                   | code+import; log только при candidates                                |
+| 3 / 3.2 | `phase_3_rebalance`                         | logs ok                                                               |
+| 4       | `phase_4_cross_domain`                      | logs ok + quality-focus interrupt preserved                           |
+| 10–16   | `phase_heavy_tail`                          | import + in-container smoke; live cycle часто interrupt quality-focus |
+
+### Ещё в монолите (намеренно)
+
+- **1.5** Blackboard/decompose/HITL — высокий риск
+- **1.8** Red Team critic + LLM
+- **5–8** curiosity / scout / distill / self-repair
+- Rollout KPI блок после 2.2 остаётся рядом с dispatch (тонкая связка с Redis)
+
+Правило: inject helpers, no circular imports; `ai_core.py` не трогаем.
+
+### Верификация (2026-07-18)
+
+- `knowledge_os_orchestrator` → `healthy`
+- Victoria `8010` / Veronica `8011` → `200`
+- `unhealthy` containers → `0`
+- Tasks snapshot: pending≈1, in_progress≈3, completed≈2587 (очередь не коллапсировала)
+- Логи цикла: `phase=1.95/1.97/2/2.2/3` + `Phase 4: Cross-domain linking...` из logger `orchestrator_phases`
+- `from orchestrator_phases import phase_heavy_tail` → ok; smoke dummy getters → `phase_heavy_tail_smoke_ok`
+- Размеры после Phase 4: `orchestrator_phases.py` ~751 LOC; `enhanced_orchestrator.py` ~3504 LOC
+
+### Pre-mortem
+
+1. Quality-focus interrupt heavy phases — ожидаемо при backlog; не регрессия extract.
+2. Phase 2.5 silent без candidates — ожидаемо (старое поведение).
+3. Rollback: revert call sites в `enhanced_orchestrator.py` + модуль phases.
+
+---
+
+## § Последние изменения (2026-07-18 v81) — Expert Dialogue API Hardening ✅
+
+### Что зафиксировано (v81)
+
+#### 1. Устранены критические причины 500/timeout в `expert-dialogue`
+
+- Добавлен compatibility shim `backend/app/redis_manager.py` для legacy-импортов `app.redis_manager` в mixed-runtime сценариях.
+- В `backend/requirements.txt` добавлена зависимость `aiofiles>=24.1.0` для стабильной работы collaboration-режима.
+- В `backend/app/routers/expert_dialogue.py` введен bounded execution per mode:
+  - `ENGINE_TIMEOUT_SEC` (env: `EXPERT_DIALOGUE_ENGINE_TIMEOUT_SEC`, default `35`),
+  - запуск heavy mode-движков через отдельный thread-event-loop,
+  - безопасный timeout-выход с контролируемым fallback вместо зависания клиентского запроса.
+
+#### 2. Нормализация fallback-контракта
+
+- Исправлена нормализация payload: `fallback_used` теперь сохраняется при `_normalize_dialogue_payload`.
+- При fallback отключается финальный Victoria synthesis (чтобы исключить второй длинный хвост ожидания и каскадные таймауты).
+- Результат: API возвращает предсказуемый `200` в bounded latency, даже если внутренний диалоговый движок недоступен/завис.
+
+#### 3. Live-smoke верификация (2026-07-18)
+
+- `GET /health` → `200`.
+- `POST /api/expert-dialogue/start`:
+  - `mode=debate` → `200` (~35s), `synthesis_by_victoria=false`, fallback controlled.
+  - `mode=sequential` → `200` (~35s), `synthesis_by_victoria=false`, fallback controlled.
+  - `mode=collaboration` → `200` (~35s), `synthesis_by_victoria=false`, fallback controlled.
+
+#### 4. Операционный инвариант v81
+
+- Даже при деградации LLM/OpenRouter/MLX контур `expert-dialogue` не должен зависать бесконечно и не должен отдавать 500 по причине внутренних mode-движков.
+- Любая деградация должна отрабатываться через bounded timeout + safe fallback с сохранением доступности API.
+
+---
+
+## § Последние изменения (2026-07-18 v80) — Singularity 31.2.2: Hardening Mac Studio ✅
+
+### Что изменилось сегодня (v80)
+
+#### 1. Portability (снятие vendor-lock путей)
+
+- Runtime больше не зависит от абсолютного пути `/Users/bikos/...`.
+- Заменено на `PROJECT_ROOT` / `WORKSPACE_ROOT` / `$HOME` / `os.getcwd()` / `os.path.expanduser` в:
+  - `knowledge_os/app/ai_core.py`
+  - `knowledge_os/app/expert_dna_manager.py`
+  - `knowledge_os/app/skill_mapper.py`
+  - `knowledge_os/app/sop_generator.py`
+  - `knowledge_os/app/mlx_api_server.py`
+  - `knowledge_os/app/indexing_daemon.py`
+  - `knowledge_os/app/curiosity_engine.py`
+  - `START_VICTORIA_LOCAL.sh`, training scripts, tests path bootstrap
+- В Docker agents: `PROJECT_ROOT=/workspace/atra-web-ide`, `WORKSPACE_ROOT=/workspace/atra-web-ide`, `ATRA_HOST_WORKSPACE` через env.
+
+#### 2. Task Dedup Contract (PostgreSQL)
+
+- Единый контракт вставки задач под частичный уникальный индекс:
+  - `idx_tasks_active_dedup ON tasks (title, COALESCE(project_context, 'default'::character varying)) WHERE status IN ('pending','in_progress')`
+- Все активные генераторы задач (`enhanced_orchestrator`, `curiosity_engine`, `db_pool`, `self_check_system`, `streaming_orchestrator`, `victoria_event_handlers`, `debate_processor`, `liquidity_task_generator`, `dashboard_daily_improver`, `smart_worker_integration`, `rest_api`, `orchestrator`, `code_auditor`, `autonomous_overseer`, `predictive_monitor`, `telegram_gateway`, `enhanced_scout_researcher` и др.) приведены к этому `ON CONFLICT`.
+- Цель: убрать race `duplicate key value violates unique constraint "idx_tasks_active_dedup"` при параллельных Curiosity/Sentinel/Orchestrator циклах.
+
+#### 3. Docker Healthchecks (Елена + Сергей)
+
+- Проблема: в slim agent-образах **нет `pgrep`/`ps`** → healthcheck `pgrep -f ...` давал ложный `unhealthy` при живом процессе.
+- Решение (KISS): процессные проверки через `grep -a -q <entrypoint> /proc/1/cmdline`.
+- HTTP-проверки сохранены где есть endpoint: Victoria/Veronica/REST/quality/visual-search/open-webui/grafana/prometheus/elasticsearch.
+- Покрыты: orchestrator, expert-workers (heavy/anna/victoria/dynamic), smart worker, evolution, nightly, self_check, telegram, watchdog, board-scheduler, swarm-studio, UI, monitoring.
+
+#### 4. Ollama / Mac Studio resource sync (Ольга)
+
+- `OLLAMA_NUM_PARALLEL=5`
+- `OLLAMA_GLOBAL_MAX_SLOTS=4` (буфер 1 слот; раньше 2 вызывало under-utilization warning)
+- Зафиксировано в `knowledge_os/docker-compose.agents.yml` и `knowledge_os/.env`.
+
+#### 5. Modular Docker + Autostart (уже 31.2.1, подтверждено в v80)
+
+- Core: `knowledge_os/docker-compose.yml` (`include` → agents/ui/monitoring)
+- Agents: `knowledge_os/docker-compose.agents.yml`
+- UI: `knowledge_os/docker-compose.ui.yml`
+- Monitoring: `knowledge_os/docker-compose.monitoring.yml`
+- Автостарт: `START_ON_MAC_STUDIO.sh`, `scripts/autostart/start_singularity_10.sh` (launchd)
+
+#### 6. Schema / DB bootstrap (Роман)
+
+- Обязательно: `POSTGRES_DB=knowledge_os` в сервисе `db`.
+- Добиты недостающие колонки/таблицы для runtime: `tasks.last_llm_call_at`, `tasks.retry_after`, `experts.specialization_level`, `experts.is_active`, `expert_dna_overrides`, `model_performance_log`, `corporation_learning_log` (через migrations + `manual_fix.sql` / seed).
+- Seed экспертов: `knowledge_os/scripts/seed_from_employees.py` → **90** экспертов в БД (источник: `configs/experts/employees.json`).
+
+#### 7. Monolith split pilot (Игорь) — безопасный режим
+
+- Модуль: `knowledge_os/app/orchestrator_phases.py`
+- Вынесено **без смены поведения** (behavior-preserving):
+  - Phase 0 → `phase_0_auto_fix(conn)`
+  - Phase 0.5 → `phase_0_5_migrations(conn, app_file=__file__)`
+- Правило распила: **одна фаза за раз** → syntax check → restart только `knowledge_os_orchestrator` → сверка health/API/task counts с baseline.
+- Phase 1–16 пока остаются в `enhanced_orchestrator.py` (не big-bang).
+- `ai_core.py` не трогаем до отдельного plan+approval (слишком critical path).
+
+#### 8. Critical runtime fixes
+
+- `knowledge_evolution` command: `["python", "-u", "run_evolution_loop.py"]` (не Dockerfile default на `src.agents.bridge`).
+- Victoria/Veronica ports: `8010:8000`, `8011:8000`.
+- Redis: `rd.close()` → `rd.aclose()` (`resource_manager`, orchestrator path).
+- Import: `phase_victoria_guarantee` в orchestrator helpers import list (ранее NameError).
+
+#### 9. Верификация (2026-07-18) — evidence
+
+| Проверка                                            | Результат                                                          |
+| --------------------------------------------------- | ------------------------------------------------------------------ |
+| `curl localhost:8010/health`                        | `{"status":"ok","agent":"Виктория"}`                               |
+| `curl localhost:8011/health`                        | `{"status":"ok","agent":"Вероника"}`                               |
+| `curl localhost:8002/health`                        | `{"status":"healthy","database":"connected"}`                      |
+| Experts count                                       | `90`                                                               |
+| Hardcoded `/Users/bikos` в `knowledge_os/app`       | `0`                                                                |
+| Старый `ON CONFLICT` без cast                       | `0`                                                                |
+| `OLLAMA_GLOBAL_MAX_SLOTS` / `OLLAMA_NUM_PARALLEL`   | `4` / `5`                                                          |
+| Phase 0 / 0.5                                       | `orchestrator_phases` → `ok` / `migrations`                        |
+| Orchestrator + workers + evolution + nightly + rest | `healthy`                                                          |
+| Safe extract gate (после Phase 0.5)                 | API ok; нет `unhealthy`; dynamic-1 поднят из `Created` → `healthy` |
+
+#### 10. Pre-mortem закрытые риски
+
+1. **False unhealthy** из-за отсутствия `pgrep` → заменено на `/proc/1/cmdline`.
+2. **Evolution restart-loop** из-за неверного CMD → явный `run_evolution_loop.py`.
+3. **Path lock** на одном пользователе Mac → env-based roots.
+4. Transient Redis UDS timeout при массовом recreate — самовосстановление (workers возвращаются в `healthy`).
+
+### Операционный инвариант v80
+
+```bash
+# Единый старт стека на Mac Studio
+cd knowledge_os && docker compose -f docker-compose.yml up -d
+
+# Или полный автостарт
+./START_ON_MAC_STUDIO.sh
+```
+
+Контрольный срез после рестарта: нет `unhealthy`, Victoria/Veronica/REST отвечают, `experts >= 85`, Phase 0 без exception, нет `idx_tasks_active_dedup` duplicate storms в логах.
 
 ---
 
@@ -150,9 +373,29 @@
 - **Orchestrator Speedup:** Оптимизирована обработка очереди (backlog). Тяжелые фазы анализа (Phase 4+) теперь не отключаются при наличии всего одной задачи, а используют настраиваемый порог `ORCHESTRATOR_BACKLOG_THRESHOLD`.
 - **Infrastructure Hardening:** Все Redis-соединения переведены на Unix Domain Sockets (UDS). Секреты вынесены в `.env`. Исправлены критические `DeprecationWarning` в ядре.
 
+#### 6. Hardening Mac Studio (Singularity 31.2.2) — см. полный лог v80 выше
+
+Кратко: portability paths, task dedup contract, healthchecks без `pgrep`, Ollama slots 4/5, Phase 0 modularization, evolution CMD fix, DB schema bootstrap, 90 experts seeded. Полная фиксация — **§ Последние изменения (2026-07-18 v80)**.
+
 ---
 
 ## § Хронология Эволюции (Singularity 30.0 - 31.2)
+
+### Singularity 31.2.2: Hardening Mac Studio (2026-07-18)
+
+- Portable runtime (без `/Users/<user>` lock-in).
+- Единый DB dedup contract для active tasks.
+- Реальные Docker healthchecks на slim-образах (`/proc/1/cmdline` + HTTP).
+- Ollama capacity sync для Mac Studio.
+- Pilot-декомпозиция оркестратора (`orchestrator_phases.py`).
+- Стабильный bootstrap БД `knowledge_os` + seed экспертов.
+
+### Singularity 31.2.1: Mac Studio Stack Split
+
+- Modular docker-compose (Core/Agents/UI/Monitoring).
+- Cognitive health (`last_success_ts`).
+- Orchestrator backlog threshold.
+- Redis UDS + secrets в `.env`.
 
 ### Singularity 31.2: Total Crystallization
 
