@@ -381,8 +381,10 @@ class TeamDiscussionEngine:
                 os.path.abspath(
                     os.path.join(os.path.dirname(__file__), "../../docs/TEAM_PERSONALITIES.md")
                 ),
-                # Path relative to workspace root (absolute)
-                "/Users/bikos/Documents/atra-web-ide/docs/TEAM_PERSONALITIES.md",
+                # Path relative to project root (from ENV)
+                os.path.join(
+                    os.environ.get("PROJECT_ROOT", os.getcwd()), "docs/TEAM_PERSONALITIES.md"
+                ),
                 # Path relative to workspace root (if running from root)
                 os.path.abspath("docs/TEAM_PERSONALITIES.md"),
                 # Path relative to knowledge_os (if running from knowledge_os)
@@ -1115,6 +1117,7 @@ async def _safe_cloud_response(response: str) -> str:
         return response
     try:
         from app.safety_checker import get_safety_checker
+
         checker = get_safety_checker()
         is_safe, score, warnings = checker.check_response(response)
         if not is_safe:
@@ -1564,10 +1567,21 @@ async def run_smart_agent_async(
     # [SINGULARITY 31.3] Try v2 pipeline if enabled (feature flag)
     if os.getenv("USE_AI_PIPELINE_V2", "false").lower() in ("true", "1", "yes"):
         try:
-            from app.ai_pipeline import run_smart_agent_async_v2
+            try:
+                from app.ai_pipeline import run_smart_agent_async_v2
+            except Exception:
+                from ai_pipeline import run_smart_agent_async_v2
             return await run_smart_agent_async_v2(
-                prompt, expert_name, category, require_cot, is_critical,
-                images, session_id, local_router, is_vip, project_context
+                prompt,
+                expert_name,
+                category,
+                require_cot,
+                is_critical,
+                images,
+                session_id,
+                local_router,
+                is_vip,
+                project_context,
             )
         except Exception as v2_err:
             logger.debug(f"[V2] Fallback to v1: {v2_err}")
@@ -1602,7 +1616,28 @@ async def run_smart_agent_async_impl(
     start_time = time.time()
 
     # [SINGULARITY 31.3] Pipeline: memory crystals, threats, anti-hallucination
-    from app.ai_pipeline import load_memory_crystals, check_threats, inject_anti_hallucination, inject_wisdom, inject_expert_dna, clean_response, strip_think_blocks, inject_context_enrichment
+    try:
+        from app.ai_pipeline import (
+            check_threats,
+            clean_response,
+            inject_anti_hallucination,
+            inject_context_enrichment,
+            inject_expert_dna,
+            inject_wisdom,
+            load_memory_crystals,
+            strip_think_blocks,
+        )
+    except Exception:
+        from ai_pipeline import (
+            check_threats,
+            clean_response,
+            inject_anti_hallucination,
+            inject_context_enrichment,
+            inject_expert_dna,
+            inject_wisdom,
+            load_memory_crystals,
+            strip_think_blocks,
+        )
 
     memory_crystals = await load_memory_crystals(project_context)
 
@@ -2358,7 +2393,10 @@ Use HANDOFF only if delegation genuinely improves the result.
     # [SINGULARITY 30.7] Temporarily disabled for R&D/Distillation VRAM offloading
     force_local_orchestration = os.getenv("VICTORIA_AUTONOMOUS_SWARM", "false").lower() == "true"
     try:
-        from app.redis_manager import redis_manager
+        try:
+            from app.redis_manager import redis_manager
+        except Exception:
+            from redis_manager import redis_manager
 
         client = await redis_manager.get_client()
         ice_mode_val = await client.get("system:ice_mode")
@@ -3926,10 +3964,27 @@ Use HANDOFF only if delegation genuinely improves the result.
         if any(
             kw in user_part.lower()
             for kw in [
-                "всегда", "никогда", "предпочитаю", "мне нравится", "используй только",
-                "always", "never", "prefer", "i like", "i use", "i want", "always use",
-                "never use", "my preference", "i usually", "i tend to", "i'd like",
-                "i prefer", "i need", "i want you to", "from now on",
+                "всегда",
+                "никогда",
+                "предпочитаю",
+                "мне нравится",
+                "используй только",
+                "always",
+                "never",
+                "prefer",
+                "i like",
+                "i use",
+                "i want",
+                "always use",
+                "never use",
+                "my preference",
+                "i usually",
+                "i tend to",
+                "i'd like",
+                "i prefer",
+                "i need",
+                "i want you to",
+                "from now on",
             ]
         ):
             asyncio.create_task(em.save_episode(user_identifier, p_ctx, "preference", user_part))
@@ -4008,9 +4063,11 @@ Use HANDOFF only if delegation genuinely improves the result.
             if inspect.isawaitable(_canary_expert_id):
                 _canary_expert_id = await _canary_expert_id
             if _canary_expert_id:
-                from app.canary_router import should_use_canary, record_canary_result
+                from app.canary_router import record_canary_result, should_use_canary
 
-                _use_canary, _mutation = await should_use_canary(expert_name, str(_canary_expert_id))
+                _use_canary, _mutation = await should_use_canary(
+                    expert_name, str(_canary_expert_id)
+                )
                 if _use_canary and _mutation:
                     # Run mutated prompt
                     _mutated_prompt = _mutation.get("mutated_prompt", "")
@@ -4084,6 +4141,7 @@ async def _trigger_shadow_execution(
     # [SINGULARITY 31.3] Shadow Execution v2: log performance for monitoring
     try:
         from app.shadow_execution_manager_v2 import get_shadow_manager as get_shadow_v2
+
         shadow_v2 = get_shadow_v2()
         shadow_v2.performance_metrics[request_id] = {
             "expert": expert_name,
@@ -4239,6 +4297,7 @@ async def _canary_daemon_loop():
     while True:
         try:
             from app.canary_router import run_canary_daemon
+
             tested = await run_canary_daemon()
             if tested:
                 logger.info(f"[CANARY_DAEMON] Tested {tested} untested mutations")
