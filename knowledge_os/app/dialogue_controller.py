@@ -264,24 +264,90 @@ class DialogueController:
                     payload={
                         "dialogue_id": dialogue_id,
                         "query": dialogue["query"],
-                        "final_answer": "⚠️ Эксперты не успели ответить (LLM сервисы перегружены). Попробуйте снова.",
+                        "final_answer": (
+                            "[INCOMPLETE] Эксперты не успели ответить "
+                            "(LLM сервисы перегружены). Попробуйте снова."
+                        ),
                         "consensus_score": 0.0,
                         "agreement_level": 0,
                         "expert_responses": {},
+                        "quality_degraded": True,
+                        "degraded_reason": "no_expert_responses",
+                        "engine_used": "eventbus_glue",
                     },
                     source="DialogueController",
                 )
             )
             return
 
-        # [SINGULARITY 24.3] Прямой консенсус без ConsensusAgent (Ollama для embeddings недоступна)
-        # Синтезируем ответ из имеющихся expert_responses напрямую
-        try:
-            responses_list = dialogue["responses"]
-            n_experts = len(dialogue["experts"])
-            n_got = len(responses_list)
+        responses_list = dialogue["responses"]
+        n_experts = len(dialogue["experts"])
+        n_got = len(responses_list)
 
-            # Собираем итоговый ответ: объединяем мнения экспертов
+        # [v96] Prefer ConsensusAgent on pre-collected peer responses; glue only as fallback.
+        try:
+            timeout_sec = float(os.getenv("EVENTBUS_CONSENSUS_TIMEOUT_SEC", "90"))
+            max_iter = int(os.getenv("EVENTBUS_CONSENSUS_MAX_ITER", "1"))
+            agent = ConsensusAgent(
+                model_name=os.getenv("VICTORIA_MODEL", "victoria-wisdom-v3.5:latest"),
+                max_iterations=max_iter,
+            )
+            cons = await asyncio.wait_for(
+                agent.reach_consensus(
+                    agents=list(dialogue.get("experts") or []),
+                    question=dialogue["query"],
+                    initial_context={
+                        "responses": responses_list,
+                        "task_id": dialogue_id,
+                    },
+                ),
+                timeout=timeout_sec,
+            )
+            score = float(getattr(cons, "consensus_score", 0.0) or 0.0)
+            incomplete = n_got < 2 or score < 0.5
+            final_answer = str(getattr(cons, "final_answer", "") or "")
+            if incomplete and final_answer and not final_answer.lstrip().startswith("[INCOMPLETE]"):
+                final_answer = f"[INCOMPLETE]\n{final_answer}"
+
+            await self.event_bus.publish(
+                Event(
+                    event_id=str(uuid.uuid4()),
+                    event_type=EventType.DIALOGUE_CONSENSUS,
+                    payload={
+                        "dialogue_id": dialogue_id,
+                        "query": dialogue["query"],
+                        "final_answer": final_answer,
+                        "consensus_score": round(score, 2),
+                        "agreement_level": float(getattr(cons, "agreement_level", 0) or 0),
+                        "expert_responses": responses_list,
+                        "quality_degraded": incomplete,
+                        "degraded_reason": "low_score_or_partial" if incomplete else None,
+                        "engine_used": "consensus_agent",
+                        "incomplete": incomplete,
+                        "iterations": int(getattr(cons, "iterations", 0) or 0),
+                        "sycophancy_detected": bool(getattr(cons, "sycophancy_detected", False)),
+                    },
+                    source="DialogueController",
+                )
+            )
+            logger.info(
+                "✅ [DIALOGUE] ConsensusAgent for %s: %s/%s experts, score=%.2f iter=%s",
+                dialogue_id,
+                n_got,
+                n_experts,
+                score,
+                getattr(cons, "iterations", 0),
+            )
+            return
+        except Exception as e:
+            logger.warning(
+                "⚠️ [DIALOGUE] ConsensusAgent failed for %s (%s); falling back to glue",
+                dialogue_id,
+                e,
+            )
+
+        # Glue fallback — always quality_degraded
+        try:
             if len(responses_list) == 1:
                 expert_name = list(responses_list.keys())[0]
                 final_answer = f"**{expert_name}**: {list(responses_list.values())[0]}"
@@ -289,7 +355,6 @@ class DialogueController:
             elif len(responses_list) >= 2:
                 parts = [f"**{n}**: {r}" for n, r in responses_list.items()]
                 final_answer = "\n\n".join(parts)
-                # Простая оценка согласованности: если ответы похожи по длине — выше
                 lengths = [len(r) for r in responses_list.values()]
                 avg_len = sum(lengths) / len(lengths)
                 variance = sum((l - avg_len) ** 2 for l in lengths) / len(lengths)
@@ -297,6 +362,10 @@ class DialogueController:
             else:
                 final_answer = "Эксперты не предоставили ответов."
                 score = 0.0
+
+            incomplete = n_got < max(n_experts, 1) or n_got < 2
+            if not final_answer.lstrip().startswith("[INCOMPLETE]"):
+                final_answer = f"[INCOMPLETE]\n{final_answer}"
 
             await self.event_bus.publish(
                 Event(
@@ -309,17 +378,23 @@ class DialogueController:
                         "consensus_score": round(score, 2),
                         "agreement_level": round(n_got / max(n_experts, 1), 2),
                         "expert_responses": responses_list,
+                        "quality_degraded": True,
+                        "degraded_reason": "eventbus_glue_consensus",
+                        "engine_used": "eventbus_glue",
+                        "incomplete": True,
                     },
                     source="DialogueController",
                 )
             )
             logger.info(
-                f"✅ [DIALOGUE] Direct consensus for {dialogue_id}: {n_got}/{n_experts} experts, score={score:.2f}"
+                "✅ [DIALOGUE] Glue consensus for %s: %s/%s experts, score=%.2f",
+                dialogue_id,
+                n_got,
+                n_experts,
+                score,
             )
-
         except Exception as e:
             logger.error(f"❌ [DIALOGUE] Consensus failed for {dialogue_id}: {e}")
-            # Fallback: просто склеить ответы
             fallback_answer = "\n\n".join(
                 [f"**{n}**: {r}" for n, r in dialogue["responses"].items()]
             )
@@ -329,9 +404,16 @@ class DialogueController:
                     event_type=EventType.DIALOGUE_CONSENSUS,
                     payload={
                         "dialogue_id": dialogue_id,
-                        "final_answer": f"⚠️ [FALLBACK] Консенсус не достигнут ({type(e).__name__}). Ответы экспертов:\n\n{fallback_answer}",
+                        "final_answer": (
+                            f"[INCOMPLETE] ⚠️ Консенсус не достигнут ({type(e).__name__}). "
+                            f"Ответы экспертов:\n\n{fallback_answer}"
+                        ),
                         "consensus_score": 0,
                         "agreement_level": 0,
+                        "quality_degraded": True,
+                        "degraded_reason": f"consensus_exception:{type(e).__name__}",
+                        "engine_used": "eventbus_glue",
+                        "incomplete": True,
                     },
                     source="DialogueController",
                 )

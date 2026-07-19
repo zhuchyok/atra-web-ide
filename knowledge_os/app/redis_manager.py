@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import redis.asyncio as redis
 
 try:
-    from prometheus_client import Gauge
+    from prometheus_client import REGISTRY, Gauge
 
     _PROMETHEUS_AVAILABLE = True
 except ImportError:
@@ -18,7 +18,21 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 if _PROMETHEUS_AVAILABLE:
-    _queue_depth = Gauge("worker_queue_depth", "Number of tasks in Redis queue", ["queue_name"])
+
+    def _get_or_create_gauge(name: str, description: str, labelnames: list[str]):
+        try:
+            return Gauge(name, description, labelnames)
+        except ValueError:
+            existing = getattr(REGISTRY, "_names_to_collectors", {}).get(name)
+            if existing is not None:
+                return existing
+            raise
+
+    _queue_depth = _get_or_create_gauge(
+        "worker_queue_depth",
+        "Number of tasks in Redis queue",
+        ["queue_name"],
+    )
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 # Дедуп-lock при push в stream: не короче таймаута задачи (expert_worker)
@@ -36,7 +50,7 @@ class RedisManager:
 
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
-            cls._instance = super(RedisManager, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self, url: str = None):
@@ -85,7 +99,10 @@ class RedisManager:
                 self._pool = None
 
         # [SINGULARITY 24.3] Глобальная переменная модуля тоже должна быть актуальной
-        import redis_manager as rm_module
+        try:
+            import redis_manager as rm_module
+        except ImportError:
+            from app import redis_manager as rm_module
 
         rm_module.REDIS_URL = self.url
         print(f"DEBUG: [REDIS_MANAGER] Module REDIS_URL is now: {rm_module.REDIS_URL}")

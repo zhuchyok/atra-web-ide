@@ -825,18 +825,33 @@ async def phase_2_5_rule_fallback(
             try:
                 result = await rule_executor_execute(task_dict)
                 if result:
+                    from task_rule_executor import finalize_rule_result
+
+                    final_text, meta_patch, db_status = finalize_rule_result(result)
+                    meta_patch = {
+                        **meta_patch,
+                        "orchestrator_fallback": True,
+                    }
                     await conn.execute(
                         """
                         UPDATE tasks
-                        SET status = 'completed', result = $2, updated_at = NOW(),
-                            metadata = COALESCE(metadata, '{}'::jsonb) || '{"execution_mode": "rule_based", "orchestrator_fallback": true}'::jsonb
+                        SET status = $3, result = $2, updated_at = NOW(),
+                            metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb
                         WHERE id = $1
                     """,
                         ft["id"],
-                        result,
+                        final_text,
+                        db_status,
+                        json.dumps(meta_patch),
                     )
-                    rule_completed += 1
-                    logger.info("  rule_executor completed task %s", ft["id"])
+                    if db_status == "completed":
+                        rule_completed += 1
+                    logger.info(
+                        "  rule_executor task %s → %s (degraded=%s)",
+                        ft["id"],
+                        db_status,
+                        meta_patch.get("quality_degraded"),
+                    )
             except Exception as e:
                 logger.warning("rule_executor failed for task %s: %s", ft["id"], e)
     if failed_tasks:

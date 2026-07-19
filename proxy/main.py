@@ -11,28 +11,30 @@
 
 import asyncio
 import json
+import logging
 import os
+import re
 import time
 import uuid
-import logging
-import re
-from typing import Optional, AsyncGenerator, List
+from collections import defaultdict
+from collections.abc import AsyncGenerator
+from typing import List, Optional
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-import asyncio
-from collections import defaultdict
 
 try:
-    from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+    from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 except ImportError:
     Counter = None
     Histogram = None
     generate_latest = None
     CONTENT_TYPE_LATEST = "text/plain; version=0.0.4; charset=utf-8"
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 VICTORIA_URL = os.getenv("VICTORIA_URL", "http://localhost:8010").rstrip("/")
@@ -40,7 +42,9 @@ VICTORIA_URL = os.getenv("VICTORIA_URL", "http://localhost:8010").rstrip("/")
 if os.path.exists("/.dockerenv") and VICTORIA_URL == "http://localhost:8010":
     VICTORIA_URL = "http://victoria-agent:8000"
 
-VICTORIA_TIMEOUT = float(os.getenv("VICTORIA_PROXY_TIMEOUT", "60"))  # bounded latency for regular requests
+VICTORIA_TIMEOUT = float(
+    os.getenv("VICTORIA_PROXY_TIMEOUT", "60")
+)  # bounded latency for regular requests
 VICTORIA_MAX_ATTEMPTS = int(os.getenv("VICTORIA_PROXY_MAX_ATTEMPTS", "2"))
 VICTORIA_HEALTH_TIMEOUT = float(os.getenv("VICTORIA_PROXY_HEALTH_TIMEOUT", "15"))
 DISCUSS_TIMEOUT = float(os.getenv("VICTORIA_DISCUSS_TIMEOUT", "240"))
@@ -228,7 +232,12 @@ async def call_victoria_run(
     max_attempts: Optional[int] = None,
 ) -> dict:
     """Вызов Victoria POST /run (синхронный режим)."""
-    logger.info("[call_victoria] connecting to %s/run with goal=%s, category=%s", VICTORIA_URL, goal[:50], category)
+    logger.info(
+        "[call_victoria] connecting to %s/run with goal=%s, category=%s",
+        VICTORIA_URL,
+        goal[:50],
+        category,
+    )
     payload = {"goal": goal}
     if category:
         payload["category"] = category
@@ -236,7 +245,11 @@ async def call_victoria_run(
         payload["chat_history"] = chat_history
     # X-Forwarded-For явно ставим в 127.0.0.1 — иначе Victoria видит GitHub CDN IP (185.199.x.x)
     # от Claude Code/OpenCode и считает его внешним клиентом (rate-limit/блокировка).
-    headers = {"Content-Type": "application/json", "X-Correlation-ID": correlation_id, "X-Forwarded-For": "127.0.0.1"}
+    headers = {
+        "Content-Type": "application/json",
+        "X-Correlation-ID": correlation_id,
+        "X-Forwarded-For": "127.0.0.1",
+    }
 
     # Используем переданный таймаут или глобальный
     current_timeout = timeout_sec or VICTORIA_TIMEOUT
@@ -253,7 +266,9 @@ async def call_victoria_run(
                         headers=headers,
                         params={"async_mode": "false"},
                     )
-                logger.info("[call_victoria] got response from Victoria, status=%s", resp.status_code)
+                logger.info(
+                    "[call_victoria] got response from Victoria, status=%s", resp.status_code
+                )
                 return resp.json()
             except (
                 httpx.RemoteProtocolError,
@@ -298,53 +313,61 @@ async def stream_anthropic_sse(
     """
     model_id = model or "victoria-via-proxy"
     # message_start
-    msg_start = json.dumps({
-        "type": "message_start",
-        "message": {
-            "id": request_id,
-            "type": "message",
-            "role": "assistant",
-            "content": [],
-            "model": model_id,
-            "stop_reason": None,
-            "stop_sequence": None,
-            "usage": {
-                "input_tokens": 0,
-                "output_tokens": 0,
-                "cache_creation_input_tokens": None,
-                "cache_read_input_tokens": None,
+    msg_start = json.dumps(
+        {
+            "type": "message_start",
+            "message": {
+                "id": request_id,
+                "type": "message",
+                "role": "assistant",
+                "content": [],
+                "model": model_id,
+                "stop_reason": None,
+                "stop_sequence": None,
+                "usage": {
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "cache_creation_input_tokens": None,
+                    "cache_read_input_tokens": None,
+                },
             },
-        },
-    })
+        }
+    )
     yield f"event: message_start\ndata: {msg_start}\n\n"
     # content_block_start (text, empty)
-    block_start = json.dumps({
-        "type": "content_block_start",
-        "index": 0,
-        "content_block": {"type": "text", "text": ""},
-    })
+    block_start = json.dumps(
+        {
+            "type": "content_block_start",
+            "index": 0,
+            "content_block": {"type": "text", "text": ""},
+        }
+    )
     yield f"event: content_block_start\ndata: {block_start}\n\n"
     # content_block_delta — по кускам (слова)
     words = (text or "").split()
     for i in range(0, len(words), chunk_size):
         chunk = " ".join(words[i : i + chunk_size]) + (" " if i + chunk_size < len(words) else "")
         if chunk:
-            delta_data = json.dumps({
-                "type": "content_block_delta",
-                "index": 0,
-                "delta": {"type": "text_delta", "text": chunk},
-            })
+            delta_data = json.dumps(
+                {
+                    "type": "content_block_delta",
+                    "index": 0,
+                    "delta": {"type": "text_delta", "text": chunk},
+                }
+            )
             yield f"event: content_block_delta\ndata: {delta_data}\n\n"
     # content_block_stop
     block_stop = json.dumps({"type": "content_block_stop", "index": 0})
     yield f"event: content_block_stop\ndata: {block_stop}\n\n"
     # message_delta
     out_tokens = max(0, len(words))
-    msg_delta = json.dumps({
-        "type": "message_delta",
-        "delta": {"stop_reason": "end_turn", "stop_sequence": None},
-        "usage": {"output_tokens": out_tokens},
-    })
+    msg_delta = json.dumps(
+        {
+            "type": "message_delta",
+            "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+            "usage": {"output_tokens": out_tokens},
+        }
+    )
     yield f"event: message_delta\ndata: {msg_delta}\n\n"
     # message_stop
     msg_stop = json.dumps({"type": "message_stop"})
@@ -373,27 +396,29 @@ def build_anthropic_response(text: str, request_id: str, model: Optional[str] = 
 @app.get("/v1/models")
 async def list_models():
     """Список доступных моделей (OpenAI совместимый)."""
-    return JSONResponse(content={
-        "object": "list",
-        "data": [
-            {
-                "id": "victoria-wisdom-v3.5",
-                "object": "model",
-                "created": 1700000000,
-                "owned_by": "atra-corporation",
-                "permission": [],
-                "root": "victoria-wisdom-v3.5",
-            },
-            {
-                "id": "discuss",
-                "object": "model",
-                "created": 1700000000,
-                "owned_by": "atra-corporation",
-                "permission": [],
-                "root": "discuss",
-            }
-        ]
-    })
+    return JSONResponse(
+        content={
+            "object": "list",
+            "data": [
+                {
+                    "id": "victoria-wisdom-v3.5",
+                    "object": "model",
+                    "created": 1700000000,
+                    "owned_by": "atra-corporation",
+                    "permission": [],
+                    "root": "victoria-wisdom-v3.5",
+                },
+                {
+                    "id": "discuss",
+                    "object": "model",
+                    "created": 1700000000,
+                    "owned_by": "atra-corporation",
+                    "permission": [],
+                    "root": "discuss",
+                },
+            ],
+        }
+    )
 
 
 @app.get("/health")
@@ -409,15 +434,17 @@ async def health():
         victoria_ok = False
         victoria_status_code = None
 
-    return JSONResponse(content={
-        "status": "ok",
-        "proxy": "anthropic-victoria",
-        "victoria_url": VICTORIA_URL,
-        "victoria_reachable": victoria_ok,
-        "victoria_status_code": victoria_status_code,
-        "victoria_health_timeout_sec": VICTORIA_HEALTH_TIMEOUT,
-        "latency_ms": int((time.time() - started) * 1000),
-    })
+    return JSONResponse(
+        content={
+            "status": "ok",
+            "proxy": "anthropic-victoria",
+            "victoria_url": VICTORIA_URL,
+            "victoria_reachable": victoria_ok,
+            "victoria_status_code": victoria_status_code,
+            "victoria_health_timeout_sec": VICTORIA_HEALTH_TIMEOUT,
+            "latency_ms": int((time.time() - started) * 1000),
+        }
+    )
 
 
 @app.get("/metrics")
@@ -426,7 +453,7 @@ async def metrics():
     if generate_latest is None:
         lines = [
             "# proxy metrics fallback (prometheus_client is not installed)",
-            f'proxy_requests_total {sum(_metrics_fallback["requests_total"].values())}',
+            f"proxy_requests_total {sum(_metrics_fallback['requests_total'].values())}",
         ]
         return StreamingResponse(iter(["\n".join(lines)]), media_type=CONTENT_TYPE_LATEST)
     payload = generate_latest()
@@ -471,9 +498,11 @@ async def chat_completions(request: Request):
     request_id = f"chatcmpl-{uuid.uuid4().hex[:8]}"
 
     # Получаем или создаём session_id (OpenAI использует metadata для сессий)
-    session_id = body.get("metadata", {}).get("session_id") or \
-                 request.headers.get("X-Session-ID") or \
-                 f"session-{uuid.uuid4().hex[:8]}"
+    session_id = (
+        body.get("metadata", {}).get("session_id")
+        or request.headers.get("X-Session-ID")
+        or f"session-{uuid.uuid4().hex[:8]}"
+    )
 
     # Строим историю диалога из предыдущих сообщений
     chat_history = []
@@ -500,19 +529,27 @@ async def chat_completions(request: Request):
     goal_norm = goal.strip().lower()
     if goal_norm in {"привет", "здравствуй", "hello", "hi", "hey"}:
         text = "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?"
-        _observe_metrics(model=model, status="success", latency_sec=(time.time() - started), sanitized=False)
+        _observe_metrics(
+            model=model, status="success", latency_sec=(time.time() - started), sanitized=False
+        )
         return JSONResponse(
             content={
                 "id": request_id,
                 "object": "chat.completion",
                 "created": int(__import__("time").time()),
                 "model": model,
-                "choices": [{
-                    "index": 0,
-                    "message": {"role": "assistant", "content": text},
-                    "finish_reason": "stop",
-                }],
-                "usage": {"prompt_tokens": 0, "completion_tokens": len(text.split()), "total_tokens": len(text.split())},
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": text},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": len(text.split()),
+                    "total_tokens": len(text.split()),
+                },
             }
         )
 
@@ -525,7 +562,8 @@ async def chat_completions(request: Request):
 
             # Генерируем диалог
             discussion_prompt = f"[SYSTEM: TEAM_DISCUSSION_MODE]\nВы - команда экспертов ATRA: {', '.join(experts)}.\nВаша задача: провести живое обсуждение запроса пользователя, используя ваши уникальные стили и характеры из TEAM_PERSONALITIES.MD.\n"
-            discussion_prompt += """
+            discussion_prompt += (
+                """
             ПРАВИЛА ОБСУЖДЕНИЯ:
             1. Каждый эксперт должен высказать свое мнение.
             2. Игорь (Backend Developer) - технический перфекционист, любит детали, немного саркастичен.
@@ -541,7 +579,9 @@ async def chat_completions(request: Request):
             **Анна**: [реплика]
             **Виктория**: [итог]
 
-            ЗАПРОС ПОЛЬЗОВАТЕЛЯ: """ + goal
+            ЗАПРОС ПОЛЬЗОВАТЕЛЯ: """
+                + goal
+            )
 
             logger.info("[PROXY] calling Victoria with goal length %d", len(discussion_prompt))
             # Simple call without category override, but with increased timeout
@@ -565,6 +605,27 @@ async def chat_completions(request: Request):
             # [SINGULARITY 10.17] ДИАГНОСТИКА: Логируем сырой ответ от Victoria
             logger.info("[PROXY] Raw Victoria output preview: %s", str(output)[:100])
 
+            # [v91] Reject queue-ack stubs (CODE-queue) as if empty/degraded
+            try:
+                import sys
+                from pathlib import Path
+
+                _root = Path(__file__).resolve().parents[1]
+                for _p in (
+                    _root / "knowledge_os" / "app",
+                    _root / "backend" / "app" / "utils",
+                ):
+                    if _p.is_dir() and str(_p) not in sys.path:
+                        sys.path.insert(0, str(_p))
+                from victoria_response_guard import is_victoria_stub
+
+                if is_victoria_stub(str(output or ""), status=str(status or "")):
+                    logger.warning("[PROXY] Victoria queue stub rejected")
+                    output = None
+                    status = "failed"
+            except Exception as _stub_err:
+                logger.debug("[PROXY] stub guard skipped: %s", _stub_err)
+
             # [SINGULARITY 29.6] ФИКС: Если output пустой, но статус success,
             # значит что-то пошло не так в Victoria.
             if not output and status == "success":
@@ -574,7 +635,9 @@ async def chat_completions(request: Request):
             if not output:
                 output = vic_response.get("error") or f"Status: {status}"
 
-            if status == "failed" and "timeout" in str(vic_response.get("knowledge", {}).get("error", "")):
+            if status == "failed" and "timeout" in str(
+                vic_response.get("knowledge", {}).get("error", "")
+            ):
                 output = "⚠️ **Локальная модель (Wisdom 35B) перегружена.**\n\nГенерация диалога заняла более 5 минут. Это обычно происходит, когда Mac Studio выполняет другие тяжелые задачи (например, воркеры обучают модели или индексируют файлы).\n\n**Что можно сделать:**\n1. Попробуйте отправить запрос еще раз через минуту.\n2. Убедитесь, что в системе нет зависших тяжелых процессов."
 
             text = str(output)
@@ -594,9 +657,7 @@ async def chat_completions(request: Request):
                         timeout=PROXY_TOTAL_TIMEOUT,
                     )
                     fallback_text = str(
-                        fallback_response.get("output")
-                        or fallback_response.get("error")
-                        or ""
+                        fallback_response.get("output") or fallback_response.get("error") or ""
                     )
                     fallback_text, fallback_sanitized = sanitize_output(fallback_text)
                     if fallback_text and not is_degraded_output(fallback_text):
@@ -623,11 +684,13 @@ async def chat_completions(request: Request):
                             "object": "chat.completion.chunk",
                             "created": int(time.time()),
                             "model": model,
-                            "choices": [{
-                                "index": 0,
-                                "delta": {"content": word + " "},
-                                "finish_reason": None,
-                            }],
+                            "choices": [
+                                {
+                                    "index": 0,
+                                    "delta": {"content": word + " "},
+                                    "finish_reason": None,
+                                }
+                            ],
                         }
                         yield f"data: {json.dumps(chunk)}\n\n"
                         await asyncio.sleep(0.02)
@@ -637,42 +700,65 @@ async def chat_completions(request: Request):
                         "object": "chat.completion.chunk",
                         "created": int(time.time()),
                         "model": model,
-                        "choices": [{
-                            "index": 0,
-                            "delta": {},
-                            "finish_reason": "stop",
-                        }],
+                        "choices": [
+                            {
+                                "index": 0,
+                                "delta": {},
+                                "finish_reason": "stop",
+                            }
+                        ],
                     }
                     yield f"data: {json.dumps(final)}\n\n"
                     yield "data: [DONE]\n\n"
 
-                _observe_metrics(model=model, status="success", latency_sec=(time.time() - started), sanitized=sanitized)
+                _observe_metrics(
+                    model=model,
+                    status="success",
+                    latency_sec=(time.time() - started),
+                    sanitized=sanitized,
+                )
                 return StreamingResponse(generate(), media_type="text/event-stream")
 
-            _observe_metrics(model=model, status="success", latency_sec=(time.time() - started), sanitized=sanitized)
+            _observe_metrics(
+                model=model,
+                status="success",
+                latency_sec=(time.time() - started),
+                sanitized=sanitized,
+            )
             return JSONResponse(
                 content={
                     "id": request_id,
                     "object": "chat.completion",
                     "created": int(__import__("time").time()),
                     "model": model,
-                    "choices": [{
-                        "index": 0,
-                        "message": {"role": "assistant", "content": text},
-                        "finish_reason": "stop",
-                    }],
-                    "usage": {"prompt_tokens": 0, "completion_tokens": len(text.split()), "total_tokens": len(text.split())},
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {"role": "assistant", "content": text},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 0,
+                        "completion_tokens": len(text.split()),
+                        "total_tokens": len(text.split()),
+                    },
                 }
             )
         except HTTPException:
-            _observe_metrics(model=model, status="error", latency_sec=(time.time() - started), sanitized=False)
+            _observe_metrics(
+                model=model, status="error", latency_sec=(time.time() - started), sanitized=False
+            )
             raise
         except Exception as e:
             import traceback
+
             err_msg = f"{type(e).__name__}: {str(e)}"
             logger.error(f"❌ [DISCUSS] Failed to generate team discussion: {err_msg}")
             logger.error(traceback.format_exc())
-            _observe_metrics(model=model, status="error", latency_sec=(time.time() - started), sanitized=False)
+            _observe_metrics(
+                model=model, status="error", latency_sec=(time.time() - started), sanitized=False
+            )
             raise HTTPException(status_code=500, detail=f"Discussion engine error: {err_msg}")
 
     try:
@@ -688,13 +774,21 @@ async def chat_completions(request: Request):
             timeout=PROXY_TOTAL_TIMEOUT,
         )
     except asyncio.TimeoutError:
-        _observe_metrics(model=model, status="error", latency_sec=(time.time() - started), sanitized=False)
-        raise HTTPException(status_code=504, detail="Proxy total timeout while waiting for Victoria")
+        _observe_metrics(
+            model=model, status="error", latency_sec=(time.time() - started), sanitized=False
+        )
+        raise HTTPException(
+            status_code=504, detail="Proxy total timeout while waiting for Victoria"
+        )
     except httpx.TimeoutException:
-        _observe_metrics(model=model, status="error", latency_sec=(time.time() - started), sanitized=False)
+        _observe_metrics(
+            model=model, status="error", latency_sec=(time.time() - started), sanitized=False
+        )
         raise HTTPException(status_code=504, detail="Victoria request timed out")
     except httpx.ConnectError as e:
-        _observe_metrics(model=model, status="error", latency_sec=(time.time() - started), sanitized=False)
+        _observe_metrics(
+            model=model, status="error", latency_sec=(time.time() - started), sanitized=False
+        )
         raise HTTPException(status_code=502, detail=f"Victoria unreachable: {VICTORIA_URL}")
 
     status = vic_response.get("status", "")
@@ -707,7 +801,12 @@ async def chat_completions(request: Request):
             if restated:
                 parts.append(f"Уточнённая формулировка: {restated}")
             if questions:
-                parts.append("Вопросы: " + "; ".join(q if isinstance(q, str) else q.get("text", str(q)) for q in questions))
+                parts.append(
+                    "Вопросы: "
+                    + "; ".join(
+                        q if isinstance(q, str) else q.get("text", str(q)) for q in questions
+                    )
+                )
             output = "\n".join(parts)
         else:
             output = vic_response.get("error") or f"Victoria status: {status}"
@@ -725,18 +824,26 @@ async def chat_completions(request: Request):
     if len(_dialogue_store[session_id]) > 50:
         _dialogue_store[session_id] = _dialogue_store[session_id][-50:]
 
-    _observe_metrics(model=model, status="success", latency_sec=(time.time() - started), sanitized=sanitized)
+    _observe_metrics(
+        model=model, status="success", latency_sec=(time.time() - started), sanitized=sanitized
+    )
     return JSONResponse(
         content={
             "id": request_id,
             "object": "chat.completion",
             "created": int(__import__("time").time()),
             "model": model,
-            "choices": [{
-                "index": 0,
-                "message": {"role": "assistant", "content": text},
-                "finish_reason": "stop",
-            }],
-            "usage": {"prompt_tokens": 0, "completion_tokens": len(text.split()), "total_tokens": len(text.split())},
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": text},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 0,
+                "completion_tokens": len(text.split()),
+                "total_tokens": len(text.split()),
+            },
         }
     )

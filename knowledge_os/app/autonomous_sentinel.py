@@ -56,19 +56,57 @@ class AutonomousSentinel:
         )
 
         try:
-            # 1. Attempt auto-restart via SandboxManager/Docker
-            from sandbox_manager import get_sandbox_manager
+            # 1. Real auto-restart via SelfCheckSystem (no fake "recovery done")
+            restart_ok = False
+            restart_detail = "not attempted"
+            try:
+                from self_check_system import ComponentCheck, ComponentStatus, SelfCheckSystem
 
-            sm = get_sandbox_manager()
-            # Logic to find and restart container
-            logger.info(f"🔄 [SENTINEL] Attempting to restart container for {service_name}")
-            # sm.restart_container(service_name) # Placeholder for real restart logic
+                check_system = SelfCheckSystem()
+                aliases = {
+                    "victoria": "Victoria Agent",
+                    "victoria-agent": "Victoria Agent",
+                    "victoria agent": "Victoria Agent",
+                    "veronica": "Veronica Agent",
+                    "veronica-agent": "Veronica Agent",
+                    "veronica agent": "Veronica Agent",
+                }
+                component = aliases.get(str(service_name).lower(), str(service_name))
+                if component == "Victoria Agent":
+                    restart_detail = "skipped self-restart (Victoria Agent)"
+                else:
+                    from datetime import datetime
 
-            # 2. Log to knowledge nodes
+                    check = ComponentCheck(
+                        name=component,
+                        status=ComponentStatus.UNHEALTHY,
+                        message="SERVICE_DOWN via Sentinel",
+                        timestamp=datetime.now(),
+                    )
+                    restart_ok = bool(await check_system.auto_fix_component(check))
+                    if not restart_ok:
+                        await check_system._create_recovery_task(check)
+                    restart_detail = f"auto_fix={'ok' if restart_ok else 'failed'} for {component}"
+            except Exception as e:
+                restart_detail = f"SelfCheck restart error: {e}"
+                logger.warning("🔄 [SENTINEL] restart path failed: %s", e)
+
+            logger.info("🔄 [SENTINEL] %s — %s", service_name, restart_detail)
+
+            # 2. Escalate to Елена with honest status (never claim recovery if it failed)
             from ai_core import run_smart_agent_async
 
+            status_line = (
+                "восстановление УСПЕШНО"
+                if restart_ok
+                else "восстановление НЕ удалось / не применялось"
+            )
             await run_smart_agent_async(
-                f"Сервис {service_name} упал, попытка восстановления выполнена. Проанализируй логи и предложи долгосрочное решение (мониторинг, алерты, ресурсы).",
+                (
+                    f"Сервис {service_name} упал. {status_line} ({restart_detail}). "
+                    "Проанализируй логи и предложи долгосрочное решение "
+                    "(мониторинг, алерты, ресурсы)."
+                ),
                 expert_name="Елена",
                 category="reasoning",
             )
@@ -98,12 +136,15 @@ class AutonomousSentinel:
         if component in ["system_ram", "ollama_latency", "mlx_memory"]:
             try:
                 from model_memory_manager import get_memory_manager
+
                 mmm = get_memory_manager()
                 # Принудительная очистка неиспользуемых моделей
                 unloaded = await mmm.cleanup_unused_models()
                 if unloaded > 0:
-                    logger.info(f"🛡️ [SENTINEL] Memory Guard: Unloaded {unloaded} unused models to reclaim RAM")
-                
+                    logger.info(
+                        f"🛡️ [SENTINEL] Memory Guard: Unloaded {unloaded} unused models to reclaim RAM"
+                    )
+
                 # Если все еще критично, делаем экстренную очистку
                 await mmm.emergency_memory_cleanup()
             except Exception as mem_err:

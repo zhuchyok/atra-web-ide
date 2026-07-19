@@ -6,8 +6,8 @@ Victoria Agent — Team Lead ATRA. HTTP API для задач.
 import asyncio
 import hashlib
 import json
-import math
 import logging
+import math
 import os
 import re
 import sys
@@ -1383,10 +1383,12 @@ async def lifespan(app: FastAPI):
 
     # [SINGULARITY 31.3] Agent-to-Agent messaging
     try:
-        from app.agent_messaging import start_presence_broadcast, listen, register_handler
+        from app.agent_messaging import listen, register_handler, start_presence_broadcast
 
         asyncio.create_task(listen("Виктория"))
-        asyncio.create_task(start_presence_broadcast("Виктория", ["orchestrator", "reasoning", "coding"]))
+        asyncio.create_task(
+            start_presence_broadcast("Виктория", ["orchestrator", "reasoning", "coding"])
+        )
         logger.info("🔗 [AGENT_MSG] Victoria subscribed to agent messaging")
     except Exception as e:
         logger.warning(f"⚠️ [AGENT_MSG] Init failed: {e}")
@@ -4259,6 +4261,8 @@ class TaskRequest(BaseModel):
     )
     category: Optional[str] = None  # [SINGULARITY 10.0] Категория задачи (reasoning, coding, etc.)
     stream: Optional[bool] = False  # True = возвращать SSE stream (Server-Sent Events)
+    # Explicit opt-in for CODE→PostgreSQL queue. Substring "code"/"код" alone must NOT queue.
+    queue_code: Optional[bool] = False
 
 
 class TaskResponse(BaseModel):
@@ -4766,7 +4770,9 @@ async def _run_task_background(
         if redis_manager:
             try:
                 st = {k: v for k, v in store.items() if v is not None}
-                await redis_manager.update_task_status(task_id, st.get("status", "processing"), metadata=st)
+                await redis_manager.update_task_status(
+                    task_id, st.get("status", "processing"), metadata=st
+                )
             except Exception:
                 pass
 
@@ -5211,7 +5217,7 @@ async def _run_task_background(
                     except NameError:
                         pass  # async_mode not defined in background path
                     except Exception as db_e:
-                            logger.warning("Orchestration V2 DB record failed (non-critical): %s", db_e)
+                        logger.warning("Orchestration V2 DB record failed (non-critical): %s", db_e)
 
                     # План «как я» п.12.2 п.1: при EXECUTE_ASSIGNMENTS_IN_RUN=true — выполнить назначения и подставить результаты в контекст (фон)
                     _exec_env = os.getenv("EXECUTE_ASSIGNMENTS_IN_RUN", "").strip().lower()
@@ -6429,12 +6435,36 @@ async def run_task(
             correlation_id=correlation_id,
         )
 
-    # [SINGULARITY 28.X] Queue CODE tasks to PostgreSQL (NOT Redis) - parallel processing
+    # [SINGULARITY 28.X / v91] CODE→PostgreSQL queue: explicit opt-in only.
+    # Auto-queue on substring "code"/"код" poisoned board meetings and any goal
+    # that merely mentioned code in context. Default OFF unless queue_code=true
+    # or VICTORIA_CODE_AUTO_QUEUE=true (legacy emergency).
     goal_lower = (goal or "").lower()
+    _board_markers = (
+        "совет директоров",
+        "board of directors",
+        "strategic board",
+        "заседание совета",
+        "директив",
+        "board meeting",
+    )
+    _is_board_goal = any(m in goal_lower for m in _board_markers)
+    _explicit_queue = bool(getattr(body, "queue_code", False))
+    _legacy_auto = os.getenv("VICTORIA_CODE_AUTO_QUEUE", "false").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    _auto_code_hit = ("код" in goal_lower or "code" in goal_lower) and _legacy_auto
     if async_mode:
         pass
-    elif "код" in goal_lower or "code" in goal_lower:
-        logger.info(f"[QUEUE] CODE task detected: {goal[:50]}")
+    elif (_explicit_queue or _auto_code_hit) and not _is_board_goal:
+        logger.info(
+            "[QUEUE] CODE task queued (explicit=%s legacy_auto=%s): %s",
+            _explicit_queue,
+            _auto_code_hit,
+            goal[:50],
+        )
         try:
             import asyncpg
 
@@ -6448,9 +6478,7 @@ async def run_task(
             conn = await asyncpg.connect(db_url, timeout=10)
 
             # [QUEUE] Look up the code expert (Роман) for assignee_expert_id
-            expert_id = await conn.fetchval(
-                "SELECT id FROM experts WHERE name = $1", "Роман"
-            )
+            expert_id = await conn.fetchval("SELECT id FROM experts WHERE name = $1", "Роман")
             if not expert_id:
                 expert_id = await conn.fetchval(
                     "SELECT id FROM experts ORDER BY created_at ASC LIMIT 1"
@@ -6464,11 +6492,13 @@ async def run_task(
                 goal,  # description
                 goal,  # goal (для корректного resume и аналитики)
                 expert_id,
-                json.dumps({
-                    "source": "victoria_queue",
-                    "target_expert": "Роман",
-                    "correlation_id": correlation_id,
-                }),
+                json.dumps(
+                    {
+                        "source": "victoria_queue",
+                        "target_expert": "Роман",
+                        "correlation_id": correlation_id,
+                    }
+                ),
                 body.project_context,
             )
             await conn.close()
@@ -7775,12 +7805,15 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     if _images_to_process:
         try:
             from app.vision_processor import VisionProcessor
+
             vp = VisionProcessor()
             descriptions = []
             for idx, b64 in enumerate(_images_to_process[:3]):
-                desc = await vp.process_image(image_base64=b64, prompt="Опиши это изображение подробно")
+                desc = await vp.process_image(
+                    image_base64=b64, prompt="Опиши это изображение подробно"
+                )
                 if desc:
-                    descriptions.append(f"[Image {idx+1}: {desc}]")
+                    descriptions.append(f"[Image {idx + 1}: {desc}]")
             if descriptions:
                 goal += "\n" + "\n".join(descriptions)
         except Exception as e:
@@ -7835,7 +7868,9 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     limit=5,
                 )
                 if memory_context:
-                    logger.info(f"🧠 [OPENAI-API] LongTermMemory found: {len(memory_context)} chars")
+                    logger.info(
+                        f"🧠 [OPENAI-API] LongTermMemory found: {len(memory_context)} chars"
+                    )
                     # Подмешиваем память в goal, чтобы Victoria её увидела
                     goal = f"РАНЕЕ ОБСУЖДАЛОСЬ:\n{memory_context}\n\nТЕКУЩИЙ ЗАПРОС: {goal}"
                     task_req.goal = goal
@@ -7849,14 +7884,16 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 from app.enhanced_search import SearchMode, enhanced_search_knowledge
 
                 logger.info("🔍 [OPENAI-API] Omni-RAG: Searching knowledge for goal...")
-                rag_res = await enhanced_search_knowledge(query=goal, mode=SearchMode.HYBRID, limit=3)
+                rag_res = await enhanced_search_knowledge(
+                    query=goal, mode=SearchMode.HYBRID, limit=3
+                )
                 if rag_res and rag_res.get("results"):
                     knowledge_text = rag_res.get("result_text", "")
                     if knowledge_text:
                         # Очищаем RAG от внутренних монологов (<think>/<thought> блоков)
                         knowledge_text = re.sub(
-                            r'<think>.*?</think>|<thought>.*?</thought>',
-                            '',
+                            r"<think>.*?</think>|<thought>.*?</thought>",
+                            "",
                             knowledge_text,
                             flags=re.DOTALL,
                         )
@@ -7870,7 +7907,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
             except Exception as e:
                 logger.warning(f"⚠️ [OPENAI-API] Omni-RAG search failed: {e}")
     else:
-        logger.info(f"⚡ [OPENAI-API] Simple message detected, skipping RAG and LTM")
+        logger.info("⚡ [OPENAI-API] Simple message detected, skipping RAG and LTM")
 
     # [SINGULARITY 16.1] Omni-RAG: Telegram Notification Hook
     # Если запрос пришел от Telegram (по session_id или метаданным), можно добавить логику уведомлений
@@ -8031,13 +8068,26 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     # [SINGULARITY 31.3] Fast path: для вопросов знаний без action-глаголов
     # используем прямой MLX + RAG, без полного пайплайна run_task
     _execution_markers = (
-        "выполни", "создай", "напиши код", "исправь", "аудит", "проверь",
-        "разработай", "сделай", "установи", "настрой", "задеплой",
+        "выполни",
+        "создай",
+        "напиши код",
+        "исправь",
+        "аудит",
+        "проверь",
+        "разработай",
+        "сделай",
+        "установи",
+        "настрой",
+        "задеплой",
     )
     _is_execution_task = any(marker in task_req.goal.lower() for marker in _execution_markers)
     _is_simple_q = is_simple_message(_user_msg_text) or is_fast_track_message(_user_msg_text)
 
-    if _is_simple_q or (not _is_execution_task and len(task_req.goal) < 2000 and "victoria" in str(request.model).lower()):
+    if _is_simple_q or (
+        not _is_execution_task
+        and len(task_req.goal) < 2000
+        and "victoria" in str(request.model).lower()
+    ):
         # Для простых/быстрых сообщений — статический fallback без LLM
         if _is_simple_q:
             goal_lower = _user_msg_text.lower().strip()
@@ -8052,7 +8102,10 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
             _rag_context = ""
             try:
                 from app.enhanced_search import SearchMode, enhanced_search_knowledge
-                _rag_res = await enhanced_search_knowledge(query=_user_msg_text, mode=SearchMode.HYBRID, limit=2)
+
+                _rag_res = await enhanced_search_knowledge(
+                    query=_user_msg_text, mode=SearchMode.HYBRID, limit=2
+                )
                 if _rag_res and _rag_res.get("result_text"):
                     _rag_context = _rag_res["result_text"][:1500]
             except Exception:

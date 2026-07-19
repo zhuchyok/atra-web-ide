@@ -110,15 +110,38 @@ MLX_API_URL = (
 )  # MLX_API_URL=disabled → None, только Ollama
 
 
-from app.circuit_breaker import CircuitBreakerOpenError, CircuitState, get_circuit_breaker
-from app.context_mirror import ContextMirror
-from app.mlx_monitor import get_mlx_monitor
-from app.mlx_recovery_state import is_mlx_recovery_event, should_run_unload_on_recovery
-from app.ollama_keep_alive_policy import (
-    MLX_RAM_RESERVE_GB,
-    get_keep_alive,
-    unload_ollama_fallback_models,
-)
+try:
+    from app.circuit_breaker import CircuitBreakerOpenError, CircuitState, get_circuit_breaker
+except ImportError:
+    from circuit_breaker import CircuitBreakerOpenError, CircuitState, get_circuit_breaker
+
+try:
+    from app.context_mirror import ContextMirror
+except ImportError:
+    from context_mirror import ContextMirror
+
+try:
+    from app.mlx_monitor import get_mlx_monitor
+except ImportError:
+    from mlx_monitor import get_mlx_monitor
+
+try:
+    from app.mlx_recovery_state import is_mlx_recovery_event, should_run_unload_on_recovery
+except ImportError:
+    from mlx_recovery_state import is_mlx_recovery_event, should_run_unload_on_recovery
+
+try:
+    from app.ollama_keep_alive_policy import (
+        MLX_RAM_RESERVE_GB,
+        get_keep_alive,
+        unload_ollama_fallback_models,
+    )
+except ImportError:
+    from ollama_keep_alive_policy import (
+        MLX_RAM_RESERVE_GB,
+        get_keep_alive,
+        unload_ollama_fallback_models,
+    )
 
 # [SINGULARITY 21.3] God Mode 128GB: Immortal models and zero-swap
 IMMORTAL_MODELS = {"nomic-embed-text", "nomic-embed-text:latest", "moondream", "moondream:latest"}

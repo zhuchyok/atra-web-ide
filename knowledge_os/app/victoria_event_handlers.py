@@ -350,7 +350,8 @@ class VictoriaEventHandlers:
             container = error_info.get("container", "unknown")
 
             db_url = os.getenv(
-                "DATABASE_URL", "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os"
+                "DATABASE_URL",
+                "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os",  # pragma: allowlist secret
             )
             conn = await asyncpg.connect(db_url)
             try:
@@ -796,39 +797,96 @@ class VictoriaEventHandlers:
 
                     knowledge = await search_knowledge(f"анализ файла {file_path} код python")
                     if knowledge and "No relevant knowledge" not in knowledge:
+                        from pathlib import Path
+
+                        path = Path(file_path) if file_path else None
                         return {
-                            "file_type": "python",
-                            "needs_tests": True,
-                            "complexity": "medium",
+                            "analyzed": True,
+                            "file_exists": bool(path and path.is_file()),
+                            "suffix": path.suffix if path else None,
                             "knowledge_context": knowledge[:500],
+                            "invented_metrics": False,
                         }
                 except Exception as e:
                     logger.debug(f"Не удалось использовать базу знаний: {e}")
         except Exception:
             pass
 
-        # Fallback
-        return {"file_type": "python", "needs_tests": True, "complexity": "medium"}
+        # Honest fallback — do not invent file_type/needs_tests/complexity.
+        from pathlib import Path
+
+        path = Path(file_path) if file_path else None
+        if path and path.is_file():
+            return {
+                "analyzed": True,
+                "file_exists": True,
+                "suffix": path.suffix,
+                "size": path.stat().st_size,
+                "invented_metrics": False,
+            }
+        return {
+            "analyzed": False,
+            "file_exists": False,
+            "reason": "kb_unavailable_or_file_missing",
+            "invented_metrics": False,
+        }
 
     async def _check_python_syntax(self, file_path: str) -> Dict[str, Any]:
-        """Проверить синтаксис Python файла"""
-        # Заглушка
-        return {"valid": True, "errors": []}
+        """Проверить синтаксис Python файла через ast.parse (без ложного valid=True)."""
+        import ast
+        from pathlib import Path
+
+        path = Path(file_path) if file_path else None
+        if not path or not path.is_file() or path.suffix != ".py":
+            return {"valid": True, "errors": [], "skipped": True, "reason": "not_a_python_file"}
+        try:
+            source = path.read_text(encoding="utf-8", errors="replace")
+            ast.parse(source, filename=str(path))
+            return {"valid": True, "errors": []}
+        except SyntaxError as e:
+            return {
+                "valid": False,
+                "errors": [f"{e.msg} at line {e.lineno}:{e.offset}"],
+            }
+        except Exception as e:
+            return {"valid": False, "errors": [str(e)[:300]]}
 
     async def _suggest_fixes(self, file_path: str, errors: List[str]) -> List[Dict[str, Any]]:
-        """Предложить исправления"""
-        # Заглушка
-        return []
+        """Минимальные suggestions по известным syntax errors."""
+        out: List[Dict[str, Any]] = []
+        for err in errors or []:
+            out.append(
+                {
+                    "file": file_path,
+                    "error": err,
+                    "suggestion": "Fix syntax before merge; run python -m py_compile on the file.",
+                }
+            )
+        return out
 
     async def _suggest_tests(self, file_path: str) -> Dict[str, Any]:
-        """Предложить тесты"""
-        # Заглушка
-        return {"suggestion": "Add unit tests"}
+        """Suggest tests without claiming they were added."""
+        return {
+            "suggestion": f"Add/extend unit tests covering {file_path}",
+            "implemented": False,
+        }
 
     async def _detect_changes(self, file_path: str) -> Dict[str, Any]:
-        """Обнаружить изменения в файле"""
-        # Заглушка
-        return {"changes_detected": True}
+        """Detect file presence/mtime — no fake 'changes_detected' without evidence."""
+        from pathlib import Path
+
+        path = Path(file_path) if file_path else None
+        if not path or not path.exists():
+            return {"changes_detected": False, "reason": "missing"}
+        try:
+            st = path.stat()
+            return {
+                "changes_detected": True,
+                "size": st.st_size,
+                "mtime": st.st_mtime,
+            }
+        except Exception as e:
+            return {"changes_detected": False, "reason": str(e)[:200]}
 
     def _is_critical_file(self, file_path: str) -> bool:
         """Проверить, является ли файл критичным"""
@@ -838,20 +896,69 @@ class VictoriaEventHandlers:
     async def _review_critical_changes(
         self, file_path: str, changes: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Проверить критические изменения"""
-        # Заглушка
-        return {"reviewed": True}
+        """Critical review: never claim reviewed=True without a real check."""
+        syntax = await self._check_python_syntax(file_path)
+        if syntax.get("skipped"):
+            return {
+                "reviewed": False,
+                "requires_human_review": True,
+                "reason": "critical_non_python_or_missing",
+                "changes": changes,
+            }
+        if not syntax.get("valid", False):
+            return {
+                "reviewed": False,
+                "requires_human_review": True,
+                "reason": "syntax_invalid",
+                "syntax": syntax,
+            }
+        # Syntax OK still needs human for critical paths (auth/security/config).
+        return {
+            "reviewed": False,
+            "requires_human_review": True,
+            "reason": "critical_path_needs_human",
+            "syntax_ok": True,
+            "changes": changes,
+        }
 
     async def _restart_service(self, service_name: str, service_type: str) -> Dict[str, Any]:
-        """Перезапустить сервис"""
-        # Интеграция с SelfCheckSystem
+        """Перезапустить сервис через SelfCheckSystem (без ложного success)."""
         try:
-            from app.self_check_system import SelfCheckSystem
+            from app.self_check_system import ComponentCheck, ComponentStatus, SelfCheckSystem
 
             check_system = SelfCheckSystem()
-            # Вызываем метод исправления
-            # Заглушка - в реальности здесь будет вызов SelfCheckSystem
-            return {"success": True, "message": f"Service {service_name} restarted"}
+            name = (service_name or "").strip() or "unknown"
+            # Map common aliases → SelfCheck component names
+            aliases = {
+                "victoria": "Victoria Agent",
+                "victoria-agent": "Victoria Agent",
+                "victoria agent": "Victoria Agent",
+                "veronica": "Veronica Agent",
+                "veronica-agent": "Veronica Agent",
+                "veronica agent": "Veronica Agent",
+            }
+            component_name = aliases.get(name.lower(), name)
+            check = ComponentCheck(
+                name=component_name,
+                status=ComponentStatus.UNHEALTHY,
+                message=f"SERVICE_DOWN ({service_type or 'unknown'})",
+                timestamp=datetime.now(),
+            )
+            fixed = await check_system.auto_fix_component(check)
+            if fixed:
+                return {
+                    "success": True,
+                    "message": f"Service {component_name} restarted via SelfCheckSystem",
+                    "component": component_name,
+                }
+            # Create recovery task rather than lying about success
+            await check_system._create_recovery_task(check)
+            return {
+                "success": False,
+                "error": f"auto_fix failed for {component_name}; recovery task created",
+                "component": component_name,
+                "requires_manual_intervention": True,
+            }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -863,7 +970,8 @@ class VictoriaEventHandlers:
             import asyncpg
 
             db_url = os.getenv(
-                "DATABASE_URL", "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os"
+                "DATABASE_URL",
+                "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os",  # pragma: allowlist secret
             )
             conn = await asyncpg.connect(db_url)
             try:
@@ -889,14 +997,36 @@ class VictoriaEventHandlers:
         return {"status": "pending", "task_id": task_id}
 
     async def _offer_help_for_task(self, task_id: str, hours_until: float) -> Dict[str, Any]:
-        """Предложить помощь для задачи"""
-        # Заглушка
-        return {"help_offered": True}
+        """Flag deadline risk in metadata — no fake help_offered success."""
+        status = await self._get_task_status(task_id)
+        return {
+            "help_offered": False,
+            "escalation_recommended": True,
+            "hours_until": hours_until,
+            "task_status": status.get("status"),
+            "message": (
+                f"Deadline in {hours_until}h; task status={status.get('status')}. "
+                "Needs human/expert attention."
+            ),
+        }
 
     async def _check_task_progress(self, task_id: str) -> Dict[str, Any]:
-        """Проверить прогресс задачи"""
-        # Заглушка
-        return {"progress": 0.5}
+        """Progress from DB status — no invented 0.5."""
+        status = await self._get_task_status(task_id)
+        st = (status.get("status") or "pending").lower()
+        progress_map = {
+            "completed": 1.0,
+            "cancelled": 0.0,
+            "failed": 0.0,
+            "in_progress": 0.5,
+            "pending": 0.0,
+        }
+        return {
+            "progress": progress_map.get(st, 0.0),
+            "status": st,
+            "task_id": task_id,
+            "inferred": True,
+        }
 
     async def _diagnose_error(self, error_info: Dict[str, Any]) -> Dict[str, Any]:
         """Диагностировать ошибку с использованием базы знаний"""
@@ -927,16 +1057,62 @@ class VictoriaEventHandlers:
         return {"diagnosis": "unknown_error", "error_type": error_type}
 
     async def _diagnose_error_with_thinking(self, error_info: Dict[str, Any]) -> Dict[str, Any]:
-        """Диагностировать ошибку через Extended Thinking"""
-        # Заглушка - в реальности будет использовать Extended Thinking
-        return {"diagnosis": "thinking_based_diagnosis"}
+        """Extended Thinking path — fall back to knowledge diagnose, never fake a label."""
+        base = await self._diagnose_error(error_info)
+        base["thinking"] = False
+        base["note"] = "extended_thinking_not_wired"
+        return base
 
     async def _attempt_fix(
         self, error_info: Dict[str, Any], diagnosis: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Попытаться исправить ошибку"""
-        # Заглушка
-        return {"success": False, "message": "Fix not implemented"}
+        """
+        Bounded auto-fix: service-level via SelfCheckSystem; otherwise escalate honestly.
+        Never report success without evidence.
+        """
+        err_type = str((error_info or {}).get("type") or "").lower()
+        err_msg = str((error_info or {}).get("message") or "")
+        service_name = (
+            (error_info or {}).get("service_name")
+            or (error_info or {}).get("component")
+            or (diagnosis or {}).get("component")
+        )
+
+        # 1) If we know the service — try real restart path
+        if service_name or any(
+            k in err_type or k in err_msg.lower()
+            for k in ("service_down", "connection refused", "unavailable", "timeout")
+        ):
+            target = service_name or "Victoria Agent"
+            restart = await self._restart_service(str(target), err_type or "error_detected")
+            if restart.get("success"):
+                return {
+                    "success": True,
+                    "message": restart.get("message"),
+                    "path": "self_check_restart",
+                    "restart": restart,
+                }
+            return {
+                "success": False,
+                "message": restart.get("error") or "auto_fix failed",
+                "path": "self_check_restart",
+                "requires_manual_intervention": True,
+                "restart": restart,
+                "diagnosis": diagnosis,
+            }
+
+        # 2) Mutation engine already tried upstream; here we only escalate cleanly
+        return {
+            "success": False,
+            "message": "No safe auto-fix path for this error; escalated",
+            "path": "escalate",
+            "requires_manual_intervention": True,
+            "diagnosis": diagnosis,
+            "error_info": {
+                "type": err_type,
+                "message": err_msg[:500],
+            },
+        }
 
     def get_handler_stats(self) -> Dict[str, Any]:
         """Получить статистику обработчиков"""

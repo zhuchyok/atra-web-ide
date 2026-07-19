@@ -1460,10 +1460,27 @@ async def victoria_solve(body: VictoriaSolveRequest):
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
                 f"{VICTORIA_URL}/run",
-                json={"goal": body.goal, "context": body.context, "category": body.category},
+                params={"async_mode": "false"},
+                json={
+                    "goal": body.goal,
+                    "context": body.context,
+                    "category": body.category,
+                },
             )
             response.raise_for_status()
             result = response.json()
+            try:
+                from victoria_response_guard import reject_if_stub
+            except ImportError:
+                from knowledge_os.app.victoria_response_guard import reject_if_stub
+
+            stub_reason = reject_if_stub(result)
+            if stub_reason:
+                _log.error("[VICTORIA_SOLVE] rejected stub: %s", stub_reason)
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Victoria returned queue stub, not a real answer ({stub_reason})",
+                )
             _log.info("[VICTORIA_SOLVE] success")
             return result
     except httpx.ConnectError:

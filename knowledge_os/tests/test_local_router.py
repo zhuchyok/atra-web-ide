@@ -44,7 +44,7 @@ async def test_context_saved_before_mlx_call(mock_context_mirror):
         mock_post.return_value = MagicMock(status_code=200)
         mock_post.return_value.json.return_value = {"message": {"content": "MLX response"}}
 
-        await router.run_local_llm("Hello", session_id="test_session")
+        result = await router.run_local_llm("Hello", session_id="test_session")
 
         # Verify context_mirror.save_context was called
         mock_context_mirror.save_context.assert_called()
@@ -84,14 +84,11 @@ async def test_failover_uses_mirrored_context(mock_context_mirror):
 
         mock_post.side_effect = [mock_mlx_resp, mock_ollama_resp]
 
-        await router.run_local_llm("Hello", session_id="test_session")
+        result = await router.run_local_llm("Hello", session_id="test_session")
 
         # Verify failover reached Ollama even if router-level retries add extra calls.
         assert mock_post.call_count >= 2
-        called_urls = [call.args[0] for call in mock_post.call_args_list if call.args]
-        assert any("11434" in str(url) for url in called_urls), (
-            "Ollama should be called on failover"
-        )
+        assert "Ollama response" in str(result)
 
 
 @pytest.mark.asyncio

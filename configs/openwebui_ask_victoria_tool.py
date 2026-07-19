@@ -4,11 +4,12 @@ Author: ATRA
 Description: REQUIRED — For every user request to DO or ANALYZE something you MUST call this tool in the same turn. Never answer "unavailable" or cite a previous source without calling first. Call only for action/analysis requests; for greetings or "who are you" answer yourself. Supports chat_history (from __messages__) and response_format (text|json).
 Version: 1.1.0
 """
+
 import asyncio
 import json
 import os
 import random
-from typing import Optional, List, Dict, Any, Literal
+from typing import Any, Dict, List, Literal, Optional
 
 try:
     import httpx
@@ -16,7 +17,6 @@ except ImportError:
     httpx = None
 
 from pydantic import BaseModel, Field
-
 
 _BIBLE_CONTEXT_CACHE: Dict[str, str] = {}
 
@@ -28,7 +28,7 @@ def _load_text_excerpt(path: str, max_chars: int) -> str:
     if cached is not None:
         return cached
     try:
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
+        with open(path, encoding="utf-8", errors="replace") as f:
             text = f.read(max_chars)
     except Exception:
         text = ""
@@ -92,7 +92,9 @@ def _attach_filesystem_contract(goal: str, host_workspace: str, container_worksp
     )
 
 
-def _messages_to_chat_history(messages: Optional[List[Dict[str, Any]]]) -> Optional[List[Dict[str, str]]]:
+def _messages_to_chat_history(
+    messages: Optional[List[Dict[str, Any]]],
+) -> Optional[List[Dict[str, str]]]:
     """Convert Open WebUI __messages__ (role/content) to Victoria format [{user, assistant}, ...]."""
     if not messages or not isinstance(messages, list):
         return None
@@ -111,6 +113,39 @@ def _messages_to_chat_history(messages: Optional[List[Dict[str, Any]]]) -> Optio
     return pairs if pairs else None
 
 
+def _is_victoria_stub(text: str) -> bool:
+    """Reject queue/ack/rule-fallback stubs so the UI model does not treat them as answers."""
+    t = (text or "").strip()
+    if not t:
+        return True
+    low = t.lower()
+    markers = (
+        "queued to postgresql",
+        "queued to postgres",
+        "task queued",
+        "status_url",
+        "processing...",
+        "все источники недоступны",
+        "агенты временно недоступны",
+        "rule-based статусный ответ",
+        "rule-based research fallback",
+        "[degraded_rule_fallback]",
+        "ai временно недоступен",
+        "fix not implemented",
+    )
+    return any(m in low for m in markers)
+
+
+def _reject_stub_output(output: str) -> Optional[str]:
+    """Return error message if stub; None if output looks real."""
+    if _is_victoria_stub(output):
+        return (
+            "Rejected Victoria stub/queue/rule-fallback response. "
+            "Call ask_victoria again; do not invent an answer from this stub."
+        )
+    return None
+
+
 class Tools:
     class Valves(BaseModel):
         VICTORIA_URL: str = Field(
@@ -121,7 +156,9 @@ class Tools:
             default=True,
             description="If true, call backend /api/chat/ask-victoria. If false, call Victoria /run directly (fuller local agent behavior).",
         )
-        ASK_VICTORIA_TIMEOUT: int = Field(default=1200, description="Timeout in seconds for Victoria response")
+        ASK_VICTORIA_TIMEOUT: int = Field(
+            default=1200, description="Timeout in seconds for Victoria response"
+        )
         BACKEND_FALLBACK_URL: str = Field(
             default="http://atra-web-ide-backend:8000",
             description="Fallback backend URL for /api/chat/ask-victoria if direct Victoria call fails.",
@@ -185,8 +222,18 @@ class Tools:
             return "Error: goal is required and cannot be empty."
         if httpx is None:
             return "Victoria is temporarily unavailable; try again later. (httpx not installed)"
-        base = (getattr(self.valves, "VICTORIA_URL", None) or os.getenv("VICTORIA_URL") or "http://victoria-agent:8000").strip().rstrip("/")
-        timeout = getattr(self.valves, "ASK_VICTORIA_TIMEOUT", None) or int(os.getenv("ASK_VICTORIA_TIMEOUT", "600"))
+        base = (
+            (
+                getattr(self.valves, "VICTORIA_URL", None)
+                or os.getenv("VICTORIA_URL")
+                or "http://victoria-agent:8000"
+            )
+            .strip()
+            .rstrip("/")
+        )
+        timeout = getattr(self.valves, "ASK_VICTORIA_TIMEOUT", None) or int(
+            os.getenv("ASK_VICTORIA_TIMEOUT", "600")
+        )
         use_backend = getattr(self.valves, "USE_BACKEND_PROXY", False)
         host_workspace = (
             getattr(self.valves, "HOST_WORKSPACE_PATH", None)
@@ -235,10 +282,14 @@ class Tools:
         backend_payload: Dict[str, Any]
         if use_backend:
             backend_base = (
-                getattr(self.valves, "BACKEND_FALLBACK_URL", None)
-                or os.getenv("BACKEND_FALLBACK_URL")
-                or base
-            ).strip().rstrip("/")
+                (
+                    getattr(self.valves, "BACKEND_FALLBACK_URL", None)
+                    or os.getenv("BACKEND_FALLBACK_URL")
+                    or base
+                )
+                .strip()
+                .rstrip("/")
+            )
             url = f"{backend_base}/api/chat/ask-victoria"
             if response_format == "json":
                 url = f"{url}?format=json"
@@ -282,7 +333,7 @@ class Tools:
         data = None
         last_error = None
         retry_503_sec = 15  # пауза перед повтором при 503 (перегрузка)
-        max_attempts = 3     # всего попыток: 1 обычная + до 2 повторов при 503/connection/timeout
+        max_attempts = 3  # всего попыток: 1 обычная + до 2 повторов при 503/connection/timeout
         for attempt in range(max_attempts):
             try:
                 async with httpx.AsyncClient(timeout=timeout) as client:
@@ -303,9 +354,19 @@ class Tools:
                                     return polled
                             output = data.get("result", "") or data.get("output", "")
                             if data.get("status") == "error" and not output:
-                                return data.get("error", "Victoria is temporarily unavailable for this attempt. On the user's next request, call ask_victoria again.")
-                            return output if isinstance(output, str) else str(output)
-                        return r.text or "Victoria is temporarily unavailable for this attempt. On the user's next request, call ask_victoria again."
+                                return data.get(
+                                    "error",
+                                    "Victoria is temporarily unavailable for this attempt. On the user's next request, call ask_victoria again.",
+                                )
+                            out_s = output if isinstance(output, str) else str(output)
+                            stub_err = _reject_stub_output(out_s)
+                            if stub_err:
+                                return stub_err
+                            return out_s
+                        return (
+                            r.text
+                            or "Victoria is temporarily unavailable for this attempt. On the user's next request, call ask_victoria again."
+                        )
                     data = r.json()
                 break
             except httpx.ConnectError:
@@ -363,7 +424,10 @@ class Tools:
                     continue
                 return last_error
         if data is None:
-            return last_error or "Victoria is temporarily unavailable for this attempt. On the user's next request, call ask_victoria again."
+            return (
+                last_error
+                or "Victoria is temporarily unavailable for this attempt. On the user's next request, call ask_victoria again."
+            )
         status = data.get("status", "")
         output = data.get("output") or data.get("result") or ""
         if isinstance(output, dict):
@@ -371,11 +435,22 @@ class Tools:
         if not isinstance(output, str):
             output = str(output)
         if status != "success" and not output:
-            return data.get("error") or "Victoria is temporarily unavailable for this attempt. On the user's next request, call ask_victoria again."
-        clarification = data.get("clarification_questions") or (data.get("knowledge") or {}).get("clarification_questions")
+            return (
+                data.get("error")
+                or "Victoria is temporarily unavailable for this attempt. On the user's next request, call ask_victoria again."
+            )
+        stub_err = _reject_stub_output(output)
+        if stub_err:
+            return stub_err
+        clarification = data.get("clarification_questions") or (data.get("knowledge") or {}).get(
+            "clarification_questions"
+        )
         if clarification:
             if isinstance(clarification, list):
-                lines = [f"Мне нужно уточнить: {q}" if isinstance(q, str) else str(q) for q in clarification]
+                lines = [
+                    f"Мне нужно уточнить: {q}" if isinstance(q, str) else str(q)
+                    for q in clarification
+                ]
                 clarification_text = "\n".join(lines)
             else:
                 clarification_text = str(clarification)

@@ -1176,18 +1176,25 @@ DESC: {task_description}
                 except Exception as e:
                     logger.debug("Rule executor failed for task %s: %s", task_id, e)
                 if rule_result:
+                    from task_rule_executor import finalize_rule_result
+
+                    final_text, meta_patch, db_status = finalize_rule_result(rule_result)
                     async with pool.acquire() as conn:
                         await conn.execute(
                             """
-                            UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(),
-                                metadata = COALESCE(metadata, '{}'::jsonb) || '{"execution_mode": "rule_based", "llm_unavailable_fallback": true}"::jsonb
+                            UPDATE tasks SET status = $3, result = $2, updated_at = NOW(),
+                                metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb
                             WHERE id = $1
                         """,
                             task_id,
-                            rule_result,
+                            final_text,
+                            db_status,
+                            json.dumps(meta_patch),
                         )
                     print(
-                        f"[{datetime.now()}] ✅ Task {task_id} completed via rule_executor (LLM unavailable)"
+                        f"[{datetime.now()}] {'✅' if db_status == 'completed' else '⚠️'} "
+                        f"Task {task_id} rule_executor → {db_status} "
+                        f"(degraded={meta_patch.get('quality_degraded')})"
                     )
                     return
                 report_preview = report[:500] if report and isinstance(report, str) else ""
@@ -1555,6 +1562,13 @@ DESC: {task_description}
             final_result = rule_result
             exec_mode = "rule_based" if rule_result else "minimal_response"
             deferred = not rule_result
+            rule_meta_patch: dict = {}
+            rule_db_status = "completed"
+            if rule_result:
+                from task_rule_executor import finalize_rule_result
+
+                final_result, rule_meta_patch, rule_db_status = finalize_rule_result(rule_result)
+                deferred = bool(rule_meta_patch.get("quality_degraded"))
 
             if not final_result:
                 # Эскалация в Совет Директоров (передаём причину сбоя для контекста)
@@ -1583,28 +1597,35 @@ DESC: {task_description}
                     )
 
             assignee_id = task.get("assignee_expert_id")
-            meta_extra = json.dumps(
-                {
-                    "auto_completed": True,
-                    "attempt_count": attempt_count,
-                    "execution_mode": exec_mode,
-                    "deferred_to_human": deferred,
-                    "board_escalated": not bool(rule_result),
-                    "last_error": last_error_text[:500],
-                }
-            )
+            meta_payload = {
+                "auto_completed": True,
+                "attempt_count": attempt_count,
+                "execution_mode": exec_mode,
+                "deferred_to_human": deferred,
+                "board_escalated": not bool(rule_result),
+                "last_error": last_error_text[:500],
+                **rule_meta_patch,
+            }
+            # Soft rule-fallback must not look like a clean KPI success.
+            final_status = rule_db_status if rule_result else "cancelled"
+            if not rule_result:
+                meta_payload["quality_degraded"] = True
+                meta_payload["failed_requires_intervention"] = True
+                meta_payload["kpi_success"] = False
+            meta_extra = json.dumps(meta_payload)
             async with pool.acquire() as conn:
                 if assignee_id:
                     await conn.execute(
                         """
                         UPDATE tasks
-                        SET status = 'completed', result = $2, updated_at = NOW(),
+                        SET status = $3, result = $2, updated_at = NOW(),
                             assignee_expert_id = $4,
                             metadata = COALESCE(metadata, '{}'::jsonb) || $5::jsonb
                         WHERE id = $1
                     """,
                         task_id,
                         final_result,
+                        final_status,
                         assignee_id,
                         meta_extra,
                     )
@@ -1612,17 +1633,20 @@ DESC: {task_description}
                     await conn.execute(
                         """
                         UPDATE tasks
-                        SET status = 'completed', result = $2, updated_at = NOW(),
+                        SET status = $3, result = $2, updated_at = NOW(),
                             assignee_expert_id = (SELECT id FROM experts WHERE name = 'Виктория' LIMIT 1),
                             metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb
                         WHERE id = $1
                     """,
                         task_id,
                         final_result,
+                        final_status,
                         meta_extra,
                     )
             print(
-                f"[{datetime.now()}] ✅ Task {task_id} AUTO-COMPLETED after {attempt_count} attempts (mode={exec_mode}, board_escalated={not bool(rule_result)})."
+                f"[{datetime.now()}] {'✅' if final_status == 'completed' else '⚠️'} "
+                f"Task {task_id} AUTO-FINISHED → {final_status} after {attempt_count} attempts "
+                f"(mode={exec_mode}, board_escalated={not bool(rule_result)})."
             )
 
             # [SINGULARITY 29.1] Episodic Journaling (Auto-Complete Path)

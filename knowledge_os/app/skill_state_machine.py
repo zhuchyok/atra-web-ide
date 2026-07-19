@@ -175,8 +175,8 @@ class SkillStateMachine:
             "requires_approval": False,
         }
 
-        # Определяем, нужна ли валидация или одобрение
-        if event_type in [EventType.SKILL_NEEDED.value, EventType.SERVICE_DOWN.value]:
+        # Only skill creation needs human gate; SERVICE_DOWN auto-restarts in EXECUTE.
+        if event_type == EventType.SKILL_NEEDED.value:
             analysis["requires_approval"] = True
 
         state["metadata"]["analysis"] = analysis
@@ -191,16 +191,21 @@ class SkillStateMachine:
 
         event_data = state.get("event", {})
         event_type = event_data.get("event_type")
+        payload = event_data.get("payload") or {}
 
-        # Обрабатываем событие в зависимости от типа
         processing_result = {"processed": True, "action": "processed"}
 
-        if event_type == EventType.FILE_CREATED.value:
+        if event_type in (EventType.FILE_CREATED.value, EventType.FILE_MODIFIED.value):
             processing_result["action"] = "file_analyzed"
+            processing_result["file_path"] = payload.get("file_path")
         elif event_type == EventType.SERVICE_DOWN.value:
-            processing_result["action"] = "service_restart_initiated"
+            processing_result["action"] = "service_restart_pending"
+            processing_result["service_name"] = payload.get("service_name")
         elif event_type == EventType.SKILL_NEEDED.value:
-            processing_result["action"] = "skill_discovery_initiated"
+            processing_result["action"] = "skill_discovery_pending"
+            processing_result["skill"] = payload.get("skill_description") or payload.get(
+                "skill_name"
+            )
 
         state["metadata"]["processing"] = processing_result
         await self._create_checkpoint(state)
@@ -231,16 +236,186 @@ class SkillStateMachine:
         return state
 
     async def _node_execute(self, state: MachineState) -> MachineState:
-        """Узел EXECUTE - выполнение действия"""
+        """Узел EXECUTE — реальные действия по типу события (без fake success)."""
         logger.info("🎯 State Machine: EXECUTE")
         state["current_node"] = StateNode.EXECUTE.value
 
-        # Выполняем действие (заглушка - в реальности здесь будет вызов handler)
-        execution_result = {"success": True, "result": "Action executed successfully"}
+        import ast
+        import os
+        from pathlib import Path
 
-        # Симулируем возможную ошибку
-        if state.get("retry_count", 0) > 0:
-            execution_result["success"] = True  # После retry успешно
+        if os.getenv("SKILL_SM_FAKE_EXECUTE", "false").lower() in ("1", "true", "yes"):
+            execution_result = {
+                "success": True,
+                "result": "Action executed successfully (SKILL_SM_FAKE_EXECUTE)",
+                "fake": True,
+            }
+            state["result"] = execution_result
+            await self._create_checkpoint(state)
+            return state
+
+        event_data = state.get("event") or {}
+        event_type = event_data.get("event_type") or ""
+        payload = event_data.get("payload") or {}
+        execution_result: Dict[str, Any] = {"success": False, "path": "unknown"}
+
+        try:
+            file_events = {EventType.FILE_CREATED.value, EventType.FILE_MODIFIED.value}
+
+            if event_type in file_events:
+                file_path = payload.get("file_path") or ""
+                path = Path(file_path) if file_path else None
+                if not path or not path.is_file():
+                    execution_result = {
+                        "success": False,
+                        "path": "file_check",
+                        "error": "file_missing",
+                        "file_path": file_path,
+                    }
+                elif path.suffix == ".py":
+                    try:
+                        source = path.read_text(encoding="utf-8", errors="replace")
+                        ast.parse(source, filename=str(path))
+                        execution_result = {
+                            "success": True,
+                            "path": "file_syntax",
+                            "result": "python_syntax_ok",
+                            "file_path": str(path),
+                        }
+                    except SyntaxError as e:
+                        execution_result = {
+                            "success": False,
+                            "path": "file_syntax",
+                            "error": f"{e.msg} at line {e.lineno}",
+                            "file_path": str(path),
+                            "requires_human_review": True,
+                        }
+                else:
+                    st = path.stat()
+                    execution_result = {
+                        "success": True,
+                        "path": "file_stat",
+                        "result": "file_present",
+                        "file_path": str(path),
+                        "size": st.st_size,
+                    }
+
+            elif event_type == EventType.SERVICE_DOWN.value:
+                service_name = payload.get("service_name") or payload.get("component") or "unknown"
+                try:
+                    from self_check_system import (
+                        ComponentCheck,
+                        ComponentStatus,
+                        SelfCheckSystem,
+                    )
+                except ImportError:
+                    from app.self_check_system import (
+                        ComponentCheck,
+                        ComponentStatus,
+                        SelfCheckSystem,
+                    )
+
+                aliases = {
+                    "victoria": "Victoria Agent",
+                    "victoria-agent": "Victoria Agent",
+                    "victoria agent": "Victoria Agent",
+                    "veronica": "Veronica Agent",
+                    "veronica-agent": "Veronica Agent",
+                    "veronica agent": "Veronica Agent",
+                }
+                component = aliases.get(str(service_name).lower(), str(service_name))
+                if component == "Victoria Agent":
+                    execution_result = {
+                        "success": False,
+                        "path": "service_restart",
+                        "error": "skipped_self_restart",
+                        "component": component,
+                    }
+                else:
+                    check = ComponentCheck(
+                        name=component,
+                        status=ComponentStatus.UNHEALTHY,
+                        message="SERVICE_DOWN via Skill SM",
+                        timestamp=datetime.now(timezone.utc),
+                    )
+                    fixed = await SelfCheckSystem().auto_fix_component(check)
+                    execution_result = {
+                        "success": bool(fixed),
+                        "path": "service_restart",
+                        "result": "restarted" if fixed else "auto_fix_failed",
+                        "component": component,
+                        "requires_manual_intervention": not fixed,
+                    }
+
+            elif event_type == EventType.SKILL_NEEDED.value:
+                skill = payload.get("skill_description") or payload.get("skill_name") or ""
+                # Record escalation task — do not invent a skill implementation.
+                try:
+                    import asyncpg
+
+                    db_url = os.getenv(
+                        "DATABASE_URL",
+                        # local docker default password placeholder — not a live secret
+                        "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os",  # pragma: allowlist secret
+                    )
+                    conn = await asyncpg.connect(db_url)
+                    try:
+                        title = f"🛠 Skill needed: {(skill or 'unspecified')[:80]}"
+                        existing = await conn.fetchval(
+                            """
+                            SELECT 1 FROM tasks
+                            WHERE title = $1 AND created_at > NOW() - INTERVAL '24 hours'
+                            LIMIT 1
+                            """,
+                            title,
+                        )
+                        if not existing:
+                            await conn.execute(
+                                """
+                                INSERT INTO tasks
+                                    (title, description, status, priority, metadata, project_context)
+                                VALUES ($1, $2, 'pending', 'medium', $3::jsonb, 'skill_sm')
+                                """,
+                                title,
+                                f"Skill SM escalated skill request: {skill}",
+                                json.dumps(
+                                    {
+                                        "source": "skill_state_machine",
+                                        "skill": skill[:500],
+                                        "completion_kind": "skill_needed_escalation",
+                                    }
+                                ),
+                            )
+                        execution_result = {
+                            "success": True,
+                            "path": "skill_escalate",
+                            "result": (
+                                "escalation_task_exists" if existing else "escalation_task_created"
+                            ),
+                            "skill": skill[:200],
+                        }
+                    finally:
+                        await conn.close()
+                except Exception as e:
+                    execution_result = {
+                        "success": False,
+                        "path": "skill_escalate",
+                        "error": str(e)[:300],
+                        "requires_human_review": True,
+                    }
+            else:
+                execution_result = {
+                    "success": False,
+                    "path": "unsupported",
+                    "error": f"no_handler_for_event:{event_type}",
+                }
+        except Exception as e:
+            logger.error("Skill SM EXECUTE failed: %s", e, exc_info=True)
+            execution_result = {
+                "success": False,
+                "path": "exception",
+                "error": str(e)[:300],
+            }
 
         state["result"] = execution_result
         await self._create_checkpoint(state)
@@ -252,9 +427,21 @@ class SkillStateMachine:
         logger.info("⏳ State Machine: WAIT_APPROVAL")
         state["current_node"] = StateNode.WAIT_APPROVAL.value
 
-        # В реальности здесь будет ожидание одобрения от пользователя
-        # Пока симулируем автоматическое одобрение
-        approval_result = {"approved": True, "approved_at": datetime.now(timezone.utc).isoformat()}
+        import os
+
+        # Default: do NOT auto-approve (was poisoning FILE_* event pipeline).
+        if os.getenv("SKILL_SM_AUTO_APPROVE", "false").lower() in ("1", "true", "yes"):
+            approval_result = {
+                "approved": True,
+                "approved_at": datetime.now(timezone.utc).isoformat(),
+                "auto": True,
+            }
+        else:
+            approval_result = {
+                "approved": False,
+                "reason": "awaiting_human_approval",
+                "auto": False,
+            }
 
         state["metadata"]["approval"] = approval_result
         await self._create_checkpoint(state)
