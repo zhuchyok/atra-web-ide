@@ -32,20 +32,74 @@
 
 **Дата последнего обновления:** 2026-07-19
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; OpenWebUI tool restored + honest auto-fix (v93)
+**Состояние:** Стабильное; anti-stub + ops debt + quarantine/git closure (v100)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-19 v99) — Full Ops Debt Closure ✅
+
+### Диагноз
+
+После anti-stub epic оставались runtime-дыры; часть v98-правок **слетела с диска** (compose/`.env`/bible), контейнеры жили на старом env.
+
+1. Board reports: RO `/app` + `knowledge_rest` без RW mount; `BOARD_REPORTS_DIR` не использовался в коде.
+2. `API_KEY` пропал из `.env` → риск default после recreate.
+3. Backend durable mounts/`OLLAMA_BASE_URL` снова отсутствовали в `docker-compose.yml`.
+4. Swarm stream резался `ENGINE_TIMEOUT_SEC` cap=60s.
+5. `/api/board/consult`: пустой `VICTORIA_URL`, hang на ai_core, `source` check constraint, prompt-echo от smollm.
+
+### Решение
+
+1. Compose (durable): `knowledge_rest` + `board-scheduler` → `BOARD_REPORTS_DIR=/data/board_reports`, volume `../docs/board_reports`, `API_KEY`, `VICTORIA_URL`, `OLLAMA_*`.
+2. Root backend: `./backend/app:/app/app`, `OLLAMA_BASE_URL`, swarm size/iter/timeout env, `API_KEY`.
+3. `strategic_board.py`: `_resolve_board_reports_dir` / `_publish_board_markdown`; consult fast-first `dialogue_llm`; source normalize; MD before DB; prompt-echo compact retry.
+4. `expert_dialogue.py`: per-mode timeout (`SWARM_TIMEOUT_SEC` default 180); swarm Ollama URL fallback.
+5. `API_KEY` восстановлен в gitignored `knowledge_os/.env` + root `.env`.
+
+### Evidence (live)
+
+- health 8010/8080/8002/8011 = **200**
+- stub gates: rule/queued/stale = **0**
+- swarm stream: full path, no lightweight fallback, no «not implemented»
+- swarm `/start`: `engine_used=swarm`, participants=4
+- board consult: **200**, MD на хосте `docs/board_reports/board_directive_2026-07-19_23-37.md`, DB row `source=api`
+- API_KEY: no-key/bad-key **401**; key_len=43
+- EventBus: `DialogueController started`
+
+### Remaining (закрыто в v100)
+
+- ~~Исторический quarantine board stub KN / git commit~~ → v100.
+- Качество smollm на board consult зависит от загрузки Ollama (при busy — unload heavy models) — ops note, не долг.
+
+---
+
+## § Последние изменения (2026-07-19 v100) — Quarantine + Git Closure ✅
+
+### Сделано
+
+1. Quarantine **11** `knowledge_nodes` + **11** `board_decisions` + **11** `expert_discussions` с `queued to PostgreSQL` → `quarantined_v100` (confidence≤0.01, is_verified=false). Уже вне RAG (`confidence >= 0.3`).
+2. `docs/board_reports/board_directive_*.md` + smoke → gitignore (runtime artifacts).
+3. Git commit: anti-stub contour + v99 durable ops (compose/board/swarm/API_KEY/guards) + bible; без `data/lancedb`, boot_incidents, 60m audit flood, `.env`.
+
+### Evidence
+
+- `kn_q_v100=11`, `bd_q_v100=11`, `board_stub_unq=0`
+- health 8010/8080/8002/8011=200; rule/queued/stale=0
 
 ---
 
 ## § Последние изменения (2026-07-19 v93) — Stub Contour Finish ✅
 
 ### Диагноз (после v92)
+
 1. OpenWebUI `tool` table была **пуста** — `ask_victoria` не установлен; stub-guard в файле не работал в runtime.
 2. `_restart_service` врал `success: True` без реального restart.
 3. `_attempt_fix` → мёртвый stub `Fix not implemented`.
 4. Оставались 9 historical rule-statusный `completed`.
 
 ### Fix
+
 1. `ensure_openwebui_ask_victoria_valves.py` — upsert tool content+valves+specs; guard `_reject_stub_output`; `USE_BACKEND_PROXY=true`.
 2. Policy: tool привязан к 15 моделям OpenWebUI.
 3. `victoria_event_handlers`: real `SelfCheckSystem.auto_fix_component` + recovery task; honest escalate.
@@ -53,6 +107,7 @@
 5. Quarantine 9 historical → `quarantined_v93`.
 
 ### Evidence
+
 - tool inserted: `ask_victoria_singularity_15`, guard=1, proxy=true, 15 models.
 - `rule_status_completed_all=0`, `q_v93=9`.
 - Victoria/backend health 200; `attempt_fix` path ≠ «Fix not implemented».
@@ -62,15 +117,18 @@
 ## § Последние изменения (2026-07-19 v92) — Rule-based False-Complete Kill ✅
 
 ### Root cause
+
 При недоступности LLM `task_rule_executor` писал soft «Rule-based статусный ответ (AI временно недоступен…)» в `tasks.status='completed'` → KPI/дашборды считали задачу успешной (7 за 7d, 396 historical).
 
 ### Fix
+
 1. `finalize_rule_result()` — soft templates → `cancelled` + `[DEGRADED_RULE_FALLBACK]` + `quality_degraded`; только substantive health-check → `completed`.
 2. Wired: `smart_worker_autonomous`, `orchestrator_phases` phase 2.5.
 3. Stub guard extended + wired: `backend/app/services/victoria.py`, MCP `victoria_mcp_server`, OpenWebUI `openwebui_ask_victoria_tool`.
 4. Quarantine: 7 recent rule false-completes → cancelled + `quarantined_v92`.
 
 ### Evidence
+
 - Unit: soft → `cancelled`; health-check → `completed`.
 - Deploy: worker/orch/backend import OK.
 - SQL: `rule_completed_7d` statusный clean = **0**; `still_rule_completed_7d` = **0**.
@@ -96,13 +154,16 @@
 ## § Последние изменения (2026-07-19 v90) — Board of Directors Real Directives ✅
 
 ### Root cause
+
 Victoria CODE-queue (`"код"/"code" in goal`) hijacked board meetings → stub `⏳ Task … queued to PostgreSQL` saved as directive (11/11 last 7d). Markdown used undefined `filepath`.
 
 ### Fix
+
 - `strategic_board.py`: sync `/run?async_mode=false`, compact context (no raw KB dump), stub reject, poll+local fallback, `filepath` + `/tmp` reports fallback.
 - `victoria_server.py`: skip CODE-queue for board/strategy goals.
 
 ### Evidence
+
 Manual `run_board_meeting`: directive **1225** chars, `is_stub=false`, stored in `board_decisions` (2026-07-19 20:48 MSK).
 
 ---
@@ -121,9 +182,9 @@ Manual `run_board_meeting`: directive **1225** chars, `is_stub=false`, stored in
 
 ### Verification (2026-07-19)
 
-| Case | Result |
-| ---- | ------ |
-| prefer_lightweight | `lightweight`, ~8s, quality_degraded=false |
+| Case                                          | Result                                                               |
+| --------------------------------------------- | -------------------------------------------------------------------- |
+| prefer_lightweight                            | `lightweight`, ~8s, quality_degraded=false                           |
 | default debate (после unload 14B / busy wait) | `debate`, ops=3 incomplete=0, ~80s, lw=false, quality_degraded=false |
 
 Операционно: если в Ollama висит тяжёлая модель (`qwen2.5-coder:14b`) → 503 busy; hybrid ждёт retry, не врёт мнениями.
@@ -149,29 +210,29 @@ Manual `run_board_meeting`: directive **1225** chars, `is_stub=false`, stored in
 
 ### Verification evidence (2026-07-19)
 
-| Case | Result |
-| ---- | ------ |
-| `mode=debate` + `force_full` | `engine_used=debate`, ops=3, ~83s, lw=false |
-| `mode=sequential` + `force_full` | `engine_used=council`, ops=3, ~89s, lw=false |
-| `prefer_lightweight=true` | `engine_used=lightweight`, ~8s |
-| default (no flags) | `engine_used=debate`, ops=3, lw=false, ~58s |
-| `mode=collaboration` + `force_full` | `engine_used=brainstorm`, ops=3, ~50s, lw=false |
-| recheck default debate (after Ollama timeout harden) | `debate`, ops=3, ~48s, lw=false |
+| Case                                                 | Result                                          |
+| ---------------------------------------------------- | ----------------------------------------------- |
+| `mode=debate` + `force_full`                         | `engine_used=debate`, ops=3, ~83s, lw=false     |
+| `mode=sequential` + `force_full`                     | `engine_used=council`, ops=3, ~89s, lw=false    |
+| `prefer_lightweight=true`                            | `engine_used=lightweight`, ~8s                  |
+| default (no flags)                                   | `engine_used=debate`, ops=3, lw=false, ~58s     |
+| `mode=collaboration` + `force_full`                  | `engine_used=brainstorm`, ops=3, ~50s, lw=false |
+| recheck default debate (after Ollama timeout harden) | `debate`, ops=3, ~48s, lw=false                 |
 
 **Out of scope / not done:** true worker↔worker EventBus peer chat (`DialogueController`); durable image rebuild (сейчас `docker cp` + restart).
 
 ### Env / knobs
 
-| Env | Default | Meaning |
-| --- | ------- | ------- |
-| `EXPERT_DIALOGUE_PREFER_LIGHTWEIGHT` | `false` | full-first vs UI fast-path |
-| `EXPERT_DIALOGUE_ENGINE_TIMEOUT_SEC` | `240` | full engine budget (quality-local; bible dialogue ~200s) |
-| `DIALOGUE_LLM_TIMEOUT_SEC` | `90` | per local Ollama call |
-| `DEBATE_EXPERT_TIMEOUT_SEC` / synthesis | `90` / `90` | wait for real opinions |
-| `COUNCIL_MAX_EXPERTS` | `3` | council roster cap |
-| `COUNCIL_PERSIST_DB` | `false` | skip DB for API SLA |
-| `BRAINSTORM_FAST` | `false` | full phases; `true` only for smoke |
-| `DIALOGUE_OLLAMA_MODEL` | `phi3.5:3.8b` | bible-validated dialogue model |
+| Env                                     | Default       | Meaning                                                  |
+| --------------------------------------- | ------------- | -------------------------------------------------------- |
+| `EXPERT_DIALOGUE_PREFER_LIGHTWEIGHT`    | `false`       | full-first vs UI fast-path                               |
+| `EXPERT_DIALOGUE_ENGINE_TIMEOUT_SEC`    | `240`         | full engine budget (quality-local; bible dialogue ~200s) |
+| `DIALOGUE_LLM_TIMEOUT_SEC`              | `90`          | per local Ollama call                                    |
+| `DEBATE_EXPERT_TIMEOUT_SEC` / synthesis | `90` / `90`   | wait for real opinions                                   |
+| `COUNCIL_MAX_EXPERTS`                   | `3`           | council roster cap                                       |
+| `COUNCIL_PERSIST_DB`                    | `false`       | skip DB for API SLA                                      |
+| `BRAINSTORM_FAST`                       | `false`       | full phases; `true` only for smoke                       |
+| `DIALOGUE_OLLAMA_MODEL`                 | `phi3.5:3.8b` | bible-validated dialogue model                           |
 
 ### Deploy note
 

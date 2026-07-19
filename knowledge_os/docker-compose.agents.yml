@@ -572,8 +572,12 @@ services:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      API_KEY: ${API_KEY:-your-secret-api-key}
+      BOARD_REPORTS_DIR: /data/board_reports
+      VICTORIA_URL: ${VICTORIA_URL:-http://victoria-agent:8000}
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_URL: http://host.docker.internal:11434
       OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
@@ -582,6 +586,7 @@ services:
       - ../knowledge_os:/app/knowledge_os
       - redis_data:/data/redis
       - /var/run/docker.sock:/var/run/docker.sock
+      - ../docs/board_reports:/data/board_reports
     working_dir: /app/knowledge_os/app
     command: ["python", "-u", "rest_api.py"]
 
@@ -659,8 +664,14 @@ services:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      BOARD_REPORTS_DIR: /data/board_reports
+      VICTORIA_URL: ${VICTORIA_URL:-http://victoria-agent:8000}
+      API_KEY: ${API_KEY:-your-secret-api-key}
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_URL: http://host.docker.internal:11434
     volumes:
       - ..:/app:ro
+      - ../docs/board_reports:/data/board_reports
     working_dir: /app/knowledge_os/app
     command: ["python", "-u", "board_scheduler.py"]
 

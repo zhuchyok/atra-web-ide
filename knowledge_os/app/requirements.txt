@@ -9,6 +9,7 @@ mcp
 openai
 duckduckgo-search
 httpx
+h2
 psutil
 
 redis
@@ -21,6 +22,7 @@ python-frontmatter
 python-socketio
 python-datauri
 dashscope
+sentence-transformers
 # Vision: moondream — клиент (import moondream as md); moondream-station — сервер (порт 2020)
 moondream>=0.1.0
 moondream-station>=0.1.0

@@ -86,13 +86,47 @@ def _validate_command(command: str) -> str:
     return command
 
 
+def _is_victoria_stub(text: str, status: Optional[str] = None) -> bool:
+    """Reject queue/ack/rule-fallback stubs as if they were real answers."""
+    t = (text or "").strip()
+    if not t:
+        return True
+    low = t.lower()
+    markers = (
+        "queued to postgresql",
+        "queued to postgres",
+        "task queued",
+        "status_url",
+        "processing...",
+        "все источники недоступны",
+        "агенты временно недоступны",
+        "rule-based статусный ответ",
+        "rule-based research fallback",
+        "[degraded_rule_fallback]",
+        "ai временно недоступен",
+        "fix not implemented",
+    )
+    if any(m in low for m in markers):
+        return True
+    st = (status or "").strip().lower()
+    if st in ("processing", "queued") and len(t) < 120 and "queued" in low:
+        return True
+    return False
+
+
 def _parse_run_result(result: dict) -> str:
     """Разбор ответа /run: поддержка goal→output и prompt→response."""
     out = result.get("output") or result.get("response") or result.get("result")
-    if out is None:
-        return "(Victoria приняла запрос; ответ пуст)"
     status = result.get("status", "completed")
-    return f"✅ {status}\n\n{out}"
+    if out is None:
+        return "❌ Victoria вернула пустой ответ (stub rejected)."
+    out_s = str(out)
+    if _is_victoria_stub(out_s, status=str(status) if status else None):
+        return (
+            "❌ Rejected Victoria stub/queue/rule-fallback response. "
+            "Retry with sync /run or wait for a real expert answer — do not treat this as success."
+        )
+    return f"✅ {status}\n\n{out_s}"
 
 
 @mcp.tool()

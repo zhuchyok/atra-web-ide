@@ -18,6 +18,63 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+# Mark soft rule-fallback so KPI/guards never treat it as a real expert success.
+DEGRADED_PREFIX = "[DEGRADED_RULE_FALLBACK]"
+
+
+def is_substantive_rule_result(result: str) -> bool:
+    """
+    True only for rule results that actually did work (e.g. real HTTP health-check).
+    Soft 'AI unavailable' status templates must NOT count as task success.
+    """
+    r = (result or "").lower()
+    if not r.strip():
+        return False
+    if "rule-based статусный ответ" in r or "ai временно недоступен" in r:
+        return False
+    if "rule-based research fallback" in r:
+        return False
+    if "deferred_to_human" in r:
+        return False
+    if "rule-based health-check результат" in r:
+        return True
+    if "rule-based health-check:" in r and "ошибк" not in r:
+        return True
+    return False
+
+
+def finalize_rule_result(result: str) -> tuple[str, Dict[str, Any], str]:
+    """
+    Returns (result_text, metadata_patch, db_status).
+    Soft fallbacks → cancelled + quality_degraded; substantive → completed.
+    """
+    if is_substantive_rule_result(result):
+        return (
+            result,
+            {
+                "execution_mode": "rule_based",
+                "quality_degraded": False,
+                "rule_success": True,
+                "kpi_success": True,
+            },
+            "completed",
+        )
+    text = result if result.lstrip().startswith(DEGRADED_PREFIX) else f"{DEGRADED_PREFIX}\n{result}"
+    return (
+        text,
+        {
+            "execution_mode": "rule_based",
+            "quality_degraded": True,
+            "failed_requires_intervention": True,
+            "llm_unavailable_fallback": True,
+            "completion_kind": "rule_fallback_degraded",
+            "kpi_success": False,
+            "rule_success": False,
+        },
+        "cancelled",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Старые шаблоны (dashboard_daily_improver)
 # ---------------------------------------------------------------------------
@@ -151,7 +208,7 @@ def _execute_file_audit(title: str, description: str = "") -> str:
         return "ПРОБЛЕМА: не удалось извлечь путь к файлу из задачи"
 
     try:
-        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        with open(file_path, encoding="utf-8", errors="replace") as f:
             lines = []
             for idx, line in enumerate(f, start=1):
                 if idx > first_lines:

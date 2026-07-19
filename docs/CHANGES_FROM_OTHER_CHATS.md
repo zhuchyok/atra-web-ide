@@ -20,6 +20,27 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-19 v100) — Quarantine + Git Closure ✅
+
+- 11 board queue-stub KN/decisions/discussions → `quarantined_v100`.
+- Board smoke directives gitignored; code/docs committed.
+- Remaining v99 ops debt closed in git.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v100.
+
+---
+
+## § Последние изменения (2026-07-19 v99) — Full Ops Debt Closure ✅
+
+- Восстановлены слетевшие compose/env правки (board RW, API_KEY, durable backend mounts, OLLAMA_BASE_URL).
+- Swarm: timeout 180s + stream/start `engine_used=swarm`.
+- Board consult: fast-first dialogue_llm, source normalize, MD на хост, echo-retry.
+- Gates green; bible § v99.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v99.
+
+---
+
 ## § Последние изменения (2026-07-19 v93) — Stub Contour Finish ✅
 
 - OpenWebUI: tool `ask_victoria` upsert + stub guard + proxy valves; policy → 15 models.

@@ -46,6 +46,238 @@ async def close_db_pool():
         _db_pool = None
 
 
+def is_stub_directive(text: Optional[str]) -> bool:
+    """True if Victoria returned a queue ack instead of a real board directive."""
+    t = (text or "").strip()
+    if not t or len(t) < 40:
+        return True
+    try:
+        from victoria_response_guard import is_victoria_stub
+    except ImportError:
+        try:
+            from knowledge_os.app.victoria_response_guard import is_victoria_stub
+        except ImportError:
+            return "queued to postgresql" in t.lower()
+    return is_victoria_stub(t)
+
+
+def _summarize_context(raw: str, *, limit: int = 400) -> str:
+    """Compact context for the board prompt — avoid dumping raw KB (CODE-queue trap)."""
+    text = re.sub(r"\s+", " ", (raw or "").strip())
+    if not text:
+        return "нет данных"
+    # Neutralize common CODE-queue triggers inside embedded context.
+    text = re.sub(r"\bcode\b", "software", text, flags=re.IGNORECASE)
+    text = text.replace("код", "ПО")
+    return text[:limit]
+
+
+def _resolve_board_reports_dir() -> str:
+    """
+    Writable directory for Markdown board directives.
+    Prefer BOARD_REPORTS_DIR (RW docker volume). Never rely on /app when mounted :ro.
+    """
+    candidates = []
+    env_dir = (os.getenv("BOARD_REPORTS_DIR") or "").strip()
+    if env_dir:
+        candidates.append(env_dir)
+    if os.path.exists("/.dockerenv"):
+        candidates.extend(["/data/board_reports", "/tmp/board_reports"])
+    else:
+        candidates.append("docs/board_reports")
+    candidates.append("/tmp/board_reports")
+
+    for cand in candidates:
+        try:
+            os.makedirs(cand, exist_ok=True)
+            probe = os.path.join(cand, ".write_probe")
+            with open(probe, "w", encoding="utf-8") as _p:
+                _p.write("ok")
+            os.remove(probe)
+            return cand
+        except OSError:
+            continue
+    raise OSError("no writable board_reports directory")
+
+
+def _publish_board_markdown(
+    *,
+    directive: str,
+    okr_context: str = "",
+    tasks_context: str = "",
+    title: str = "СТРАТЕГИЧЕСКАЯ ДИРЕКТИВА СОВЕТА ДИРЕКТОРОВ",
+) -> Optional[str]:
+    """Write board directive Markdown + LATEST.md. Returns filepath or None."""
+    try:
+        reports_dir = _resolve_board_reports_dir()
+        date_str = datetime.now().strftime("%Y-%m-%d_%H-%M")
+        filepath = os.path.join(reports_dir, f"board_directive_{date_str}.md")
+        md_content = f"""# 🏛 {title}
+**Дата:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} MSK
+**Статус:** ДЕЙСТВУЕТ (24 часа)
+
+## 📊 КОНТЕКСТ ЗАСЕДАНИЯ
+### Текущие цели (OKR)
+{okr_context if okr_context else "Цели не заданы."}
+
+### Операционный статус
+{tasks_context if tasks_context else "Нет данных по задачам."}
+
+---
+
+## 📜 ТЕКСТ ДИРЕКТИВЫ
+{directive}
+
+---
+*Документ сформирован автоматически ИИ-корпорацией Singularity 10.0. Все решения подлежат исполнению экспертами Atra Core.*
+"""
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(md_content)
+        with open(os.path.join(reports_dir, "LATEST.md"), "w", encoding="utf-8") as f:
+            f.write(md_content)
+        print(f"📄 Директива опубликована: {filepath}")
+        return filepath
+    except Exception as e:
+        print(f"⚠️ Не удалось опубликовать Markdown отчет: {e}")
+        return None
+
+
+async def _poll_victoria_task(
+    client: Any, base: str, task_id: str, *, timeout_sec: float = 300.0
+) -> str:
+    """Poll GET /run/status/{task_id} until completed or timeout."""
+    import time
+
+    deadline = time.monotonic() + timeout_sec
+    while time.monotonic() < deadline:
+        try:
+            resp = await client.get(f"{base}/run/status/{task_id}")
+            if resp.status_code != 200:
+                await asyncio.sleep(3)
+                continue
+            data = resp.json()
+            status = str(data.get("status") or "").lower()
+            output = data.get("output") or data.get("result") or data.get("response") or ""
+            output = str(output).strip()
+            if (
+                status in ("completed", "success", "done")
+                and output
+                and not is_stub_directive(output)
+            ):
+                return output
+            if status in ("failed", "cancelled", "error"):
+                return ""
+        except Exception as e:
+            print(f"⚠️ Board poll status failed: {e}")
+        await asyncio.sleep(4)
+    return ""
+
+
+async def _call_victoria_board_directive(
+    *,
+    okr_summary: str,
+    tasks_summary: str,
+    insights_summary: str,
+) -> Optional[str]:
+    """
+    Sync Victoria /run for board meeting.
+    Avoids CODE-queue hijack; rejects/polls queue stubs; falls back to local LLM.
+    """
+    import httpx
+
+    victoria_base = (os.getenv("VICTORIA_URL") or "http://victoria-agent:8000").rstrip("/")
+    # Keep goal free of raw KB dumps and avoid embedding the substring "code"/"код".
+    goal = f"""Проведи заседание Совета Директоров (strategic board meeting).
+
+Краткий операционный срез (без сырых файлов):
+- OKR: {okr_summary}
+- Задачи: {tasks_summary}
+- Новые знания (сводка): {insights_summary}
+
+Сформулируй ДИРЕКТИВУ СОВЕТА строго в формате:
+РЕШЕНИЕ: [главное направление на 24 часа]
+ОБОСНОВАНИЕ: [почему это важно]
+РИСКИ: [список рисков]
+УВЕРЕННОСТЬ: [0.0-1.0]
+ФОКУСЫ:
+1) [первый фокус]
+2) [второй фокус]
+3) [третий фокус]
+"""
+    timeout = float(os.getenv("BOARD_VICTORIA_TIMEOUT_SEC", "480"))
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(
+                f"{victoria_base}/run",
+                params={"async_mode": "false"},
+                json={
+                    "goal": goal,
+                    "project_context": "atra-web-ide",
+                },
+            )
+            if resp.status_code not in (200, 202):
+                print(f"⚠️ Board Victoria HTTP {resp.status_code}: {resp.text[:200]}")
+            else:
+                data = resp.json()
+                directive = str(
+                    data.get("output") or data.get("result") or data.get("response") or ""
+                ).strip()
+                if is_stub_directive(directive):
+                    # Extract task id and poll if Victoria queued despite sync request.
+                    m = re.search(
+                        r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})",
+                        directive,
+                        re.I,
+                    )
+                    if m:
+                        print(f"⚠️ Board got queue stub, polling task {m.group(1)}...")
+                        polled = await _poll_victoria_task(
+                            client, victoria_base, m.group(1), timeout_sec=min(300.0, timeout)
+                        )
+                        if polled and not is_stub_directive(polled):
+                            return polled
+                    print("⚠️ Board Victoria returned stub; trying local fallback")
+                elif directive:
+                    return directive
+    except Exception as e:
+        print(f"⚠️ Board Victoria call failed: {e}")
+
+    # Local fallback — still a real directive, not a queue ack.
+    try:
+        try:
+            from dialogue_llm import generate_dialogue, is_incomplete_text
+        except ImportError:
+            from knowledge_os.app.dialogue_llm import generate_dialogue, is_incomplete_text
+
+        gen = await generate_dialogue(goal, expert_name="Виктория", model_hint="fast")
+        if (
+            gen.ok
+            and gen.text
+            and not is_incomplete_text(gen.text)
+            and not is_stub_directive(gen.text)
+        ):
+            print("✅ Board directive via dialogue_llm fallback")
+            return gen.text.strip()
+    except Exception as e:
+        print(f"⚠️ Board dialogue_llm fallback failed: {e}")
+
+    try:
+        from ai_core import run_smart_agent_async
+
+        text = await asyncio.wait_for(
+            run_smart_agent_async(goal, expert_name="Виктория", category="reasoning", is_vip=True),
+            timeout=float(os.getenv("BOARD_LOCAL_FALLBACK_TIMEOUT_SEC", "180")),
+        )
+        text = str(text or "").strip()
+        if text and not is_stub_directive(text):
+            print("✅ Board directive via ai_core fallback")
+            return text
+    except Exception as e:
+        print(f"⚠️ Board ai_core fallback failed: {e}")
+
+    return None
+
+
 def parse_directive_structure(directive_text: str) -> Dict[str, Any]:
     """
     Парсинг текста директивы в структурированный формат.
@@ -137,6 +369,12 @@ async def consult_board(
     Returns:
         {"directive_text": str, "structured_decision": dict} или None при ошибке
     """
+    allowed_sources = {"chat", "api", "nightly", "dashboard", "task_escalation"}
+    source_raw = (source or "api").strip().lower()
+    source = source_raw if source_raw in allowed_sources else "api"
+    if source_raw != source:
+        print(f"⚠️ Board consult source '{source_raw}' normalized to '{source}'")
+
     print(
         f"[{datetime.now()}] 🏛 BOARD CONSULT starting (source={source}, correlation_id={correlation_id})..."
     )
@@ -213,49 +451,152 @@ async def consult_board(
 ФОРМАТ: Строгий корпоративный стиль, без лишних комментариев.
 """
 
-        # 3. Вызов LLM через ai_core (динамический выбор модели)
-        # С ВЫСОКИМ ПРИОРИТЕТОМ через MLX Request Queue!
-        try:
-            # Импорт ai_core для вызова локальных моделей
-            from ai_core import run_smart_agent_async
+        # 3. LLM: fast dialogue_llm first (API SLA), then bounded ai_core.
+        consult_timeout = float(os.getenv("BOARD_CONSULT_TIMEOUT_SEC", "120"))
+        fast_timeout = float(os.getenv("BOARD_CONSULT_FAST_TIMEOUT_SEC", "90"))
+        fast_first = os.getenv("BOARD_CONSULT_FAST_FIRST", "true").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        consult_model = os.getenv("BOARD_CONSULT_MODEL", "smollm2:360m")
+        directive = None
 
-            # Оборачиваем в HIGH priority callback для очереди
-            async def board_llm_call():
-                return await run_smart_agent_async(
-                    board_prompt,
-                    expert_name="Совет Директоров",
-                    category="reasoning",  # → victoria-wisdom-v3.5 на MLX (всегда загружена)
-                    is_critical=True,
-                    is_vip=False,  # не ждём VIP — MLX слот свободен
+        async def _via_dialogue_llm() -> Optional[str]:
+            try:
+                from dialogue_llm import generate_dialogue, is_incomplete_text
+            except ImportError:
+                from knowledge_os.app.dialogue_llm import generate_dialogue, is_incomplete_text
+
+            gen = await generate_dialogue(
+                board_prompt, expert_name="Виктория", model_hint=consult_model
+            )
+            text = str(getattr(gen, "text", "") or "").strip()
+            if not getattr(gen, "ok", False) or len(text) < 20:
+                print(
+                    f"⚠️ dialogue_llm miss: ok={getattr(gen, 'ok', None)} "
+                    f"reason={getattr(gen, 'reason', None)} len={len(text)}"
                 )
+                return None
+            if is_stub_directive(text):
+                print("⚠️ dialogue_llm returned stub markers")
+                return None
+            # Accept incomplete only if still usable length (honest, not empty).
+            if is_incomplete_text(text) and len(text) < 60:
+                print("⚠️ dialogue_llm incomplete/short")
+                return None
+            return text
 
-            # Если доступна очередь, используем HIGH priority
-            if _mlx_queue and RequestPriority:
-                print("🏛️ [BOARD] Запрос с HIGH приоритетом через MLX Queue...")
-                success, request_id, position = await _mlx_queue.add_request(
-                    priority=RequestPriority.HIGH,  # ВЫСОКИЙ ПРИОРИТЕТ для Совета!
-                    callback=board_llm_call,
-                    timeout=300.0,  # 5 минут для reasoning
-                    metadata={"source": source, "correlation_id": correlation_id},
-                )
-                if success:
-                    print(f"✅ [BOARD] Запрос в очереди (ID: {request_id}, позиция: {position})")
-                    # Ждем выполнения через callback
-                    directive = await board_llm_call()
-                else:
-                    print("⚠️ [BOARD] Очередь переполнена, прямой вызов...")
-                    directive = await board_llm_call()
-            else:
-                # Fallback: прямой вызов без очереди
-                directive = await board_llm_call()
+        if fast_first:
+            try:
+                directive = await asyncio.wait_for(_via_dialogue_llm(), timeout=fast_timeout)
+                if directive:
+                    print("✅ Board consult via dialogue_llm (fast-first)")
+            except asyncio.TimeoutError:
+                print(f"⚠️ Board consult dialogue_llm timeout after {fast_timeout:.0f}s")
+            except Exception as e:
+                print(f"⚠️ Board consult dialogue_llm failed: {e}")
 
-        except ImportError:
-            print("⚠️ ai_core не доступен, используем fallback директиву")
-            directive = None
+        if not directive or len(str(directive)) < 20:
+            try:
+                from ai_core import run_smart_agent_async
 
-        if not directive or len(directive) < 20:
+                async def board_llm_call():
+                    return await run_smart_agent_async(
+                        board_prompt,
+                        expert_name="Совет Директоров",
+                        category="reasoning",
+                        is_critical=True,
+                        is_vip=False,
+                    )
+
+                if _mlx_queue and RequestPriority:
+                    print("🏛️ [BOARD] Запрос с HIGH приоритетом через MLX Queue...")
+                    success, request_id, position = await _mlx_queue.add_request(
+                        priority=RequestPriority.HIGH,
+                        callback=board_llm_call,
+                        timeout=consult_timeout,
+                        metadata={"source": source, "correlation_id": correlation_id},
+                    )
+                    if success:
+                        print(
+                            f"✅ [BOARD] Запрос в очереди (ID: {request_id}, позиция: {position})"
+                        )
+                    else:
+                        print("⚠️ [BOARD] Очередь переполнена, прямой вызов...")
+
+                directive = await asyncio.wait_for(board_llm_call(), timeout=consult_timeout)
+                if directive:
+                    print("✅ Board consult via ai_core")
+            except ImportError:
+                print("⚠️ ai_core не доступен")
+            except asyncio.TimeoutError:
+                print(f"⚠️ Board consult ai_core timeout after {consult_timeout:.0f}s")
+            except Exception as e:
+                print(f"⚠️ Board consult ai_core failed: {e}")
+
+        # Last resort: dialogue_llm again (after heavy path freed / different model pressure).
+        if not directive or len(str(directive)) < 20:
+            try:
+                directive = await asyncio.wait_for(_via_dialogue_llm(), timeout=fast_timeout)
+                if directive:
+                    print("✅ Board consult via dialogue_llm (last resort)")
+            except Exception as e:
+                print(f"⚠️ Board consult last-resort dialogue_llm failed: {e}")
+
+        if not directive or len(str(directive)) < 20:
             print("❌ Совет не смог принять решение (пустой ответ от LLM)")
             return None
+        directive = str(directive).strip()
+
+        def _looks_like_prompt_echo(text: str) -> bool:
+            t = (text or "").lower()
+            if "решение:" in t:
+                return False
+            markers = (
+                "вопрос от пользователя",
+                "вы - совет",
+                "задача: примите стратегическое",
+                "формат: строгий корпоративный",
+                "контекст:\nokr",
+                "okr:",
+            )
+            # Echo often restates role/OKR block without a РЕШЕНИЕ line.
+            return any(m in t for m in markers)
+
+        if _looks_like_prompt_echo(directive) or (
+            "решение:" not in directive.lower() and len(directive) > 400
+        ):
+            print("⚠️ Board consult looks like prompt-echo; compact retry")
+            compact_prompt = (
+                f"Вопрос: {question}\n\n"
+                "Ответь ТОЛЬКО в формате:\n"
+                "РЕШЕНИЕ: [одна фраза]\n"
+                "ОБОСНОВАНИЕ: [2-3 предложения]\n"
+                "РИСКИ: [кратко]\n"
+                "УВЕРЕННОСТЬ: [0.0-1.0]\n"
+            )
+            try:
+                try:
+                    from dialogue_llm import generate_dialogue as _gen
+                except ImportError:
+                    from knowledge_os.app.dialogue_llm import generate_dialogue as _gen
+
+                gen2 = await asyncio.wait_for(
+                    _gen(compact_prompt, expert_name="Виктория", model_hint=consult_model),
+                    timeout=fast_timeout,
+                )
+                text2 = str(getattr(gen2, "text", "") or "").strip()
+                if (
+                    getattr(gen2, "ok", False)
+                    and len(text2) >= 20
+                    and not is_stub_directive(text2)
+                    and not _looks_like_prompt_echo(text2)
+                ):
+                    directive = text2
+                    print("✅ Board consult compact retry accepted")
+            except Exception as e:
+                print(f"⚠️ Board consult compact retry failed: {e}")
 
         # 4. Парсинг структуры
         structured_decision = parse_directive_structure(directive)
@@ -285,77 +626,85 @@ async def consult_board(
             "last_directive": last_directive[:200] if last_directive else "",
         }
 
-        # Получаем новое подключение из пула для записи
-        pool = await get_db_pool()
-        async with pool.acquire() as write_conn:
-            await write_conn.execute(
-                """
-                INSERT INTO board_decisions (
-                    source, correlation_id, session_id, user_id, question, context_snapshot,
-                    directive_text, structured_decision, risk_level, recommend_human_review
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-            """,
-                source,
-                correlation_id,
-                session_id,
-                user_id,
-                question,
-                json.dumps(context_snapshot),
-                directive,
-                json.dumps(structured_decision),
-                risk_level,
-                recommend_human_review,
-            )
+        # 5b. Durable Markdown first (must not depend on DB write success).
+        _publish_board_markdown(
+            directive=directive,
+            okr_context=okr_context,
+            tasks_context=tasks_context,
+            title="КОНСУЛЬТАЦИЯ СОВЕТА ДИРЕКТОРОВ",
+        )
 
-            # 6. Опционально: краткий узел в knowledge_nodes для истории (по возможности с embedding — VERIFICATION §5)
-            try:
-                domain_id = await write_conn.fetchval(
-                    "SELECT id FROM domains WHERE name = 'Management' LIMIT 1"
+        # 6. Persist to board_decisions + optional knowledge_nodes (best-effort).
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as write_conn:
+                await write_conn.execute(
+                    """
+                    INSERT INTO board_decisions (
+                        source, correlation_id, session_id, user_id, question, context_snapshot,
+                        directive_text, structured_decision, risk_level, recommend_human_review
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                """,
+                    source,
+                    correlation_id,
+                    session_id,
+                    user_id,
+                    question,
+                    json.dumps(context_snapshot),
+                    directive,
+                    json.dumps(structured_decision),
+                    risk_level,
+                    recommend_human_review,
                 )
-                if domain_id:
-                    content_kn = (
-                        f"🏛 Консультация Совета: {structured_decision.get('decision', '')[:100]}"
-                    )
-                    meta_kn = json.dumps(
-                        {
-                            "type": "board_consult",
-                            "correlation_id": correlation_id,
-                            "date": datetime.now().isoformat(),
-                        }
-                    )
-                    conf = structured_decision.get("confidence", 0.8)
-                    embedding = None
-                    try:
-                        from semantic_cache import get_embedding
 
-                        embedding = await get_embedding(content_kn[:8000])
-                    except Exception:
-                        pass
-                    if embedding is not None:
-                        await write_conn.execute(
-                            """
-                            INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified, embedding)
-                            VALUES ($1, $2, $3, $4, true, $5::vector)
-                        """,
-                            domain_id,
-                            content_kn,
-                            conf,
-                            meta_kn,
-                            str(embedding),
+                try:
+                    domain_id = await write_conn.fetchval(
+                        "SELECT id FROM domains WHERE name = 'Management' LIMIT 1"
+                    )
+                    if domain_id:
+                        content_kn = f"🏛 Консультация Совета: {structured_decision.get('decision', '')[:100]}"
+                        meta_kn = json.dumps(
+                            {
+                                "type": "board_consult",
+                                "correlation_id": correlation_id,
+                                "date": datetime.now().isoformat(),
+                            }
                         )
-                    else:
-                        await write_conn.execute(
-                            """
-                            INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-                            VALUES ($1, $2, $3, $4, true)
-                        """,
-                            domain_id,
-                            content_kn,
-                            conf,
-                            meta_kn,
-                        )
-            except Exception as e:
-                print(f"⚠️ Не удалось сохранить узел в knowledge_nodes: {e}")
+                        conf = structured_decision.get("confidence", 0.8)
+                        embedding = None
+                        try:
+                            from semantic_cache import get_embedding
+
+                            embedding = await get_embedding(content_kn[:8000])
+                        except Exception:
+                            pass
+                        if embedding is not None:
+                            await write_conn.execute(
+                                """
+                                INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified, embedding)
+                                VALUES ($1, $2, $3, $4, true, $5::vector)
+                            """,
+                                domain_id,
+                                content_kn,
+                                conf,
+                                meta_kn,
+                                str(embedding),
+                            )
+                        else:
+                            await write_conn.execute(
+                                """
+                                INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
+                                VALUES ($1, $2, $3, $4, true)
+                            """,
+                                domain_id,
+                                content_kn,
+                                conf,
+                                meta_kn,
+                            )
+                except Exception as e:
+                    print(f"⚠️ Не удалось сохранить узел в knowledge_nodes: {e}")
+        except Exception as e:
+            print(f"⚠️ Не удалось сохранить board_decisions (ответ всё равно возвращаем): {e}")
 
         print(
             f"✅ Board consult completed: decision='{structured_decision.get('decision', '')[:50]}...', risk={risk_level}, recommend_review={recommend_human_review}"
@@ -478,80 +827,34 @@ async def run_board_meeting():
                 print(f"⚠️ Не удалось получить статус задач: {e}")
                 tasks_context = ""
 
-            # 2. Промпт для Совета Директоров
-            board_prompt = f"""
-ВЫ - СОВЕТ ДИРЕКТОРОВ КОРПОРАЦИИ (CEO Владимир, Lead Виктория, CTO Дмитрий).
-
-ТЕКУЩИЕ ЦЕЛИ (OKR):
-{okr_context if okr_context else "Не заданы"}
-
-ДОСТИЖЕНИЯ ЗА 24 ЧАСА:
-{insights_context if insights_context else "Новых критических знаний не добавлено."}
-
-СТАТУС ОПЕРАЦИЙ:
-{tasks_context if tasks_context else "Нет данных по задачам"}
-
-ЗАДАЧА: Проведите стратегический анализ. Сформулируйте "ДИРЕКТИВУ СОВЕТА ДИРЕКТОРОВ" на следующие 24 часа.
-
-Директива должна содержать:
-1. РЕШЕНИЕ: Резюме текущего состояния и главное направление.
-2. ОБОСНОВАНИЕ: Почему это важно сейчас.
-3. 3 ГЛАВНЫХ ФОКУСА для всех экспертов.
-4. ОДНО РАДИКАЛЬНОЕ РЕШЕНИЕ для ускорения роста.
-
-ФОРМАТ: СТРОГИЙ КОРПОРАТИВНЫЙ СТИЛЬ.
-"""
-
-            # 3. Вызов LLM — через Victoria /run (полный pipeline, без перезаписи system prompt)
-            directive = None
-            try:
-                import httpx
-                _board_req = {
-                    "goal": f"""
-Проведи заседание Совета Директоров.
-
-Данные:
-- OKR: {okr_context or "не заданы"}
-- Задачи: {tasks_context or "нет данных"}
-- Новые знания: {insights_context or "нет"}
-
-Сформулируй ДИРЕКТИВУ СОВЕТА в формате:
-РЕШЕНИЕ: [главное направление]
-ОБОСНОВАНИЕ: [почему это важно]
-РИСКИ: [список рисков]
-УВЕРЕННОСТЬ: [0.0-1.0]
-ФОКУСЫ:
-1) [первый фокус]
-2) [второй фокус]
-3) [третий фокус]
-""",
-                    "project_context": "atra-web-ide",
-                    "async_mode": False,
-                }
-                async with httpx.AsyncClient(timeout=600.0) as client:
-                    resp = await client.post(
-                        "http://victoria-agent:8000/run",
-                        json=_board_req,
-                    )
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        directive = data.get("output", "")
-            except Exception as e:
-                print(f"⚠️ Board LLM call failed: {e}")
+            # 2–3. Sync Victoria + stub reject + local fallback (no raw KB dump in goal)
+            directive = await _call_victoria_board_directive(
+                okr_summary=_summarize_context(okr_context, limit=350),
+                tasks_summary=_summarize_context(tasks_context, limit=250),
+                insights_summary=_summarize_context(insights_context, limit=350),
+            )
 
             if directive:
                 print(f"✅ ДИРЕКТИВА ПОЛУЧЕНА ({len(directive)} chars)")
 
-            # [SINGULARITY 31.3] Фильтр: отбрасываем HTML-ответы и битые данные
-            if directive and ('<' in directive and '>' in directive and ('<!DOCTYPE' in directive or '<html' in directive or '<body' in directive)):
+            # [SINGULARITY 31.3] Фильтр: HTML / queue stubs / ошибки
+            if directive and (
+                "<" in directive
+                and ">" in directive
+                and ("<!DOCTYPE" in directive or "<html" in directive or "<body" in directive)
+            ):
                 print("⚠️ LLM вернул HTML вместо директивы")
+                directive = None
+            if directive and is_stub_directive(directive):
+                print("⚠️ Отклонена stub-директива (queue ack), сохранение пропущено")
                 directive = None
 
             if (
                 directive
-                and len(directive) > 20
+                and len(directive) > 40
                 and "Ошибка" not in directive
                 and "❌" not in directive
+                and not is_stub_directive(directive)
             ):
                 # 4. Парсинг структуры
                 structured_decision = parse_directive_structure(directive)
@@ -638,45 +941,11 @@ async def run_board_meeting():
                 print("✅ Strategic Directive issued and stored.")
 
                 # 8. Публикация в Markdown для истории (Singularity 10.0: Transparency)
-                try:
-                    reports_dir = "/app/docs/board_reports"
-                    # Если запуск локальный (не в Docker), используем относительный путь
-                    if not os.path.exists("/.dockerenv"):
-                        reports_dir = "docs/board_reports"
-
-                    os.makedirs(reports_dir, exist_ok=True)
-
-                    date_str = datetime.now().strftime("%Y-%m-%d_%H-%M")
-                    md_content = f"""# 🏛 СТРАТЕГИЧЕСКАЯ ДИРЕКТИВА СОВЕТА ДИРЕКТОРОВ
-**Дата:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} MSK
-**Статус:** ДЕЙСТВУЕТ (24 часа)
-
-## 📊 КОНТЕКСТ ЗАСЕДАНИЯ
-### Текущие цели (OKR)
-{okr_context if okr_context else "Цели не заданы."}
-
-### Операционный статус
-{tasks_context if tasks_context else "Нет данных по задачам."}
-
----
-
-## 📜 ТЕКСТ ДИРЕКТИВЫ
-{directive}
-
----
-*Документ сформирован автоматически ИИ-корпорацией Singularity 10.0. Все решения подлежат исполнению экспертами Atra Core.*
-"""
-                    with open(filepath, "w", encoding="utf-8") as f:
-                        f.write(md_content)
-                    print(f"📄 Директива опубликована: {filepath}")
-
-                    # Обновляем индексный файл последних отчетов
-                    index_path = os.path.join(reports_dir, "LATEST.md")
-                    with open(index_path, "w", encoding="utf-8") as f:
-                        f.write(md_content)
-
-                except Exception as e:
-                    print(f"⚠️ Не удалось опубликовать Markdown отчет: {e}")
+                _publish_board_markdown(
+                    directive=directive,
+                    okr_context=okr_context,
+                    tasks_context=tasks_context,
+                )
             else:
                 print("❌ Директива не получена или содержит ошибку. Сохранение пропущено.")
 

@@ -7,8 +7,8 @@ Swarm Intelligence - Коллективный интеллект для муль
 import asyncio
 import logging
 import os
-import uuid
 import random
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -16,11 +16,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_URL = (
+    os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_URL") or "http://localhost:11434"
+).rstrip("/")
 
 
 class SwarmState(Enum):
     """Состояния роя"""
+
     FORMING = "forming"
     EXPLORING = "exploring"
     CONVERGING = "converging"
@@ -31,6 +34,7 @@ class SwarmState(Enum):
 @dataclass
 class SwarmAgent:
     """Агент в рое"""
+
     agent_id: str
     agent_name: str
     role: str = "explorer"  # explorer, skeptic, elite
@@ -46,6 +50,7 @@ class SwarmAgent:
 @dataclass
 class SwarmGroup:
     """Группа агентов (Island/Cluster) [SINGULARITY 28.2]"""
+
     group_id: str
     group_name: str
     agents: List[SwarmAgent] = field(default_factory=list)
@@ -58,6 +63,7 @@ class SwarmGroup:
 @dataclass
 class SwarmResult:
     """Результат работы роя"""
+
     global_best: Any
     global_best_score: float
     iterations: int
@@ -92,6 +98,7 @@ class SwarmIntelligence:
 
         try:
             from app.resource_monitor import get_resource_monitor
+
             self.resource_monitor = get_resource_monitor()
         except ImportError:
             self.resource_monitor = None
@@ -137,7 +144,9 @@ class SwarmIntelligence:
 
         return self._build_result(iteration)
 
-    async def _form_swarm(self, agent_names: Optional[List[str]], initial_solutions: Optional[List[Any]]):
+    async def _form_swarm(
+        self, agent_names: Optional[List[str]], initial_solutions: Optional[List[Any]]
+    ):
         """Создает агентов и распределяет их по островам (Tech, Logic, Security, Creative)."""
         group_configs = [
             ("tech", "Technical Island"),
@@ -145,24 +154,26 @@ class SwarmIntelligence:
             ("sec", "Security Island"),
             ("creative", "Creative Island"),
         ]
-        self.groups = [SwarmGroup(group_id=g_id, group_name=g_name) for g_id, g_name in group_configs]
-        
+        self.groups = [
+            SwarmGroup(group_id=g_id, group_name=g_name) for g_id, g_name in group_configs
+        ]
+
         self.agents = []
         for i in range(self.swarm_size):
             # Каждая 4-я роль - Скептик (Adversarial)
             role = "skeptic" if i % 4 == 0 else "explorer"
-            name = agent_names[i] if agent_names and i < len(agent_names) else f"Agent_{i+1}"
-            
+            name = agent_names[i] if agent_names and i < len(agent_names) else f"Agent_{i + 1}"
+
             agent = SwarmAgent(
                 agent_id=str(uuid.uuid4()),
                 agent_name=name,
                 role=role,
-                position={"x": float(i % 4), "y": float(i // 4)}
+                position={"x": float(i % 4), "y": float(i // 4)},
             )
-            
+
             if initial_solutions and i < len(initial_solutions):
                 agent.current_solution = initial_solutions[i]
-                
+
             # Распределяем по группам
             group = self.groups[i % len(self.groups)]
             agent.group_id = group.group_id
@@ -175,14 +186,14 @@ class SwarmIntelligence:
         for agent in self.agents:
             prompt = self._build_island_prompt(agent, problem, iteration)
             tasks.append(self._generate_solution(agent, prompt))
-            
+
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         for agent, solution in zip(self.agents, results):
             if not isinstance(solution, Exception):
                 agent.current_solution = solution.get("solution")
                 agent.current_score = solution.get("score", 0.0)
-                
+
                 # Обновляем локальный лучший
                 if agent.current_score > agent.local_best_score:
                     agent.local_best = agent.current_solution
@@ -195,10 +206,12 @@ class SwarmIntelligence:
             elite = sorted_agents[0]
             group.group_best = elite.local_best
             group.group_best_score = elite.local_best_score
-            
+
             # Заменяем худшего мутацией элиты
             weakest = sorted_agents[-1]
-            weakest.current_solution = f"Island Mutation from {elite.agent_name}: " + str(elite.local_best)[:100]
+            weakest.current_solution = (
+                f"Island Mutation from {elite.agent_name}: " + str(elite.local_best)[:100]
+            )
             weakest.current_score = elite.local_best_score * 0.9
 
     async def _migrate_between_islands(self):
@@ -207,7 +220,7 @@ class SwarmIntelligence:
         for i in range(len(self.groups)):
             source = self.groups[i]
             target = self.groups[(i + 1) % len(self.groups)]
-            
+
             # Перемещаем одного случайного агента
             if source.agents:
                 migrant = source.agents.pop(random.randrange(len(source.agents)))
@@ -221,8 +234,12 @@ class SwarmIntelligence:
                 self.global_best_score = agent.local_best_score
 
     def _build_island_prompt(self, agent: SwarmAgent, problem: str, iteration: int) -> str:
-        role_desc = "Ты - КРИТИК. Твоя задача - найти слабые места в текущих решениях и предложить контр-аргументы." if agent.role == "skeptic" else "Ты - ИССЛЕДОВАТЕЛЬ. Твоя задача - найти инновационное решение."
-        
+        role_desc = (
+            "Ты - КРИТИК. Твоя задача - найти слабые места в текущих решениях и предложить контр-аргументы."
+            if agent.role == "skeptic"
+            else "Ты - ИССЛЕДОВАТЕЛЬ. Твоя задача - найти инновационное решение."
+        )
+
         prompt = f"""{role_desc}
 ПРОБЛЕМА: {problem}
 ОСТРОВ: {agent.group_id}
@@ -238,6 +255,7 @@ class SwarmIntelligence:
 
     async def _generate_solution(self, agent: SwarmAgent, prompt: str) -> Dict:
         import httpx
+
         try:
             async with self._llm_semaphore:
                 async with httpx.AsyncClient(timeout=120.0) as client:
@@ -259,22 +277,26 @@ class SwarmIntelligence:
             return {"solution": "", "score": 0.0}
 
     def _evaluate_solution(self, solution: str, role: str) -> float:
-        if not solution: return 0.0
+        if not solution:
+            return 0.0
         score = 0.5
-        
+
         # [SINGULARITY 28.5] Socratic Voting & Weighted Consensus
         # Skeptics have higher weight in detecting risks
         if role == "skeptic":
-            if any(m in solution.lower() for m in ["ошибка", "риск", "проблема", "уязвимость", "баг"]):
-                score += 0.4 # Skeptic found a problem
+            if any(
+                m in solution.lower() for m in ["ошибка", "риск", "проблема", "уязвимость", "баг"]
+            ):
+                score += 0.4  # Skeptic found a problem
             else:
-                score -= 0.2 # Skeptic was too soft
-        
+                score -= 0.2  # Skeptic was too soft
+
         # [SINGULARITY 28.5] Contract-based validation
         if "expert_name" in solution and "confidence_score" in solution:
-            score += 0.1 # Solution follows the contract
-            
-        if len(solution) > 300: score += 0.1
+            score += 0.1  # Solution follows the contract
+
+        if len(solution) > 300:
+            score += 0.1
         return min(score, 1.0)
 
     def _check_consensus(self) -> bool:
@@ -282,17 +304,20 @@ class SwarmIntelligence:
         [SINGULARITY 28.5] Weighted Consensus Logic.
         Requires 80% agreement AND no critical veto from skeptics.
         """
-        if not self.agents: return False
-        
+        if not self.agents:
+            return False
+
         # 1. Check for Skeptic Veto
         skeptics = [a for a in self.agents if a.role == "skeptic"]
         for s in skeptics:
             if s.current_score > 0.8 and "критическая" in str(s.current_solution).lower():
                 logger.warning(f"🚫 [CONSENSUS] Critical Veto from Skeptic: {s.agent_name}")
-                return False # Veto blocks consensus
-        
+                return False  # Veto blocks consensus
+
         # 2. Check for General Agreement
-        high_score_count = sum(1 for a in self.agents if a.local_best_score >= self.global_best_score * 0.95)
+        high_score_count = sum(
+            1 for a in self.agents if a.local_best_score >= self.global_best_score * 0.95
+        )
         return (high_score_count / len(self.agents)) >= 0.8
 
     def _build_result(self, iterations: int) -> SwarmResult:
@@ -301,14 +326,20 @@ class SwarmIntelligence:
             global_best_score=self.global_best_score,
             iterations=iterations + 1,
             agents=self.agents,
-            convergence_rate=sum(1 for a in self.agents if a.local_best_score >= self.global_best_score * 0.9) / len(self.agents),
-            exploration_coverage=len(set(str(a.local_best) for a in self.agents)) / len(self.agents)
+            convergence_rate=sum(
+                1 for a in self.agents if a.local_best_score >= self.global_best_score * 0.9
+            )
+            / len(self.agents),
+            exploration_coverage=len(set(str(a.local_best) for a in self.agents))
+            / len(self.agents),
         )
+
 
 async def main():
     swarm = SwarmIntelligence(swarm_size=32)
     result = await swarm.solve("Оптимизация высоконагруженных систем на Python")
     print(f"Result: {result.global_best_score}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

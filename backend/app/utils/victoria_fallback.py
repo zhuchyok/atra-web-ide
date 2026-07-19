@@ -39,7 +39,10 @@ async def call_victoria_with_retry(
     """
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            f"{VICTORIA_URL}/run", json={"goal": query, **context}, timeout=timeout
+            f"{VICTORIA_URL}/run",
+            json={"goal": query, **context},
+            params={"async_mode": "false"},
+            timeout=timeout,
         )
         response.raise_for_status()
         return response
@@ -72,10 +75,20 @@ async def call_victoria_with_fallback(
         response = await call_victoria_with_retry(query, context, timeout)
         result = response.json()
 
-        # Extract response from various possible keys
-        response_text = (
-            result.get("output") or result.get("result") or result.get("response") or str(result)
+        from app.utils.victoria_response_guard import (
+            extract_victoria_text,
+            is_victoria_stub,
+            victoria_status,
         )
+
+        response_text = extract_victoria_text(result)
+        if is_victoria_stub(response_text, status=victoria_status(result)):
+            logger.warning("Victoria returned queue stub; treating as failure and falling through")
+            raise httpx.HTTPStatusError(
+                "victoria stub",
+                request=response.request,
+                response=response,
+            )
 
         return {"status": "victoria", "response": response_text, "source": "Victoria Agent"}
 

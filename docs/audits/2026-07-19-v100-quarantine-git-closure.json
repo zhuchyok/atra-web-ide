@@ -1,0 +1,21 @@
+{
+  "ts": "2026-07-19T20:47:11Z",
+  "health": {
+    "8010": 200,
+    "8080": 200,
+    "8002": 200,
+    "8011": 200
+  },
+  "gates": {
+    "rule_false_complete": 0,
+    "victoria_queued_complete": 0,
+    "stale_2h": 0
+  },
+  "quarantine": {
+    "kn_q_v100": 11,
+    "bd_q_v100": 11,
+    "ed_q_v100": 11,
+    "board_stub_unq": 0
+  },
+  "git": "anti-stub+v99+v100 commit staged"
+}

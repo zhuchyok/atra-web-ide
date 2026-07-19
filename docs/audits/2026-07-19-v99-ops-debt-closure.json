@@ -1,0 +1,25 @@
+{
+  "ts": "2026-07-19T20:37:59Z",
+  "health": {
+    "8010": 200,
+    "8080": 200,
+    "8002": 200,
+    "8011": 200
+  },
+  "gates": {
+    "rule_false_complete": 0,
+    "victoria_queued_complete": 0,
+    "stale_2h": 0
+  },
+  "swarm_stream": "full_no_lw_fallback",
+  "swarm_start": "engine_used=swarm",
+  "board_consult": "200 + host MD + db api",
+  "api_key_present": true,
+  "api_key_len": 43,
+  "compose": [
+    "BOARD_REPORTS_DIR",
+    "backend/app mount",
+    "OLLAMA_BASE_URL",
+    "SWARM_TIMEOUT"
+  ]
+}

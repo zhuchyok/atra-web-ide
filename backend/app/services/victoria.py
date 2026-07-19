@@ -7,8 +7,8 @@ Retry logic, timeout handling, error recovery
 import asyncio
 import json
 import logging
-import random
 import os
+import random
 import uuid
 from collections.abc import AsyncGenerator
 from datetime import datetime
@@ -161,6 +161,19 @@ class VictoriaClient:
 
             if response.status_code == 200:
                 # Sync-ответ (обратная совместимость)
+                from app.utils.victoria_response_guard import reject_if_stub
+
+                stub_reason = reject_if_stub(data)
+                if stub_reason:
+                    logger.warning(
+                        "[VICTORIA_CYCLE] client sync rejected stub reason=%s", stub_reason
+                    )
+                    return {
+                        "status": "error",
+                        "error": f"Rejected stub response ({stub_reason})",
+                        "output": "",
+                        "result": None,
+                    }
                 logger.info("[VICTORIA_CYCLE] client sync response status=%s", data.get("status"))
                 return data
 
@@ -213,6 +226,23 @@ class VictoriaClient:
                             status_val = (st.get("status") or "").lower()
                             if status_val == "completed":
                                 out = st.get("output") or st.get("result") or ""
+                                from app.utils.victoria_response_guard import reject_if_stub
+
+                                stub_reason = reject_if_stub(
+                                    {"status": "completed", "output": out, "result": out}
+                                )
+                                if stub_reason:
+                                    logger.warning(
+                                        "[VICTORIA_CYCLE] client poll rejected stub task_id=%s reason=%s",
+                                        task_id[:8],
+                                        stub_reason,
+                                    )
+                                    return {
+                                        "status": "error",
+                                        "error": f"Rejected stub response ({stub_reason})",
+                                        "output": "",
+                                        "result": None,
+                                    }
                                 logger.info(
                                     "[VICTORIA_CYCLE] client poll completed output_len=%s", len(out)
                                 )
@@ -287,6 +317,25 @@ class VictoriaClient:
                 output = data.get("result", "")
             if not output and "response" in data:
                 output = data.get("response", "")
+            from app.utils.victoria_response_guard import reject_if_stub
+
+            stub_reason = reject_if_stub(
+                {
+                    "status": data.get("status"),
+                    "output": output,
+                    "result": output,
+                    "response": output,
+                }
+            )
+            if stub_reason:
+                logger.warning("[VICTORIA_CYCLE] client final rejected stub reason=%s", stub_reason)
+                return {
+                    "status": "error",
+                    "error": f"Rejected stub response ({stub_reason})",
+                    "result": None,
+                    "response": None,
+                    "raw": data,
+                }
             logger.info(
                 "Victoria response: status=%s, output_length=%s",
                 data.get("status"),

@@ -87,6 +87,9 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/workspace/atra-web-ide
+      # Durable live code: no docker cp for routers/services after recreate.
+      - ./backend/app:/app/app
+      - ./knowledge_os/app:/workspace/atra-web-ide/knowledge_os/app
       - /Users/bikos/Documents/dev/setki-21:/workspace/setki-21
       - /Users/bikos/Documents/dev/atra:/workspace/atra
       - workspace_data:/workspace/data
@@ -96,11 +99,18 @@ services:
       - VICTORIA_URL=http://victoria-agent:8000 # Используем общий контейнер Victoria из knowledge_os
       - PROJECT_NAME=atra-web-ide # Контекст проекта для агентов
       - OLLAMA_URL=http://host.docker.internal:11434
+      # SwarmIntelligence / dialogue engines read OLLAMA_BASE_URL (not only OLLAMA_URL).
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - EXPERT_DIALOGUE_SWARM_SIZE=${EXPERT_DIALOGUE_SWARM_SIZE:-6}
+      - EXPERT_DIALOGUE_SWARM_MAX_ITER=${EXPERT_DIALOGUE_SWARM_MAX_ITER:-2}
+      - EXPERT_DIALOGUE_SWARM_TIMEOUT_SEC=${EXPERT_DIALOGUE_SWARM_TIMEOUT_SEC:-180}
+      - EXPERT_DIALOGUE_ENGINE_TIMEOUT_SEC=${EXPERT_DIALOGUE_ENGINE_TIMEOUT_SEC:-90}
       - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-300}
       - MLX_API_URL=http://host.docker.internal:11435 # MLX API Server на хосте (из контейнера — через host.docker.internal)
       - DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       - REDIS_URL=redis://knowledge_os_redis:6379 # Redis из knowledge_os (контейнер knowledge_os_redis; atra — отдельный проект)
       - KNOWLEDGE_OS_API_URL=http://knowledge_rest:8002 # Логирование чата в interaction_logs (Singularity 10.0)
+      - API_KEY=${API_KEY:-your-secret-api-key}
       - WORKSPACE_ROOT=/workspace/atra-web-ide
       - PYTHONPATH=/app:/workspace/atra-web-ide:/workspace/atra-web-ide/knowledge_os/app
       # Таймаут ожидания Victoria: 900 с — чтобы не обрывать сложные запросы на локальных моделях
