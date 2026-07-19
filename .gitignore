@@ -116,3 +116,7 @@ rust_core/gateway.log
 
 # Allow cursor rules for cross-project sharing
 !.cursor/rules/
+
+# Recovery replay dumps (high-entropy UUIDs trip detect-secrets)
+docs/recovery/replay_runs/
+docs/recovery/*.jsonl
