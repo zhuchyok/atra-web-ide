@@ -2,10 +2,204 @@
 
 ## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
-**Дата последнего обновления:** 2026-07-18
+**Дата последнего обновления:** 2026-07-19
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное, portable runtime, self-healing Docker healthchecks; safe orchestrator modularization in progress
+**Состояние:** Стабильное; orchestrator phases modularization complete (full verification gate passed)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-19 v86) — Orchestrator Phases Complete + Full Gate ✅
+
+### Цель
+
+Закрыть распил фаз оркестратора **правильно**: baseline → extract 1.5/1.8 → полный verification gate по контейнерам/API/DB/логам/import/smoke.
+
+### Что вынесено (полный реестр)
+
+Модуль: `knowledge_os/app/orchestrator_phases.py` (~1452 LOC)  
+Caller glue: `knowledge_os/app/enhanced_orchestrator.py` (~2878 LOC)
+
+| Фаза              | Функция                                     | Live logger           |
+| ----------------- | ------------------------------------------- | --------------------- |
+| 0 / 0.5           | `phase_0_auto_fix` / `phase_0_5_migrations` | `orchestrator_phases` |
+| 1                 | `phase_1_prioritize`                        | `orchestrator_phases` |
+| 1.5               | `phase_1_5_decompose`                       | `orchestrator_phases` |
+| 1.6               | `phase_1_6_batch_group`                     | `orchestrator_phases` |
+| 1.8               | `phase_1_8_red_team`                        | `orchestrator_phases` |
+| 1.9 / 1.95 / 1.97 | optimizer / reconcile / scale-down          | `orchestrator_phases` |
+| 2 / 2.2 / 2.5     | assign / dispatch / rule fallback           | `orchestrator_phases` |
+| 3 / 3.2           | `phase_3_rebalance`                         | `orchestrator_phases` |
+| 4                 | `phase_4_cross_domain`                      | `orchestrator_phases` |
+| 5 / 5–8           | `phase_5_curiosity` / `phase_5_8_rnd`       | smoke + code path     |
+| 10–16             | `phase_heavy_tail`                          | smoke + code path     |
+
+### Исправление «как правильно» в 1.5
+
+В старом монолите цикл subtasks имел broken indentation → фактически создавался только **последний** subtask + `json.loads(dict)` падал.  
+В extract: INSERT **каждого** subtask (до 5), безопасный разбор `meta`, default domain для micro-agent.
+
+### Осталось в монолите (намеренно, не фазы)
+
+- Rollout KPI после 2.2
+- Quality-focus skip/lock release перед heavy
+- Автоочистка старых tasks
+- Helpers / assign / dispatch / Redis glue
+- `ai_core.py` не трогали
+
+### Full Verification Gate (2026-07-19) — evidence
+
+| Check                                     | Result                                     |
+| ----------------------------------------- | ------------------------------------------ |
+| Unhealthy containers                      | `none`                                     |
+| Victoria 8010 / Veronica 8011 / REST 8002 | ok / ok / healthy                          |
+| Ollama / MLX                              | `200` / `200`                              |
+| Experts                                   | `90`                                       |
+| Tasks                                     | pending 1 / in_progress 1 / completed 2618 |
+| Live logs 1.5 / 1.8                       | `orchestrator_phases` (после restart)      |
+| Live logs 0–4, 1.6, 1.9–1.97, 2–3         | `orchestrator_phases`                      |
+| Traceback/NameError/ImportError           | `none` (только RuntimeWarning tracemalloc) |
+| Imports all phase fns                     | `IMPORTS_OK 18`                            |
+| Smoke 1.5 / 1.8                           | `{'decomposed': 0}` / `{'audited': 0}`     |
+| Orchestrator                              | `healthy`                                  |
+
+### Pre-mortem / rollback
+
+1. Quality-focus interrupt Phase 4+ — ожидаемо при backlog (`has_execution_backlog`).
+2. Phase 5–8/10–16 в live часто не видны из-за interrupt — не регрессия extract.
+3. Rollback: revert call sites + `orchestrator_phases.py`.
+
+---
+
+## § Последние изменения (2026-07-19 v87) — Expert Audit Closure (P0/P1) ✅
+
+### Что изменилось сегодня (v86)
+
+#### 1. Multi-expert аудит и закрытие критичных рисков
+
+- Выполнен parallel-аудит по 3 контурам: SRE/KPI, worker loop-breakers, recovery/governance.
+- Подтверждено: основная краснота KPI была из-за ложных/неполных условий мониторинга и loop-регрессий, а не из-за деградации контейнеров.
+
+#### 2. Исправлена авто-реанимация manual-triage delegation
+
+- `knowledge_os/app/worker/worker_logic.py` (`_auto_requeue_delegation`):
+  - исключены задачи с `failed_requires_intervention=true`,
+  - исключены `diagnostic_path` manual triage,
+  - исключены `auto_fallback_reason` с `manual_triage`/`exhausted`,
+  - добавлен safe-cast для `auto_requeue_count`.
+- Инвариант: exhausted/manual-triage задачи больше не возвращаются в `pending` автоматически.
+
+#### 3. Устранён риск двойного watchdog-reset цикла
+
+- `knowledge_os/app/smart_worker_autonomous.py`:
+  - фоновый watchdog-loop переведен под флаг
+    `SMART_WORKER_WATCHDOG_BACKGROUND_ENABLED` (default `false`),
+  - базовый inline watchdog path оставлен как единый путь по умолчанию,
+  - добавлен safe-cast для `progress_guard_requeue_count` в SQL-условиях/инкрементах.
+
+#### 4. Усилен Circuit Breaker loop-breaker в expert worker
+
+- `knowledge_os/app/expert_worker.py`:
+  - добавлен safe parser для metadata-int счетчиков,
+  - `circuit_breaker_loop_exhausted` сохраняет terminal-path в `cancelled/manual triage`
+    (с `failed_requires_intervention=true`) без повторного requeue-loop.
+
+#### 5. Дожат runtime KPI monitor (операционная честность)
+
+- `scripts/runtime_kpi_gate_monitor.py`:
+  - исправлен alias heavy worker (поддержка `...-heavy-1/-2/-3`),
+  - gate-window теперь учитывает `cancelled` c `failed_requires_intervention=true`
+    в failure-rate (чтобы `failed -> cancelled` не маскировал деградацию).
+
+#### 6. Smoke-верификация после фиксов
+
+- Артефакты:
+  - `docs/audits/2026-07-19-expert-smoke-post-expert-fixes.jsonl`
+  - `docs/audits/2026-07-19-expert-smoke-post-expert-fixes-summary.md`
+- Итог smoke:
+  - `stability_ok=true`, `error_rate_gate_ok=true`, `distill_tail_ok=true`,
+  - окна отмечены как `insufficient_load_n_a` (нет продуктивной нагрузки), что корректно для low-pressure режима.
+
+---
+
+## § Последние изменения (2026-07-18 v85) — Recovery Replay + P0/P1 Loop-Breakers ✅
+
+### Что изменилось сегодня (v85)
+
+#### 1. Controlled replay исторических инцидентов в Knowledge Layer
+
+- Добавлен скрипт `scripts/replay_recovered_incidents.py`:
+  - source: `docs/recovery/recovered_incidents_validated.jsonl`,
+  - фильтр по confidence (`high` по умолчанию),
+  - идемпотентность через `metadata.recovery_source_hash`,
+  - dry-run/apply режимы,
+  - rollback-safe артефакты (`inserted.jsonl`, `failed.jsonl`, `rollback.sql`).
+- Добавлен runbook: `docs/recovery/recovered_incidents_replay_plan.md`.
+- Выполнен apply replay: **87** записей `recovery_incident` вставлены в `knowledge_nodes` (0 ошибок).
+
+#### 2. P0/P1: loop-breaker для timeout-loop и progress-guard
+
+- `knowledge_os/app/smart_worker_autonomous.py`:
+  - добавлен `execution_profile=rescue_fast` для задач после `rag_loop_no_llm_call`,
+  - добавлен счетчик `progress_guard_requeue_count`,
+  - добавлен loop-breaker `SMART_WORKER_RAG_LOOP_MAX_RESETS` (по умолчанию 2),
+  - исчерпанные RAG-loop задачи переводятся в `cancelled` + `failed_requires_intervention=true` + `diagnostic_path`.
+- `knowledge_os/app/expert_worker.py`:
+  - добавлен `circuit_breaker_count`,
+  - loop-breaker `TASK_CIRCUIT_BREAKER_MAX_RETRIES` (по умолчанию 2),
+  - исчерпанные `CIRCUIT BREAKER` кейсы переводятся в `cancelled/manual triage` вместо бесконечного requeue/fail-loop.
+
+#### 3. Fix делегированных задач (MONSTER delegation)
+
+- Уточнён детектор delegation в smart worker:
+  - учитывается не только title prefix, но и `metadata.source == victoria_monster_delegation`.
+- Для delegation:
+  - сохраняется extended timeout (`WORKER_TASK_TOTAL_TIMEOUT`),
+  - `rescue_fast` не снижает timeout,
+  - `hard_cap` exhausted ведёт в `cancelled/manual triage`, а не в `failed`.
+
+#### 4. Runtime KPI gate tuning под low-pressure окна
+
+- `scripts/runtime_kpi_gate_monitor.py`:
+  - добавлен `RUNTIME_KPI_LOW_PRESSURE_MODE=true` (default),
+  - если окно low-pressure (`max_pending<=1`, `max_in_progress<=1`) и выполнен `completed_delta >= min_completed_required`, throughput не краснеет из-за bursty completion pattern.
+- Сохранены multiple evidence runs:
+  - `docs/audits/2026-07-18-expert-60m-post-loop-breaker-r4.{jsonl,summary.md}`
+  - `docs/audits/2026-07-18-expert-60m-post-loop-breaker-r5.{jsonl,summary.md}`
+
+#### 5. Операционный инвариант v85
+
+- Timeout-loop не должен бесконечно возвращать задачи в `pending`; исчерпанные кейсы уходят в manual triage с явной диагностикой в metadata.
+- Делегированные heavy-задачи не должны деградировать из-за `rescue_fast` timeout cap.
+- Recovery replay должен быть повторяемым и безопасным: re-run без дублей, с rollback-артефактами.
+
+---
+
+## § Последние изменения (2026-07-18 v84) — Orchestrator Phase 5–8 Extract ✅
+
+### Что вынесено дополнительно
+
+| Фаза        | Функция              | Статус                                                                                              |
+| ----------- | -------------------- | --------------------------------------------------------------------------------------------------- |
+| 5 Curiosity | `phase_5_curiosity`  | import + in-container DB smoke (`finish_cycle=True`); live часто не доходит из-за interrupt Phase 4 |
+| 5 scout–8   | `phase_5_8_rnd`      | code+import (Global Scout / auto-link / distill / self-repair)                                      |
+| ранее (v82) | 0–4, 1.95–2.5, 10–16 | live logs `orchestrator_phases`                                                                     |
+
+Размеры: `orchestrator_phases.py` ~1095 LOC; `enhanced_orchestrator.py` ~3232 LOC.
+
+### Верификация (2026-07-18)
+
+- orchestrator `healthy`; Victoria/Veronica `200`; `unhealthy=0`
+- Live: Phase 4 + quality-focus interrupt из `orchestrator_phases`
+- Smoke: `phase_5_curiosity(...)` → `{'curiosity_assigned': 0, 'interrupted': False, 'finish_cycle': True}`
+- Tasks: pending/in_progress низкие, completed растёт (нет коллапса очереди)
+
+### Ещё в монолите
+
+- **1.5** Blackboard/decompose/HITL
+- **1.8** Red Team critic + LLM
+- Rollout KPI после 2.2; cleanup хвосты
+- `ai_core.py` не трогаем
 
 ---
 
@@ -63,13 +257,13 @@ Caller: `knowledge_os/app/enhanced_orchestrator.py` (~3599 строк; было 
 | 2.5     | `phase_2_5_rule_fallback`                   | code+import; log только при candidates                                |
 | 3 / 3.2 | `phase_3_rebalance`                         | logs ok                                                               |
 | 4       | `phase_4_cross_domain`                      | logs ok + quality-focus interrupt preserved                           |
+| 5 / 5–8 | `phase_5_curiosity` / `phase_5_8_rnd`       | см. v84                                                               |
 | 10–16   | `phase_heavy_tail`                          | import + in-container smoke; live cycle часто interrupt quality-focus |
 
 ### Ещё в монолите (намеренно)
 
 - **1.5** Blackboard/decompose/HITL — высокий риск
 - **1.8** Red Team critic + LLM
-- **5–8** curiosity / scout / distill / self-repair
 - Rollout KPI блок после 2.2 остаётся рядом с dispatch (тонкая связка с Redis)
 
 Правило: inject helpers, no circular imports; `ai_core.py` не трогаем.

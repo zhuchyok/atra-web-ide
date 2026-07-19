@@ -56,14 +56,16 @@ services:
       CORPORATION_TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os:/app
       VICTORIA_PORT: "8000"
-      ATRA_HOST_WORKSPACE: /Users/bikos/Documents/atra-web-ide
+      ATRA_HOST_WORKSPACE: ${ATRA_HOST_WORKSPACE:-${PWD}/..}
       ATRA_CONTAINER_WORKSPACE: /workspace/atra-web-ide
+      PROJECT_ROOT: /workspace/atra-web-ide
+      WORKSPACE_ROOT: /workspace/atra-web-ide
       ATRA_ENV: prod
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       POSTGRES_DIRECT_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_NUM_PARALLEL: "5"
-      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       REDIS_URL: unix:///data/redis/redis.sock
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
@@ -124,7 +126,7 @@ services:
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_NUM_PARALLEL: "5"
-      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
     ports:
       - "8011:8000"
@@ -150,7 +152,7 @@ services:
     networks:
       - atra-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      test: ["CMD-SHELL", "grep -a -q enhanced_orchestrator.py /proc/1/cmdline"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -161,7 +163,7 @@ services:
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_NUM_PARALLEL: "5"
-      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       ORCHESTRATOR_BACKLOG_THRESHOLD: ${ORCHESTRATOR_BACKLOG_THRESHOLD:-20}
       ORCHESTRATOR_CONTRACT_ROLLOUT_MODE: "auto"
@@ -199,7 +201,7 @@ services:
     networks:
       - atra-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      test: ["CMD-SHELL", "grep -a -q expert_worker.py /proc/1/cmdline"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -213,7 +215,7 @@ services:
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_NUM_PARALLEL: "5"
-      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
       SMART_WORKER_HARD_INPROGRESS_TIMEOUT_MINUTES: ${SMART_WORKER_HARD_INPROGRESS_TIMEOUT_MINUTES:-10}
@@ -244,7 +246,7 @@ services:
     networks:
       - atra-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      test: ["CMD-SHELL", "grep -a -q expert_worker.py /proc/1/cmdline"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -258,7 +260,7 @@ services:
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_NUM_PARALLEL: "5"
-      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
       BLACKBOARD_ENFORCE_TARGET_EXPERT: "true"
@@ -287,7 +289,7 @@ services:
     networks:
       - atra-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      test: ["CMD-SHELL", "grep -a -q expert_worker.py /proc/1/cmdline"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -301,7 +303,7 @@ services:
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_NUM_PARALLEL: "5"
-      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
       BLACKBOARD_ENFORCE_TARGET_EXPERT: "true"
@@ -329,7 +331,7 @@ services:
     networks:
       - atra-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      test: ["CMD-SHELL", "grep -a -q expert_worker.py /proc/1/cmdline"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -342,7 +344,7 @@ services:
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_NUM_PARALLEL: "5"
-      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
       HITL_ENFORCE_HIGH_RISK_TASKS: "true"
@@ -369,7 +371,7 @@ services:
     networks:
       - atra-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      test: ["CMD-SHELL", "grep -a -q expert_worker.py /proc/1/cmdline"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -382,7 +384,7 @@ services:
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_NUM_PARALLEL: "5"
-      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
       HITL_ENFORCE_HIGH_RISK_TASKS: "true"
@@ -409,6 +411,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test:
+        ["CMD-SHELL", "grep -a -q smart_worker_autonomous.py /proc/1/cmdline"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
@@ -416,7 +424,7 @@ services:
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_NUM_PARALLEL: "5"
-      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
     volumes:
@@ -438,7 +446,7 @@ services:
     networks:
       - atra-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      test: ["CMD-SHELL", "grep -a -q run_evolution_loop.py /proc/1/cmdline"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -449,7 +457,7 @@ services:
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_NUM_PARALLEL: "5"
-      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       EVOLUTION_ROLLOUT_MODE: ${EVOLUTION_ROLLOUT_MODE:-hybrid}
       EVOLUTION_HYBRID_SHADOW_RATIO: ${EVOLUTION_HYBRID_SHADOW_RATIO:-0.70}
@@ -469,6 +477,7 @@ services:
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    command: ["python", "-u", "run_evolution_loop.py"]
 
   knowledge_self_check:
     build:
@@ -480,7 +489,7 @@ services:
     networks:
       - atra-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      test: ["CMD-SHELL", "grep -a -q self_check_system /proc/1/cmdline"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -491,7 +500,7 @@ services:
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_NUM_PARALLEL: "5"
-      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       SELF_CHECK_INTERVAL_SEC: ${SELF_CHECK_INTERVAL_SEC:-300}
     volumes:
@@ -501,7 +510,13 @@ services:
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: ["python", "-u", "-c", "from self_check_system import start_autonomous_self_check; import asyncio; asyncio.run(start_autonomous_self_check())"]
+    command:
+      [
+        "python",
+        "-u",
+        "-c",
+        "from self_check_system import start_autonomous_self_check; import asyncio; asyncio.run(start_autonomous_self_check())",
+      ]
 
   knowledge_nightly:
     build:
@@ -512,6 +527,11 @@ services:
     mem_limit: 8g
     networks:
       - atra-network
+    healthcheck:
+      test: ["CMD-SHELL", "grep -a -q nightly_learner.py /proc/1/cmdline"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
@@ -519,7 +539,7 @@ services:
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_NUM_PARALLEL: "5"
-      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       NIGHTLY_INTERVAL_SEC: ${NIGHTLY_INTERVAL_SEC:-86400}
       NIGHTLY_DISTILL_TARGET_ELIGIBLE: ${NIGHTLY_DISTILL_TARGET_ELIGIBLE:-5}
@@ -543,6 +563,11 @@ services:
       - "8002:8002"
     networks:
       - atra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
@@ -550,7 +575,7 @@ services:
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_NUM_PARALLEL: "5"
-      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
     volumes:
@@ -568,6 +593,15 @@ services:
     restart: unless-stopped
     networks:
       - atra-network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "grep -a -q telegram_notifications_worker.py /proc/1/cmdline",
+        ]
+      interval: 60s
+      timeout: 10s
+      retries: 3
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
@@ -591,6 +625,11 @@ services:
     mem_limit: 3g
     networks:
       - atra-network
+    healthcheck:
+      test: ["CMD-SHELL", "grep -a -q performance_watchdog.py /proc/1/cmdline"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
@@ -611,6 +650,11 @@ services:
     restart: unless-stopped
     networks:
       - atra-network
+    healthcheck:
+      test: ["CMD-SHELL", "grep -a -q board_scheduler.py /proc/1/cmdline"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
@@ -628,6 +672,11 @@ services:
     restart: unless-stopped
     networks:
       - atra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os:/app
@@ -651,6 +700,11 @@ services:
       - "8006:8006"
     networks:
       - atra-network
+    healthcheck:
+      test: ["CMD-SHELL", "grep -a -q swarm_studio /proc/1/cmdline"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
@@ -661,7 +715,13 @@ services:
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: ["python", "-u", "-c", "import uvicorn; from swarm_studio import app; uvicorn.run(app, host='0.0.0.0', port=8006)"]
+    command:
+      [
+        "python",
+        "-u",
+        "-c",
+        "import uvicorn; from swarm_studio import app; uvicorn.run(app, host='0.0.0.0', port=8006)",
+      ]
 
 networks:
   atra-network:

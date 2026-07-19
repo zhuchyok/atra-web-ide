@@ -832,10 +832,15 @@ DESC: {task_description}
     # Выполняем обработку вне транзакции (может быть долгой)
     try:
         try:
+            task_source = str((task_metadata or {}).get("source", "")).lower()
+            is_delegated_task = bool(
+                (task_title and task_title.startswith("🤖 Делегировано"))
+                or task_source == "victoria_monster_delegation"
+            )
             # Таймаут из env (по умолчанию 300 сек = 5 мин)
             llm_timeout = float(os.getenv("SMART_WORKER_LLM_TIMEOUT", "300"))
             # Делегированные задачи (MONSTER) могут выполняться значительно дольше LLM timeout
-            if task_title and task_title.startswith("🤖 Делегировано"):
+            if is_delegated_task:
                 llm_timeout = float(os.getenv("WORKER_TASK_TOTAL_TIMEOUT", "3600"))
                 logger.info(
                     "⏳ [DELEGATE] Task %s is a delegation task, using extended timeout: %ss",
@@ -855,15 +860,14 @@ DESC: {task_description}
                         llm_timeout = min(
                             llm_timeout, 3600
                         )  # [FIX] Increased: 60 min for heavy delegation tasks
-                    elif task_title and task_title.startswith("🤖 Делегировано"):
+                    elif is_delegated_task:
                         llm_timeout = min(llm_timeout, 3600)  # [FIX] Delegation tasks get 60 min
                 except ImportError:
                     pass
             # [QUEUE-AGE GUARD] При большом хвосте pending сокращаем timeout
             # для не-делегированных задач, чтобы быстрее освобождать слоты.
             try:
-                is_delegated = bool(task_title and task_title.startswith("🤖 Делегировано"))
-                if not is_delegated:
+                if not is_delegated_task:
                     async with pool.acquire() as _bp_conn:
                         pending_now = await _bp_conn.fetchval(
                             "SELECT count(*) FROM tasks WHERE status = 'pending'"
@@ -883,6 +887,24 @@ DESC: {task_description}
                         )
             except Exception as _bp_err:
                 logger.debug("Queue-age guard timeout capping failed for %s: %s", task_id, _bp_err)
+            # [PROGRESS-GUARD PROFILE] Для задач после RAG-loop reset используем
+            # "rescue_fast" профиль: более короткий timeout и предпочтение быстрых рук.
+            try:
+                execution_profile = str((task_metadata or {}).get("execution_profile", "")).lower()
+                if execution_profile == "rescue_fast" and not is_delegated_task:
+                    rescue_timeout = float(os.getenv("SMART_WORKER_RESCUE_TIMEOUT_SEC", "180"))
+                    llm_timeout = min(llm_timeout, rescue_timeout)
+                    if router_instance and not preferred_source:
+                        router_instance._preferred_source = os.getenv(
+                            "SMART_WORKER_RESCUE_PREFERRED_SOURCE", "ollama"
+                        )
+                    logger.info(
+                        "[PROGRESS-GUARD] rescue_fast profile applied for %s, timeout=%.1fs",
+                        task_id,
+                        llm_timeout,
+                    )
+            except Exception as _pg_err:
+                logger.debug("Progress-guard profile failed for %s: %s", task_id, _pg_err)
             # [BUG FIX] Mark LLM call BEFORE the actual call so RAG-loop guard knows
             # we're past the RAG phase. Heartbeat updates updated_at every 15s and masks
             # stuck tasks — last_llm_call_at is the only reliable indicator of real progress.
@@ -1773,8 +1795,12 @@ async def main():
     )
     AUTO_REQUEUE_BATCH = int(os.getenv("AUTO_REQUEUE_DELEGATION_BATCH", "10"))
     AUTO_REQUEUE_MAX_PER_TASK = int(os.getenv("AUTO_REQUEUE_MAX_PER_TASK", "3"))
+    RAG_LOOP_MAX_RESETS = int(os.getenv("SMART_WORKER_RAG_LOOP_MAX_RESETS", "2"))
     DELEGATION_ALERT_THRESHOLD = int(os.getenv("DELEGATION_STUCK_ALERT_THRESHOLD", "3"))
     WATCHDOG_INTERVAL_SEC = int(os.getenv("SMART_WORKER_WATCHDOG_INTERVAL_SEC", "10"))
+    WATCHDOG_BACKGROUND_ENABLED = os.getenv(
+        "SMART_WORKER_WATCHDOG_BACKGROUND_ENABLED", "false"
+    ).lower() in ("true", "1", "yes")
     WORK_ITEM_TIMEOUT_SEC = int(os.getenv("SMART_WORKER_WORK_ITEM_TIMEOUT_SEC", "420"))
 
     async def _watchdog_cycle():
@@ -1826,6 +1852,15 @@ async def main():
                     metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
                         'stuck_reset', true, 'reset_reason', 'rag_loop_no_llm_call',
                         'previous_status', 'in_progress',
+                        'execution_profile', 'rescue_fast',
+                        'progress_guard_requeue_count',
+                        (
+                            CASE
+                                WHEN COALESCE(metadata->>'progress_guard_requeue_count', '') ~ '^[0-9]+$'
+                                THEN (metadata->>'progress_guard_requeue_count')::int
+                                ELSE 0
+                            END
+                        ) + 1,
                         'cancel_reason', $2::jsonb
                     )
                 WHERE status = 'in_progress'
@@ -1849,6 +1884,36 @@ async def main():
                 if n != "0":
                     print(
                         f"[{datetime.now()}] 🔁 [RAG-LOOP GUARD] Сброшено задач без LLM-вызова (>{effective_llm_stuck_minutes} мин): {n}"
+                    )
+            rag_loop_breaker_result = await conn.execute(
+                """
+                UPDATE tasks
+                SET status = 'cancelled', updated_at = NOW(),
+                    retry_after = NULL,
+                    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                        'auto_fallback_reason', 'rag_loop_no_llm_call_exhausted',
+                        'failed_requires_intervention', true,
+                        'diagnostic_path', 'progress_guard_manual_triage'
+                    )
+                WHERE status = 'pending'
+                  AND COALESCE(metadata->>'reset_reason', '') = 'rag_loop_no_llm_call'
+                  AND (
+                    CASE
+                      WHEN COALESCE(metadata->>'progress_guard_requeue_count', '') ~ '^[0-9]+$'
+                      THEN (metadata->>'progress_guard_requeue_count')::int
+                      ELSE 0
+                    END
+                  ) >= $1::int
+                  AND COALESCE(result, '') = ''
+                  AND completed_at IS NULL
+            """,
+                RAG_LOOP_MAX_RESETS,
+            )
+            if rag_loop_breaker_result and rag_loop_breaker_result.startswith("UPDATE"):
+                n = rag_loop_breaker_result.split()[-1]
+                if n != "0":
+                    print(
+                        f"[{datetime.now()}] 🧯 [RAG-LOOP BREAKER] Переведено в cancelled/manual triage: {n}"
                     )
 
             effective_hard_inprogress_minutes = (
@@ -1987,10 +2052,7 @@ async def main():
                   AND COALESCE(metadata->>'reset_reason', '') = 'hard_in_progress_runtime_cap'
                   AND COALESCE(metadata->>'reason', '') <> 'curiosity_engine_starvation'
                   AND COALESCE((metadata->>'attempt_count')::int, 0) >= $1::int
-                  AND (
-                    COALESCE(metadata->>'source', '') <> 'victoria_monster_delegation'
-                    OR COALESCE((metadata->>'hard_cap_defer_count')::int, 0) >= 2
-                  )
+                  AND COALESCE(metadata->>'source', '') <> 'victoria_monster_delegation'
                   AND COALESCE(result, '') = ''
                   AND completed_at IS NULL
             """,
@@ -2001,6 +2063,33 @@ async def main():
                 if n != "0":
                     print(
                         f"[{datetime.now()}] 🧯 [HARD CAP] Переведено в failed после исчерпания попыток: {n}"
+                    )
+            delegation_manual_result = await conn.execute(
+                """
+                UPDATE tasks
+                SET status = 'cancelled',
+                    updated_at = NOW(),
+                    retry_after = NULL,
+                    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                        'auto_fallback_reason', 'hard_in_progress_runtime_cap_delegation_manual_triage',
+                        'failed_requires_intervention', true,
+                        'diagnostic_path', 'delegation_manual_triage'
+                    )
+                WHERE status = 'pending'
+                  AND COALESCE(metadata->>'reset_reason', '') = 'hard_in_progress_runtime_cap'
+                  AND COALESCE(metadata->>'source', '') = 'victoria_monster_delegation'
+                  AND COALESCE((metadata->>'attempt_count')::int, 0) >= $1::int
+                  AND COALESCE((metadata->>'hard_cap_defer_count')::int, 0) >= 2
+                  AND COALESCE(result, '') = ''
+                  AND completed_at IS NULL
+            """,
+                HARD_CAP_MAX_RESETS,
+            )
+            if delegation_manual_result and delegation_manual_result.startswith("UPDATE"):
+                n = delegation_manual_result.split()[-1]
+                if n != "0":
+                    print(
+                        f"[{datetime.now()}] 🧭 [HARD CAP] Delegation moved to manual triage (cancelled): {n}"
                     )
 
             if AUTO_REQUEUE_DELEGATION:
@@ -2024,10 +2113,13 @@ async def main():
                 logger.warning("Watchdog cycle failed: %s", watchdog_err)
             await asyncio.sleep(max(2, WATCHDOG_INTERVAL_SEC))
 
-    asyncio.create_task(_watchdog_loop())
-    print(
-        f"[{datetime.now()}] 🛡️ Watchdog loop started (interval={WATCHDOG_INTERVAL_SEC}s, llm_stuck={LLM_STUCK_MINUTES}m/{BACKLOG_LLM_STUCK_MINUTES}m under backlog)"
-    )
+    if WATCHDOG_BACKGROUND_ENABLED:
+        asyncio.create_task(_watchdog_loop())
+        print(
+            f"[{datetime.now()}] 🛡️ Watchdog loop started (interval={WATCHDOG_INTERVAL_SEC}s, llm_stuck={LLM_STUCK_MINUTES}m/{BACKLOG_LLM_STUCK_MINUTES}m under backlog)"
+        )
+    else:
+        print(f"[{datetime.now()}] 🛡️ Watchdog background loop disabled; using inline watchdog path")
 
     while True:
         try:
@@ -2083,6 +2175,15 @@ async def main():
                         metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
                             'stuck_reset', true, 'reset_reason', 'rag_loop_no_llm_call',
                             'previous_status', 'in_progress',
+                            'execution_profile', 'rescue_fast',
+                            'progress_guard_requeue_count',
+                            (
+                                CASE
+                                    WHEN COALESCE(metadata->>'progress_guard_requeue_count', '') ~ '^[0-9]+$'
+                                    THEN (metadata->>'progress_guard_requeue_count')::int
+                                    ELSE 0
+                                END
+                            ) + 1,
                             'cancel_reason', $2::jsonb
                         )
                     WHERE status = 'in_progress'
@@ -2106,6 +2207,36 @@ async def main():
                     if n != "0":
                         print(
                             f"[{datetime.now()}] 🔁 [RAG-LOOP GUARD] Сброшено задач без LLM-вызова (>{effective_llm_stuck_minutes} мин): {n}"
+                        )
+                rag_loop_breaker_result = await conn.execute(
+                    """
+                    UPDATE tasks
+                    SET status = 'cancelled', updated_at = NOW(),
+                        retry_after = NULL,
+                        metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                            'auto_fallback_reason', 'rag_loop_no_llm_call_exhausted',
+                            'failed_requires_intervention', true,
+                            'diagnostic_path', 'progress_guard_manual_triage'
+                        )
+                    WHERE status = 'pending'
+                      AND COALESCE(metadata->>'reset_reason', '') = 'rag_loop_no_llm_call'
+                      AND (
+                        CASE
+                          WHEN COALESCE(metadata->>'progress_guard_requeue_count', '') ~ '^[0-9]+$'
+                          THEN (metadata->>'progress_guard_requeue_count')::int
+                          ELSE 0
+                        END
+                      ) >= $1::int
+                      AND COALESCE(result, '') = ''
+                      AND completed_at IS NULL
+                """,
+                    RAG_LOOP_MAX_RESETS,
+                )
+                if rag_loop_breaker_result and rag_loop_breaker_result.startswith("UPDATE"):
+                    n = rag_loop_breaker_result.split()[-1]
+                    if n != "0":
+                        print(
+                            f"[{datetime.now()}] 🧯 [RAG-LOOP BREAKER] Переведено в cancelled/manual triage: {n}"
                         )
 
                 # [POLICY] Автовосстановление delegation-задач из failed/cancelled в pending.

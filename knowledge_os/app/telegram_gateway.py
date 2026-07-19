@@ -112,7 +112,9 @@ async def create_corporate_task(creator_id, assignee_name, title, description):
                 """
                 INSERT INTO tasks (creator_expert_id, assignee_expert_id, title, description, status)
                 VALUES ($1, $2, $3, $4, 'pending')
-                ON CONFLICT (title) WHERE status IN ('pending', 'in_progress') DO UPDATE SET updated_at = NOW()
+                ON CONFLICT (title, COALESCE(project_context, 'default'::character varying))
+                WHERE (status = ANY (ARRAY['pending'::text, 'in_progress'::text]))
+                DO UPDATE SET updated_at = NOW()
             """,
                 creator_id,
                 assignee["id"],

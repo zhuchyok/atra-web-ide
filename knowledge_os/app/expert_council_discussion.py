@@ -1,4 +1,4 @@
-# /Users/bikos/Documents/atra-web-ide/knowledge_os/app/expert_council_discussion.py
+# knowledge_os/app/expert_council_discussion.py
 """
 [SINGULARITY 20.0] Expert Council Discussion (Brainstorming V2).
 Autonomous multi-agent debate system with persistence in strategy_sessions.
@@ -214,7 +214,10 @@ class ExpertCouncil:
                 )
             except asyncio.TimeoutError:
                 logger.warning("⚠️ [COUNCIL] Victoria synthesis timed out, saving partial results")
-                final_decision = debate_history + "\n\n[COUNCIL] Victoria synthesis timed out. Partial results above."
+                final_decision = (
+                    debate_history
+                    + "\n\n[COUNCIL] Victoria synthesis timed out. Partial results above."
+                )
 
             # Update session status
             await conn.execute(

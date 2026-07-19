@@ -1,4 +1,4 @@
-# /Users/bikos/Documents/atra-web-ide/scripts/verify_v31.py
+# scripts/verify_v31.py
 import asyncio
 import logging
 import os

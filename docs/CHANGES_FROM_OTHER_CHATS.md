@@ -1,5 +1,70 @@
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-19 v87) — Expert Audit Closure (P0/P1) ✅
+
+### Что изменилось сегодня (v87)
+
+- Проведен multi-expert аудит (SRE/KPI + worker-loop + recovery).
+- `worker_logic.py`: `_auto_requeue_delegation` больше не поднимает `manual triage` задачи обратно в `pending`; добавлен safe-cast `auto_requeue_count`.
+- `smart_worker_autonomous.py`: фоновый watchdog-loop отключен по умолчанию (`SMART_WORKER_WATCHDOG_BACKGROUND_ENABLED=false`) для исключения double-reset; safe-cast `progress_guard_requeue_count`.
+- `expert_worker.py`: safe parse для metadata int; exhausted CB-loop фиксируется как `cancelled/manual triage`.
+- `runtime_kpi_gate_monitor.py`: исправлен heavy worker alias; в gate failure-rate учтены `cancelled` c `failed_requires_intervention=true`.
+- Добавлены smoke evidence:
+  - `docs/audits/2026-07-19-expert-smoke-post-expert-fixes.jsonl`
+  - `docs/audits/2026-07-19-expert-smoke-post-expert-fixes-summary.md`
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v87.
+
+---
+
+## § Последние изменения (2026-07-19 v86) — Orchestrator Phases Complete + Full Gate ✅
+
+### Что изменилось сегодня (v86)
+
+- Закрыт распил фаз: **1.5** (`phase_1_5_decompose`) + **1.8** (`phase_1_8_red_team`).
+- Исправлена broken indentation в 1.5 (создаются все subtasks до 5).
+- Размеры: `orchestrator_phases.py` ~1452 LOC; `enhanced_orchestrator.py` ~2878 LOC.
+- Full gate: unhealthy=0; 8010/8011/8002 ok; ollama/mlx 200; experts 90; live 1.5/1.8 из `orchestrator_phases`; imports 18; smoke ok; traceback none.
+- В монолите остались только glue: rollout KPI, lock/quality-focus, cleanup.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v86.
+
+---
+
+## § Последние изменения (2026-07-18 v85) — Recovery Replay + P0/P1 Loop-Breakers ✅
+
+### Что изменилось сегодня (v85)
+
+- Recovery replay:
+  - добавлены `scripts/replay_recovered_incidents.py` и `docs/recovery/recovered_incidents_replay_plan.md`;
+  - выполнен controlled replay high-confidence записей (`87` в `knowledge_nodes`, idempotent + rollback artifacts).
+- P0/P1 loop-breakers:
+  - `smart_worker_autonomous.py`: `progress_guard_requeue_count`, `SMART_WORKER_RAG_LOOP_MAX_RESETS`, exhausted RAG-loop -> `cancelled/manual triage`;
+  - `expert_worker.py`: `circuit_breaker_count`, `TASK_CIRCUIT_BREAKER_MAX_RETRIES`, exhausted CB-loop -> `cancelled/manual triage`.
+- Delegation hardening:
+  - delegation детектор учитывает `metadata.source=victoria_monster_delegation`;
+  - для delegation не применяется `rescue_fast` timeout shrink; сохраняется extended timeout.
+- KPI monitor tuning:
+  - в `runtime_kpi_gate_monitor.py` добавлен low-pressure throughput режим (`RUNTIME_KPI_LOW_PRESSURE_MODE`);
+  - evidence runs: `expert-60m-post-loop-breaker-r4/r5`.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v85.
+
+---
+
+## § Последние изменения (2026-07-18 v84) — Orchestrator Phase 5–8 Extract ✅
+
+### Что изменилось сегодня (v84)
+
+- Вынесено: **Phase 5 Curiosity** (`phase_5_curiosity`) + **Phase 5 scout–8** (`phase_5_8_rnd`).
+- Размеры: `orchestrator_phases.py` ~1095 LOC; `enhanced_orchestrator.py` ~3232 LOC.
+- Верификация: orchestrator healthy; 8010/8011 200; live Phase 4 interrupt; DB smoke Phase 5 → `finish_cycle=True`.
+- Осталось тогда в монолите: **1.5**, **1.8** (закрыто в v86), rollout KPI / cleanup.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v84.
+
+---
+
 ## § Последние изменения (2026-07-18 v83) — Expert Dialogue P1: Lightweight Real Path ⚡
 
 ### Что изменилось сегодня (v83)
@@ -34,9 +99,9 @@
 
 - Продолжен behavior-preserving распил `enhanced_orchestrator.py` → `orchestrator_phases.py`.
 - Вынесено: Phase **1.95, 1.97, 2.2, 2.5, 4**, хвост **10–16** (`phase_heavy_tail`), плюс ранее 0/0.5/1/1.6/1.9/2/3.
-- Размеры: `orchestrator_phases.py` ~751 LOC; `enhanced_orchestrator.py` ~3504 LOC.
+- Размеры на момент v82: `orchestrator_phases.py` ~751 LOC; `enhanced_orchestrator.py` ~3504 LOC.
 - Верификация: orchestrator healthy; 8010/8011 200; фазы 1.95–3 + Phase 4 в логах `orchestrator_phases`; smoke `phase_heavy_tail`.
-- Отложено (риск): 1.5, 1.8, 5–8; `ai_core.py` не трогали.
+- Отложено тогда: 1.5, 1.8, 5–8 (5–8 закрыто в v84); `ai_core.py` не трогали.
 
 Полная фиксация: `docs/MASTER_REFERENCE.md` § v82.
 

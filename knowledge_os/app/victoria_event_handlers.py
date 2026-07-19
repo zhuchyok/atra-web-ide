@@ -166,11 +166,14 @@ class VictoriaEventHandlers:
         consensus_score = payload.get("consensus_score", 0)
 
         # [SINGULARITY 24.3] DEBUG: Always log consensus receipt
-        logger.info(f"🏆 [DIALOGUE] RECEIVED CONSENSUS for {dialogue_id} (Score: {consensus_score:.2f})")
-        
+        logger.info(
+            f"🏆 [DIALOGUE] RECEIVED CONSENSUS for {dialogue_id} (Score: {consensus_score:.2f})"
+        )
+
         # [SINGULARITY 24.3] Логируем финальный ответ для истории
         try:
             from app.redis_manager import redis_manager
+
             await redis_manager.set_cache(f"dialogue_final:{dialogue_id}", final_answer, ttl=3600)
             logger.info(f"✅ [DIALOGUE] Final answer for {dialogue_id} saved to Redis")
         except Exception as e:
@@ -215,11 +218,14 @@ class VictoriaEventHandlers:
         if not expert_name or not query:
             return {"status": "ignored", "reason": "missing_data"}
 
-        logger.info(f"🎭 [DIALOGUE] Expert {expert_name} received request for dialogue {dialogue_id}")
+        logger.info(
+            f"🎭 [DIALOGUE] Expert {expert_name} received request for dialogue {dialogue_id}"
+        )
 
         # Постановка задачи эксперту через Redis Stream
         try:
             import uuid
+
             from app.redis_manager import redis_manager
 
             # [SINGULARITY 24.3] Deduplication: one task per (dialogue_id, expert_name)
@@ -227,7 +233,9 @@ class VictoriaEventHandlers:
             client = await redis_manager.get_client()
             already_queued = not await client.set(dedup_key, "1", nx=True, ex=600)
             if already_queued:
-                logger.debug(f"[DEDUP] Task for {expert_name}/{dialogue_id} already queued, skipping")
+                logger.debug(
+                    f"[DEDUP] Task for {expert_name}/{dialogue_id} already queued, skipping"
+                )
                 return {"status": "already_queued"}
 
             task_id = str(uuid.uuid4())
@@ -236,11 +244,7 @@ class VictoriaEventHandlers:
                 "expert_name": expert_name,
                 "description": f"УЧАСТИЕ В ДИАЛОГЕ [{dialogue_id}]: {query}",
                 "category": "dialogue",
-                "metadata": {
-                    "autonomous": True, 
-                    "dialogue_id": dialogue_id,
-                    "is_dialogue": True
-                },
+                "metadata": {"autonomous": True, "dialogue_id": dialogue_id, "is_dialogue": True},
             }
 
             await redis_manager.push_to_stream("expert_tasks", task_data)
@@ -262,6 +266,7 @@ class VictoriaEventHandlers:
         Виктория сама решает: исправить автономно, предложить или игнорировать.
         """
         import uuid
+
         # [SINGULARITY 24.7] Fix: handle both Event object and dict payload for manual calls
         if isinstance(event, dict):
             error_info = event.get("error_info", event)
@@ -271,7 +276,9 @@ class VictoriaEventHandlers:
             event_id = event.event_id
 
         container = error_info.get("container", "unknown")
-        logger.warning(f"🚨 [SELF-HEALING] Обнаружена ошибка в логах контейнера {container} (Event: {event_id})")
+        logger.warning(
+            f"🚨 [SELF-HEALING] Обнаружена ошибка в логах контейнера {container} (Event: {event_id})"
+        )
 
         # 1. Анализ через Mutation Engine (Виктория принимает решение)
         try:
@@ -372,8 +379,8 @@ class VictoriaEventHandlers:
                     """
                     INSERT INTO tasks (id, title, description, status, priority, metadata, created_at)
                     VALUES ($1, $2, $3, $4, $5, $6, $7)
-                    ON CONFLICT (title, COALESCE(project_context, 'default')) 
-                    WHERE status IN ('pending', 'in_progress') 
+                    ON CONFLICT (title, COALESCE(project_context, 'default'::character varying))
+                    WHERE (status = ANY (ARRAY['pending'::text, 'in_progress'::text]))
                     DO NOTHING
                     """,
                     task_id,
@@ -437,7 +444,14 @@ class VictoriaEventHandlers:
 
             shadow = get_shadow_manager()
             # Запускаем анализ в тени (сравнение старого и нового методов анализа)
-            asyncio.create_task(shadow.run_shadow(event.event_id, self._analyze_file, self._analyze_file, event.payload.get("file_path")))
+            asyncio.create_task(
+                shadow.run_shadow(
+                    event.event_id,
+                    self._analyze_file,
+                    self._analyze_file,
+                    event.payload.get("file_path"),
+                )
+            )
         except ImportError:
             pass
 

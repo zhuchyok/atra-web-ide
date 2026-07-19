@@ -12,10 +12,10 @@
   "train_samples": 197,
   "eval_samples": 23,
   "paths": {
-    "train_jsonl": "/Users/bikos/Documents/atra-web-ide/knowledge_os/training_data_smoke/lora_train.jsonl",
-    "eval_jsonl": "/Users/bikos/Documents/atra-web-ide/knowledge_os/training_data_smoke/lora_eval.jsonl",
-    "train_alias_jsonl": "/Users/bikos/Documents/atra-web-ide/knowledge_os/training_data_smoke/train.jsonl",
-    "eval_alias_jsonl": "/Users/bikos/Documents/atra-web-ide/knowledge_os/training_data_smoke/valid.jsonl",
-    "test_alias_jsonl": "/Users/bikos/Documents/atra-web-ide/knowledge_os/training_data_smoke/test.jsonl"
+    "train_jsonl": "./lora_train.jsonl",
+    "eval_jsonl": "./lora_eval.jsonl",
+    "train_alias_jsonl": "./train.jsonl",
+    "eval_alias_jsonl": "./valid.jsonl",
+    "test_alias_jsonl": "./test.jsonl"
   }
 }

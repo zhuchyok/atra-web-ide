@@ -4,7 +4,7 @@ import os
 import sys
 
 # Настройка путей
-ko_path = "/Users/bikos/Documents/atra-web-ide/knowledge_os"
+ko_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 app_path = os.path.join(ko_path, "app")
 if ko_path not in sys.path:
     sys.path.insert(0, ko_path)

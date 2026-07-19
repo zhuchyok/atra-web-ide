@@ -79,7 +79,7 @@ class ExpertDNAManager:
         possible_paths = [
             os.path.join(os.getcwd(), self.rules_dir, filename),
             os.path.join("/app/project", self.rules_dir, filename),
-            os.path.join("/Users/bikos/Documents/atra-web-ide", self.rules_dir, filename),
+            os.path.join(os.environ.get("PROJECT_ROOT", "/app"), self.rules_dir, filename),
         ]
 
         for path in possible_paths:

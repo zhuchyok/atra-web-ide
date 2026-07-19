@@ -235,7 +235,7 @@ MODEL_PATHS = {
     "phi3_mini": os.path.join(MLX_BASE, "phi3-mini-4k"),
     "phi3.5:3.8b": os.path.join(MLX_BASE, "phi3.5-mini-4k"),
     "phi3.5-mini-4k": os.path.join(MLX_BASE, "phi3.5-mini-4k"),
-    "victoria-wisdom-v3.5": "/Users/bikos/mlx-models/qwen3.6-35b-a3b-text-qx64-mlx",
+    "victoria-wisdom-v3.5": os.path.join(MLX_BASE, "qwen3.6-35b-a3b-text-qx64-mlx"),
 }
 
 # Можно также использовать переменную окружения

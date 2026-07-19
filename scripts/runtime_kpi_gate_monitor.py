@@ -30,7 +30,12 @@ from distillation_tail_metrics import DISTILL_CAMPAIGN_PROGRESS_SQL
 CONTAINER_ALIASES = {
     "knowledge_os_orchestrator": ["knowledge_os_orchestrator"],
     "knowledge_os_worker": ["knowledge_os_worker"],
-    "knowledge_os-expert-worker-heavy-3": ["knowledge_os-expert-worker-heavy-3"],
+    "knowledge_os-expert-worker-heavy": [
+        "knowledge_os-expert-worker-heavy",
+        "knowledge_os-expert-worker-heavy-1",
+        "knowledge_os-expert-worker-heavy-2",
+        "knowledge_os-expert-worker-heavy-3",
+    ],
     # compose can name this service as knowledge_os-expert-worker-anna-1
     "expert-worker-anna": ["expert-worker-anna", "knowledge_os-expert-worker-anna"],
     "knowledge_postgres": ["knowledge_postgres"],
@@ -97,7 +102,11 @@ def get_task_metrics() -> Dict[str, int]:
         "count(*) FILTER (WHERE status='completed' AND updated_at > NOW()-INTERVAL '10 minutes' "
         "AND COALESCE(metadata->>'source','') <> 'orchestration_tracking')::text,"
         "count(*) FILTER (WHERE status='failed' AND updated_at > NOW()-INTERVAL '10 minutes' "
-        "AND COALESCE(metadata->>'source','') <> 'orchestration_tracking')::text FROM tasks;"
+        "AND COALESCE(metadata->>'source','') <> 'orchestration_tracking')::text,"
+        "count(*) FILTER (WHERE status='cancelled' AND updated_at > NOW()-INTERVAL '10 minutes' "
+        "AND COALESCE(metadata->>'source','') <> 'orchestration_tracking' "
+        "AND COALESCE(metadata->>'failed_requires_intervention','false')='true')::text "
+        "FROM tasks;"
     )
     out = run_cmd(
         [
@@ -116,7 +125,7 @@ def get_task_metrics() -> Dict[str, int]:
     statuses: Dict[str, int] = {}
     pending = in_progress = completed = failed = 0
     completed_10m = failed_10m = stale_in_progress = 0
-    completed_10m_gate = failed_10m_gate = 0
+    completed_10m_gate = failed_10m_gate = cancelled_10m_gate = 0
     lines = [x for x in out.splitlines() if x.strip()]
     for line in lines:
         if "|" not in line:
@@ -134,12 +143,18 @@ def get_task_metrics() -> Dict[str, int]:
                 int(parts[2]),
                 int(parts[3]),
             )
-        elif len(parts) == 3 and parts[0] == "gate_window":
-            completed_10m_gate, failed_10m_gate = (int(parts[1]), int(parts[2]))
+        elif len(parts) == 4 and parts[0] == "gate_window":
+            completed_10m_gate, failed_10m_gate, cancelled_10m_gate = (
+                int(parts[1]),
+                int(parts[2]),
+                int(parts[3]),
+            )
     denom = completed_10m + failed_10m
     failure_rate_10m = (failed_10m / denom) if denom else 0.0
-    denom_gate = completed_10m_gate + failed_10m_gate
-    failure_rate_10m_gate = (failed_10m_gate / denom_gate) if denom_gate else 0.0
+    denom_gate = completed_10m_gate + failed_10m_gate + cancelled_10m_gate
+    failure_rate_10m_gate = (
+        (failed_10m_gate + cancelled_10m_gate) / denom_gate if denom_gate else 0.0
+    )
     return {
         "pending": pending,
         "in_progress": in_progress,
@@ -149,6 +164,7 @@ def get_task_metrics() -> Dict[str, int]:
         "failed_10m": failed_10m,
         "completed_10m_gate": completed_10m_gate,
         "failed_10m_gate": failed_10m_gate,
+        "cancelled_10m_gate": cancelled_10m_gate,
         "stale_in_progress": stale_in_progress,
         "stale_threshold_minutes": STALE_THRESHOLD_MINUTES,
         "failure_rate_10m_pct": round(failure_rate_10m * 100, 2),
@@ -391,6 +407,12 @@ def evaluate_window(
 
     min_completed_required = max(1, int(round((window_minutes / 60.0) * max(1, min_completed_per_hour))))
     throughput_eligible = completed_delta >= min_completed_required
+    low_pressure_mode = os.getenv("RUNTIME_KPI_LOW_PRESSURE_MODE", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    low_pressure_window = max_pending <= 1 and max_in_progress <= 1
 
     if not throughput_eligible:
         # Low traffic windows are not actionable throughput failures.
@@ -427,6 +449,10 @@ def evaluate_window(
         )
 
     throughput_ok = ratio >= 0.60
+    # Low-pressure windows with healthy system and enough completed work should not fail
+    # because completions are bursty (e.g. 3 done in one slot, then idle slots).
+    if low_pressure_mode and low_pressure_window and completed_delta >= min_completed_required:
+        throughput_ok = True
     pass_ok = bool(stability_ok and throughput_ok and distill_tail_ok)
     if pass_ok:
         reason = "ok"

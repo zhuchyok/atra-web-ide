@@ -12,6 +12,13 @@ from typing import Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
+# Определяем базовый путь к скиллам (с поддержкой разных систем)
+HOME_DIR = os.path.expanduser("~")
+# Если мы в контейнере и прокинули хост-путь через ENV
+SKILL_BASE_PATH = os.environ.get(
+    "CURSOR_SKILLS_PATH", f"{HOME_DIR}/.cursor/plugins/cache/cursor-public/superpowers"
+)
+
 # Маппинг паттернов задачи → скилл
 SKILL_PATTERNS = {
     "brainstorming": {
@@ -25,7 +32,7 @@ SKILL_PATTERNS = {
             r"architect",
             r"plan\s+new",
         ],
-        "skill_path": "/Users/bikos/.cursor/plugins/cache/cursor-public/superpowers/*/skills/brainstorming/SKILL.md",
+        "skill_path": f"{SKILL_BASE_PATH}/*/skills/brainstorming/SKILL.md",
         "description": "Креативная задача (новая фича, компонент) — требуется brainstorming",
     },
     "tdd": {
@@ -36,7 +43,7 @@ SKILL_PATTERNS = {
             r"write\s+test",
             r"add\s+test",
         ],
-        "skill_path": "/Users/bikos/.cursor/plugins/cache/cursor-public/superpowers/*/skills/test-driven-development/SKILL.md",
+        "skill_path": f"{SKILL_BASE_PATH}/*/skills/test-driven-development/SKILL.md",
         "description": "Задача с тестами — TDD (test before implementation)",
     },
     "debugging": {
@@ -51,7 +58,7 @@ SKILL_PATTERNS = {
             r"failing\s+test",
             r"unexpected\s+behavior",
         ],
-        "skill_path": "/Users/bikos/.cursor/plugins/cache/cursor-public/superpowers/*/skills/systematic-debugging/SKILL.md",
+        "skill_path": f"{SKILL_BASE_PATH}/*/skills/systematic-debugging/SKILL.md",
         "description": "Ошибка или баг — systematic debugging",
     },
     "verification": {
@@ -65,7 +72,7 @@ SKILL_PATTERNS = {
             r"confirm\s+",
             r"validate\s+",
         ],
-        "skill_path": "/Users/bikos/.cursor/plugins/cache/cursor-public/superpowers/*/skills/verification-before-completion/SKILL.md",
+        "skill_path": f"{SKILL_BASE_PATH}/*/skills/verification-before-completion/SKILL.md",
         "description": "Проверка результата — verification before completion",
     },
     "code_review": {
@@ -76,7 +83,7 @@ SKILL_PATTERNS = {
             r"review\s+changes",
             r"assess\s+quality",
         ],
-        "skill_path": "/Users/bikos/.cursor/plugins/cache/cursor-public/superpowers/*/skills/requesting-code-review/SKILL.md",
+        "skill_path": f"{SKILL_BASE_PATH}/*/skills/requesting-code-review/SKILL.md",
         "description": "Запрос ревью — requesting code review",
     },
 }

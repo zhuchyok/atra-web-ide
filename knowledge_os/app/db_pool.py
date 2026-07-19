@@ -25,9 +25,7 @@ DB_URL = os.getenv(
     "DATABASE_URL",
     "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os?application_name=knowledge_pool",
 )
-AGENT_TEAMS_PILOT_CONTEXT = os.getenv(
-    "AGENT_TEAMS_PILOT_CONTEXT", "pilot:agent-teams-v1"
-).strip()
+AGENT_TEAMS_PILOT_CONTEXT = os.getenv("AGENT_TEAMS_PILOT_CONTEXT", "pilot:agent-teams-v1").strip()
 AGENT_TEAMS_PILOT_TAG = os.getenv("AGENT_TEAMS_PILOT_TAG", "agent-teams-v1").strip()
 
 # Читаем из env, чтобы можно было тюнить без rebuild (например, при включённом PgBouncer ставим 20)
@@ -126,8 +124,8 @@ async def create_task_safe(
             parent_task_id, created_at, updated_at
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $11)
-        ON CONFLICT (title, COALESCE(project_context, 'default'))
-        WHERE status IN ('pending', 'in_progress')
+        ON CONFLICT (title, COALESCE(project_context, 'default'::character varying))
+        WHERE (status = ANY (ARRAY['pending'::text, 'in_progress'::text]))
         DO NOTHING
         RETURNING id;
     """

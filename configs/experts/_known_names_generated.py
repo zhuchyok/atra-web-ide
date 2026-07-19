@@ -3,6 +3,7 @@
 
 KNOWN_EXPERT_NAMES = {
     "Alex",
+    "Test Evolution Expert",
     "Test Expert",
     "\u0410\u0434\u0440\u0438\u0430\u043d",
     "\u0410\u043b\u0435\u043a\u0441",

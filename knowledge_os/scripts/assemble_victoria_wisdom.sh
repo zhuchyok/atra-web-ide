@@ -2,7 +2,7 @@
 # [SINGULARITY 20.0] Model Assembly Script
 # Merges LoRA adapters and prepares the model for Ollama
 
-BASE_MODEL="/Users/bikos/mlx-models/qwen2.5-coder-32b"
+BASE_MODEL="${MLX_BASE_MODEL:-$HOME/mlx-models/qwen2.5-coder-32b}"
 ADAPTER_PATH="training_data/adapters/victoria-wisdom-v1"
 EXPORT_PATH="training_data/exported_model"
 

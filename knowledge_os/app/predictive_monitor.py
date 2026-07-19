@@ -45,7 +45,9 @@ async def _create_predictive_task(
             """
             INSERT INTO tasks (title, description, status, priority, metadata)
             VALUES ($1, $2, 'pending', 'high', $3::jsonb)
-            ON CONFLICT (title) WHERE status IN ('pending', 'in_progress') DO UPDATE SET updated_at = NOW()
+            ON CONFLICT (title, COALESCE(project_context, 'default'::character varying))
+            WHERE (status = ANY (ARRAY['pending'::text, 'in_progress'::text]))
+            DO UPDATE SET updated_at = NOW()
         """,
             title,
             description,

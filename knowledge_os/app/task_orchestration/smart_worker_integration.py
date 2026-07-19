@@ -117,8 +117,8 @@ class SmartWorkerIntegration:
                             task_type, parent_task_id, complexity_score,
                             estimated_duration_min, required_models
                         ) VALUES ($1, $2, 'pending', 'medium', $3, $4, $5, 'subtask', $6, 0.5, $7, $8)
-                        ON CONFLICT (title, COALESCE(project_context, 'default'))
-                        WHERE status IN ('pending', 'in_progress') 
+                        ON CONFLICT (title, COALESCE(project_context, 'default'::character varying))
+                        WHERE (status = ANY (ARRAY['pending'::text, 'in_progress'::text]))
                         DO UPDATE SET updated_at = NOW()
                         RETURNING id
                         """,
@@ -144,8 +144,8 @@ class SmartWorkerIntegration:
                                 assignee_expert_id, creator_expert_id, metadata,
                                 task_type, parent_task_id
                             ) VALUES ($1, $2, 'pending', 'medium', $3, $4, $5, 'subtask', $6)
-                            ON CONFLICT (title, COALESCE(project_context, 'default'))
-                            WHERE status IN ('pending', 'in_progress') 
+                            ON CONFLICT (title, COALESCE(project_context, 'default'::character varying))
+                            WHERE (status = ANY (ARRAY['pending'::text, 'in_progress'::text]))
                             DO UPDATE SET updated_at = NOW()
                             RETURNING id
                             """,

@@ -1,4 +1,4 @@
-# /Users/bikos/Documents/atra-web-ide/knowledge_os/app/distillation_engine.py
+# knowledge_os/app/distillation_engine.py
 """
 [SINGULARITY 21.0] Knowledge Distillation Engine.
 Compresses raw knowledge nodes into high-density "Wisdom Adapters" (LoRA-ready)

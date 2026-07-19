@@ -317,8 +317,8 @@ class DebateProcessor:
                     metadata
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                ON CONFLICT (title, COALESCE(project_context, 'default'))
-                WHERE status IN ('pending', 'in_progress') 
+                ON CONFLICT (title, COALESCE(project_context, 'default'::character varying))
+                WHERE (status = ANY (ARRAY['pending'::text, 'in_progress'::text]))
                 DO UPDATE SET updated_at = NOW()
                 RETURNING id
             """,

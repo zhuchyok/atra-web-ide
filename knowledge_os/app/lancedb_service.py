@@ -1,4 +1,4 @@
-# /Users/bikos/Documents/atra-web-ide/knowledge_os/app/lancedb_service.py
+# knowledge_os/app/lancedb_service.py
 """
 [SINGULARITY 31.0] LanceDB Service for ultra-fast vector search.
 Provides zero-latency RAG and knowledge retrieval.

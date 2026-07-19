@@ -430,7 +430,9 @@ class SelfCheckSystem:
                     """
                     INSERT INTO tasks (title, description, status, priority, metadata, project_context)
                     VALUES ($1, $2, 'pending', 'high', $3::jsonb, 'self_check')
-                    ON CONFLICT (title, COALESCE(project_context, 'default')) WHERE status IN ('pending', 'in_progress') DO UPDATE SET updated_at = NOW()
+                    ON CONFLICT (title, COALESCE(project_context, 'default'::character varying))
+                    WHERE (status = ANY (ARRAY['pending'::text, 'in_progress'::text]))
+                    DO UPDATE SET updated_at = NOW()
                 """,
                     full_title,
                     description,

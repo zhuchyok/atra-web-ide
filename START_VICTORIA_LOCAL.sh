@@ -21,8 +21,8 @@ echo "   ENABLE_EVENT_MONITORING=$ENABLE_EVENT_MONITORING"
 echo ""
 
 # Установка PYTHONPATH
-export PYTHONPATH="/Users/bikos/Documents/atra-web-ide:$PYTHONPATH"
-export PYTHONPATH="/Users/bikos/Documents/atra-web-ide/knowledge_os:$PYTHONPATH"
+export PYTHONPATH="$(pwd):$PYTHONPATH"
+export PYTHONPATH="$(pwd)/knowledge_os:$PYTHONPATH"
 
 # Запуск сервера
 echo "🚀 Запуск Victoria Server..."
@@ -32,5 +32,4 @@ echo ""
 echo "Для остановки нажмите Ctrl+C"
 echo ""
 
-cd /Users/bikos/Documents/atra-web-ide
 python3 -m src.agents.bridge.victoria_server

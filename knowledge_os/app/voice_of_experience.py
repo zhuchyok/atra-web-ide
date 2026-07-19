@@ -1,4 +1,4 @@
-# /Users/bikos/Documents/atra-web-ide/knowledge_os/app/voice_of_experience.py
+# knowledge_os/app/voice_of_experience.py
 """
 [SINGULARITY 20.0] Voice of Experience.
 Predictive self-correction based on historical failures and mistakes.

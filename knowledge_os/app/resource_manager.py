@@ -72,7 +72,7 @@ async def acquire_resource_lock(lock_name: str, timeout: int = 300):
             except Exception:
                 if test_rd:
                     try:
-                        await test_rd.close()
+                        await test_rd.aclose()
                     except Exception:
                         pass
                 rd = None
@@ -146,6 +146,6 @@ async def acquire_resource_lock(lock_name: str, timeout: int = 300):
     finally:
         if rd:
             try:
-                await rd.close()
+                await rd.aclose()
             except Exception:
                 pass

@@ -1,4 +1,4 @@
-# /Users/bikos/Documents/atra-web-ide/scripts/turbo_distiller.py
+# scripts/turbo_distiller.py
 """
 [SINGULARITY 31.5] TURBO DISTILLER AUTO-PILOT.
 Runs continuous distillation cycles using DuckDB + LanceDB.

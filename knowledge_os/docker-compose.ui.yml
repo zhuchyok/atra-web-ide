@@ -26,9 +26,14 @@ services:
       - OPENWEBUI_NAME=ATRA Singularity 31.2
     volumes:
       - open-webui-data:/app/backend/data
-      - /Users/bikos/Documents/atra-web-ide/docs:/workspace/global_docs:ro
+      - ../docs:/workspace/global_docs:ro
     networks:
       - atra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
 
   corporation-dashboard:
     build:
@@ -40,6 +45,11 @@ services:
       - atra-network
     ports:
       - "8501:8501"
+    healthcheck:
+      test: ["CMD-SHELL", "grep -a -q streamlit /proc/1/cmdline"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
     environment:
       TZ: Europe/Moscow
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os

@@ -15,7 +15,7 @@ logging.basicConfig(
 logger = logging.getLogger("IndexingDaemon")
 
 # Конфигурация из окружения
-WORKSPACE_ROOT = os.getenv("WORKSPACE_ROOT", "/Users/bikos/Documents/atra-web-ide")
+WORKSPACE_ROOT = os.getenv("WORKSPACE_ROOT", os.getcwd())
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")

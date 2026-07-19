@@ -11,7 +11,7 @@ DATASET_PATH="$KO_ROOT/training_data/train.jsonl"
 ADAPTER_PATH="$KO_ROOT/training_data/adapters/victoria-wisdom-v1"
 # Используем локальную базу, которая реально доступна на хосте.
 # Можно переопределить через MLX_LORA_BASE_MODEL.
-MODEL_NAME="${MLX_LORA_BASE_MODEL:-/Users/bikos/mlx-models/qwen2.5-3b}"
+MODEL_NAME="${MLX_LORA_BASE_MODEL:-$HOME/mlx-models/qwen2.5-3b}"
 
 # Параметры обучения (ЭКСТРЕМАЛЬНО-Щадящий режим для 128GB RAM)
 RANK=4

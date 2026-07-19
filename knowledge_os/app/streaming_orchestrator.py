@@ -165,8 +165,8 @@ class StreamingOrchestrator:
                     """
                     INSERT INTO tasks (title, description, status, assignee_expert_id, creator_expert_id, metadata)
                     VALUES ($1, $2, 'pending', $3, $4, $5)
-                    ON CONFLICT (title, COALESCE(project_context, 'default'))
-                    WHERE status IN ('pending', 'in_progress')
+                    ON CONFLICT (title, COALESCE(project_context, 'default'::character varying))
+                    WHERE (status = ANY (ARRAY['pending'::text, 'in_progress'::text]))
                     DO NOTHING
                     RETURNING id
                 """,
@@ -451,8 +451,8 @@ class StreamingOrchestrator:
                     """
                     INSERT INTO tasks (title, description, status, assignee_expert_id, creator_expert_id, metadata)
                     VALUES ($1, $2, 'pending', $3, $4, $5)
-                    ON CONFLICT (title, COALESCE(project_context, 'default'))
-                    WHERE status IN ('pending', 'in_progress')
+                    ON CONFLICT (title, COALESCE(project_context, 'default'::character varying))
+                    WHERE (status = ANY (ARRAY['pending'::text, 'in_progress'::text]))
                     DO NOTHING
                     RETURNING id
                 """,

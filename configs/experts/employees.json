@@ -1,6 +1,6 @@
 {
   "_comment": "Единый источник. sync_employees_from_db.py подтягивает экспертов из БД.",
-  "updated": "2026-06-27",
+  "updated": "2026-07-14",
   "employees": [
     {
       "name": "Виктория",
@@ -446,6 +446,11 @@
       "name": "Совет Директоров",
       "role": "Коллегиальный орган управления",
       "department": "Management"
+    },
+    {
+      "name": "Test Evolution Expert",
+      "role": "Tester",
+      "department": "QA"
     }
   ]
 }

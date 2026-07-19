@@ -237,7 +237,9 @@ async def run_orchestration_cycle():
                     """
                     INSERT INTO tasks (title, description, status, assignee_expert_id, creator_expert_id, metadata)
                     VALUES ($1, $2, 'pending', $3, $4, $5)
-                    ON CONFLICT (title) WHERE status IN ('pending', 'in_progress') DO UPDATE SET updated_at = NOW()
+                    ON CONFLICT (title, COALESCE(project_context, 'default'::character varying))
+                    WHERE (status = ANY (ARRAY['pending'::text, 'in_progress'::text]))
+                    DO UPDATE SET updated_at = NOW()
                 """,
                     title_curiosity,
                     curiosity_task,
