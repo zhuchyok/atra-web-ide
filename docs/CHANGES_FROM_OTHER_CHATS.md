@@ -1,4 +1,92 @@
+## 84. Singularity 31.2+ — P0 Stabilization Closure (2026-07-19)
+
+- Учтены и интегрированы параллельные изменения по expert-dialogue (full-first и расширенный контракт).
+- Стабилизирован bounded runtime для full-mode:
+  - `backend/app/routers/expert_dialogue.py` — timeout guard с изоляцией в worker-thread.
+  - Контракт API: `engine_used`, `participants`, `opinions`, `lightweight_used`, `fallback_used`.
+- Снижены дефолтные таймауты full-движков для SLA:
+  - `knowledge_os/app/multi_agent_debate.py`: `DEBATE_EXPERT_TIMEOUT_SEC=12`, `DEBATE_SYNTHESIS_TIMEOUT_SEC=20`.
+  - `knowledge_os/app/expert_council_discussion.py`: `COUNCIL_EXPERT_TIMEOUT_SEC=18`, `COUNCIL_SYNTHESIS_TIMEOUT_SEC=18`.
+- Идемпотентность метрик:
+  - `knowledge_os/app/redis_manager.py` + тест `knowledge_os/tests/test_redis_manager_metrics.py`.
+- Reproducible test-env:
+  - Новый `knowledge_os/requirements-test.txt`.
+  - `backend/requirements-dev.txt` дополнен `pytest-cov` и `pytest-codspeed`.
+  - В `AGENTS.md` добавлен bootstrap для воспроизводимого тестового прогона.
+- Верификация:
+  - `backend/app/tests` → **77 passed**.
+  - `knowledge_os/tests` → **231 passed, 12 skipped**.
+  - Operational snapshot + smoke: `docs/audits/2026-07-19-p0-final-verification.json`.
+
 # Правки из других чатов — сводка для агента
+
+## § Последние изменения (2026-07-19 v93) — Stub Contour Finish ✅
+
+- OpenWebUI: tool `ask_victoria` upsert + stub guard + proxy valves; policy → 15 models.
+- Event handlers: honest SelfCheck restart (no fake success); escalate instead of «Fix not implemented».
+- chat ask-victoria/status stub reject; quarantine 9 historical rule false-completes.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v93.
+
+---
+
+## § Последние изменения (2026-07-19 v92) — Rule-based False-Complete Kill ✅
+
+- Soft rule-fallback больше не `completed`: `finalize_rule_result` → `cancelled` + `[DEGRADED_RULE_FALLBACK]`.
+- Guards в UI client / MCP / OpenWebUI tool.
+- Quarantine 7 recent rule false-completes; clean `rule_completed_7d` = 0.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v92.
+
+---
+
+## § Последние изменения (2026-07-19 v91) — Victoria Stub Sweep ✅
+
+- CODE-queue: только `queue_code=true` (default auto OFF).
+- Guard `victoria_response_guard` на solve/fallback/dialogue/proxy/board.
+- Quarantine 11 stub nodes + 11 board_decisions + 11 expert_discussions.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v91.
+
+---
+
+## § Последние изменения (2026-07-19 v90) — Board of Directors Real Directives ✅
+
+### Что изменилось сегодня (v90)
+
+- Root cause: Victoria CODE-queue ловила board goal (слово code/код в KB dump) → stub в `board_decisions`.
+- Fix: `strategic_board.py` sync + stub reject + compact context + local fallback; `victoria_server.py` exclude board goals from CODE-queue; Markdown `filepath` + RO `/tmp` fallback.
+- Evidence: manual meeting → directive 1225 chars, `is_stub=false`.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v90.
+
+---
+
+## § Последние изменения (2026-07-19 v89) — Hybrid Quality-Local Dialogue ✅
+
+### Что изменилось сегодня (v89)
+
+- Hybrid: quality default (ждать local + busy-retry) vs fast (`prefer_lightweight`).
+- Контракт: `quality_degraded`, `degraded_reason`, `opinions[].incomplete`; запрет фейковых мнений.
+- `dialogue_llm.generate_dialogue()` → ok/reason; engines/API прокидывают флаги.
+- Verified: lightweight ~8s; default debate 3 real ops, ~80s, degraded=false.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v89.
+
+---
+
+## § Последние изменения (2026-07-19 v88) — Expert Dialogue Full Path Restored ✅
+
+### Что изменилось сегодня (v88)
+
+- Default `expert-dialogue` снова **full-first** (`EXPERT_DIALOGUE_PREFER_LIGHTWEIGHT=false`).
+- Добавлен/задействован `dialogue_llm.py` (Ollama-first); debate/council/brainstorm API-hardened.
+- Council: HR/DB off by default; brainstorm: fast 1-phase path.
+- Verified: debate/council/default full; lightweight opt-in ~8s; collaboration=`brainstorm` ~50s.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v88.
+
+---
 
 ## § Последние изменения (2026-07-19 v87) — Expert Audit Closure (P0/P1) ✅
 

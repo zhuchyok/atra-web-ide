@@ -20,7 +20,7 @@ DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/kno
 
 
 class ExpertCouncil:
-    def __init__(self, session_id=None):
+    def __init__(self, session_id=None, max_experts: int | None = None):
         self.session_id = session_id
         self.base_experts = [
             {"name": "Игорь", "role": "backend_developer", "focus": "Architecture & Docker"},
@@ -37,7 +37,14 @@ class ExpertCouncil:
             },
             {"name": "Артём", "role": "ux_ui_designer", "focus": "UX/UI Design, Web Strategy"},
         ]
-        self.experts = self.base_experts.copy()
+        # Cap for API SLA — full roster still available via COUNCIL_MAX_EXPERTS.
+        cap = max_experts
+        if cap is None:
+            try:
+                cap = int(os.getenv("COUNCIL_MAX_EXPERTS", "3"))
+            except ValueError:
+                cap = 3
+        self.experts = self.base_experts.copy()[: max(2, cap)]
 
     async def start_debate(
         self, topic: str, initial_proposal: str, beautiful_mode: bool = True
@@ -49,41 +56,46 @@ class ExpertCouncil:
         """
         logger.info(f"🏛️ [COUNCIL] Starting debate on: {topic[:50]}...")
 
+        persist_db = os.getenv("COUNCIL_PERSIST_DB", "false").lower() in ("1", "true", "yes")
+        conn = None
         try:
-            conn = await asyncpg.connect(DB_URL)
+            if persist_db:
+                conn = await asyncpg.connect(DB_URL)
 
-            # [FIX] HR: Add existing expert from DB or synthesize new
-            try:
-                hr = ExpertSynthesizer()
-                specialist = await hr.find_or_synthesize_expert(
-                    f"ТЕМА: {topic}\nПРЕДЛОЖЕНИЕ: {initial_proposal}"
-                )
-                if specialist:
-                    # Add existing OR new expert to council
-                    if specialist.get("needs_new_expert"):
-                        new_expert = {
-                            "name": specialist.get("suggested_name"),
-                            "role": specialist.get("suggested_role", "specialist"),
-                            "focus": specialist.get("focus_area", ""),
-                        }
-                    elif specialist.get("existing"):
-                        new_expert = {
-                            "name": specialist.get("suggested_name"),
-                            "role": specialist.get("suggested_role", "specialist"),
-                            "focus": specialist.get("focus_area", ""),
-                        }
-                    else:
-                        new_expert = None
+            # HR synthesis optional (off by default for API SLA).
+            if os.getenv("COUNCIL_ENABLE_HR", "false").lower() in ("1", "true", "yes"):
+                try:
+                    hr = ExpertSynthesizer()
+                    specialist = await hr.find_or_synthesize_expert(
+                        f"ТЕМА: {topic}\nПРЕДЛОЖЕНИЕ: {initial_proposal}"
+                    )
+                    if specialist:
+                        if specialist.get("needs_new_expert") or specialist.get("existing"):
+                            new_expert = {
+                                "name": specialist.get("suggested_name"),
+                                "role": specialist.get("suggested_role", "specialist"),
+                                "focus": specialist.get("focus_area", ""),
+                            }
+                        else:
+                            new_expert = None
+                        max_roster = max(2, int(os.getenv("COUNCIL_MAX_EXPERTS", "3")))
+                        if (
+                            new_expert
+                            and new_expert not in self.experts
+                            and len(self.experts) < max_roster
+                        ):
+                            self.experts.append(new_expert)
+                            source = "existing" if specialist.get("existing") else "synthesized"
+                            logger.info(
+                                "🧬 [COUNCIL] Added %s specialist: %s",
+                                source,
+                                new_expert["name"],
+                            )
+                except Exception as hre:
+                    logger.debug("HR synthesis skipped: %s", hre)
 
-                    if new_expert and new_expert not in self.experts and len(self.experts) < 12:
-                        self.experts.append(new_expert)
-                        source = "existing" if specialist.get("existing") else "synthesized"
-                        logger.info(f"🧬 [COUNCIL] Added {source} specialist: {new_expert['name']}")
-            except Exception as hre:
-                logger.debug(f"HR synthesis skipped: {hre}")
-
-            # 1. Create session if not exists
-            if not self.session_id:
+            # 1. Create session if not exists (optional persistence)
+            if persist_db and conn and not self.session_id:
                 self.session_id = await conn.fetchval(
                     """
                     INSERT INTO strategy_sessions (title, metadata)
@@ -96,6 +108,8 @@ class ExpertCouncil:
             debate_history = (
                 f"ТЕМА: {topic}\nПРЕДЛОЖЕНИЕ: {initial_proposal}\n\n--- ХОД ДЕБАТОВ ---\n"
             )
+            opinions: list[dict] = []
+            per_expert_timeout = float(os.getenv("COUNCIL_EXPERT_TIMEOUT_SEC", "18"))
 
             # 2. Sequential expert opinions
             for expert in self.experts:
@@ -135,46 +149,73 @@ class ExpertCouncil:
                     Будь краток, профессионален и конструктивен.
                     """
 
-                opinion = await asyncio.wait_for(
-                    run_smart_agent_async(
-                        prompt, expert_name=expert["name"], category="fast", is_vip=False
-                    ),
-                    timeout=60,
-                )
+                incomplete = False
+                reason = "ok"
+                try:
+                    try:
+                        from dialogue_llm import generate_dialogue, is_incomplete_text
+                    except ImportError:
+                        from knowledge_os.app.dialogue_llm import (
+                            generate_dialogue,
+                            is_incomplete_text,
+                        )
 
-                # Save to DB
-                # Находим ID эксперта по имени
-                expert_id_row = await conn.fetchrow(
-                    "SELECT id FROM experts WHERE name = $1 LIMIT 1", expert["name"]
-                )
-                if expert_id_row:
-                    # ВАЖНО: В БД expert_ids это UUID[], а не INTEGER[].
-                    # Но в таблице experts поле id это INTEGER.
-                    # Проверим тип поля expert_ids в expert_discussions.
-                    # Судя по ошибке, там ожидается UUID[], но мы передаем INTEGER[].
-                    # Однако в таблице experts id это INTEGER.
-                    # Скорее всего, в expert_discussions expert_ids должен хранить UUID экспертов, если они есть.
-                    # Но в нашей схеме эксперты имеют INTEGER id.
-                    # Исправим запрос, чтобы он соответствовал схеме: используем явное приведение или проверим UUID.
-
-                    # Попробуем найти UUID эксперта, если он есть в метаданных или другой колонке
-                    # Если нет, просто приведем INTEGER к TEXT и потом к UUID (если это возможно)
-                    # или исправим саму вставку.
-
-                    await conn.execute(
-                        """
-                        INSERT INTO expert_discussions (session_id, topic, consensus_summary, status, metadata)
-                        VALUES ($1, $2, $3, 'completed', $4::jsonb)
-                    """,
-                        self.session_id,
-                        topic,
-                        opinion,
-                        json.dumps(
-                            {"expert_name": expert["name"], "expert_id": str(expert_id_row["id"])}
+                    gen = await asyncio.wait_for(
+                        generate_dialogue(
+                            prompt, expert_name=expert["name"], model_hint="fast"
                         ),
+                        timeout=per_expert_timeout,
                     )
+                    opinion = gen.text
+                    incomplete = (not gen.ok) or is_incomplete_text(opinion)
+                    reason = gen.reason if incomplete else "ok"
+                except asyncio.TimeoutError:
+                    opinion = (
+                        f"[INCOMPLETE] [{expert['name']}] timeout — "
+                        f"no fabricated opinion for role {expert['role']}."
+                    )
+                    incomplete, reason = True, "timeout"
+                    logger.warning("Council expert timeout: %s", expert["name"])
+                except Exception as op_err:
+                    opinion = f"[INCOMPLETE] [{expert['name']}] error: {op_err}"
+                    incomplete, reason = True, "error"
+                    logger.warning("Council expert error %s: %s", expert["name"], op_err)
+
+                if persist_db and conn and self.session_id:
+                    try:
+                        expert_id_row = await conn.fetchrow(
+                            "SELECT id FROM experts WHERE name = $1 LIMIT 1", expert["name"]
+                        )
+                        if expert_id_row:
+                            await conn.execute(
+                                """
+                                INSERT INTO expert_discussions
+                                    (session_id, topic, consensus_summary, status, metadata)
+                                VALUES ($1, $2, $3, 'completed', $4::jsonb)
+                            """,
+                                self.session_id,
+                                topic,
+                                opinion,
+                                json.dumps(
+                                    {
+                                        "expert_name": expert["name"],
+                                        "expert_id": str(expert_id_row["id"]),
+                                    }
+                                ),
+                            )
+                    except Exception as db_err:
+                        logger.debug("Council persist opinion skipped: %s", db_err)
 
                 debate_history += f"\n[{expert['name']}]: {opinion}\n"
+                opinions.append(
+                    {
+                        "expert_name": expert["name"],
+                        "opinion": str(opinion),
+                        "round": 1,
+                        "incomplete": incomplete,
+                        "reason": reason,
+                    }
+                )
 
             # 3. Final Synthesis by Victoria
             logger.info("👑 [COUNCIL] Victoria is synthesizing final decision...")
@@ -205,38 +246,98 @@ class ExpertCouncil:
 
                 ВЕРНИ ФИНАЛЬНЫЙ ПЛАН ДЕЙСТВИЙ.
                 """
+            synth_incomplete = False
+            synth_reason = "ok"
             try:
-                final_decision = await asyncio.wait_for(
-                    run_smart_agent_async(
-                        synthesis_prompt, expert_name="Виктория", category="general", is_vip=False
+                try:
+                    from dialogue_llm import generate_dialogue, is_incomplete_text
+                except ImportError:
+                    from knowledge_os.app.dialogue_llm import (
+                        generate_dialogue,
+                        is_incomplete_text,
+                    )
+
+                syn_timeout = float(os.getenv("COUNCIL_SYNTHESIS_TIMEOUT_SEC", "18"))
+                gen = await asyncio.wait_for(
+                    generate_dialogue(
+                        synthesis_prompt, expert_name="Виктория", model_hint="fast"
                     ),
-                    timeout=120,
+                    timeout=syn_timeout,
                 )
+                final_decision = gen.text
+                if (not gen.ok) or is_incomplete_text(final_decision):
+                    names = ", ".join(e["name"] for e in self.experts)
+                    final_decision = (
+                        f"[INCOMPLETE] Частичный итог совета ({names}): синтез не завершён. "
+                        f"Тема: {topic}. Не заявлять сильный консенсус."
+                    )
+                    synth_incomplete, synth_reason = True, gen.reason or "synthesis_incomplete"
             except asyncio.TimeoutError:
                 logger.warning("⚠️ [COUNCIL] Victoria synthesis timed out, saving partial results")
                 final_decision = (
-                    debate_history
-                    + "\n\n[COUNCIL] Victoria synthesis timed out. Partial results above."
+                    "[INCOMPLETE] [COUNCIL] Victoria synthesis timed out.\n" + debate_history
                 )
+                synth_incomplete, synth_reason = True, "timeout"
+            except Exception as syn_err:
+                logger.warning("Council synthesis error: %s", syn_err)
+                final_decision = f"[INCOMPLETE] [COUNCIL] Synthesis error: {syn_err}"
+                synth_incomplete, synth_reason = True, "error"
 
-            # Update session status
-            await conn.execute(
-                """
-                UPDATE strategy_sessions
-                SET status = 'completed',
-                    metadata = metadata || jsonb_build_object('final_decision', $1)
-                WHERE id = $2
-            """,
-                final_decision,
-                self.session_id,
+            if persist_db and conn and self.session_id:
+                try:
+                    await conn.execute(
+                        """
+                        UPDATE strategy_sessions
+                        SET status = 'completed',
+                            metadata = metadata || jsonb_build_object('final_decision', $1)
+                        WHERE id = $2
+                    """,
+                        final_decision,
+                        self.session_id,
+                    )
+                except Exception as db_err:
+                    logger.debug("Council persist session skipped: %s", db_err)
+
+            if conn:
+                await conn.close()
+            incomplete_n = sum(1 for o in opinions if o.get("incomplete"))
+            quality_degraded = incomplete_n > 0 or synth_incomplete
+            reasons = sorted(
+                {
+                    str(o.get("reason") or "")
+                    for o in opinions
+                    if o.get("incomplete") and o.get("reason")
+                }
             )
-
-            await conn.close()
-            return final_decision
+            if synth_incomplete and synth_reason:
+                reasons.append(synth_reason)
+            score = 0.85 if opinions and not quality_degraded else 0.6
+            if incomplete_n >= 2:
+                score = min(score, 0.45)
+            return {
+                "topic": topic,
+                "final_decision": final_decision,
+                "debate_history": debate_history,
+                "consensus_score": score,
+                "participants": [e["name"] for e in self.experts],
+                "opinions": opinions,
+                "engine_used": "council",
+                "quality_degraded": quality_degraded,
+                "degraded_reason": ",".join(r for r in reasons if r),
+            }
 
         except Exception as e:
             logger.error(f"❌ [COUNCIL] Error in debate: {e}")
-            return f"Ошибка при проведении дебатов: {e}"
+            if conn:
+                try:
+                    await conn.close()
+                except Exception:
+                    pass
+            return {
+                "error": f"Ошибка при проведении дебатов: {e}",
+                "final_decision": f"Ошибка при проведении дебатов: {e}",
+                "engine_used": "council",
+            }
 
 
 if __name__ == "__main__":

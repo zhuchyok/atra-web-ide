@@ -26,9 +26,16 @@ from app.services.victoria import VictoriaClient, get_victoria_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-ENGINE_TIMEOUT_SEC = float(os.getenv("EXPERT_DIALOGUE_ENGINE_TIMEOUT_SEC", "35"))
+# Keep full engines usable, but enforce bounded API latency even if env asks for huge timeout.
+ENGINE_TIMEOUT_SEC = max(
+    5.0, min(float(os.getenv("EXPERT_DIALOGUE_ENGINE_TIMEOUT_SEC", "60")), 60.0)
+)
 LIGHTWEIGHT_TIMEOUT_SEC = float(os.getenv("EXPERT_DIALOGUE_LIGHTWEIGHT_TIMEOUT_SEC", "12"))
 LIGHTWEIGHT_TARGET_SEC = float(os.getenv("EXPERT_DIALOGUE_LIGHTWEIGHT_TARGET_SEC", "8"))
+# Default: full expert engines first. Set true only for UI fast-path.
+PREFER_LIGHTWEIGHT_DEFAULT = os.getenv(
+    "EXPERT_DIALOGUE_PREFER_LIGHTWEIGHT", "false"
+).lower() in ("1", "true", "yes")
 
 
 def _normalize_dialogue_payload(payload: Any, *, fallback_topic: str) -> dict[str, Any]:
@@ -40,27 +47,82 @@ def _normalize_dialogue_payload(payload: Any, *, fallback_topic: str) -> dict[st
         final_decision = str(payload.get("final_decision") or payload.get("summary") or "").strip()
         if not final_decision:
             final_decision = str(payload)
+        history = payload.get("debate_history") or payload.get("history") or ""
+        if isinstance(history, list):
+            history = "\n".join(
+                f"[{h.get('expert') or h.get('expert_name') or '?'}]: {h.get('opinion') or h.get('content') or ''}"
+                for h in history
+                if isinstance(h, dict)
+            )
+        opinions = list(payload.get("opinions") or [])
+        # Enrich incomplete flags from text markers if engines omitted them.
+        for op in opinions:
+            if isinstance(op, dict) and "incomplete" not in op:
+                text = str(op.get("opinion") or op.get("content") or "")
+                op["incomplete"] = "[INCOMPLETE]" in text or "local model incomplete" in text.lower()
+        quality_degraded = bool(payload.get("quality_degraded")) or any(
+            isinstance(o, dict) and o.get("incomplete") for o in opinions
+        )
         return {
             "topic": payload.get("topic") or fallback_topic,
-            "debate_history": payload.get("debate_history") or "",
+            "debate_history": history if isinstance(history, str) else str(history),
             "final_decision": final_decision,
             "consensus_score": float(payload.get("consensus_score") or 0.85),
             "fallback_used": bool(payload.get("fallback_used", False)),
             "lightweight_used": bool(payload.get("lightweight_used", False)),
+            "engine_used": payload.get("engine_used") or "",
+            "participants": list(payload.get("participants") or []),
+            "opinions": opinions,
+            "quality_degraded": quality_degraded,
+            "degraded_reason": str(payload.get("degraded_reason") or ""),
         }
 
-    # Dataclass/object style contract
+    # Dataclass/object style contract (e.g. DebateResult)
     final_decision_obj = getattr(payload, "final_decision", None)
+    history_obj = getattr(payload, "history", None)
     debate_history = getattr(payload, "debate_history", None)
     consensus_score = getattr(payload, "consensus_score", None)
-    if final_decision_obj is not None or debate_history is not None:
+    if final_decision_obj is not None or debate_history is not None or history_obj is not None:
+        hist_list = history_obj if isinstance(history_obj, list) else []
+        if not debate_history and hist_list:
+            debate_history = "\n".join(
+                f"[{h.get('expert', '?')}]: {h.get('opinion', '')}" for h in hist_list if isinstance(h, dict)
+            )
+        opinions = [
+            {
+                "expert_name": str(h.get("expert") or ""),
+                "opinion": str(h.get("opinion") or ""),
+                "round": int(h.get("round") or 1),
+                "incomplete": bool(
+                    h.get("incomplete")
+                    or "[INCOMPLETE]" in str(h.get("opinion") or "")
+                ),
+            }
+            for h in hist_list
+            if isinstance(h, dict)
+        ]
+        # Prefer explicit opinions list on payload if present
+        payload_ops = getattr(payload, "opinions", None)
+        if isinstance(payload_ops, list) and payload_ops:
+            opinions = list(payload_ops)
+        participants = list(getattr(payload, "participants", None) or [])
+        if not participants:
+            participants = sorted({o["expert_name"] for o in opinions if o.get("expert_name")})
+        quality_degraded = bool(getattr(payload, "quality_degraded", False)) or any(
+            o.get("incomplete") for o in opinions if isinstance(o, dict)
+        )
         return {
-            "topic": fallback_topic,
+            "topic": getattr(payload, "topic", None) or fallback_topic,
             "debate_history": debate_history or "",
             "final_decision": str(final_decision_obj or ""),
             "consensus_score": float(consensus_score or 0.85),
             "fallback_used": bool(getattr(payload, "fallback_used", False)),
             "lightweight_used": bool(getattr(payload, "lightweight_used", False)),
+            "engine_used": getattr(payload, "engine_used", "") or "",
+            "participants": participants,
+            "opinions": opinions,
+            "quality_degraded": quality_degraded,
+            "degraded_reason": str(getattr(payload, "degraded_reason", "") or ""),
         }
 
     # Plain string fallback
@@ -72,6 +134,9 @@ def _normalize_dialogue_payload(payload: Any, *, fallback_topic: str) -> dict[st
         "consensus_score": 0.85,
         "fallback_used": False,
         "lightweight_used": False,
+        "engine_used": "",
+        "participants": [],
+        "opinions": [],
     }
 
 
@@ -110,17 +175,28 @@ async def _build_safe_fallback_result(
 
 async def _run_with_mode_timeout(mode: "DialogueMode", coro_factory: Any) -> dict[str, Any]:
     """
-    Гарантирует bounded latency для каждого движка диалогов.
+    Bounded latency for dialogue engines.
+
+    IMPORTANT: run in the current event loop (do NOT asyncio.run() in a worker
+    thread). Threaded nested loops break httpx→Ollama and produce empty failures.
     """
     loop = asyncio.get_running_loop()
 
     def _thread_entry() -> dict[str, Any]:
         return asyncio.run(coro_factory())
 
+    task = loop.run_in_executor(None, _thread_entry)
     try:
-        return await asyncio.wait_for(
-            loop.run_in_executor(None, _thread_entry), timeout=ENGINE_TIMEOUT_SEC
-        )
+        done, pending = await asyncio.wait({task}, timeout=ENGINE_TIMEOUT_SEC)
+        if pending:
+            logger.warning(
+                "Dialogue engine timeout for mode=%s after %.1fs", mode.value, ENGINE_TIMEOUT_SEC
+            )
+            return {
+                "success": False,
+                "error": f"dialogue_engine_timeout:{mode.value}:{ENGINE_TIMEOUT_SEC:.1f}s",
+            }
+        return next(iter(done)).result()
     except asyncio.TimeoutError:
         logger.warning(
             "Dialogue engine timeout for mode=%s after %.1fs", mode.value, ENGINE_TIMEOUT_SEC
@@ -129,6 +205,9 @@ async def _run_with_mode_timeout(mode: "DialogueMode", coro_factory: Any) -> dic
             "success": False,
             "error": f"dialogue_engine_timeout:{mode.value}:{ENGINE_TIMEOUT_SEC:.1f}s",
         }
+    except Exception as e:
+        logger.error("Dialogue engine crash for mode=%s: %s", mode.value, e)
+        return {"success": False, "error": f"dialogue_engine_error:{mode.value}:{e}"}
 
 
 async def _run_lightweight_dialogue(
@@ -186,6 +265,11 @@ async def _run_lightweight_dialogue(
             "consensus_score": 0.78,
             "fallback_used": False,
             "lightweight_used": True,
+            "engine_used": "lightweight",
+            "participants": ["Виктория"],
+            "opinions": [
+                {"expert_name": "Виктория", "opinion": text, "round": 1},
+            ],
         },
     }
 
@@ -226,8 +310,15 @@ async def _try_victoria_lightweight_fast(
             response.raise_for_status()
             data = response.json()
 
+        try:
+            from app.utils.victoria_response_guard import is_victoria_stub
+        except ImportError:
+            is_victoria_stub = lambda text, status=None: "queued to postgresql" in (text or "").lower()  # noqa: E731
+
         if response.status_code == 200:
             out = (data.get("output") or data.get("result") or data.get("response") or "").strip()
+            if out and is_victoria_stub(out, status=str(data.get("status") or "")):
+                return None
             return out or None
 
         task_id = data.get("task_id")
@@ -249,6 +340,8 @@ async def _try_victoria_lightweight_fast(
                 status_val = (st.get("status") or "").lower()
                 if status_val == "completed":
                     out = (st.get("output") or st.get("result") or "").strip()
+                    if out and is_victoria_stub(out, status=status_val):
+                        return None
                     return out or None
                 if status_val == "failed":
                     return None
@@ -305,9 +398,17 @@ class DialogueRequest(BaseModel):
     )
     mode: DialogueMode = Field(default=DialogueMode.DEBATE, description="Режим диалога")
     expert_ids: Optional[list[str]] = Field(None, description="Конкретные эксперты")
-    round_limit: int = Field(default=3, ge=1, le=10, description="Лимит раундов")
+    round_limit: int = Field(default=2, ge=1, le=10, description="Лимит раундов")
     beautiful_mode: bool = Field(default=True, description="Использовать персоны")
     stream: bool = Field(default=False, description="SSE стриминг")
+    prefer_lightweight: Optional[bool] = Field(
+        None,
+        description="True = сначала быстрый lightweight. Default из EXPERT_DIALOGUE_PREFER_LIGHTWEIGHT (false = full-first).",
+    )
+    force_full: bool = Field(
+        default=False,
+        description="Принудительно full engine; lightweight только как fallback при ошибке.",
+    )
 
 
 class ExpertOpinion(BaseModel):
@@ -316,6 +417,7 @@ class ExpertOpinion(BaseModel):
     expert_name: str
     opinion: str
     round: int = 1
+    incomplete: bool = False
 
 
 class DialogueResponse(BaseModel):
@@ -331,6 +433,11 @@ class DialogueResponse(BaseModel):
     status: str = "completed"
     victoria_synthesis: Optional[str] = None
     synthesis_by_victoria: bool = False
+    engine_used: str = ""
+    lightweight_used: bool = False
+    fallback_used: bool = False
+    quality_degraded: bool = False
+    degraded_reason: str = ""
 
 
 class DialogueStatus(BaseModel):
@@ -346,6 +453,11 @@ class DialogueStatus(BaseModel):
 _sessions: dict[str, dict[str, Any]] = {}
 
 
+def _is_engine_error_payload(text: str) -> bool:
+    t = (text or "").strip().lower()
+    return t.startswith("ошибка при проведении") or t.startswith("failed to") or t == ""
+
+
 async def _run_expert_council(topic: str, initial_proposal: str, beautiful: bool) -> dict:
     """Запуск ExpertCouncil диалога"""
     try:
@@ -353,7 +465,23 @@ async def _run_expert_council(topic: str, initial_proposal: str, beautiful: bool
 
         council = ExpertCouncil()
         result = await council.start_debate(topic, initial_proposal, beautiful_mode=beautiful)
-        return {"success": True, "result": result}
+        if isinstance(result, dict):
+            if result.get("error") or _is_engine_error_payload(str(result.get("final_decision", ""))):
+                return {"success": False, "error": result.get("error") or result.get("final_decision")}
+            result.setdefault("engine_used", "council")
+            return {"success": True, "result": result}
+        if _is_engine_error_payload(str(result)):
+            return {"success": False, "error": str(result)}
+        return {
+            "success": True,
+            "result": {
+                "topic": topic,
+                "final_decision": str(result),
+                "debate_history": str(result),
+                "consensus_score": 0.85,
+                "engine_used": "council",
+            },
+        }
     except Exception as e:
         logger.error(f"ExpertCouncil failed: {e}")
         return {"success": False, "error": str(e)}
@@ -366,21 +494,11 @@ async def _run_multi_agent_debate(topic: str, initial: str, rounds: int) -> dict
 
         debate = MultiAgentDebate()
         result = await debate.run_debate(topic, context=initial, rounds=rounds)
-        return {
-            "success": True,
-            "result": {
-                "topic": topic,
-                "debate_history": result.debate_history
-                if hasattr(result, "debate_history")
-                else str(result),
-                "final_decision": result.final_decision
-                if hasattr(result, "final_decision")
-                else "",
-                "consensus_score": result.consensus_score
-                if hasattr(result, "consensus_score")
-                else 0.85,
-            },
-        }
+        normalized = _normalize_dialogue_payload(result, fallback_topic=topic)
+        if _is_engine_error_payload(normalized.get("final_decision", "")):
+            return {"success": False, "error": normalized.get("final_decision") or "debate_empty"}
+        normalized["engine_used"] = "debate"
+        return {"success": True, "result": normalized}
     except Exception as e:
         logger.error(f"MultiAgentDebate failed: {e}")
         return {"success": False, "error": str(e)}
@@ -393,13 +511,74 @@ async def _run_collective_brainstorming(topic: str, initial: str) -> dict:
 
         brainstorm = CollectiveBrainstorming(topic, initial)
         result = await brainstorm.run_session()
-        return {
-            "success": True,
-            "result": _normalize_dialogue_payload(result, fallback_topic=topic),
-        }
+        normalized = _normalize_dialogue_payload(result, fallback_topic=topic)
+        if _is_engine_error_payload(normalized.get("final_decision", "")):
+            return {"success": False, "error": normalized.get("final_decision") or "brainstorm_empty"}
+        normalized["engine_used"] = "brainstorm"
+        return {"success": True, "result": normalized}
     except Exception as e:
         logger.error(f"CollectiveBrainstorming failed: {e}")
         return {"success": False, "error": str(e)}
+
+
+async def _run_full_mode_engine(request: "DialogueRequest") -> dict[str, Any]:
+    """Dispatch to the full mode engine for the request."""
+    if request.mode == DialogueMode.SEQUENTIAL:
+        return await _run_with_mode_timeout(
+            request.mode,
+            lambda: _run_expert_council(
+                request.topic, request.initial_proposal or "", request.beautiful_mode
+            ),
+        )
+    if request.mode == DialogueMode.DEBATE:
+        return await _run_with_mode_timeout(
+            request.mode,
+            lambda: _run_multi_agent_debate(
+                request.topic, request.initial_proposal or "", request.round_limit
+            ),
+        )
+    if request.mode == DialogueMode.COLLABORATION:
+        return await _run_with_mode_timeout(
+            request.mode,
+            lambda: _run_collective_brainstorming(
+                request.topic, request.initial_proposal or ""
+            ),
+        )
+    return {"success": False, "error": f"Mode {request.mode} not implemented"}
+
+
+def _want_lightweight_first(request: "DialogueRequest") -> bool:
+    if request.force_full:
+        return False
+    if request.prefer_lightweight is None:
+        return PREFER_LIGHTWEIGHT_DEFAULT
+    return bool(request.prefer_lightweight)
+
+
+def _opinions_from_normalized(r: dict[str, Any]) -> list[ExpertOpinion]:
+    out: list[ExpertOpinion] = []
+    for item in r.get("opinions") or []:
+        if isinstance(item, ExpertOpinion):
+            out.append(item)
+            continue
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("expert_name") or item.get("expert") or "").strip()
+        opinion = str(item.get("opinion") or item.get("content") or "").strip()
+        if not name and not opinion:
+            continue
+        incomplete = bool(item.get("incomplete"))
+        if not incomplete:
+            incomplete = "[INCOMPLETE]" in opinion or "local model incomplete" in opinion.lower()
+        out.append(
+            ExpertOpinion(
+                expert_name=name or "expert",
+                opinion=opinion,
+                round=int(item.get("round") or 1),
+                incomplete=incomplete,
+            )
+        )
+    return out
 
 
 async def _run_victoria_synthesis(
@@ -498,48 +677,41 @@ async def stream_dialogue(request: DialogueRequest):
             }
 
             lightweight_victoria = await get_victoria_client()
-            yield f"data: {json.dumps({'type': 'log', 'content': '⚡ Пробую lightweight-диалог (быстрый реальный ответ)...'})}\n\n"
-            result = await _run_lightweight_dialogue(
-                topic=request.topic,
-                initial=request.initial_proposal or "",
-                mode=request.mode,
-                victoria=lightweight_victoria,
-                session_id=session_id,
-            )
+            prefer_lw = _want_lightweight_first(request)
+            result: dict[str, Any] = {"success": False}
 
-            if request.mode == DialogueMode.SEQUENTIAL:
+            if prefer_lw:
+                yield f"data: {json.dumps({'type': 'log', 'content': '⚡ Lightweight-first: быстрый путь...'})}\n\n"
+                result = await _run_lightweight_dialogue(
+                    topic=request.topic,
+                    initial=request.initial_proposal or "",
+                    mode=request.mode,
+                    victoria=lightweight_victoria,
+                    session_id=session_id,
+                )
                 if not result.get("success"):
                     yield f"data: {json.dumps({'type': 'log', 'content': '↩️ Lightweight не сработал, переключаюсь на full mode...'})}\n\n"
-                    yield f"data: {json.dumps({'type': 'log', 'content': '🎭 Запускаю Совет Экспертов...'})}\n\n"
-                    result = await _run_with_mode_timeout(
-                        request.mode,
-                        lambda: _run_expert_council(
-                            request.topic, request.initial_proposal or "", request.beautiful_mode
-                        ),
-                    )
-            elif request.mode == DialogueMode.DEBATE:
-                if not result.get("success"):
-                    yield f"data: {json.dumps({'type': 'log', 'content': '↩️ Lightweight не сработал, переключаюсь на full mode...'})}\n\n"
-                    yield f"data: {json.dumps({'type': 'log', 'content': '⚔️ Запускаю Мультиагентные Дебаты...'})}\n\n"
-                    result = await _run_with_mode_timeout(
-                        request.mode,
-                        lambda: _run_multi_agent_debate(
-                            request.topic, request.initial_proposal or "", request.round_limit
-                        ),
-                    )
-            elif request.mode == DialogueMode.COLLABORATION:
-                if not result.get("success"):
-                    yield f"data: {json.dumps({'type': 'log', 'content': '↩️ Lightweight не сработал, переключаюсь на full mode...'})}\n\n"
-                    yield f"data: {json.dumps({'type': 'log', 'content': '💡 Запускаю Коллективный Брейншторминг...'})}\n\n"
-                    result = await _run_with_mode_timeout(
-                        request.mode,
-                        lambda: _run_collective_brainstorming(
-                            request.topic, request.initial_proposal or ""
-                        ),
-                    )
+                    result = await _run_full_mode_engine(request)
             else:
-                yield f"data: {json.dumps({'type': 'error', 'content': f'Mode {request.mode} not implemented'})}\n\n"
-                return
+                mode_label = {
+                    DialogueMode.SEQUENTIAL: "🎭 Совет Экспертов (full)",
+                    DialogueMode.DEBATE: "⚔️ Мультиагентные Дебаты (full)",
+                    DialogueMode.COLLABORATION: "💡 Коллективный Брейншторминг (full)",
+                }.get(request.mode, "Full expert dialogue")
+                yield f"data: {json.dumps({'type': 'log', 'content': mode_label + '...'})}\n\n"
+                if request.mode == DialogueMode.SWARM:
+                    yield f"data: {json.dumps({'type': 'error', 'content': f'Mode {request.mode} not implemented'})}\n\n"
+                    return
+                result = await _run_full_mode_engine(request)
+                if not result.get("success"):
+                    yield f"data: {json.dumps({'type': 'log', 'content': '↩️ Full mode недоступен, lightweight fallback...'})}\n\n"
+                    result = await _run_lightweight_dialogue(
+                        topic=request.topic,
+                        initial=request.initial_proposal or "",
+                        mode=request.mode,
+                        victoria=lightweight_victoria,
+                        session_id=session_id,
+                    )
 
             _sessions[session_id]["progress"] = 0.5
 
@@ -548,7 +720,9 @@ async def stream_dialogue(request: DialogueRequest):
                 final_decision = r.get("final_decision", "")
                 consensus_score = r.get("consensus_score", 0.85)
 
-                yield f"data: {json.dumps({'type': 'opinion', 'expert': 'Финальное решение', 'content': final_decision[:500] + '...'})}\n\n"
+                for op in _opinions_from_normalized(r)[:12]:
+                    yield f"data: {json.dumps({'type': 'opinion', 'expert': op.expert_name, 'content': op.opinion[:500]})}\n\n"
+                yield f"data: {json.dumps({'type': 'opinion', 'expert': 'Финальное решение', 'content': (final_decision[:500] + ('...' if len(final_decision) > 500 else ''))})}\n\n"
 
                 _sessions[session_id].update(
                     {
@@ -618,43 +792,46 @@ async def start_dialogue(
         "progress": 0.0,
     }
 
-    logger.info(f"Starting dialogue session {session_id}: mode={request.mode.value}")
-
-    result = await _run_lightweight_dialogue(
-        topic=request.topic,
-        initial=request.initial_proposal or "",
-        mode=request.mode,
-        victoria=victoria,
-        session_id=session_id,
+    prefer_lw = _want_lightweight_first(request)
+    logger.info(
+        "Starting dialogue session %s: mode=%s prefer_lightweight=%s force_full=%s",
+        session_id,
+        request.mode.value,
+        prefer_lw,
+        request.force_full,
     )
 
-    if request.mode == DialogueMode.SEQUENTIAL:
-        if not result.get("success"):
-            result = await _run_with_mode_timeout(
-                request.mode,
-                lambda: _run_expert_council(
-                    request.topic, request.initial_proposal or "", request.beautiful_mode
-                ),
-            )
-    elif request.mode == DialogueMode.DEBATE:
-        if not result.get("success"):
-            result = await _run_with_mode_timeout(
-                request.mode,
-                lambda: _run_multi_agent_debate(
-                    request.topic, request.initial_proposal or "", request.round_limit
-                ),
-            )
-    elif request.mode == DialogueMode.COLLABORATION:
-        if not result.get("success"):
-            result = await _run_with_mode_timeout(
-                request.mode,
-                lambda: _run_collective_brainstorming(
-                    request.topic, request.initial_proposal or ""
-                ),
-            )
-    else:
+    if request.mode == DialogueMode.SWARM:
         _sessions[session_id]["status"] = "failed"
         raise HTTPException(status_code=400, detail=f"Mode {request.mode} not implemented")
+
+    result: dict[str, Any] = {"success": False}
+    if prefer_lw:
+        result = await _run_lightweight_dialogue(
+            topic=request.topic,
+            initial=request.initial_proposal or "",
+            mode=request.mode,
+            victoria=victoria,
+            session_id=session_id,
+        )
+        if not result.get("success"):
+            logger.info("Lightweight failed for %s, trying full engine", session_id)
+            result = await _run_full_mode_engine(request)
+    else:
+        result = await _run_full_mode_engine(request)
+        if not result.get("success"):
+            logger.info(
+                "Full engine failed for %s (%s), trying lightweight fallback",
+                session_id,
+                result.get("error"),
+            )
+            result = await _run_lightweight_dialogue(
+                topic=request.topic,
+                initial=request.initial_proposal or "",
+                mode=request.mode,
+                victoria=victoria,
+                session_id=session_id,
+            )
 
     if not result.get("success"):
         result = await _build_safe_fallback_result(
@@ -673,11 +850,25 @@ async def start_dialogue(
         consensus_score = r.get("consensus_score", 0.85)
         fallback_used = bool(r.get("fallback_used"))
         lightweight_used = bool(r.get("lightweight_used"))
+        engine_used = str(r.get("engine_used") or ("lightweight" if lightweight_used else "full"))
+        opinions = _opinions_from_normalized(r)
+        participants = list(r.get("participants") or [])
+        if not participants and opinions:
+            participants = sorted({o.expert_name for o in opinions})
+        quality_degraded = bool(r.get("quality_degraded")) or any(o.incomplete for o in opinions)
+        degraded_reason = str(r.get("degraded_reason") or "")
+        if quality_degraded and not degraded_reason:
+            degraded_reason = "incomplete_opinions"
 
         victoria_synthesis = None
         synthesis_by_victoria = False
-        # Lightweight path уже выдаёт финализированный ответ; synthesis оставляем для full-mode.
-        if not fallback_used and not lightweight_used:
+        # Lightweight/safe fallback already finalized; synthesis only for full engines.
+        # Optional Victoria synthesis (can be slow). Default off for API SLA; enable via env.
+        # Skip synthesis when quality already degraded — avoid inventing consensus.
+        do_victoria_synth = os.getenv(
+            "EXPERT_DIALOGUE_VICTORIA_SYNTHESIS", "false"
+        ).lower() in ("1", "true", "yes")
+        if do_victoria_synth and not fallback_used and not lightweight_used and not quality_degraded:
             try:
                 synthesis_result = await asyncio.wait_for(
                     _run_victoria_synthesis(
@@ -686,7 +877,7 @@ async def start_dialogue(
                         victoria=victoria,
                         session_id=session_id,
                     ),
-                    timeout=60.0,
+                    timeout=float(os.getenv("EXPERT_DIALOGUE_SYNTHESIS_TIMEOUT_SEC", "25")),
                 )
                 victoria_synthesis = synthesis_result.get("synthesis")
                 synthesis_by_victoria = synthesis_result.get("success", False)
@@ -703,6 +894,11 @@ async def start_dialogue(
                 "synthesis_by_victoria": synthesis_by_victoria,
                 "fallback_used": fallback_used,
                 "lightweight_used": lightweight_used,
+                "engine_used": engine_used,
+                "participants": participants,
+                "opinions": [o.model_dump() for o in opinions],
+                "quality_degraded": quality_degraded,
+                "degraded_reason": degraded_reason,
             }
         )
 
@@ -710,13 +906,18 @@ async def start_dialogue(
             session_id=session_id,
             topic=request.topic,
             mode=request.mode.value,
-            participants=[],  # Заполнить из модулей
-            opinions=[],
+            participants=participants,
+            opinions=opinions,
             final_decision=final_decision,
             consensus_score=consensus_score,
             status="completed",
             victoria_synthesis=victoria_synthesis,
             synthesis_by_victoria=synthesis_by_victoria,
+            engine_used=engine_used,
+            lightweight_used=lightweight_used,
+            fallback_used=fallback_used,
+            quality_degraded=quality_degraded,
+            degraded_reason=degraded_reason,
         )
     else:
         raise HTTPException(status_code=500, detail=result.get("error", "Unknown error"))

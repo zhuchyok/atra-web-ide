@@ -27,8 +27,30 @@ class DebateResult:
     topic: str
     final_decision: str
     consensus_score: float
-    history: List[Dict[str, str]]
+    history: List[Dict[str, Any]]
     timestamp: datetime = datetime.now(timezone.utc)
+    quality_degraded: bool = False
+    degraded_reason: str = ""
+    opinions: List[Dict[str, Any]] = None  # type: ignore[assignment]
+    participants: List[str] = None  # type: ignore[assignment]
+    engine_used: str = "debate"
+
+    def __post_init__(self):
+        if self.opinions is None:
+            self.opinions = [
+                {
+                    "expert_name": str(h.get("expert") or ""),
+                    "opinion": str(h.get("opinion") or ""),
+                    "round": int(h.get("round") or 1),
+                    "incomplete": bool(h.get("incomplete")),
+                }
+                for h in (self.history or [])
+                if isinstance(h, dict)
+            ]
+        if self.participants is None:
+            self.participants = sorted(
+                {o["expert_name"] for o in self.opinions if o.get("expert_name")}
+            )
 
 
 class MultiAgentDebate:
@@ -38,15 +60,22 @@ class MultiAgentDebate:
 
     def __init__(self):
         # Default participants with different strengths
+        # Prefer small always-resident models for API reliability.
         self.participants = [
             DebateParticipant(
-                "Architect", "qwen3.5:35b", "Focus on structure, scalability, and patterns."
+                "Architect",
+                "phi3.5:3.8b",
+                "Focus on structure, scalability, and patterns.",
             ),
             DebateParticipant(
-                "Security", "phi3.5:3.8b", "Focus on safety, vulnerabilities, and edge cases."
+                "Security",
+                "phi3.5:3.8b",
+                "Focus on safety, vulnerabilities, and edge cases.",
             ),
             DebateParticipant(
-                "Pragmatist", "fast", "Focus on simplicity, speed, and immediate results."
+                "Pragmatist",
+                "phi3.5:3.8b",
+                "Focus on simplicity, speed, and immediate results.",
             ),
         ]
 
@@ -59,11 +88,14 @@ class MultiAgentDebate:
         logger.info(f"🗣️ [DEBATE] Starting debate on: {topic[:100]}...")
 
         history = []
-        current_context = context or ""
-
-        # [SINGULARITY 14.2] FactExtractor for long contexts
-        extractor = FactExtractor()
-        if len(current_context) > 4000:
+        current_context = (context or "")[:3500]
+        use_fact_extractor = os.getenv("DEBATE_USE_FACT_EXTRACTOR", "false").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        extractor = FactExtractor() if use_fact_extractor else None
+        if extractor and len(current_context) > 4000:
             logger.info("✂️ [DEBATE] Context too long, extracting facts...")
             current_context = await extractor.extract_facts(
                 current_context, context_description="Debate initial context"
@@ -73,41 +105,69 @@ class MultiAgentDebate:
             logger.info(f"🔄 [DEBATE] Round {r}/{rounds}")
             round_responses = []
 
-            # Each participant gives their view
-            tasks = []
+            # Sequential opinions — avoids stampeding local Ollama under load.
             for p in self.participants:
                 prompt = self._build_debate_prompt(p, topic, current_context, history, r)
-                tasks.append(self._get_expert_opinion(p, prompt))
-
-            opinions = await asyncio.gather(*tasks)
-
-            for p, opinion in zip(self.participants, opinions):
-                history.append({"round": r, "expert": p.name, "opinion": opinion})
+                try:
+                    opinion, incomplete, reason = await self._get_expert_opinion(p, prompt)
+                except Exception as e:
+                    opinion = f"[INCOMPLETE] [{p.name}] error: {e}"
+                    incomplete, reason = True, "error"
+                history.append(
+                    {
+                        "round": r,
+                        "expert": p.name,
+                        "opinion": str(opinion),
+                        "incomplete": incomplete,
+                        "reason": reason,
+                    }
+                )
                 round_responses.append(f"[{p.name}]: {opinion}")
 
             # Update context for next round
             new_round_text = "\n\n" + "\n".join(round_responses)
-            if len(current_context) + len(new_round_text) > 8000:
+            if extractor and len(current_context) + len(new_round_text) > 8000:
                 logger.info(f"🔄 [DEBATE] Round {r} context too long, summarizing history...")
-                # Сжимаем историю раунда перед добавлением в контекст
                 round_summary = await extractor.extract_facts(
                     new_round_text, context_description=f"Debate round {r} summary"
                 )
                 current_context += f"\n\n### ROUND {r} SUMMARY:\n{round_summary}"
             else:
-                current_context += new_round_text
+                current_context = (current_context + new_round_text)[-6000:]
 
         # Final synthesis by Victoria (Team Lead)
-        final_decision = await self._synthesize_decision(topic, history)
+        final_decision, synth_incomplete, synth_reason = await self._synthesize_decision(
+            topic, history
+        )
 
-        # Calculate consensus score based on agreement
+        incomplete_n = sum(1 for h in history if h.get("incomplete"))
+        quality_degraded = incomplete_n > 0 or synth_incomplete
+        reasons = sorted(
+            {
+                str(h.get("reason") or "")
+                for h in history
+                if h.get("incomplete") and h.get("reason")
+            }
+        )
+        if synth_incomplete and synth_reason:
+            reasons.append(synth_reason)
+        degraded_reason = ",".join(r for r in reasons if r) or (
+            "partial_opinions" if quality_degraded else ""
+        )
+
+        # Calculate consensus score based on agreement (penalize incomplete)
         consensus_score = self._calculate_consensus(history)
+        if quality_degraded:
+            consensus_score = min(consensus_score, 0.45 if incomplete_n >= 2 else 0.6)
 
         return DebateResult(
             topic=topic,
             final_decision=final_decision,
             consensus_score=consensus_score,
             history=history,
+            quality_degraded=quality_degraded,
+            degraded_reason=degraded_reason,
+            engine_used="debate",
         )
 
     def _build_debate_prompt(
@@ -183,35 +243,60 @@ Refine your own position to reach the best possible solution.
             return 0.5 + (avg_similarity * 0.5)
         return 0.5
 
-    async def _get_expert_opinion(self, participant: DebateParticipant, prompt: str) -> str:
+    async def _get_expert_opinion(
+        self, participant: DebateParticipant, prompt: str
+    ) -> tuple[str, bool, str]:
         try:
-            from knowledge_os.app.local_router import LocalAIRouter
+            try:
+                from dialogue_llm import generate_dialogue, is_incomplete_text
+            except ImportError:
+                from knowledge_os.app.dialogue_llm import (
+                    generate_dialogue,
+                    is_incomplete_text,
+                )
 
-            router = LocalAIRouter()
-            result = await router.run_local_llm(
-                prompt, model_hint=participant.model, category="reasoning"
+            result = await asyncio.wait_for(
+                generate_dialogue(
+                    prompt,
+                    expert_name=participant.name,
+                    model_hint=participant.model,
+                ),
+                timeout=float(os.getenv("DEBATE_EXPERT_TIMEOUT_SEC", "12")),
             )
-            if isinstance(result, tuple):
-                return result[0]
-            return result
-        except ImportError:
-            logger.warning(f"LocalAIRouter not available, using run_smart_agent_async")
-            from ai_core import run_smart_agent_async
-
-            return await run_smart_agent_async(prompt, expert_name=participant.name)
+            incomplete = (not result.ok) or is_incomplete_text(result.text)
+            return result.text, incomplete, (result.reason if incomplete else "ok")
+        except asyncio.TimeoutError:
+            logger.warning("Debate expert %s timed out", participant.name)
+            return (
+                f"[INCOMPLETE] [{participant.name}] local model did not finish in time; "
+                f"no fabricated opinion (role: {participant.role}).",
+                True,
+                "timeout",
+            )
         except Exception as e:
-            logger.error(f"Debate expert {participant.name} failed: {e}")
-            return "Failed to provide opinion."
+            logger.warning("Debate expert %s dialogue_llm failed: %s", participant.name, e)
+            return (
+                f"[INCOMPLETE] [{participant.name}] local model incomplete; "
+                f"no fabricated opinion (role: {participant.role}).",
+                True,
+                "error",
+            )
 
-    async def _synthesize_decision(self, topic: str, history: List[Dict]) -> str:
-        # [SINGULARITY 14.2] Hierarchical synthesis for debate
+    async def _synthesize_decision(
+        self, topic: str, history: List[Dict]
+    ) -> tuple[str, bool, str]:
         history_text = "\n".join([f"{h['expert']}: {h['opinion']}" for h in history])
-
         if len(history_text) > 5000:
-            logger.info("🧬 [DEBATE] Synthesis context too long, using FactExtractor...")
-            extractor = FactExtractor()
-            history_text = await extractor.extract_facts(
-                history_text, context_description="Full debate history"
+            history_text = history_text[:5000]
+
+        real_ops = [h for h in history if not h.get("incomplete")]
+        if not real_ops:
+            return (
+                f"[INCOMPLETE] FINAL DECISION: no complete expert opinions for '{topic}'. "
+                f"Do not treat as consensus. Reasons: "
+                f"{','.join(sorted({str(h.get('reason') or 'unknown') for h in history}))}.",
+                True,
+                "no_complete_opinions",
             )
 
         synthesis_prompt = f"""
@@ -221,17 +306,36 @@ EXPERT OPINIONS (SUMMARIZED):
 {history_text}
 
 Based on the debate, provide the FINAL AUTHORITATIVE DECISION and implementation plan.
-Select the best ideas and mitigate the risks mentioned.
+Select the best ideas and mitigate the risks mentioned. Be concise (max 12 sentences).
+If some opinions are marked INCOMPLETE, do not invent their positions.
 """
         try:
-            from ai_core import run_smart_agent_async
+            try:
+                from dialogue_llm import generate_dialogue, is_incomplete_text
+            except ImportError:
+                from knowledge_os.app.dialogue_llm import (
+                    generate_dialogue,
+                    is_incomplete_text,
+                )
 
-            return await run_smart_agent_async(
-                synthesis_prompt, expert_name="Виктория", category="reasoning"
+            result = await asyncio.wait_for(
+                generate_dialogue(
+                    synthesis_prompt, expert_name="Виктория", model_hint="fast"
+                ),
+                timeout=float(os.getenv("DEBATE_SYNTHESIS_TIMEOUT_SEC", "20")),
             )
+            if result.ok and not is_incomplete_text(result.text):
+                return result.text, False, "ok"
         except Exception as e:
-            logger.error(f"Debate synthesis failed: {e}")
-            return "Failed to synthesize decision."
+            logger.warning("Debate synthesis via dialogue_llm failed: %s", e)
+
+        return (
+            f"[INCOMPLETE] FINAL DECISION (partial): topic '{topic}'.\n"
+            f"Use complete expert evidence below; do not treat as a strong unanimous vote.\n"
+            f"Evidence:\n{history_text[:2500]}",
+            True,
+            "synthesis_incomplete",
+        )
 
 
 _instance = None

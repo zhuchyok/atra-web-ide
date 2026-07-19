@@ -1,11 +1,187 @@
+---
+
+## 93. Singularity 31.2+: P0 Stabilization Closure (2026-07-19)
+
+- **Контекст:** изменения из параллельного чата приняты как базовые (full-first для expert-dialogue, расширенный контракт результата) и дожаты до устойчивого P0 состояния без отката чужих правок.
+- **Expert dialogue bounded-runtime hardening:**
+  - В `backend/app/routers/expert_dialogue.py` добавлен жесткий runtime guard для full-mode движков через изоляцию в worker-thread + bounded wait.
+  - Сохранен full-first маршрут (`prefer_lightweight=false` по умолчанию), но латентность API ограничена и fallback остается рабочим.
+  - Контракт ответа стабилен: `engine_used`, `participants`, `opinions`, `lightweight_used`, `fallback_used`.
+- **SLA-ориентированные таймауты движков:**
+  - `knowledge_os/app/multi_agent_debate.py`: снижены дефолты `DEBATE_EXPERT_TIMEOUT_SEC` (12с) и `DEBATE_SYNTHESIS_TIMEOUT_SEC` (20с).
+  - `knowledge_os/app/expert_council_discussion.py`: снижены дефолты `COUNCIL_EXPERT_TIMEOUT_SEC` (18с) и `COUNCIL_SYNTHESIS_TIMEOUT_SEC` (18с).
+  - Цель: не блокировать API при `Ollama 503 server busy`, удерживать режимы в bounded окне.
+- **ai_core / import boundary / strict-local invariants:**
+  - `knowledge_os/app/local_router.py`: fallback-импорты для `app.*`/локальных модулей исключают `ModuleNotFoundError` в mixed PYTHONPATH контекстах.
+  - `knowledge_os/app/ai_core.py`: singleton `LocalAIRouter` пересоздается при patching класса (устранение флаков strict-local/failover тестов).
+- **Метрики и идемпотентность:**
+  - `knowledge_os/app/redis_manager.py`: регистрация `worker_queue_depth` через get-or-create подход, устранены повторные регистрации Prometheus.
+  - Добавлен тест `knowledge_os/tests/test_redis_manager_metrics.py` для проверки reload/idempotency.
+- **Reproducible test environment (P0):**
+  - Добавлен `knowledge_os/requirements-test.txt` как канонический набор зависимостей для тестов без тяжелых необязательных runtime-интеграций.
+  - `backend/requirements-dev.txt` дополнен `pytest-cov` и `pytest-codspeed`.
+  - В `AGENTS.md` добавлен блок bootstrap-команд для воспроизводимого тестового окружения.
+- **Верификация (после интеграции параллельных правок):**
+  - `backend/app/tests`: **77 passed**.
+  - `knowledge_os/tests`: **231 passed, 12 skipped**.
+  - Smoke `/api/expert-dialogue/start`: подтверждены `default debate`, `prefer_lightweight`, `force_full sequential` с полным контрактом.
+  - Финальный operational-срез: `docs/audits/2026-07-19-p0-final-verification.json`.
 # 📖 БИБЛИЯ ATRA (MASTER_REFERENCE)
 
 ## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
 **Дата последнего обновления:** 2026-07-19
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; orchestrator phases modularization complete (full verification gate passed)
+**Состояние:** Стабильное; OpenWebUI tool restored + honest auto-fix (v93)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-19 v93) — Stub Contour Finish ✅
+
+### Диагноз (после v92)
+1. OpenWebUI `tool` table была **пуста** — `ask_victoria` не установлен; stub-guard в файле не работал в runtime.
+2. `_restart_service` врал `success: True` без реального restart.
+3. `_attempt_fix` → мёртвый stub `Fix not implemented`.
+4. Оставались 9 historical rule-statusный `completed`.
+
+### Fix
+1. `ensure_openwebui_ask_victoria_valves.py` — upsert tool content+valves+specs; guard `_reject_stub_output`; `USE_BACKEND_PROXY=true`.
+2. Policy: tool привязан к 15 моделям OpenWebUI.
+3. `victoria_event_handlers`: real `SelfCheckSystem.auto_fix_component` + recovery task; honest escalate.
+4. `chat.py` ask-victoria + status: belt-and-suspenders stub reject.
+5. Quarantine 9 historical → `quarantined_v93`.
+
+### Evidence
+- tool inserted: `ask_victoria_singularity_15`, guard=1, proxy=true, 15 models.
+- `rule_status_completed_all=0`, `q_v93=9`.
+- Victoria/backend health 200; `attempt_fix` path ≠ «Fix not implemented».
+
+---
+
+## § Последние изменения (2026-07-19 v92) — Rule-based False-Complete Kill ✅
+
+### Root cause
+При недоступности LLM `task_rule_executor` писал soft «Rule-based статусный ответ (AI временно недоступен…)» в `tasks.status='completed'` → KPI/дашборды считали задачу успешной (7 за 7d, 396 historical).
+
+### Fix
+1. `finalize_rule_result()` — soft templates → `cancelled` + `[DEGRADED_RULE_FALLBACK]` + `quality_degraded`; только substantive health-check → `completed`.
+2. Wired: `smart_worker_autonomous`, `orchestrator_phases` phase 2.5.
+3. Stub guard extended + wired: `backend/app/services/victoria.py`, MCP `victoria_mcp_server`, OpenWebUI `openwebui_ask_victoria_tool`.
+4. Quarantine: 7 recent rule false-completes → cancelled + `quarantined_v92`.
+
+### Evidence
+- Unit: soft → `cancelled`; health-check → `completed`.
+- Deploy: worker/orch/backend import OK.
+- SQL: `rule_completed_7d` statusный clean = **0**; `still_rule_completed_7d` = **0**.
+
+---
+
+## § Последние изменения (2026-07-19 v91) — Victoria Stub Sweep ✅
+
+### Решение команды
+
+1. **CODE-queue opt-in only** — substring `code`/`код` больше не ставит задачу в PostgreSQL. Нужно `queue_code=true` или legacy `VICTORIA_CODE_AUTO_QUEUE=true`.
+2. **Shared guard** — `victoria_response_guard.is_victoria_stub()` в `knowledge_os` + `backend`; wired в `rest_api` `/api/victoria/solve`, `victoria_fallback`, `expert_dialogue`, `proxy`, `strategic_board`.
+3. **Quarantine** — 11× `knowledge_nodes` + 11× `board_decisions` + 11× `expert_discussions` с `queued to PostgreSQL` помечены quarantined / human_review.
+
+### Evidence
+
+- Goal с «code» без `queue_code` → нет мгновенного stub (идёт sync).
+- `queue_code=true` → `⏳ Task … queued` за ~50ms (явный opt-in сохранён).
+- DB: `kn_q=11`, `board_q=11`, `disc_q=11`.
+
+---
+
+## § Последние изменения (2026-07-19 v90) — Board of Directors Real Directives ✅
+
+### Root cause
+Victoria CODE-queue (`"код"/"code" in goal`) hijacked board meetings → stub `⏳ Task … queued to PostgreSQL` saved as directive (11/11 last 7d). Markdown used undefined `filepath`.
+
+### Fix
+- `strategic_board.py`: sync `/run?async_mode=false`, compact context (no raw KB dump), stub reject, poll+local fallback, `filepath` + `/tmp` reports fallback.
+- `victoria_server.py`: skip CODE-queue for board/strategy goals.
+
+### Evidence
+Manual `run_board_meeting`: directive **1225** chars, `is_stub=false`, stored in `board_decisions` (2026-07-19 20:48 MSK).
+
+---
+
+## § Последние изменения (2026-07-19 v89) — Hybrid Quality-Local Dialogue ✅
+
+### Цель
+
+Медленнее, но честнее: ждать локальную модель; **не** выдавать stub/галлюцинации за мнения экспертов. Fast UI — только opt-in.
+
+### Hybrid contract
+
+1. **quality (default):** full engines, engine budget **240s**, per-call **90s**, busy-retry на Ollama 503, model `phi3.5:3.8b`, cloud off.
+2. **honest degraded:** при исчерпании budget → `quality_degraded=true`, `degraded_reason`, `opinions[].incomplete=true`, текст с `[INCOMPLETE]` (без фейкового «поддерживаю…»).
+3. **fast:** только `prefer_lightweight=true` (~8s).
+
+### Verification (2026-07-19)
+
+| Case | Result |
+| ---- | ------ |
+| prefer_lightweight | `lightweight`, ~8s, quality_degraded=false |
+| default debate (после unload 14B / busy wait) | `debate`, ops=3 incomplete=0, ~80s, lw=false, quality_degraded=false |
+
+Операционно: если в Ollama висит тяжёлая модель (`qwen2.5-coder:14b`) → 503 busy; hybrid ждёт retry, не врёт мнениями.
+
+---
+
+## § Последние изменения (2026-07-19 v88) — Expert Dialogue Full Path Restored ✅
+
+### Цель
+
+Вернуть реальные multi-persona движки (`debate` / `council` / `brainstorm`) как default; lightweight — только opt-in или bounded fallback.
+
+### Что изменилось
+
+- `backend/app/routers/expert_dialogue.py`:
+  - `EXPERT_DIALOGUE_PREFER_LIGHTWEIGHT` default **`false`** (full-first);
+  - флаги `prefer_lightweight`, `force_full`;
+  - timeout движка в том же event loop (`await wait_for`), без threaded `asyncio.run`;
+  - контракт: `engine_used`, `lightweight_used`, `fallback_used`, `participants`, `opinions`.
+- `knowledge_os/app/dialogue_llm.py` — Ollama-first локальный LLM для диалога.
+- `multi_agent_debate.py` / `expert_council_discussion.py` / `collective_brainstorming.py` — small models, caps, DB/HR optional, без тяжёлого ai_core по умолчанию.
+- Design: `docs/plans/2026-07-19-expert-dialogue-full-path-design.md`.
+
+### Verification evidence (2026-07-19)
+
+| Case | Result |
+| ---- | ------ |
+| `mode=debate` + `force_full` | `engine_used=debate`, ops=3, ~83s, lw=false |
+| `mode=sequential` + `force_full` | `engine_used=council`, ops=3, ~89s, lw=false |
+| `prefer_lightweight=true` | `engine_used=lightweight`, ~8s |
+| default (no flags) | `engine_used=debate`, ops=3, lw=false, ~58s |
+| `mode=collaboration` + `force_full` | `engine_used=brainstorm`, ops=3, ~50s, lw=false |
+| recheck default debate (after Ollama timeout harden) | `debate`, ops=3, ~48s, lw=false |
+
+**Out of scope / not done:** true worker↔worker EventBus peer chat (`DialogueController`); durable image rebuild (сейчас `docker cp` + restart).
+
+### Env / knobs
+
+| Env | Default | Meaning |
+| --- | ------- | ------- |
+| `EXPERT_DIALOGUE_PREFER_LIGHTWEIGHT` | `false` | full-first vs UI fast-path |
+| `EXPERT_DIALOGUE_ENGINE_TIMEOUT_SEC` | `240` | full engine budget (quality-local; bible dialogue ~200s) |
+| `DIALOGUE_LLM_TIMEOUT_SEC` | `90` | per local Ollama call |
+| `DEBATE_EXPERT_TIMEOUT_SEC` / synthesis | `90` / `90` | wait for real opinions |
+| `COUNCIL_MAX_EXPERTS` | `3` | council roster cap |
+| `COUNCIL_PERSIST_DB` | `false` | skip DB for API SLA |
+| `BRAINSTORM_FAST` | `false` | full phases; `true` only for smoke |
+| `DIALOGUE_OLLAMA_MODEL` | `phi3.5:3.8b` | bible-validated dialogue model |
+
+### Deploy note
+
+Backend image `/app` не live-mount — после правок: `docker cp` router + `knowledge_os/app/*.py` → restart `atra-web-ide-backend` (или rebuild image).
+
+### Pre-mortem / rollback
+
+1. Ollama overloaded → stub opinions / lightweight fallback (не 500).
+2. Collaboration full (не-fast) может не уложиться в 180s — держать `BRAINSTORM_FAST=true`.
+3. Rollback: `EXPERT_DIALOGUE_PREFER_LIGHTWEIGHT=true`.
 
 ---
 

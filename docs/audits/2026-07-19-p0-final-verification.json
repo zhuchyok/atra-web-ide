@@ -1,0 +1,105 @@
+{
+  "captured_at_utc": "2026-07-19T17:54:26.510679+00:00",
+  "docker_ps": {
+    "cmd": "docker ps --format 'table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'",
+    "exit_code": 0,
+    "stdout": "NAMES                                    STATUS                    PORTS\nvictoria-agent                           Up 12 minutes (healthy)   0.0.0.0:8010->8000/tcp, [::]:8010->8000/tcp\natra-web-ide-backend                     Up About a minute         0.0.0.0:8080->8000/tcp, [::]:8080->8000/tcp\nknowledge_os-expert-worker-dynamic-1-1   Up 4 hours (healthy)      \nknowledge_os_orchestrator                Up 4 hours (healthy)      \nknowledge_os-expert-worker-anna-1        Up 4 hours (healthy)      \nknowledge_evolution                      Up 34 hours (healthy)     \nknowledge_nightly                        Up 34 hours (healthy)     \nknowledge_os-expert-worker-dynamic-2-1   Up 4 hours (healthy)      \nperformance-watchdog                     Up 23 hours (healthy)     \nknowledge_os-expert-worker-victoria-1    Up 4 hours (healthy)      \nknowledge_os-expert-worker-heavy-1       Up 4 hours (healthy)      \nknowledge_os_worker                      Up 4 hours (healthy)      \nknowledge_self_check                     Up 34 hours (healthy)     \nknowledge_rest                           Up 34 hours (healthy)     0.0.0.0:8002->8002/tcp, [::]:8002->8002/tcp\ntelegram-notifications                   Up 34 hours (healthy)     \nswarm-studio                             Up 34 hours (healthy)     0.0.0.0:8006->8006/tcp, [::]:8006->8006/tcp\nboard-scheduler                          Up 12 minutes (healthy)   \nknowledge_postgres                       Up 34 hours (healthy)     0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp\nveronica-agent                           Up 5 days (healthy)       0.0.0.0:8011->8000/tcp, [::]:8011->8000/tcp\natra-web-ide-gateway                     Up 5 days (healthy)       0.0.0.0:8081->8081/tcp, [::]:8081->8081/tcp\nknowledge_pgbouncer                      Up 5 days (healthy)       0.0.0.0:6432->6432/tcp, [::]:6432->6432/tcp\natra-kibana                              Up 5 days                 0.0.0.0:5601->5601/tcp, [::]:5601->5601/tcp\natra-grafana                             Up 5 days                 0.0.0.0:3001->3000/tcp, [::]:3001->3000/tcp\nopen-webui                               Up 5 days (healthy)       0.0.0.0:3005->8080/tcp, [::]:3005->8080/tcp\nknowledge_os_redis                       Up 5 days (healthy)       0.0.0.0:6381->6379/tcp, [::]:6381->6379/tcp\natra-prometheus                          Up 5 days                 0.0.0.0:9092->9090/tcp, [::]:9092->9090/tcp\nvictoria-visual-search                   Up 5 days                 0.0.0.0:8005->8005/tcp, [::]:8005->8005/tcp\ncorporation-dashboard                    Up 5 days                 0.0.0.0:8501->8501/tcp, [::]:8501->8501/tcp\nquality-service                          Up 5 days (healthy)       0.0.0.0:8003->8003/tcp, [::]:8003->8003/tcp\natra-elasticsearch                       Up 5 days (healthy)       0.0.0.0:9200->9200/tcp, [::]:9200->9200/tcp\nsearxng                                  Up 5 days                 0.0.0.0:8084->8080/tcp, [::]:8084->8080/tcp",
+    "stderr": ""
+  },
+  "queue_status": {
+    "cmd": "docker exec knowledge_postgres psql -U admin -d knowledge_os -c \"SELECT status, count(*) FROM tasks GROUP BY status ORDER BY status;\"",
+    "exit_code": 0,
+    "stdout": "status    | count \n-------------+-------\n cancelled   |    49\n completed   |  2618\n failed      |    27\n in_progress |     6\n pending     |     5\n(5 rows)",
+    "stderr": ""
+  },
+  "stale_tasks": {
+    "cmd": "docker exec knowledge_postgres psql -U admin -d knowledge_os -c \"SELECT count(*) AS stale_in_progress FROM tasks WHERE status='in_progress' AND updated_at < now() - interval '30 minutes';\"",
+    "exit_code": 0,
+    "stdout": "stale_in_progress \n-------------------\n                 0\n(1 row)",
+    "stderr": ""
+  },
+  "failure_1h": {
+    "cmd": "docker exec knowledge_postgres psql -U admin -d knowledge_os -c \"SELECT count(*) FILTER (WHERE status='failed') AS failed, count(*) AS total, round(100.0*count(*) FILTER (WHERE status='failed')/NULLIF(count(*),0),2) AS failed_pct FROM tasks WHERE created_at > now() - interval '1 hour';\"",
+    "exit_code": 0,
+    "stdout": "failed | total | failed_pct \n--------+-------+------------\n      8 |    20 |      40.00\n(1 row)",
+    "stderr": ""
+  },
+  "failure_6h": {
+    "cmd": "docker exec knowledge_postgres psql -U admin -d knowledge_os -c \"SELECT count(*) FILTER (WHERE status='failed') AS failed, count(*) AS total, round(100.0*count(*) FILTER (WHERE status='failed')/NULLIF(count(*),0),2) AS failed_pct FROM tasks WHERE created_at > now() - interval '6 hours';\"",
+    "exit_code": 0,
+    "stdout": "failed | total | failed_pct \n--------+-------+------------\n     13 |    38 |      34.21\n(1 row)",
+    "stderr": ""
+  },
+  "metrics_duplication_log_check": {
+    "backend": {
+      "cmd": "docker logs --tail 500 atra-web-ide-backend 2>&1 | rg -i 'Duplicated timeseries|ValueError: Duplicated' || true",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "orchestrator": {
+      "cmd": "docker logs --tail 500 knowledge_os_orchestrator 2>&1 | rg -i 'Duplicated timeseries|ValueError: Duplicated' || true",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "worker": {
+      "cmd": "docker logs --tail 500 knowledge_os_worker 2>&1 | rg -i 'Duplicated timeseries|ValueError: Duplicated' || true",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  "expert_dialogue_smoke": [
+    {
+      "name": "default_debate",
+      "timeout_sec": 95,
+      "payload": {
+        "topic": "P0 final gate default",
+        "mode": "debate",
+        "initial_proposal": "compact"
+      },
+      "status_code": 200,
+      "latency_sec": 30.236,
+      "engine_used": "debate",
+      "lightweight_used": false,
+      "fallback_used": false,
+      "opinions_count": 6,
+      "missing_required_fields": []
+    },
+    {
+      "name": "prefer_lightweight",
+      "timeout_sec": 35,
+      "payload": {
+        "topic": "P0 final gate fast",
+        "mode": "debate",
+        "initial_proposal": "compact",
+        "prefer_lightweight": true
+      },
+      "status_code": 200,
+      "latency_sec": 8.12,
+      "engine_used": "lightweight",
+      "lightweight_used": true,
+      "fallback_used": false,
+      "opinions_count": 1,
+      "missing_required_fields": []
+    },
+    {
+      "name": "force_full_sequential",
+      "timeout_sec": 95,
+      "payload": {
+        "topic": "P0 final gate full",
+        "mode": "sequential",
+        "initial_proposal": "compact",
+        "force_full": true
+      },
+      "status_code": 200,
+      "latency_sec": 13.61,
+      "engine_used": "council",
+      "lightweight_used": false,
+      "fallback_used": false,
+      "opinions_count": 3,
+      "missing_required_fields": []
+    }
+  ]
+}

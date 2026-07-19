@@ -355,6 +355,23 @@ DATABASE_URL=... python3 scripts/curator_add_standard_to_knowledge.py  # доб�
 pytest knowledge_os/tests/
 ```
 
+### Reproducible Test Bootstrap (P0)
+```bash
+# From repository root
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -U pip
+python -m pip install -r backend/requirements-dev.txt -r knowledge_os/requirements-test.txt
+
+# Verification
+python -m pytest backend/app/tests -q
+python -m pytest knowledge_os/tests -q
+```
+
+Notes:
+- `knowledge_os/requirements-test.txt` is the canonical dependency set for test runs.
+- It intentionally excludes heavyweight optional runtime integrations that are not needed by the test suites.
+
 ## Env Configuration
 - Main config: `.env` in knowledge_os/
 - Model settings: `VICTORIA_MODEL`, `VICTORIA_MLX_BRAIN=true`
