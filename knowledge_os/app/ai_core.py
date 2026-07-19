@@ -653,7 +653,10 @@ _DISTILLER_SINGLETON = None
 def _get_local_router():
     """DI-style provider for a process-local LocalAIRouter instance."""
     global _LOCAL_ROUTER_SINGLETON
-    if _LOCAL_ROUTER_SINGLETON is None and LocalAIRouter:
+    # Recreate singleton if LocalAIRouter implementation changed (e.g. patched in tests).
+    if LocalAIRouter and (
+        _LOCAL_ROUTER_SINGLETON is None or _LOCAL_ROUTER_SINGLETON.__class__ is not LocalAIRouter
+    ):
         _LOCAL_ROUTER_SINGLETON = LocalAIRouter()
     return _LOCAL_ROUTER_SINGLETON
 

@@ -86,8 +86,12 @@ async def test_failover_uses_mirrored_context(mock_context_mirror):
 
         await router.run_local_llm("Hello", session_id="test_session")
 
-        # Verify Ollama was called (second call)
-        assert mock_post.call_count == 2
+        # Verify failover reached Ollama even if router-level retries add extra calls.
+        assert mock_post.call_count >= 2
+        called_urls = [call.args[0] for call in mock_post.call_args_list if call.args]
+        assert any("11434" in str(url) for url in called_urls), (
+            "Ollama should be called on failover"
+        )
 
 
 @pytest.mark.asyncio

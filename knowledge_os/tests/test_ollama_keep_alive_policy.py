@@ -89,8 +89,8 @@ def test_default_300_when_empty_model():
     with patch.dict(os.environ, {}, clear=False):
         os.environ.pop("VICTORIA_OLLAMA_KEEP_ALIVE", None)
         os.environ.pop("OLLAMA_KEEP_ALIVE", None)
-    assert get_keep_alive(None, mlx_alive=True) == 300
-    assert get_keep_alive("", mlx_alive=True) == 300
+        assert get_keep_alive(None, mlx_alive=True) == 300
+        assert get_keep_alive("", mlx_alive=True) == 300
 
 
 def test_ram_critical_heavy_model_returns_60():
@@ -98,8 +98,8 @@ def test_ram_critical_heavy_model_returns_60():
     with patch.dict(os.environ, {}, clear=False):
         os.environ.pop("VICTORIA_OLLAMA_KEEP_ALIVE", None)
         os.environ.pop("OLLAMA_KEEP_ALIVE", None)
-    result = get_keep_alive("qwen3.5:35b", mlx_alive=True, ram_percent=90.0)
-    assert result in (60, 300)  # heavy by name -> 60 when RAM critical
+        result = get_keep_alive("qwen3.5:35b", mlx_alive=True, ram_percent=90.0)
+        assert result in (60, 300)  # heavy by name -> 60 when RAM critical
 
 
 def test_recovery_cooldown_logic():
