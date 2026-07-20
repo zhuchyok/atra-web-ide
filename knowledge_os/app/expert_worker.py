@@ -3355,10 +3355,23 @@ async def worker_loop():
 
 
 async def metrics_handler(request):
-    from prometheus_client import REGISTRY, generate_latest
+    try:
+        from prometheus_client import REGISTRY, generate_latest
 
-    metrics = generate_latest(REGISTRY)
-    return web.Response(body=metrics, content_type="text/plain")
+        metrics = generate_latest(REGISTRY)
+        return web.Response(body=metrics, content_type="text/plain")
+    except ImportError:
+        return web.Response(
+            text="# prometheus_client not installed\n",
+            content_type="text/plain",
+            status=503,
+        )
+    except Exception as e:
+        return web.Response(
+            text=f"# metrics error: {type(e).__name__}\n",
+            content_type="text/plain",
+            status=500,
+        )
 
 
 async def health_handler(request):
@@ -3416,10 +3429,23 @@ if __name__ == "__main__":
     run_as_metrics_only = "--metrics-only" in sys.argv
 
     async def metrics_handler(request):
-        from prometheus_client import REGISTRY, generate_latest
+        try:
+            from prometheus_client import REGISTRY, generate_latest
 
-        metrics = generate_latest(REGISTRY)
-        return web.Response(body=metrics, content_type="text/plain")
+            metrics = generate_latest(REGISTRY)
+            return web.Response(body=metrics, content_type="text/plain")
+        except ImportError:
+            return web.Response(
+                text="# prometheus_client not installed\n",
+                content_type="text/plain",
+                status=503,
+            )
+        except Exception as e:
+            return web.Response(
+                text=f"# metrics error: {type(e).__name__}\n",
+                content_type="text/plain",
+                status=500,
+            )
 
     async def health_handler(request):
         return web.json_response({"status": "healthy", "worker": "expert"})

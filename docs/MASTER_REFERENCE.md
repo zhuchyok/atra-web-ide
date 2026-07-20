@@ -32,8 +32,28 @@
 
 **Дата последнего обновления:** 2026-07-21
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; board Victoria-first + intent gate (v106)
+**Состояние:** Стабильное; Prometheus 11/11 + board Victoria-first (v107)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-21 v107) — Observability Scrapes + Redis UDS ✅
+
+### Диагноз
+
+Prometheus 4/11: не «старые IP», а (1) `prometheus_client` отсутствовал в agent image → `/metrics` 500; (2) dynamic workers без `ENABLE_METRICS`; (3) orchestrator/smart-worker не слушали scrape-порты. Параллельно expert-workers сыпали `Timeout reading from /data/redis/redis.sock`.
+
+### Решение
+
+1. `prometheus-client` в root `requirements.txt` + гарантированный слой в agents Dockerfile.
+2. `ENABLE_METRICS=true` для dynamic-1/2, smart-worker, orchestrator; orchestrator поднимает aiohttp `/metrics` на `METRICS_PORT`.
+3. Fail-soft `/metrics` handlers; Redis pool: explicit `socket_timeout=None` + connect timeout для blocking XREADGROUP.
+
+### Evidence
+
+- Prometheus targets **11/11 up**
+- Redis timeout rate после рестарта workers: **0**/45s (было ~12/2m)
+- Grafana: `admin` / `GRAFANA_PASSWORD` (не admin/admin); MLX healthy
 
 ---
 

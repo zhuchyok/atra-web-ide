@@ -44,6 +44,8 @@ COPY requirements.txt* ./
 RUN pip install --no-cache-dir duckdb lancedb pyarrow pandas || true
 RUN pip install --no-cache-dir -r requirements.txt || \
     pip install fastapi uvicorn httpx pydantic aiohttp asyncpg python-dotenv moondream Pillow
+# Guaranteed for Prometheus scrape targets (workers return 500 without this)
+RUN pip install --no-cache-dir "prometheus-client>=0.19.0"
 
 # agentscope устанавливается отдельно (--no-deps) чтобы не ломать requirements.txt fallback
 # Actor model, MsgHub, ReMe memory, Swarm orchestration

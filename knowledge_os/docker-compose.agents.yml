@@ -177,6 +177,8 @@ services:
       BRIDGE_CERT_PATH: /certs/mac-studio.crt
       BRIDGE_KEY_PATH: /certs/mac-studio.key
       BRIDGE_CA_PATH: /certs/ca.crt
+      ENABLE_METRICS: "true"
+      METRICS_PORT: "8000"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - ../certs:/certs:ro
@@ -339,6 +341,7 @@ services:
       TZ: Europe/Moscow
       EXPERT_NAME: ${DYNAMIC_EXPERT_NAME_SLOT1:-Инна}
       EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
+      ENABLE_METRICS: "true"
       METRICS_PORT: "8001"
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
@@ -379,6 +382,7 @@ services:
       TZ: Europe/Moscow
       EXPERT_NAME: ${DYNAMIC_EXPERT_NAME_SLOT2:-Юлия}
       EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
+      ENABLE_METRICS: "true"
       METRICS_PORT: "8001"
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
@@ -427,6 +431,8 @@ services:
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
+      ENABLE_METRICS: "true"
+      METRICS_PORT: "8002"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - redis_data:/data/redis

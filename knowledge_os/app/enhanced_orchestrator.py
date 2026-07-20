@@ -2723,6 +2723,43 @@ async def run_continuous(interval_seconds: int = 60, quick_poll_seconds: int = 3
         quick_poll_seconds,
     )
 
+    metrics_runner = None
+    if os.getenv("ENABLE_METRICS", "false").lower() in ("1", "true", "yes"):
+        try:
+            from aiohttp import web as _web
+
+            metrics_port = int(os.getenv("METRICS_PORT", "8000"))
+
+            async def _orch_metrics(request):
+                if _PROMETHEUS_AVAILABLE:
+                    try:
+                        body = generate_latest(_orch_registry)
+                        return _web.Response(body=body, content_type="text/plain")
+                    except Exception as e:
+                        return _web.Response(
+                            text=f"# metrics error: {type(e).__name__}\n",
+                            content_type="text/plain",
+                            status=500,
+                        )
+                return _web.Response(
+                    text="# prometheus_client not installed\n",
+                    content_type="text/plain",
+                    status=503,
+                )
+
+            async def _orch_health(request):
+                return _web.json_response({"status": "healthy", "service": "orchestrator"})
+
+            app = _web.Application()
+            app.router.add_get("/metrics", _orch_metrics)
+            app.router.add_get("/health", _orch_health)
+            metrics_runner = _web.AppRunner(app)
+            await metrics_runner.setup()
+            await _web.TCPSite(metrics_runner, "0.0.0.0", metrics_port).start()
+            logger.info("📊 [ORCHESTRATOR] Metrics server on port %s", metrics_port)
+        except Exception as e:
+            logger.warning("⚠️ [ORCHESTRATOR] Metrics server failed: %s", e)
+
     # [SINGULARITY 24.3] Запуск автономных демонов (Живой Чат, мониторинг)
     try:
         try:
@@ -2802,6 +2839,11 @@ async def run_continuous(interval_seconds: int = 60, quick_poll_seconds: int = 3
             try:
                 await health_task
             except asyncio.CancelledError:
+                pass
+        if metrics_runner is not None:
+            try:
+                await metrics_runner.cleanup()
+            except Exception:
                 pass
 
 

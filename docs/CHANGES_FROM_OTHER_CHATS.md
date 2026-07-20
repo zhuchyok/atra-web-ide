@@ -20,6 +20,15 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-21 v107) — Observability Scrapes + Redis UDS ✅
+
+- Prometheus scrapes 11/11: prometheus_client in agents image; ENABLE_METRICS on dynamic/smart/orch; orch metrics HTTP.
+- Redis UDS: pool socket_timeout safe for blocking XREADGROUP; worker timeout spam cleared after restart.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v107.
+
+---
+
 ## § Последние изменения (2026-07-21 v106) — Board Victoria-First ✅
 
 - Primary brain: MLX `victoria-wisdom-v3.5` via `/api/chat` (fix wrong `/v1/chat/completions`).

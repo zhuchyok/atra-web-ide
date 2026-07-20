@@ -120,17 +120,36 @@ class RedisManager:
                     try:
                         # [SINGULARITY 24.3] Используем self.url, который мы обновили
                         # [SINGULARITY 30.5] Support for Unix Domain Sockets (UDS)
+                        # Blocking XREADGROUP (block=5s+) must not hit socket_timeout.
+                        # Default None; if env sets a value it must be > max block seconds.
+                        _sock_timeout_raw = os.getenv("REDIS_SOCKET_TIMEOUT_SEC", "").strip()
+                        _sock_timeout = (
+                            float(_sock_timeout_raw) if _sock_timeout_raw else None
+                        )
+                        _connect_timeout = float(
+                            os.getenv("REDIS_SOCKET_CONNECT_TIMEOUT_SEC", "5")
+                        )
                         if self.url.startswith("unix://"):
                             path = self.url.replace("unix://", "")
                             self._pool = redis.ConnectionPool(
                                 connection_class=redis.UnixDomainSocketConnection,
                                 path=path,
                                 decode_responses=True,
-                                max_connections=20,
+                                max_connections=int(
+                                    os.getenv("REDIS_MAX_CONNECTIONS", "20")
+                                ),
+                                socket_timeout=_sock_timeout,
+                                socket_connect_timeout=_connect_timeout,
                             )
                         else:
                             self._pool = redis.ConnectionPool.from_url(
-                                self.url, max_connections=20, decode_responses=True
+                                self.url,
+                                max_connections=int(
+                                    os.getenv("REDIS_MAX_CONNECTIONS", "20")
+                                ),
+                                decode_responses=True,
+                                socket_timeout=_sock_timeout,
+                                socket_connect_timeout=_connect_timeout,
                             )
 
                         # Test connection
