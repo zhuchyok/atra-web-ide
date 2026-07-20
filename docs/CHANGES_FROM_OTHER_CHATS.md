@@ -20,6 +20,16 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-20 v104) — Board Consult Quality Gate ✅
+
+- Board model default `phi3.5:3.8b`; reject prompt-echo/placeholders (`is_low_quality_directive`).
+- Prompts without bracket templates; `BOARD_KN_EMBED` off on hot path (API SLA).
+- Smoke: consult HTTP 200 ~2.5s, substantive decision, no `[одна фраза]`.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v104.
+
+---
+
 ## § Последние изменения (2026-07-20 v103) — Distill Tail + Noise Purge + Ledger ✅
 
 - Distill queue drained: `eligible=0`, `distilled≈total`, `failed_distill=0`.

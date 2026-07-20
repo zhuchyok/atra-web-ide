@@ -582,6 +582,10 @@ services:
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
+      BOARD_CONSULT_MODEL: ${BOARD_CONSULT_MODEL:-phi3.5:3.8b}
+      BOARD_CONSULT_QUALITY_MODEL: ${BOARD_CONSULT_QUALITY_MODEL:-phi3.5:3.8b}
+      BOARD_CONSULT_FAST_TIMEOUT_SEC: ${BOARD_CONSULT_FAST_TIMEOUT_SEC:-90}
+      BOARD_CONSULT_TIMEOUT_SEC: ${BOARD_CONSULT_TIMEOUT_SEC:-120}
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - redis_data:/data/redis
@@ -669,6 +673,10 @@ services:
       API_KEY: ${API_KEY:-your-secret-api-key}
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_URL: http://host.docker.internal:11434
+      BOARD_CONSULT_MODEL: ${BOARD_CONSULT_MODEL:-phi3.5:3.8b}
+      BOARD_CONSULT_QUALITY_MODEL: ${BOARD_CONSULT_QUALITY_MODEL:-phi3.5:3.8b}
+      BOARD_CONSULT_FAST_TIMEOUT_SEC: ${BOARD_CONSULT_FAST_TIMEOUT_SEC:-90}
+      BOARD_CONSULT_TIMEOUT_SEC: ${BOARD_CONSULT_TIMEOUT_SEC:-120}
     volumes:
       - ..:/app:ro
       - ../docs/board_reports:/data/board_reports

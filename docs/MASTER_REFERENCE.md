@@ -32,8 +32,29 @@
 
 **Дата последнего обновления:** 2026-07-20
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; anti-stub + distill 100% + ledger closure (v103)
+**Состояние:** Стабильное; anti-stub + distill 100% + board quality gate (v104)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-20 v104) — Board Consult Quality Gate ✅
+
+### Диагноз
+
+Pipeline совета работал, но ad-hoc `/api/board/consult` отдавал prompt-echo (`РЕШЕНИЕ: [одна фраза]`) на `smollm2:360m`; compact-retry принимал тот же шаблон; HTTP мог висеть на KN embedding после уже готовой директивы.
+
+### Решение
+
+1. Default `BOARD_CONSULT_MODEL` / quality model → `phi3.5:3.8b` (compose: `knowledge_rest`, `board-scheduler`).
+2. `is_low_quality_directive()` — reject placeholders / echo; fail-closed.
+3. Промпты без квадратных скобок-плейсхолдеров; ответ обязан бить в вопрос пользователя.
+4. `BOARD_KN_EMBED=0` по умолчанию — не блокировать API на embedding.
+
+### Evidence (live)
+
+- Unit: `TestLowQualityDirective` — 3 passed
+- Smoke consult: HTTP **200** ~2.5s, `placeholder=false`, `decision_ok=true`, topic-relevant
+- Auth 401 without key сохранён
 
 ---
 

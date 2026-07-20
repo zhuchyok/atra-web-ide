@@ -1,8 +1,34 @@
 """Tests for strategic_board.py — Board of Directors autopilot."""
 
 import json
+
 import pytest
-from app.strategic_board import parse_directive_structure
+from app.strategic_board import is_low_quality_directive, parse_directive_structure
+
+
+class TestLowQualityDirective:
+    def test_rejects_placeholder_template(self):
+        text = """РЕШЕНИЕ: [одна фраза]
+ОБОСНОВАНИЕ: [2-3 предложения]
+РИСКИ: [кратко]
+УВЕРЕННОСТЬ: [0.0-1.0]"""
+        assert is_low_quality_directive(text) is True
+
+    def test_rejects_example_n_of_prompt_echo(self):
+        text = """Пример 2 из 3 предложений (работает ли совет директоров):
+
+РЕШЕНИЕ: [одна фраза]
+ОБОСНОВАНИЕ: [2-3 предложения]
+РИСКИ: [кратко]
+УВЕРЕННОСТЬ: [0.0-1.0]"""
+        assert is_low_quality_directive(text) is True
+
+    def test_accepts_substantive_directive(self):
+        text = """РЕШЕНИЕ: Удержать offline-first контур и разгрузить Ollama перед board consult
+ОБОСНОВАНИЕ: При конкуренции тяжёлых моделей директивы деградируют до шаблонов.
+РИСКИ: Кратковременное снижение codegen throughput; задержка nightly meeting.
+УВЕРЕННОСТЬ: 0.86"""
+        assert is_low_quality_directive(text) is False
 
 
 class TestParseDirectiveStructure:

@@ -5,7 +5,7 @@ import re
 import subprocess
 import uuid
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import asyncpg
 
@@ -59,6 +59,49 @@ def is_stub_directive(text: Optional[str]) -> bool:
         except ImportError:
             return "queued to postgresql" in t.lower()
     return is_victoria_stub(t)
+
+
+_PLACEHOLDER_DECISION_RE = re.compile(
+    r"\[(?:одна фраза|2-3[^]]*|кратко|0\.0-1\.0|одно предложение|N пункт[^\]]*)\]"
+    r"|решение:\s*\["
+    r"|пример\s+\d+\s+из",
+    re.IGNORECASE,
+)
+
+
+def is_low_quality_directive(text: Optional[str]) -> bool:
+    """
+    True if text is prompt-echo, instructional placeholder, or empty decision.
+    Used to reject smollm-style copies of the compact template.
+    """
+    t = (text or "").strip()
+    if not t or len(t) < 40:
+        return True
+    if is_stub_directive(t):
+        return True
+    low = t.lower()
+    if _PLACEHOLDER_DECISION_RE.search(t):
+        return True
+    echo_markers = (
+        "вопрос от пользователя",
+        "вы - совет директоров",
+        "вы — совет директоров",
+        "задача: примите стратегическое",
+        "формат: строгий корпоративный",
+        "ответь только в формате",
+    )
+    if any(m in low for m in echo_markers):
+        return True
+    decision_match = re.search(r"(?:решение|decision):\s*(.+)", t, re.IGNORECASE)
+    if not decision_match:
+        # Long dump without РЕШЕНИЕ is usually a prompt restatement.
+        return len(t) > 350
+    decision = decision_match.group(1).strip()
+    if len(decision) < 12:
+        return True
+    if decision.startswith("[") or "одна фраза" in decision.lower():
+        return True
+    return False
 
 
 def _summarize_context(raw: str, *, limit: int = 400) -> str:
@@ -194,17 +237,18 @@ async def _call_victoria_board_directive(
 - Задачи: {tasks_summary}
 - Новые знания (сводка): {insights_summary}
 
-Сформулируй ДИРЕКТИВУ СОВЕТА строго в формате:
-РЕШЕНИЕ: [главное направление на 24 часа]
-ОБОСНОВАНИЕ: [почему это важно]
-РИСКИ: [список рисков]
-УВЕРЕННОСТЬ: [0.0-1.0]
+Сформулируй ДИРЕКТИВУ СОВЕТА строго в формате (без квадратных скобок и плейсхолдеров):
+РЕШЕНИЕ: главное направление на 24 часа одной фразой
+ОБОСНОВАНИЕ: почему это важно (2-3 предложения)
+РИСКИ: список конкретных рисков
+УВЕРЕННОСТЬ: число от 0.0 до 1.0
 ФОКУСЫ:
-1) [первый фокус]
-2) [второй фокус]
-3) [третий фокус]
+1) первый фокус
+2) второй фокус
+3) третий фокус
 """
     timeout = float(os.getenv("BOARD_VICTORIA_TIMEOUT_SEC", "480"))
+    board_model = os.getenv("BOARD_CONSULT_MODEL", "phi3.5:3.8b")
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(
@@ -222,21 +266,21 @@ async def _call_victoria_board_directive(
                 directive = str(
                     data.get("output") or data.get("result") or data.get("response") or ""
                 ).strip()
-                if is_stub_directive(directive):
+                if is_stub_directive(directive) or is_low_quality_directive(directive):
                     # Extract task id and poll if Victoria queued despite sync request.
                     m = re.search(
                         r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})",
                         directive,
                         re.I,
                     )
-                    if m:
+                    if m and is_stub_directive(directive):
                         print(f"⚠️ Board got queue stub, polling task {m.group(1)}...")
                         polled = await _poll_victoria_task(
                             client, victoria_base, m.group(1), timeout_sec=min(300.0, timeout)
                         )
-                        if polled and not is_stub_directive(polled):
+                        if polled and not is_low_quality_directive(polled):
                             return polled
-                    print("⚠️ Board Victoria returned stub; trying local fallback")
+                    print("⚠️ Board Victoria returned stub/low-quality; trying local fallback")
                 elif directive:
                     return directive
     except Exception as e:
@@ -249,12 +293,12 @@ async def _call_victoria_board_directive(
         except ImportError:
             from knowledge_os.app.dialogue_llm import generate_dialogue, is_incomplete_text
 
-        gen = await generate_dialogue(goal, expert_name="Виктория", model_hint="fast")
+        gen = await generate_dialogue(goal, expert_name="Виктория", model_hint=board_model)
         if (
             gen.ok
             and gen.text
             and not is_incomplete_text(gen.text)
-            and not is_stub_directive(gen.text)
+            and not is_low_quality_directive(gen.text)
         ):
             print("✅ Board directive via dialogue_llm fallback")
             return gen.text.strip()
@@ -269,7 +313,7 @@ async def _call_victoria_board_directive(
             timeout=float(os.getenv("BOARD_LOCAL_FALLBACK_TIMEOUT_SEC", "180")),
         )
         text = str(text or "").strip()
-        if text and not is_stub_directive(text):
+        if text and not is_low_quality_directive(text):
             print("✅ Board directive via ai_core fallback")
             return text
     except Exception as e:
@@ -278,7 +322,7 @@ async def _call_victoria_board_directive(
     return None
 
 
-def parse_directive_structure(directive_text: str) -> Dict[str, Any]:
+def parse_directive_structure(directive_text: str) -> dict[str, Any]:
     """
     Парсинг текста директивы в структурированный формат.
     Извлекает: decision, rationale, risks, confidence, recommend_human_review
@@ -333,7 +377,7 @@ def parse_directive_structure(directive_text: str) -> Dict[str, Any]:
     if confidence_match:
         try:
             structured["confidence"] = float(confidence_match.group(1))
-        except:
+        except Exception:
             pass
 
     # Проверка на рекомендацию подтверждения человеком
@@ -349,12 +393,12 @@ def parse_directive_structure(directive_text: str) -> Dict[str, Any]:
 
 async def consult_board(
     question: str,
-    context: Optional[Dict] = None,
+    context: Optional[dict] = None,
     correlation_id: Optional[str] = None,
     source: str = "api",
     session_id: Optional[str] = None,
     user_id: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
+) -> Optional[dict[str, Any]]:
     """
     Консультация Совета Директоров по единичному вопросу.
 
@@ -427,28 +471,28 @@ async def consult_board(
                 print(f"⚠️ Не удалось получить последнюю директиву: {e}")
 
         # 2. Формирование промпта для Совета
+        # Важно: без квадратных скобок-плейсхолдеров — слабые модели их копируют дословно.
         board_prompt = f"""
 ВЫ - СОВЕТ ДИРЕКТОРОВ КОРПОРАЦИИ (CEO Владимир, Lead Виктория, CTO Дмитрий).
 
-КОНТЕКСТ:
+КОНТЕКСТ (фон, не подменяйте им ответ):
 {f"OKR: {okr_context}" if okr_context else "OKR: не заданы"}
 {f"Задачи: {tasks_context}" if tasks_context else "Задачи: нет данных"}
 {f"Последняя директива: {last_directive}" if last_directive else ""}
 
-ВОПРОС ОТ ПОЛЬЗОВАТЕЛЯ:
+ВОПРОС (отвечайте именно на него):
 {question}
 
-ЗАДАЧА: Примите стратегическое решение. Ответьте в структурированном формате:
+ЗАДАЧА: Примите стратегическое решение по ВОПРОСУ. OKR — только фон.
+Без квадратных скобок и без плейсхолдеров. Формат:
 
-РЕШЕНИЕ: [одна фраза - что делать]
-ОБОСНОВАНИЕ: [почему это решение оптимально с точки зрения OKR и текущей ситуации]
-РИСКИ: [если есть, укажите риски и митигацию]
-УВЕРЕННОСТЬ: [0.0-1.0 - насколько Совет уверен в решении]
+РЕШЕНИЕ: конкретное действие на 24 часа одной фразой
+ОБОСНОВАНИЕ: 2-3 предложения почему это отвечает на вопрос
+РИСКИ: 2-3 конкретных риска и митигация
+УВЕРЕННОСТЬ: число от 0.0 до 1.0
 
-Если решение критично (архитектура/бюджет/сроки) и уверенность < 0.8, укажите:
+Если решение критично (архитектура/бюджет/сроки) и уверенность < 0.8, добавьте строку:
 ТРЕБУЕТ ПОДТВЕРЖДЕНИЯ ЧЕЛОВЕКОМ
-
-ФОРМАТ: Строгий корпоративный стиль, без лишних комментариев.
 """
 
         # 3. LLM: fast dialogue_llm first (API SLA), then bounded ai_core.
@@ -459,45 +503,37 @@ async def consult_board(
             "true",
             "yes",
         )
-        consult_model = os.getenv("BOARD_CONSULT_MODEL", "smollm2:360m")
+        # Quality default: phi3.5 (smollm2:360m copies template placeholders).
+        consult_model = os.getenv("BOARD_CONSULT_MODEL", "phi3.5:3.8b")
+        quality_model = os.getenv("BOARD_CONSULT_QUALITY_MODEL", consult_model)
         directive = None
 
-        async def _via_dialogue_llm() -> Optional[str]:
+        async def _via_dialogue_llm(prompt: str, *, model_hint: str) -> Optional[str]:
             try:
                 from dialogue_llm import generate_dialogue, is_incomplete_text
             except ImportError:
                 from knowledge_os.app.dialogue_llm import generate_dialogue, is_incomplete_text
 
-            gen = await generate_dialogue(
-                board_prompt, expert_name="Виктория", model_hint=consult_model
-            )
+            gen = await generate_dialogue(prompt, expert_name="Виктория", model_hint=model_hint)
             text = str(getattr(gen, "text", "") or "").strip()
             if not getattr(gen, "ok", False) or len(text) < 20:
                 print(
                     f"⚠️ dialogue_llm miss: ok={getattr(gen, 'ok', None)} "
-                    f"reason={getattr(gen, 'reason', None)} len={len(text)}"
+                    f"reason={getattr(gen, 'reason', None)} len={len(text)} model={model_hint}"
                 )
                 return None
             if is_stub_directive(text):
                 print("⚠️ dialogue_llm returned stub markers")
                 return None
-            # Accept incomplete only if still usable length (honest, not empty).
             if is_incomplete_text(text) and len(text) < 60:
                 print("⚠️ dialogue_llm incomplete/short")
                 return None
+            if is_low_quality_directive(text):
+                print("⚠️ dialogue_llm low-quality / prompt-echo rejected")
+                return None
             return text
 
-        if fast_first:
-            try:
-                directive = await asyncio.wait_for(_via_dialogue_llm(), timeout=fast_timeout)
-                if directive:
-                    print("✅ Board consult via dialogue_llm (fast-first)")
-            except asyncio.TimeoutError:
-                print(f"⚠️ Board consult dialogue_llm timeout after {fast_timeout:.0f}s")
-            except Exception as e:
-                print(f"⚠️ Board consult dialogue_llm failed: {e}")
-
-        if not directive or len(str(directive)) < 20:
+        async def _via_ai_core() -> Optional[str]:
             try:
                 from ai_core import run_smart_agent_async
 
@@ -525,78 +561,83 @@ async def consult_board(
                     else:
                         print("⚠️ [BOARD] Очередь переполнена, прямой вызов...")
 
-                directive = await asyncio.wait_for(board_llm_call(), timeout=consult_timeout)
-                if directive:
-                    print("✅ Board consult via ai_core")
+                text = await asyncio.wait_for(board_llm_call(), timeout=consult_timeout)
+                text = str(text or "").strip()
+                if text and not is_low_quality_directive(text):
+                    return text
+                if text:
+                    print("⚠️ ai_core returned low-quality directive")
+                return None
             except ImportError:
                 print("⚠️ ai_core не доступен")
+                return None
             except asyncio.TimeoutError:
                 print(f"⚠️ Board consult ai_core timeout after {consult_timeout:.0f}s")
+                return None
             except Exception as e:
                 print(f"⚠️ Board consult ai_core failed: {e}")
+                return None
 
-        # Last resort: dialogue_llm again (after heavy path freed / different model pressure).
-        if not directive or len(str(directive)) < 20:
+        compact_prompt = (
+            f"Вопрос Совета Директоров: {question}\n\n"
+            "Ответь строго по делу, БЕЗ квадратных скобок и БЕЗ плейсхолдеров.\n"
+            "Формат:\n"
+            "РЕШЕНИЕ: конкретное решение одной фразой\n"
+            "ОБОСНОВАНИЕ: 2-3 предложения по сути вопроса\n"
+            "РИСКИ: 2-3 коротких риска\n"
+            "УВЕРЕННОСТЬ: число от 0.0 до 1.0\n"
+        )
+
+        if fast_first:
             try:
-                directive = await asyncio.wait_for(_via_dialogue_llm(), timeout=fast_timeout)
+                directive = await asyncio.wait_for(
+                    _via_dialogue_llm(board_prompt, model_hint=consult_model),
+                    timeout=fast_timeout,
+                )
                 if directive:
-                    print("✅ Board consult via dialogue_llm (last resort)")
+                    print(f"✅ Board consult via dialogue_llm (fast-first, {consult_model})")
+            except asyncio.TimeoutError:
+                print(f"⚠️ Board consult dialogue_llm timeout after {fast_timeout:.0f}s")
+            except Exception as e:
+                print(f"⚠️ Board consult dialogue_llm failed: {e}")
+
+        if is_low_quality_directive(directive):
+            print("⚠️ Board consult quality gate; compact retry on quality model")
+            try:
+                text2 = await asyncio.wait_for(
+                    _via_dialogue_llm(compact_prompt, model_hint=quality_model),
+                    timeout=fast_timeout,
+                )
+                if text2:
+                    directive = text2
+                    print(f"✅ Board consult compact retry accepted ({quality_model})")
+            except Exception as e:
+                print(f"⚠️ Board consult compact retry failed: {e}")
+
+        if is_low_quality_directive(directive):
+            print("⚠️ Board consult escalating to ai_core for quality")
+            text3 = await _via_ai_core()
+            if text3:
+                directive = text3
+                print("✅ Board consult via ai_core")
+
+        # Last resort: compact on quality model again after heavy path.
+        if is_low_quality_directive(directive):
+            try:
+                text4 = await asyncio.wait_for(
+                    _via_dialogue_llm(compact_prompt, model_hint=quality_model),
+                    timeout=fast_timeout,
+                )
+                if text4:
+                    directive = text4
+                    print("✅ Board consult via dialogue_llm (last resort quality)")
             except Exception as e:
                 print(f"⚠️ Board consult last-resort dialogue_llm failed: {e}")
 
-        if not directive or len(str(directive)) < 20:
-            print("❌ Совет не смог принять решение (пустой ответ от LLM)")
+        if is_low_quality_directive(directive):
+            print("❌ Совет отклонил low-quality/prompt-echo директиву (fail-closed)")
             return None
         directive = str(directive).strip()
-
-        def _looks_like_prompt_echo(text: str) -> bool:
-            t = (text or "").lower()
-            if "решение:" in t:
-                return False
-            markers = (
-                "вопрос от пользователя",
-                "вы - совет",
-                "задача: примите стратегическое",
-                "формат: строгий корпоративный",
-                "контекст:\nokr",
-                "okr:",
-            )
-            # Echo often restates role/OKR block without a РЕШЕНИЕ line.
-            return any(m in t for m in markers)
-
-        if _looks_like_prompt_echo(directive) or (
-            "решение:" not in directive.lower() and len(directive) > 400
-        ):
-            print("⚠️ Board consult looks like prompt-echo; compact retry")
-            compact_prompt = (
-                f"Вопрос: {question}\n\n"
-                "Ответь ТОЛЬКО в формате:\n"
-                "РЕШЕНИЕ: [одна фраза]\n"
-                "ОБОСНОВАНИЕ: [2-3 предложения]\n"
-                "РИСКИ: [кратко]\n"
-                "УВЕРЕННОСТЬ: [0.0-1.0]\n"
-            )
-            try:
-                try:
-                    from dialogue_llm import generate_dialogue as _gen
-                except ImportError:
-                    from knowledge_os.app.dialogue_llm import generate_dialogue as _gen
-
-                gen2 = await asyncio.wait_for(
-                    _gen(compact_prompt, expert_name="Виктория", model_hint=consult_model),
-                    timeout=fast_timeout,
-                )
-                text2 = str(getattr(gen2, "text", "") or "").strip()
-                if (
-                    getattr(gen2, "ok", False)
-                    and len(text2) >= 20
-                    and not is_stub_directive(text2)
-                    and not _looks_like_prompt_echo(text2)
-                ):
-                    directive = text2
-                    print("✅ Board consult compact retry accepted")
-            except Exception as e:
-                print(f"⚠️ Board consult compact retry failed: {e}")
 
         # 4. Парсинг структуры
         structured_decision = parse_directive_structure(directive)
@@ -672,12 +713,24 @@ async def consult_board(
                         )
                         conf = structured_decision.get("confidence", 0.8)
                         embedding = None
-                        try:
-                            from semantic_cache import get_embedding
+                        # Default OFF: embedding can block the event loop under Ollama/MLX load
+                        # and stall HTTP even after directive+MD+DB are done.
+                        if os.getenv("BOARD_KN_EMBED", "0").lower() in (
+                            "1",
+                            "true",
+                            "yes",
+                        ):
+                            try:
+                                from semantic_cache import get_embedding
 
-                            embedding = await get_embedding(content_kn[:8000])
-                        except Exception:
-                            pass
+                                emb_timeout = float(os.getenv("BOARD_KN_EMBED_TIMEOUT_SEC", "8"))
+                                embedding = await asyncio.wait_for(
+                                    get_embedding(content_kn[:8000]), timeout=emb_timeout
+                                )
+                            except asyncio.TimeoutError:
+                                print("⚠️ Board KN embedding timeout; saving node without embedding")
+                            except Exception:
+                                pass
                         if embedding is not None:
                             await write_conn.execute(
                                 """
@@ -725,7 +778,7 @@ async def consult_board(
         return None
 
 
-async def run_board_simulation(conn, proposed_goal: str) -> Dict[str, Any]:
+async def run_board_simulation(conn, proposed_goal: str) -> dict[str, Any]:
     """[Strategic Simulator] Прогон цели через исторические данные и экспертов."""
     print(f"🚀 [SIMULATOR] Запуск симуляции для цели: {proposed_goal}")
 
@@ -763,7 +816,7 @@ async def run_board_simulation(conn, proposed_goal: str) -> Dict[str, Any]:
         if "```" in result:
             result = result.split("```")[1].replace("json", "").strip()
         return json.loads(result)
-    except:
+    except Exception:
         return {
             "probability": 50,
             "bottlenecks": ["Не удалось провести точный расчет"],
