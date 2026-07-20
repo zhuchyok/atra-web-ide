@@ -3,7 +3,56 @@
 import json
 
 import pytest
-from app.strategic_board import is_low_quality_directive, parse_directive_structure
+from app.strategic_board import (
+    directive_matches_question_intent,
+    extract_question_intent_terms,
+    is_low_quality_directive,
+    parse_directive_structure,
+)
+
+
+class TestIntentFidelity:
+    def test_extracts_content_terms(self):
+        terms = extract_question_intent_terms(
+            "Нужно ли разгружать тяжёлые модели Ollama перед заседанием Совета?"
+        )
+        assert "разгружать" in terms or "ollama" in terms
+        assert "нужно" not in terms
+
+    def test_rejects_okr_drift_away_from_unload_question(self):
+        q = "Нужно ли разгружать тяжёлые модели Ollama перед заседанием Совета?"
+        drift = """РЕШЕНИЕ: Начать внедрение моделей Ollama в производственную среду
+ОБОСНОВАНИЕ: Это повысит технологический суверенитет и интеллектуальный капитал.
+РИСКИ: Сложность интеграции
+УВЕРЕННОСТЬ: 0.7"""
+        assert directive_matches_question_intent(q, drift) is False
+
+    def test_rejects_wrong_polarity_mass_reset(self):
+        q = "Стоит ли сейчас массово reset failed tasks по timeout, или оставить как историю?"
+        bad = """РЕШЕНИЕ: Решить массово timeout failed tasks
+ОБОСНОВАНИЕ: Сброс простоящих задач повысит эффективность.
+РИСКИ: Потеря контекста
+УВЕРЕННОСТЬ: 0.6"""
+        assert directive_matches_question_intent(q, bad) is False
+
+    def test_accepts_leave_failed_as_history(self):
+        q = "Стоит ли сейчас массово reset failed tasks по timeout, или оставить как историю?"
+        good = """РЕШЕНИЕ: Не делать массовый reset — оставить failed timeout как историю и разобрать точечно
+ОБОСНОВАНИЕ: Массовый сброс вернёт шум в очередь; точечный анализ безопаснее.
+РИСКИ: Часть задач останется failed до ручного разбора
+УВЕРЕННОСТЬ: 0.85"""
+        assert directive_matches_question_intent(q, good) is True
+
+    def test_accepts_intent_aligned_unload_answer(self):
+        q = "Нужно ли разгружать тяжёлые модели Ollama перед заседанием Совета?"
+        good = """РЕШЕНИЕ: Да — выгрузить тяжёлые модели Ollama перед заседанием Совета
+ОБОСНОВАНИЕ: Разгрузка освобождает память и снижает конкуренцию, директивы становятся точнее.
+РИСКИ: Кратковременная задержка codegen
+УВЕРЕННОСТЬ: 0.88"""
+        assert directive_matches_question_intent(q, good) is True
+
+    def test_nightly_short_question_skips_gate(self):
+        assert directive_matches_question_intent("Daily Strategic Board Meeting", "x") is True
 
 
 class TestLowQualityDirective:

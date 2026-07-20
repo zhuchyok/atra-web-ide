@@ -26,6 +26,7 @@ DEFAULT_OLLAMA_MODEL = os.getenv("DIALOGUE_OLLAMA_MODEL", "phi3.5:3.8b")
 DEFAULT_MLX_MODEL = os.getenv("DIALOGUE_MLX_MODEL", "victoria-wisdom-v3.5")
 HTTP_TIMEOUT = float(os.getenv("DIALOGUE_LLM_TIMEOUT_SEC", "90"))
 MLX_TIMEOUT = float(os.getenv("DIALOGUE_MLX_TIMEOUT_SEC", "60"))
+MAX_TOKENS = max(64, int(os.getenv("DIALOGUE_MAX_TOKENS", "280")))
 OLLAMA_MAX_CANDIDATES = max(1, int(os.getenv("DIALOGUE_OLLAMA_MAX_CANDIDATES", "2")))
 PREFER_OLLAMA_FIRST = os.getenv("DIALOGUE_PREFER_OLLAMA_FIRST", "true").lower() in (
     "1",
@@ -150,7 +151,7 @@ async def _try_mlx(prompt: str, *, model_hint: Optional[str]) -> tuple[str, str]
     body = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 280,
+        "max_tokens": MAX_TOKENS,
         "temperature": 0.4,
     }
     try:
@@ -193,7 +194,7 @@ async def _try_ollama(prompt: str, *, model_hint: Optional[str]) -> tuple[str, s
                 "model": model,
                 "prompt": prompt[:4000],
                 "stream": False,
-                "options": {"num_predict": 280, "temperature": 0.4},
+                "options": {"num_predict": MAX_TOKENS, "temperature": 0.4},
             }
             for attempt in range(1, max_retries + 1):
                 remaining = deadline - time.monotonic()

@@ -1073,6 +1073,8 @@ async def board_consult(body: BoardConsultRequest):
             correlation_id=correlation_id,
         )
 
+    except HTTPException:
+        raise
     except ImportError as e:
         _log.exception(f"[BOARD_CONSULT] ImportError: {e}")
         raise HTTPException(

@@ -30,10 +30,30 @@
 
 ## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
-**Дата последнего обновления:** 2026-07-20
+**Дата последнего обновления:** 2026-07-21
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; anti-stub + distill 100% + board quality gate (v104)
+**Состояние:** Стабильное; board intent-fidelity gate (v105)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-21 v105) — Board Intent Fidelity ✅
+
+### Диагноз
+
+v104 убрал prompt-echo, но директивы часто отвечали OKR-дрейфом («внедрять Ollama») вместо вопроса; polarity ломалась (`оставить` матчилось в `предоставить`); HTTP вис на ai_core.
+
+### Решение
+
+1. `directive_matches_question_intent` + family constraints (разгрузка / оставить историю / стабильность).
+2. Unload heavy Ollama before consult; quality retry MLX→Ollama wisdom→phi3.5.
+3. `BOARD_CONSULT_SKIP_AICORE=true` (default); ai_core timeout 45s if enabled.
+4. Word-boundary intent; reject EN prompt-leak; REST не оборачивает 503 в 500.
+
+### Evidence
+
+- Unit: `TestIntentFidelity` + board tests **17 passed**
+- Live: Q1 «Разгрузить тяжёлые…», Q2 «Оставить как историю», Q3 стабильность — intent **3/3**
 
 ---
 

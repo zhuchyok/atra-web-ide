@@ -20,6 +20,16 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-21 v105) — Board Intent Fidelity ✅
+
+- Intent/polarity gate for board consult; unload heavy Ollama; MLX/Ollama quality retry ladder.
+- Skip ai_core by default on consult hot path; fix 503→500 wrap in REST.
+- Live intent 3/3 on unload / leave-history / stability questions.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v105.
+
+---
+
 ## § Последние изменения (2026-07-20 v104) — Board Consult Quality Gate ✅
 
 - Board model default `phi3.5:3.8b`; reject prompt-echo/placeholders (`is_low_quality_directive`).

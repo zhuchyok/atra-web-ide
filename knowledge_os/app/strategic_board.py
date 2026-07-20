@@ -101,7 +101,192 @@ def is_low_quality_directive(text: Optional[str]) -> bool:
         return True
     if decision.startswith("[") or "одна фраза" in decision.lower():
         return True
+    # Mixed-language / prompt-leak garbage (seen under model pressure).
+    if re.search(
+        r"\b(bitte|please provide|as an ai|i cannot|you provide a ques)\b",
+        low,
+    ):
+        return True
     return False
+
+
+_QUESTION_STOPWORDS = {
+    "нужно",
+    "надо",
+    "стоит",
+    "сейчас",
+    "какой",
+    "какая",
+    "какие",
+    "каков",
+    "ли",
+    "или",
+    "что",
+    "чтобы",
+    "для",
+    "при",
+    "уже",
+    "ещё",
+    "еще",
+    "как",
+    "это",
+    "этой",
+    "этом",
+    "есть",
+    "быть",
+    "были",
+    "будет",
+    "дай",
+    "конкретное",
+    "конкретный",
+    "сутки",
+    "часа",
+    "час",
+    "перед",
+    "после",
+    "про",
+    "нас",
+    "нам",
+    "все",
+    "всё",
+    "the",
+    "and",
+    "for",
+    "with",
+    "from",
+    "should",
+    "would",
+    "could",
+    "about",
+    "what",
+    "when",
+    "where",
+    "which",
+    "does",
+    "did",
+    "are",
+    "was",
+    "were",
+    "have",
+    "has",
+    "been",
+}
+
+
+def extract_question_intent_terms(question: str, *, limit: int = 12) -> list[str]:
+    """Content tokens from the user question (ru/en), minus stopwords."""
+    q = (question or "").lower()
+    raw = re.findall(r"[a-zа-яё0-9_]{4,}", q, flags=re.IGNORECASE)
+    terms: list[str] = []
+    seen: set[str] = set()
+    for tok in raw:
+        t = tok.lower()
+        if t in _QUESTION_STOPWORDS or t.isdigit():
+            continue
+        if t in seen:
+            continue
+        seen.add(t)
+        terms.append(t)
+        if len(terms) >= limit:
+            break
+    return terms
+
+
+# Too common in OKR-drift answers — alone they do not prove intent match.
+_GENERIC_INTENT_TERMS = {
+    "ollama",
+    "модели",
+    "модел",
+    "model",
+    "models",
+    "совета",
+    "советом",
+    "заседанием",
+    "заседание",
+    "studio",
+    "knowledge",
+    "корпорац",
+    "систем",
+    "среды",
+    "среде",
+    "внедрен",
+    "производ",
+    "daily",
+    "strategic",
+    "board",
+    "meeting",
+}
+
+
+# If question triggers a family, answer must reflect that family (anti OKR-drift / anti wrong polarity).
+_INTENT_FAMILIES: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
+    (
+        ("разгруж", "разгруз", "выгруз", "unload"),
+        (
+            "разгруз",
+            "выгруз",
+            "unload",
+            "keep_alive",
+            "освобод",
+            "не держать",
+            "нагруз",
+            "памят",
+            "vram",
+            "конкуренц",
+        ),
+    ),
+    (
+        ("оставить", "истори"),
+        ("оставить", "истори", "не масс", "не сбрас", "не reset", "без reset", "не трог"),
+    ),
+    (
+        ("стабильн", "стабил"),
+        ("стабил", "надеж", "uptime", "sla", "health", "нагруз", "памят"),
+    ),
+)
+
+
+def directive_matches_question_intent(
+    question: str, directive: Optional[str], *, min_hits: int = 1
+) -> bool:
+    """
+    True if decision/rationale reflects the question (not generic OKR drift).
+    Skips gate when the question has too few content terms (e.g. nightly title).
+    Prefer hits on discriminative terms (e.g. разгружать), not only ollama/модели.
+    """
+    q_low = (question or "").lower()
+    terms = extract_question_intent_terms(question)
+    specific = [t for t in terms if t not in _GENERIC_INTENT_TERMS]
+    if len(specific) < 1:
+        return True  # nightly/generic titles — do not false-reject
+    text = (directive or "").strip()
+    if not text:
+        return False
+    focus_parts = []
+    for label in ("решение", "decision", "обоснование", "rationale"):
+        m = re.search(
+            rf"(?:{label}):\s*(.+?)(?:\n(?:[А-ЯA-Z]{{2,}}|\w+:)|\Z)",
+            text,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        if m:
+            focus_parts.append(m.group(1))
+    focus = " ".join(focus_parts) if focus_parts else text
+    focus_l = focus.lower()
+
+    def _has_term(hay: str, needle: str) -> bool:
+        # Left boundary only: 'разгруз'→'разгрузка', but not 'оставить' inside 'предоставить'.
+        return re.search(rf"(?<![a-zа-яё]){re.escape(needle)}", hay) is not None
+
+    # Family constraints first (unload / leave-history / stability).
+    for q_keys, a_keys in _INTENT_FAMILIES:
+        if any(_has_term(q_low, k) or k in q_low for k in q_keys):
+            if not any(_has_term(focus_l, k) for k in a_keys):
+                return False
+
+    hits = sum(1 for t in specific if _has_term(focus_l, t) or t in focus_l)
+    need = min_hits if len(specific) <= 3 else min(2, min_hits + 1)
+    return hits >= need
 
 
 def _summarize_context(raw: str, *, limit: int = 400) -> str:
@@ -113,6 +298,51 @@ def _summarize_context(raw: str, *, limit: int = 400) -> str:
     text = re.sub(r"\bcode\b", "software", text, flags=re.IGNORECASE)
     text = text.replace("код", "ПО")
     return text[:limit]
+
+
+async def _maybe_unload_heavy_ollama(*, keep_models: list[str]) -> None:
+    """
+    Best-effort: unload idle heavy Ollama models so board teacher is not starved.
+    Controlled by BOARD_CONSULT_UNLOAD_HEAVY (default true).
+    """
+    if os.getenv("BOARD_CONSULT_UNLOAD_HEAVY", "true").lower() not in (
+        "1",
+        "true",
+        "yes",
+    ):
+        return
+    base = (
+        os.getenv("OLLAMA_BASE_URL")
+        or os.getenv("OLLAMA_URL")
+        or "http://host.docker.internal:11434"
+    ).rstrip("/")
+    keep = {m.lower() for m in keep_models if m}
+    keep_bases = {m.split(":")[0].lower() for m in keep}
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            ps = await client.get(f"{base}/api/ps")
+            if ps.status_code != 200:
+                return
+            loaded = [m.get("name", "") for m in (ps.json() or {}).get("models", [])]
+            for name in loaded:
+                n = (name or "").lower()
+                if not n:
+                    continue
+                if n in keep or n.split(":")[0] in keep_bases:
+                    continue
+                # Keep small teacher / board models; unload the rest.
+                try:
+                    await client.post(
+                        f"{base}/api/generate",
+                        json={"model": name, "prompt": "", "keep_alive": 0},
+                    )
+                    print(f"🧹 Board unload idle Ollama model: {name}")
+                except Exception:
+                    pass
+    except Exception as e:
+        print(f"⚠️ Board Ollama unload skipped: {e}")
 
 
 def _resolve_board_reports_dir() -> str:
@@ -503,10 +733,34 @@ async def consult_board(
             "true",
             "yes",
         )
-        # Quality default: phi3.5 (smollm2:360m copies template placeholders).
+        # Fast path: phi3.5. Quality/intent retry: stronger model (Ollama or MLX hint).
         consult_model = os.getenv("BOARD_CONSULT_MODEL", "phi3.5:3.8b")
-        quality_model = os.getenv("BOARD_CONSULT_QUALITY_MODEL", consult_model)
+        quality_model = os.getenv(
+            "BOARD_CONSULT_QUALITY_MODEL", "victoria-wisdom-v3.5:latest"
+        )
+        # model_hint without ":" routes dialogue_llm toward MLX victoria-wisdom.
+        use_mlx = os.getenv("BOARD_CONSULT_USE_MLX", "true").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        mlx_model_hint = os.getenv("BOARD_CONSULT_MLX_MODEL", "victoria-wisdom-v3.5")
+        intent_terms = extract_question_intent_terms(question)
+        intent_specific = [t for t in intent_terms if t not in _GENERIC_INTENT_TERMS]
+        enforce_intent = source in {"api", "chat", "dashboard"} and len(intent_specific) >= 1
+
+        await _maybe_unload_heavy_ollama(
+            keep_models=[consult_model, quality_model, "phi3.5:3.8b"]
+        )
+
         directive = None
+
+        def _acceptable(text: Optional[str]) -> bool:
+            if is_low_quality_directive(text):
+                return False
+            if enforce_intent and not directive_matches_question_intent(question, text):
+                return False
+            return True
 
         async def _via_dialogue_llm(prompt: str, *, model_hint: str) -> Optional[str]:
             try:
@@ -514,7 +768,22 @@ async def consult_board(
             except ImportError:
                 from knowledge_os.app.dialogue_llm import generate_dialogue, is_incomplete_text
 
-            gen = await generate_dialogue(prompt, expert_name="Виктория", model_hint=model_hint)
+            # Prefer MLX for quality hints when enabled (no colon → MLX path first).
+            prefer_mlx_first = use_mlx and (":" not in model_hint)
+            old_prefer = os.environ.get("DIALOGUE_PREFER_OLLAMA_FIRST")
+            if prefer_mlx_first:
+                os.environ["DIALOGUE_PREFER_OLLAMA_FIRST"] = "false"
+            try:
+                gen = await generate_dialogue(
+                    prompt, expert_name="Виктория", model_hint=model_hint
+                )
+            finally:
+                if prefer_mlx_first:
+                    if old_prefer is None:
+                        os.environ.pop("DIALOGUE_PREFER_OLLAMA_FIRST", None)
+                    else:
+                        os.environ["DIALOGUE_PREFER_OLLAMA_FIRST"] = old_prefer
+
             text = str(getattr(gen, "text", "") or "").strip()
             if not getattr(gen, "ok", False) or len(text) < 20:
                 print(
@@ -561,9 +830,13 @@ async def consult_board(
                     else:
                         print("⚠️ [BOARD] Очередь переполнена, прямой вызов...")
 
-                text = await asyncio.wait_for(board_llm_call(), timeout=consult_timeout)
+                ai_timeout = float(os.getenv("BOARD_CONSULT_AICORE_TIMEOUT_SEC", "45"))
+                text = await asyncio.wait_for(board_llm_call(), timeout=ai_timeout)
                 text = str(text or "").strip()
+                if text and _acceptable(text):
+                    return text
                 if text and not is_low_quality_directive(text):
+                    # Form OK but intent miss — still return for further retries.
                     return text
                 if text:
                     print("⚠️ ai_core returned low-quality directive")
@@ -572,17 +845,26 @@ async def consult_board(
                 print("⚠️ ai_core не доступен")
                 return None
             except asyncio.TimeoutError:
-                print(f"⚠️ Board consult ai_core timeout after {consult_timeout:.0f}s")
+                print(
+                    f"⚠️ Board consult ai_core timeout after "
+                    f"{float(os.getenv('BOARD_CONSULT_AICORE_TIMEOUT_SEC', '45')):.0f}s"
+                )
                 return None
             except Exception as e:
                 print(f"⚠️ Board consult ai_core failed: {e}")
                 return None
 
+        intent_hint = ", ".join(intent_terms[:8]) if intent_terms else ""
         compact_prompt = (
             f"Вопрос Совета Директоров: {question}\n\n"
-            "Ответь строго по делу, БЕЗ квадратных скобок и БЕЗ плейсхолдеров.\n"
+            f"Ключевые слова вопроса (обязательно отрази в РЕШЕНИЕ/ОБОСНОВАНИЕ): {intent_hint}\n"
+            "Ответь ИМЕННО на этот вопрос. Не подменяй ответ общими OKR про «внедрение Ollama».\n"
+            "Если в вопросе есть альтернатива (A или B) — явно выбери одну сторону "
+            "и повтори её словами из вопроса (например: «оставить как историю», "
+            "«разгружать тяжёлые модели»).\n"
+            "БЕЗ квадратных скобок и БЕЗ плейсхолдеров.\n"
             "Формат:\n"
-            "РЕШЕНИЕ: конкретное решение одной фразой\n"
+            "РЕШЕНИЕ: конкретное решение одной фразой по вопросу\n"
             "ОБОСНОВАНИЕ: 2-3 предложения по сути вопроса\n"
             "РИСКИ: 2-3 коротких риска\n"
             "УВЕРЕННОСТЬ: число от 0.0 до 1.0\n"
@@ -594,67 +876,98 @@ async def consult_board(
                     _via_dialogue_llm(board_prompt, model_hint=consult_model),
                     timeout=fast_timeout,
                 )
-                if directive:
+                if directive and _acceptable(directive):
                     print(f"✅ Board consult via dialogue_llm (fast-first, {consult_model})")
+                elif directive:
+                    print("⚠️ Board consult fast-first intent miss; will retry")
             except asyncio.TimeoutError:
                 print(f"⚠️ Board consult dialogue_llm timeout after {fast_timeout:.0f}s")
             except Exception as e:
                 print(f"⚠️ Board consult dialogue_llm failed: {e}")
 
-        if is_low_quality_directive(directive):
-            print("⚠️ Board consult quality gate; compact retry on quality model")
+        async def _compact_retry(model_hint: str, *, label: str) -> Optional[str]:
             try:
-                text2 = await asyncio.wait_for(
-                    _via_dialogue_llm(compact_prompt, model_hint=quality_model),
+                text = await asyncio.wait_for(
+                    _via_dialogue_llm(compact_prompt, model_hint=model_hint),
                     timeout=fast_timeout,
                 )
-                if text2:
-                    directive = text2
-                    print(f"✅ Board consult compact retry accepted ({quality_model})")
+                if text and _acceptable(text):
+                    print(f"✅ Board consult {label} accepted ({model_hint})")
+                    return text
+                if text and not is_low_quality_directive(text):
+                    print(f"⚠️ Board consult {label} form-ok intent-weak ({model_hint})")
+                    return text
+                return None
             except Exception as e:
-                print(f"⚠️ Board consult compact retry failed: {e}")
+                print(f"⚠️ Board consult {label} failed: {e}")
+                return None
 
-        if is_low_quality_directive(directive):
-            print("⚠️ Board consult escalating to ai_core for quality")
+        if not _acceptable(directive):
+            print("⚠️ Board consult quality/intent gate; compact retry")
+            retry_plan: list[tuple[str, str]] = []
+            if use_mlx:
+                retry_plan.append((mlx_model_hint, "compact-mlx"))
+            retry_plan.extend(
+                [
+                    (quality_model, "compact-ollama-quality"),
+                    (consult_model, "compact-phi"),
+                ]
+            )
+            for hint, label in retry_plan:
+                text2 = await _compact_retry(hint, label=label)
+                if text2 and _acceptable(text2):
+                    directive = text2
+                    break
+                if text2:
+                    directive = text2  # keep best form for next stage
+
+        skip_aicore = os.getenv("BOARD_CONSULT_SKIP_AICORE", "false").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        if not _acceptable(directive) and not skip_aicore:
+            print("⚠️ Board consult escalating to ai_core for quality/intent")
             text3 = await _via_ai_core()
             if text3:
                 directive = text3
                 print("✅ Board consult via ai_core")
 
-        # Last resort: compact on quality model again after heavy path.
-        if is_low_quality_directive(directive):
-            try:
-                text4 = await asyncio.wait_for(
-                    _via_dialogue_llm(compact_prompt, model_hint=quality_model),
-                    timeout=fast_timeout,
-                )
-                if text4:
-                    directive = text4
-                    print("✅ Board consult via dialogue_llm (last resort quality)")
-            except Exception as e:
-                print(f"⚠️ Board consult last-resort dialogue_llm failed: {e}")
+        if not _acceptable(directive):
+            text4 = await _compact_retry(quality_model, label="last-resort-quality")
+            if text4:
+                directive = text4
 
         if is_low_quality_directive(directive):
             print("❌ Совет отклонил low-quality/prompt-echo директиву (fail-closed)")
+            return None
+        if enforce_intent and not directive_matches_question_intent(question, directive):
+            # Fail-closed for chat/api: do not publish OKR-drift as a real decision.
+            print("❌ Совет отклонил директиву без попадания в вопрос (intent fail-closed)")
             return None
         directive = str(directive).strip()
 
         # 4. Парсинг структуры
         structured_decision = parse_directive_structure(directive)
 
-        # Определение risk_level на основе ключевых слов и confidence
+        # risk_level: score decision/rationale only (ignore the РИСКИ: label itself).
         risk_level = "low"
-        directive_lower = directive.lower()
+        focus_for_risk = (
+            f"{structured_decision.get('decision', '')} "
+            f"{structured_decision.get('rationale', '')}"
+        ).lower()
         if any(
-            word in directive_lower
-            for word in ["архитектура", "бюджет", "критичн", "серьезн", "риск"]
+            word in focus_for_risk
+            for word in ["архитектура", "бюджет", "критичн", "серьезн", "безопасн"]
         ):
             risk_level = "high"
-        elif any(word in directive_lower for word in ["важн", "изменен", "рефактор", "переработ"]):
+        elif any(
+            word in focus_for_risk for word in ["важн", "изменен", "рефактор", "переработ"]
+        ):
             risk_level = "medium"
 
         if structured_decision.get("confidence", 1.0) < 0.7:
-            risk_level = "high"  # Низкая уверенность = высокий риск
+            risk_level = "high"
 
         recommend_human_review = structured_decision.get("recommend_human_review", False)
         if risk_level == "high" or structured_decision.get("confidence", 1.0) < 0.7:
