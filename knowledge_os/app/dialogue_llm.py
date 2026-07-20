@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass
 from typing import Optional
@@ -19,6 +20,19 @@ from typing import Optional
 import httpx
 
 logger = logging.getLogger(__name__)
+
+_THINK_BLOCK_RE = re.compile(
+    r"<think>.*?</think>|<thinking>.*?</thinking>",
+    flags=re.IGNORECASE | re.DOTALL,
+)
+
+
+def _strip_model_artifacts(text: str) -> str:
+    """Remove model thinking tags / leading junk that confuse board gates."""
+    cleaned = _THINK_BLOCK_RE.sub("", text or "")
+    cleaned = cleaned.strip().lstrip(".\n").strip()
+    return cleaned
+
 
 MLX_BASE = os.getenv("MLX_BASE_URL", "http://host.docker.internal:11435").rstrip("/")
 OLLAMA_BASE = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434").rstrip("/")
@@ -72,17 +86,29 @@ async def generate_dialogue(
     *,
     expert_name: str = "expert",
     model_hint: Optional[str] = None,
+    backends: tuple[str, ...] | None = None,
 ) -> DialogueGenResult:
-    """Generate text via local inference; honest incomplete on failure."""
+    """Generate text via local inference; honest incomplete on failure.
+
+    backends: optional explicit order, e.g. ("mlx",) for Victoria-first board path
+    so a slow MLX miss does not burn the outer timeout on Ollama.
+    """
     last_reason = "unavailable"
-    order = ("ollama", "mlx") if PREFER_OLLAMA_FIRST else ("mlx", "ollama")
+    if backends:
+        order = backends
+    else:
+        order = ("ollama", "mlx") if PREFER_OLLAMA_FIRST else ("mlx", "ollama")
     for backend in order:
         if backend == "ollama":
             text, reason = await _try_ollama(prompt, model_hint=model_hint)
-        else:
+        elif backend == "mlx":
             text, reason = await _try_mlx(prompt, model_hint=model_hint)
+        else:
+            continue
         if text:
-            return DialogueGenResult(text=text.strip(), ok=True, reason="ok")
+            cleaned = _strip_model_artifacts(text)
+            if cleaned:
+                return DialogueGenResult(text=cleaned, ok=True, reason="ok")
         if reason:
             last_reason = reason
     logger.warning("dialogue_llm: incomplete for %s reason=%s", expert_name, last_reason)
@@ -147,12 +173,13 @@ async def _try_mlx(prompt: str, *, model_hint: Optional[str]) -> tuple[str, str]
         )
     ):
         model = model_hint
-    url = f"{MLX_BASE}/v1/chat/completions"
+    # Local MLX server speaks Ollama-compatible /api/chat (not OpenAI /v1/chat/completions).
+    url = f"{MLX_BASE}/api/chat"
     body = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": MAX_TOKENS,
-        "temperature": 0.4,
+        "stream": False,
+        "options": {"num_predict": MAX_TOKENS, "temperature": 0.4},
     }
     try:
         async with httpx.AsyncClient(timeout=MLX_TIMEOUT) as client:
@@ -160,16 +187,26 @@ async def _try_mlx(prompt: str, *, model_hint: Optional[str]) -> tuple[str, str]
             if resp.status_code == 503:
                 return "", "mlx_busy"
             if resp.status_code != 200:
+                logger.warning(
+                    "dialogue_llm MLX status %s model=%s body=%s",
+                    resp.status_code,
+                    model,
+                    (resp.text or "")[:160],
+                )
                 return "", "unavailable"
             data = resp.json()
-            choices = data.get("choices") or []
-            if choices:
-                msg = choices[0].get("message") or {}
-                content = msg.get("content") or choices[0].get("text")
-                if content:
-                    return str(content), "ok"
+            msg = data.get("message") or {}
+            content = msg.get("content") if isinstance(msg, dict) else None
+            if content:
+                return str(content), "ok"
             if data.get("response"):
                 return str(data["response"]), "ok"
+            choices = data.get("choices") or []
+            if choices:
+                cmsg = choices[0].get("message") or {}
+                ccontent = cmsg.get("content") or choices[0].get("text")
+                if ccontent:
+                    return str(ccontent), "ok"
     except httpx.TimeoutException:
         return "", "timeout"
     except Exception as e:

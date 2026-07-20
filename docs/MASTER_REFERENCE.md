@@ -32,8 +32,28 @@
 
 **Дата последнего обновления:** 2026-07-21
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; board intent-fidelity gate (v105)
+**Состояние:** Стабильное; board Victoria-first + intent gate (v106)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-21 v106) — Board Victoria-First ✅
+
+### Диагноз
+
+После v105 лучшие ответы уже давала Victoria, но default path шёл через phi3.5; MLX-клиент бил в несуществующий `/v1/chat/completions`; длинный OKR-промпт сжигал 90s и падал на fallback.
+
+### Решение
+
+1. Default `BOARD_CONSULT_MODEL` → MLX `victoria-wisdom-v3.5`; phi3.5 только last-resort.
+2. `dialogue_llm._try_mlx` → Ollama-compatible `/api/chat` (+ strip `<think>` artifacts).
+3. API/chat: compact Victoria-first (intent-anchored) до длинного board_prompt; MLX-only backends (без сжигания бюджета на Ollama).
+4. Timeouts: `BOARD_CONSULT_FAST_TIMEOUT_SEC=120`, `DIALOGUE_MLX_TIMEOUT_SEC=120`.
+
+### Evidence
+
+- Unit: `test_strategic_board.py` **17 passed**
+- Live: `victoria-first accepted (victoria-wisdom-v3.5)` ~34s, decision «разгружать тяжёлые модели ollama…», conf 0.95
 
 ---
 

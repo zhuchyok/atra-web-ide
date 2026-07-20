@@ -478,7 +478,7 @@ async def _call_victoria_board_directive(
 3) третий фокус
 """
     timeout = float(os.getenv("BOARD_VICTORIA_TIMEOUT_SEC", "480"))
-    board_model = os.getenv("BOARD_CONSULT_MODEL", "phi3.5:3.8b")
+    board_model = os.getenv("BOARD_CONSULT_MODEL", "victoria-wisdom-v3.5")
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(
@@ -733,24 +733,35 @@ async def consult_board(
             "true",
             "yes",
         )
-        # Fast path: phi3.5. Quality/intent retry: stronger model (Ollama or MLX hint).
-        consult_model = os.getenv("BOARD_CONSULT_MODEL", "phi3.5:3.8b")
-        quality_model = os.getenv(
-            "BOARD_CONSULT_QUALITY_MODEL", "victoria-wisdom-v3.5:latest"
-        )
-        # model_hint without ":" routes dialogue_llm toward MLX victoria-wisdom.
+        # Victoria-first (MLX brain). phi3.5 only as last-resort fallback.
         use_mlx = os.getenv("BOARD_CONSULT_USE_MLX", "true").lower() in (
             "1",
             "true",
             "yes",
         )
         mlx_model_hint = os.getenv("BOARD_CONSULT_MLX_MODEL", "victoria-wisdom-v3.5")
+        consult_model = os.getenv("BOARD_CONSULT_MODEL", mlx_model_hint)
+        quality_model = os.getenv("BOARD_CONSULT_QUALITY_MODEL", "victoria-wisdom-v3.5:latest")
+        fallback_model = os.getenv("BOARD_CONSULT_FALLBACK_MODEL", "phi3.5:3.8b")
+        # No-colon hint → dialogue_llm prefers MLX (Victoria brain, usually warm).
+        if use_mlx and consult_model.replace(":latest", "").startswith("victoria-wisdom"):
+            primary_hint = mlx_model_hint
+        else:
+            primary_hint = consult_model
         intent_terms = extract_question_intent_terms(question)
         intent_specific = [t for t in intent_terms if t not in _GENERIC_INTENT_TERMS]
         enforce_intent = source in {"api", "chat", "dashboard"} and len(intent_specific) >= 1
 
         await _maybe_unload_heavy_ollama(
-            keep_models=[consult_model, quality_model, "phi3.5:3.8b"]
+            keep_models=[
+                consult_model,
+                quality_model,
+                fallback_model,
+                mlx_model_hint,
+                "victoria-wisdom-v3.5",
+                "victoria-wisdom-v3.5:latest",
+                "phi3.5:3.8b",
+            ]
         )
 
         directive = None
@@ -768,27 +779,23 @@ async def consult_board(
             except ImportError:
                 from knowledge_os.app.dialogue_llm import generate_dialogue, is_incomplete_text
 
-            # Prefer MLX for quality hints when enabled (no colon → MLX path first).
-            prefer_mlx_first = use_mlx and (":" not in model_hint)
-            old_prefer = os.environ.get("DIALOGUE_PREFER_OLLAMA_FIRST")
-            if prefer_mlx_first:
-                os.environ["DIALOGUE_PREFER_OLLAMA_FIRST"] = "false"
-            try:
-                gen = await generate_dialogue(
-                    prompt, expert_name="Виктория", model_hint=model_hint
-                )
-            finally:
-                if prefer_mlx_first:
-                    if old_prefer is None:
-                        os.environ.pop("DIALOGUE_PREFER_OLLAMA_FIRST", None)
-                    else:
-                        os.environ["DIALOGUE_PREFER_OLLAMA_FIRST"] = old_prefer
+            # Prefer MLX for quality hints when enabled (no colon → MLX-only).
+            # Do not fall through to Ollama inside the same wait_for budget.
+            prefer_mlx_only = use_mlx and (":" not in model_hint)
+            backends = ("mlx",) if prefer_mlx_only else ("ollama",)
+            gen = await generate_dialogue(
+                prompt,
+                expert_name="Виктория",
+                model_hint=model_hint,
+                backends=backends,
+            )
 
             text = str(getattr(gen, "text", "") or "").strip()
             if not getattr(gen, "ok", False) or len(text) < 20:
                 print(
                     f"⚠️ dialogue_llm miss: ok={getattr(gen, 'ok', None)} "
-                    f"reason={getattr(gen, 'reason', None)} len={len(text)} model={model_hint}"
+                    f"reason={getattr(gen, 'reason', None)} len={len(text)} "
+                    f"model={model_hint} backends={backends}"
                 )
                 return None
             if is_stub_directive(text):
@@ -870,21 +877,6 @@ async def consult_board(
             "УВЕРЕННОСТЬ: число от 0.0 до 1.0\n"
         )
 
-        if fast_first:
-            try:
-                directive = await asyncio.wait_for(
-                    _via_dialogue_llm(board_prompt, model_hint=consult_model),
-                    timeout=fast_timeout,
-                )
-                if directive and _acceptable(directive):
-                    print(f"✅ Board consult via dialogue_llm (fast-first, {consult_model})")
-                elif directive:
-                    print("⚠️ Board consult fast-first intent miss; will retry")
-            except asyncio.TimeoutError:
-                print(f"⚠️ Board consult dialogue_llm timeout after {fast_timeout:.0f}s")
-            except Exception as e:
-                print(f"⚠️ Board consult dialogue_llm failed: {e}")
-
         async def _compact_retry(model_hint: str, *, label: str) -> Optional[str]:
             try:
                 text = await asyncio.wait_for(
@@ -898,22 +890,67 @@ async def consult_board(
                     print(f"⚠️ Board consult {label} form-ok intent-weak ({model_hint})")
                     return text
                 return None
-            except Exception as e:
-                print(f"⚠️ Board consult {label} failed: {e}")
+            except asyncio.TimeoutError:
+                print(f"⚠️ Board consult {label} timeout after {fast_timeout:.0f}s")
                 return None
+            except Exception as e:
+                print(f"⚠️ Board consult {label} failed: {type(e).__name__}: {e}")
+                return None
+
+        # Victoria-first: for interactive sources use compact (intent-anchored) before
+        # the long OKR board_prompt — avoids 90s MLX timeouts that fall through to phi.
+        prefer_compact_first = enforce_intent and source in {"api", "chat", "dashboard"}
+
+        if fast_first and prefer_compact_first:
+            directive = await _compact_retry(primary_hint, label="victoria-first")
+            if not _acceptable(directive):
+                try:
+                    full = await asyncio.wait_for(
+                        _via_dialogue_llm(board_prompt, model_hint=primary_hint),
+                        timeout=fast_timeout,
+                    )
+                    if full and _acceptable(full):
+                        directive = full
+                        print(
+                            f"✅ Board consult via dialogue_llm (victoria-first-full, {primary_hint})"
+                        )
+                    elif full:
+                        directive = full
+                        print("⚠️ Board consult victoria-first-full intent miss; will retry")
+                except asyncio.TimeoutError:
+                    print(f"⚠️ Board consult dialogue_llm timeout after {fast_timeout:.0f}s")
+                except Exception as e:
+                    print(f"⚠️ Board consult dialogue_llm failed: {e}")
+        elif fast_first:
+            try:
+                directive = await asyncio.wait_for(
+                    _via_dialogue_llm(board_prompt, model_hint=primary_hint),
+                    timeout=fast_timeout,
+                )
+                if directive and _acceptable(directive):
+                    print(f"✅ Board consult via dialogue_llm (victoria-first, {primary_hint})")
+                elif directive:
+                    print("⚠️ Board consult victoria-first intent miss; will retry")
+            except asyncio.TimeoutError:
+                print(f"⚠️ Board consult dialogue_llm timeout after {fast_timeout:.0f}s")
+            except Exception as e:
+                print(f"⚠️ Board consult dialogue_llm failed: {e}")
 
         if not _acceptable(directive):
             print("⚠️ Board consult quality/intent gate; compact retry")
+            # Compact ladder: MLX Victoria → Ollama Victoria → phi3.5 (skip hint already tried).
             retry_plan: list[tuple[str, str]] = []
             if use_mlx:
                 retry_plan.append((mlx_model_hint, "compact-mlx"))
-            retry_plan.extend(
-                [
-                    (quality_model, "compact-ollama-quality"),
-                    (consult_model, "compact-phi"),
-                ]
-            )
+            retry_plan.append((quality_model, "compact-ollama-victoria"))
+            retry_plan.append((fallback_model, "compact-fallback-phi"))
+            seen_hints: set[str] = set()
+            if prefer_compact_first and primary_hint:
+                seen_hints.add(primary_hint)
             for hint, label in retry_plan:
+                if not hint or hint in seen_hints:
+                    continue
+                seen_hints.add(hint)
                 text2 = await _compact_retry(hint, label=label)
                 if text2 and _acceptable(text2):
                     directive = text2
@@ -934,7 +971,7 @@ async def consult_board(
                 print("✅ Board consult via ai_core")
 
         if not _acceptable(directive):
-            text4 = await _compact_retry(quality_model, label="last-resort-quality")
+            text4 = await _compact_retry(fallback_model, label="last-resort-phi")
             if text4:
                 directive = text4
 
@@ -953,17 +990,14 @@ async def consult_board(
         # risk_level: score decision/rationale only (ignore the РИСКИ: label itself).
         risk_level = "low"
         focus_for_risk = (
-            f"{structured_decision.get('decision', '')} "
-            f"{structured_decision.get('rationale', '')}"
+            f"{structured_decision.get('decision', '')} {structured_decision.get('rationale', '')}"
         ).lower()
         if any(
             word in focus_for_risk
             for word in ["архитектура", "бюджет", "критичн", "серьезн", "безопасн"]
         ):
             risk_level = "high"
-        elif any(
-            word in focus_for_risk for word in ["важн", "изменен", "рефактор", "переработ"]
-        ):
+        elif any(word in focus_for_risk for word in ["важн", "изменен", "рефактор", "переработ"]):
             risk_level = "medium"
 
         if structured_decision.get("confidence", 1.0) < 0.7:

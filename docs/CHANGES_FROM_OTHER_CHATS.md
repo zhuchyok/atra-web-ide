@@ -20,6 +20,16 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-21 v106) — Board Victoria-First ✅
+
+- Primary brain: MLX `victoria-wisdom-v3.5` via `/api/chat` (fix wrong `/v1/chat/completions`).
+- API path: compact Victoria-first before long OKR prompt; MLX-only (no Ollama burn on miss).
+- Live: `victoria-first accepted` ~34s, unload-question intent OK.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v106.
+
+---
+
 ## § Последние изменения (2026-07-21 v105) — Board Intent Fidelity ✅
 
 - Intent/polarity gate for board consult; unload heavy Ollama; MLX/Ollama quality retry ladder.
