@@ -20,6 +20,17 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-20 v103) — Distill Tail + Noise Purge + Ledger ✅
+
+- Distill queue drained: `eligible=0`, `distilled≈total`, `failed_distill=0`.
+- Noise purge: **124** KN deleted (agent timeouts, autotest logs, stub reports, title crumbs).
+- Salvage: **5** substantive nodes verified+distilled (`tail_salvage_v103`).
+- Ops: `knowledge_os/scripts/run_distill_tail_closure.py`; bible ledger; Ollama unload hygiene note.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v103.
+
+---
+
 ## § Последние изменения (2026-07-19 v100) — Quarantine + Git Closure ✅
 
 - 11 board queue-stub KN/decisions/discussions → `quarantined_v100`.

@@ -30,10 +30,41 @@
 
 ## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
-**Дата последнего обновления:** 2026-07-19
+**Дата последнего обновления:** 2026-07-20
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; anti-stub + ops debt + quarantine/git closure (v100)
+**Состояние:** Стабильное; anti-stub + distill 100% + ledger closure (v103)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-20 v103) — Distill Tail + Noise Purge + Ledger ✅
+
+### Диагноз
+
+После v100 runtime P0 был зелёный, но оставался хвост Knowledge Fabric и долг учёта:
+
+1. `eligible` разблокирован (failed reset + verify high-conf) → drain до `eligible=0`.
+2. ~187 unverified: шум (timeout/autotest/stub) vs salvageable changelog/preference.
+3. Библия/git отставали на v100 — создавали ложное «ещё не доделали».
+
+### Решение
+
+1. **v101:** reset failed→pending; verify high-conf; turbo/scripted drain → `eligible≈0`.
+2. **v102:** +58 fresh ingest verified+distilled.
+3. **v103:** delete **124** noise KN; salvage+distill **5** substantive; ops script `knowledge_os/scripts/run_distill_tail_closure.py`; bible/git ledger; RAM hygiene (unload idle heavy Ollama).
+
+### Evidence (live 2026-07-20)
+
+- `kn_total≈100797`, `distilled=total`, `eligible_now=0`, `failed_distill=0`, `unverified_not_distilled=0`
+- board stub in RAG risk (`conf≥0.3` + queue stub text) = **0**
+- health 8010/8080/MLX/Ollama = ok
+- nightly: steady drain early-exit on `eligible=0`
+
+### Remaining (ops note, не P0)
+
+- Host MemAvailable может быть &lt;5GB при нескольких загруженных Ollama-моделях → unload unused; не параллелить board+swarm+heavy codegen.
+- Исторические `tasks.failed` по timeout — не массовый reset.
+- `docs/audits/*60m*` / `data/lancedb` / `.env` — вне git.
 
 ---
 
