@@ -540,7 +540,17 @@ def main():
         warn_text = ""
         if _any_warning:
             warn_services = [n for n, s in _svc_for_banner.items() if s == "⚠️"]
-            warn_text = f"⚠️ Сервисы недоступны: {', '.join(warn_services)}. Проверьте MLX (порт 11435) и Ollama (11434)."
+            hint = []
+            if "Victoria Agent" in warn_services:
+                hint.append("Victoria (VICTORIA_URL / victoria-agent:8000)")
+            if "MLX API" in warn_services:
+                hint.append("MLX :11435")
+            if "Ollama" in warn_services:
+                hint.append("Ollama :11434")
+            if "PostgreSQL" in warn_services:
+                hint.append("PostgreSQL / pgbouncer")
+            hint_s = "; ".join(hint) if hint else "MLX :11435 / Ollama :11434"
+            warn_text = f"⚠️ Сервисы недоступны: {', '.join(warn_services)}. Проверьте: {hint_s}."
 
         if _is_stale:
             stale_msg = f"🕰️ Данные устарели (последнее обновление: {update_status}). Проверьте воркеры (nightly/evolution)."

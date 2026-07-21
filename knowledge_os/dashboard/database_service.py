@@ -162,12 +162,35 @@ def check_services():
     except Exception:
         services["PostgreSQL"] = "⚠️"
 
-    # Victoria Agent
+    # Victoria Agent — never use bare localhost:8010 inside the dashboard container
+    # (that hits Streamlit itself, not victoria-agent).
+    victoria_candidates: list[str] = []
+    env_victoria = (os.getenv("VICTORIA_URL") or os.getenv("VICTORIA_AGENT_URL") or "").rstrip("/")
+    if env_victoria:
+        victoria_candidates.append(f"{env_victoria}/health")
+    if is_container:
+        victoria_candidates.extend(
+            [
+                "http://victoria-agent:8000/health",
+                f"{host_url}:8010/health",
+            ]
+        )
+    else:
+        victoria_candidates.append("http://localhost:8010/health")
+    # de-dupe preserving order
+    seen: set[str] = set()
+    victoria_candidates = [u for u in victoria_candidates if not (u in seen or seen.add(u))]
     try:
         import httpx
 
-        vr = httpx.get("http://localhost:8010/health", timeout=5)
-        services["Victoria Agent"] = "✅" if vr.status_code == 200 else "⚠️"
+        for url in victoria_candidates:
+            try:
+                vr = httpx.get(url, timeout=5)
+                if vr.status_code == 200:
+                    services["Victoria Agent"] = "✅"
+                    break
+            except Exception:
+                continue
     except Exception:
         services["Victoria Agent"] = "⚠️"
 
