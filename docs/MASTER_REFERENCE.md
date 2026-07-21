@@ -32,8 +32,27 @@
 
 **Дата последнего обновления:** 2026-07-21
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; Prometheus 11/11 + board Victoria-first (v107)
+**Состояние:** Стабильное; tails closed — image rebuild + strategist Victoria (v108)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-21 v108) — Tail Closure (image + Ollama strategist) ✅
+
+### Диагноз
+
+После v107 scrapes были зелёные на hot-`pip install`, но пакет пропал бы при recreate; `VICTORIA_STRATEGIST_MODEL` по умолчанию был `qwen2.5-coder:14b` (оба hybrid-слота) → 14B постоянно в VRAM.
+
+### Решение
+
+1. Rebuild agents image с `prometheus-client`; recreate workers/orch/rest/victoria.
+2. Default strategist → `victoria-wisdom-v3.5:latest`; executor остаётся coder только для coding path.
+3. Compose env на `victoria-agent` + `knowledge_os_orchestrator`.
+
+### Evidence
+
+- Prometheus **11/11** после recreate с нового image (`import prometheus_client` OK без pip)
+- Redis timeouts **0**/3m; core health OK; Grafana 200; stale_in_progress_30m=0
 
 ---
 

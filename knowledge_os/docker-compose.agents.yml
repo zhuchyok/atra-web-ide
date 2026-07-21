@@ -87,6 +87,8 @@ services:
       OLLAMA_EMBED_TIMEOUT_SEC: "8"
       OLLAMA_EMBED_MAX_RETRIES: "2"
       MLX_BASE_URL: http://host.docker.internal:11435
+      VICTORIA_STRATEGIST_MODEL: ${VICTORIA_STRATEGIST_MODEL:-victoria-wisdom-v3.5:latest}
+      VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-qwen2.5-coder:14b}
       UVICORN_WORKERS: "2"
       UVICORN_TIMEOUT_KEEP_ALIVE: "75"
     ports:
@@ -179,6 +181,8 @@ services:
       BRIDGE_CA_PATH: /certs/ca.crt
       ENABLE_METRICS: "true"
       METRICS_PORT: "8000"
+      VICTORIA_STRATEGIST_MODEL: ${VICTORIA_STRATEGIST_MODEL:-victoria-wisdom-v3.5:latest}
+      VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-qwen2.5-coder:14b}
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - ../certs:/certs:ro

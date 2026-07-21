@@ -20,6 +20,15 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-21 v108) — Tail Closure ✅
+
+- Agents image rebuilt with prometheus-client; workers recreated from image.
+- Strategist default → victoria-wisdom (was qwen2.5-coder for both slots).
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v108.
+
+---
+
 ## § Последние изменения (2026-07-21 v107) — Observability Scrapes + Redis UDS ✅
 
 - Prometheus scrapes 11/11: prometheus_client in agents image; ENABLE_METRICS on dynamic/smart/orch; orch metrics HTTP.
