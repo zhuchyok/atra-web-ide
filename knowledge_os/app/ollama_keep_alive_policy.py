@@ -40,6 +40,18 @@ OLLAMA_FALLBACK_UNLOAD_MODELS = ["victoria-wisdom-v3.5", "victoria-wisdom-v3.5:l
 
 DEFAULT_KEEP_ALIVE = 300
 
+# Burst/heavy workers (coding + vision): short idle so they do not starve Victoria/MLX.
+# Override: OLLAMA_HEAVY_KEEP_ALIVE_SEC (seconds, default 180).
+HEAVY_IDLE_KEEP_ALIVE = max(60, int(os.getenv("OLLAMA_HEAVY_KEEP_ALIVE_SEC", "180")))
+HEAVY_NAME_MARKERS = (
+    "qwen2.5-coder",
+    "qwen2.5-coder:",
+    "minicpm",
+    "deepseek-coder",
+    "coder-v2",
+    "codellama",
+)
+
 # Резерв RAM под MLX (модели всегда в памяти). В GB или в процентах — один из двух.
 MLX_RAM_RESERVE_GB = float(os.getenv("MLX_RAM_RESERVE_GB", "0"))
 MLX_RAM_RESERVE_PERCENT = float(os.getenv("MLX_RAM_RESERVE_PERCENT", "15"))
@@ -89,14 +101,42 @@ def _model_size_gb(model_name: Optional[str]) -> Optional[float]:
     return None
 
 
+def _is_named_burst_heavy(model_name: Optional[str]) -> bool:
+    """Coding/vision burst models that must not stay resident after idle."""
+    if not model_name:
+        return False
+    key = model_name.lower()
+    if any(m in key for m in HEAVY_NAME_MARKERS):
+        return True
+    # Generic large-coder tags (avoid matching victoria-wisdom etc.)
+    if "14b" in key and ("coder" in key or "code" in key):
+        return True
+    return False
+
+
 def _is_heavy_model(model_name: Optional[str], size_gb: Optional[float]) -> bool:
     """Тяжёлая модель для агрессивной выгрузки при нехватке RAM."""
+    if _is_named_burst_heavy(model_name):
+        return True
     if size_gb is not None:
         return size_gb >= 5.0
     if not model_name:
         return False
     key = model_name.lower()
-    return any(x in key for x in ("32b", "30b", "35b", "70b", "104b", "qwq", "deepseek-r1"))
+    return any(x in key for x in ("32b", "30b", "35b", "70b", "104b", "qwq", "deepseek-r1", "14b"))
+
+
+def _cap_heavy_keep_alive(
+    model_name: Optional[str], value: Union[int, str]
+) -> Union[int, str]:
+    """Never let burst-heavy models stay warmer than HEAVY_IDLE_KEEP_ALIVE (except unload=0)."""
+    if not _is_named_burst_heavy(model_name):
+        return value
+    if value == -1:
+        return HEAVY_IDLE_KEEP_ALIVE
+    if isinstance(value, int) and value > HEAVY_IDLE_KEEP_ALIVE:
+        return HEAVY_IDLE_KEEP_ALIVE
+    return value
 
 
 def get_keep_alive(
@@ -148,7 +188,8 @@ def get_keep_alive(
                 or (model_name and any(m in model_name for m in EMBEDDING_MODELS))
                 or (category and "embedding" in str(category).lower())
             ):
-                return -1
+                # Burst-heavy (coder/vision) must not become immortal during cooldown.
+                return _cap_heavy_keep_alive(model_name, -1)
         else:
             # Кулдаун прошёл, сбрасываем время сбоя
             _last_mlx_failure_time = 0
@@ -176,18 +217,28 @@ def get_keep_alive(
             pass
         return 0
 
-    # 4. Env
+    # 4. Env (global) — still capped for burst-heavy models
     raw = os.getenv("VICTORIA_OLLAMA_KEEP_ALIVE") or os.getenv("OLLAMA_KEEP_ALIVE")
     if raw is not None and str(raw).strip() != "":
         if str(raw).strip() == "-1":
-            return -1
+            return _cap_heavy_keep_alive(model_name, -1)
         try:
-            return int(raw) if str(raw).strip().lstrip("-").isdigit() else raw
+            val: Union[int, str] = (
+                int(raw) if str(raw).strip().lstrip("-").isdigit() else raw
+            )
+            return _cap_heavy_keep_alive(model_name, val)
         except (ValueError, AttributeError):
             pass
 
     if not model_name:
         return DEFAULT_KEEP_ALIVE
+
+    # 4.5 Named burst-heavy (coder / minicpm): short idle by default
+    if _is_named_burst_heavy(model_name):
+        effective_ram = ram_percent if ram_percent is not None else _effective_ram_percent()
+        if effective_ram is not None and effective_ram >= RAM_CRITICAL_PERCENT:
+            return 60
+        return HEAVY_IDLE_KEEP_ALIVE
 
     # 5. Адаптация по RAM (с учётом резерва MLX)
     effective_ram = ram_percent if ram_percent is not None else _effective_ram_percent()
@@ -208,7 +259,7 @@ def get_keep_alive(
             if size_gb > 15:
                 return 300
             if size_gb > 5:
-                return 600
+                return HEAVY_IDLE_KEEP_ALIVE
             return 3600
         # Эвристика по имени
         key = model_name.lower()
@@ -217,7 +268,7 @@ def get_keep_alive(
         if "32b" in key or "30b" in key or "qwq" in key:
             return 300
         if "7b" in key or "8b" in key or "14b" in key:
-            return 600
+            return HEAVY_IDLE_KEEP_ALIVE
         if "3b" in key or "1b" in key or "tiny" in key or "embedding" in key:
             return 3600
 

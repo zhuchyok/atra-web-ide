@@ -32,8 +32,26 @@
 
 **Дата последнего обновления:** 2026-07-21
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; tails closed — image rebuild + strategist Victoria (v108)
+**Состояние:** Стабильное; heavy keep_alive + git hygiene (v109)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-21 v109) — Heavy Keep-Alive + Git Hygiene ✅
+
+### Диагноз
+
+A+C хвосты: coder/minicpm могли жить в Ollama слишком долго; audits/LATEST шумели в git status.
+
+### Решение
+
+1. `ollama_keep_alive_policy`: burst-heavy (`qwen2.5-coder*`, `minicpm*`) → `OLLAMA_HEAVY_KEEP_ALIVE_SEC` (default **180**); cap даже при global env / recovery cooldown.
+2. Vision fallback передаёт `keep_alive` из policy.
+3. gitignore: `docs/board_reports/LATEST.md`, `docs/audits/*60m*`, `docs/audits/*.jsonl`.
+
+### Evidence
+
+- Unit: `test_burst_heavy_coder_short_keep_alive` + existing keep_alive suite
 
 ---
 

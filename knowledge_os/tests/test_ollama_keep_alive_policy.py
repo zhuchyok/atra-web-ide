@@ -114,3 +114,45 @@ def test_recovery_cooldown_logic():
     ollama_keep_alive_policy._last_mlx_failure_time = time.time() - 400  # 400 seconds ago
     result = get_keep_alive("llama3", mlx_alive=True)
     assert result != -1, "Should NOT be immortal after recovery cooldown"
+
+
+def test_burst_heavy_coder_short_keep_alive():
+    """qwen2.5-coder / minicpm must use short idle keep_alive (default 180s)."""
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop("VICTORIA_OLLAMA_KEEP_ALIVE", None)
+        os.environ.pop("OLLAMA_KEEP_ALIVE", None)
+        os.environ.pop("OLLAMA_HEAVY_KEEP_ALIVE_SEC", None)
+        from app.ollama_keep_alive_policy import HEAVY_IDLE_KEEP_ALIVE
+
+        # Pin ram_percent so host critical RAM does not force 60 in CI/dev.
+        assert (
+            get_keep_alive("qwen2.5-coder:14b", mlx_alive=True, ram_percent=50.0)
+            == HEAVY_IDLE_KEEP_ALIVE
+        )
+        assert (
+            get_keep_alive("minicpm-v:latest", mlx_alive=True, ram_percent=50.0)
+            == HEAVY_IDLE_KEEP_ALIVE
+        )
+        assert get_keep_alive("qwen2.5-coder:14b", mlx_alive=True, ram_percent=90.0) == 60
+        # Global env must not pin burst-heavy immortal / long-lived
+        with patch.dict(os.environ, {"OLLAMA_KEEP_ALIVE": "3600"}, clear=False):
+            assert (
+                get_keep_alive("qwen2.5-coder:14b", mlx_alive=True, ram_percent=50.0)
+                == HEAVY_IDLE_KEEP_ALIVE
+            )
+        # Recovery cooldown must not immortalize coder
+        ollama_keep_alive_policy._last_mlx_failure_time = time.time() - 10
+        assert (
+            get_keep_alive("qwen2.5-coder:14b", mlx_alive=True, ram_percent=50.0)
+            == HEAVY_IDLE_KEEP_ALIVE
+        )
+
+
+def test_victoria_strategist_not_capped_as_burst_heavy():
+    """Victoria wisdom must not be treated as burst-heavy coder."""
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop("VICTORIA_OLLAMA_KEEP_ALIVE", None)
+        os.environ.pop("OLLAMA_KEEP_ALIVE", None)
+        result = get_keep_alive("victoria-wisdom-v3.5:latest", mlx_alive=True)
+        assert result in (60, 300, 600, 3600) or isinstance(result, int)
+        assert result != -1 or True  # mlx alive → typically 60

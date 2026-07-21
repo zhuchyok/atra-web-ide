@@ -20,6 +20,15 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-21 v109) — Heavy Keep-Alive + Git Hygiene ✅
+
+- Burst-heavy Ollama (coder/minicpm) keep_alive default 180s; vision uses policy.
+- Ignore LATEST.md + audit 60m/jsonl dumps.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v109.
+
+---
+
 ## § Последние изменения (2026-07-21 v108) — Tail Closure ✅
 
 - Agents image rebuilt with prometheus-client; workers recreated from image.

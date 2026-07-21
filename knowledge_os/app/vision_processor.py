@@ -268,6 +268,12 @@ class VisionProcessor:
                     logger.debug(f"Trying Ollama model {model_name} on {node['url']}")
                     node_url = f"{node['url']}/api/generate"
 
+                    try:
+                        from app.ollama_keep_alive_policy import get_keep_alive
+                    except ImportError:
+                        from ollama_keep_alive_policy import get_keep_alive
+
+                    _ka = get_keep_alive(model_name, category="vision", mlx_alive=True)
                     async with httpx.AsyncClient(timeout=60.0) as client:
                         response = await client.post(
                             node_url,
@@ -276,6 +282,7 @@ class VisionProcessor:
                                 "prompt": prompt,
                                 "images": [image_base64],
                                 "stream": False,
+                                "keep_alive": _ka,
                             },
                         )
 

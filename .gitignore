@@ -88,11 +88,17 @@ docs/curator_findings.jsonl
 docs/CHANGES_FROM_OTHER_CHATS.md
 scripts/curator_tasks.txt
 
-# Board Markdown directives (runtime; keep .gitkeep + LATEST.md tracked)
+# Board Markdown directives (runtime; keep .gitkeep; LATEST is runtime symlink/copy)
 docs/board_reports/board_directive_*.md
 docs/board_reports/*_smoke*.md
 docs/board_reports/v98_*.md
+docs/board_reports/LATEST.md
 docs/audits/boot_incidents/
+# Long expert/smoke audit dumps (jsonl + 60m runs) — do not commit
+docs/audits/*60m*
+docs/audits/*.jsonl
+docs/audits/2026-07-*
+docs/recovery/
 data/lancedb/
 
 # Skills procedural artifacts (все кроме базовых)
