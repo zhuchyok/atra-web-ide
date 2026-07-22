@@ -32,8 +32,26 @@
 
 **Дата последнего обновления:** 2026-07-23
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; Intelligence RAG UX honesty (v114)
+**Состояние:** Стабильное; Revision human-gate wired (v115)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-23 v115) — Revision & Verification human-gate ✅
+
+### Диагноз
+
+Вкладка «Ревизия» выглядела как обязательный Approve, но кнопка была stub (не писала в БД); превью обрезано; авто Виктории нет.
+
+### Решение
+
+1. Caption: optional human gate; Victoria не читает вкладку.
+2. Метрики verified/unverified + bulk **только** `ingest_docs_to_rag`.
+3. Expander: полный content + domain/path/type/conf; кнопка → `UPDATE is_verified=true` + metadata audit.
+
+### Evidence
+
+- Dashboard mount smoke: `run_query` → `is_verified=true` + `dashboard_verified_method`.
 
 ---
 

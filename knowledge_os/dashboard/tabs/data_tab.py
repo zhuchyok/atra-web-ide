@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from database_service import fetch_data
+from database_service import fetch_data, run_query
 from graph_utils import optimized_force_layout
 
 
@@ -463,7 +463,7 @@ def render_ai_research_kb():
 
     # Curated = indexer/scout nodes with a real file path; exclude LTM/runtime dumps.
     # Avoid LIKE '%' here: fetch_data(params=None) runs raw SQL (no pyformat escaping).
-    _AI_RESEARCH_CURATED = """
+    ai_research_curated = """
         domain_id = (SELECT id FROM domains WHERE name = 'AI Research')
         AND NULLIF(BTRIM(metadata->>'file_path'), '') IS NOT NULL
         AND COALESCE(metadata->>'type', '') <> 'long_term_memory'
@@ -494,7 +494,7 @@ def render_ai_research_kb():
                    COALESCE(metadata->>'source', 'node') as src,
                    confidence_score
             FROM knowledge_nodes
-            WHERE {_AI_RESEARCH_CURATED}
+            WHERE {ai_research_curated}
               AND (content ILIKE %s OR metadata->>'file_path' ILIKE %s)
             ORDER BY confidence_score DESC NULLS LAST, COALESCE(updated_at, created_at) DESC
             LIMIT 12
@@ -519,7 +519,7 @@ def render_ai_research_kb():
                 MAX(COALESCE(updated_at, created_at)) AS latest_touched_at,
                 COUNT(*) AS curated_total
             FROM knowledge_nodes
-            WHERE {_AI_RESEARCH_CURATED}
+            WHERE {ai_research_curated}
         """)
         if freshness and freshness[0] and freshness[0]["latest_touched_at"]:
             latest_touch = freshness[0]["latest_touched_at"]
@@ -547,23 +547,23 @@ def render_ai_research_kb():
                    created_at,
                    COALESCE(updated_at, created_at) as touched_at
             FROM knowledge_nodes
-            WHERE {_AI_RESEARCH_CURATED}
+            WHERE {ai_research_curated}
             ORDER BY COALESCE(updated_at, created_at) DESC
             LIMIT 12
         """)
         if latest:
-            for l in latest:
-                path = (l.get("path") or "document").strip()
+            for row in latest:
+                path = (row.get("path") or "document").strip()
                 short_name = path.rsplit("/", 1)[-1] if path else "document"
-                touched_at = l.get("touched_at") or l.get("created_at")
-                node_type = l.get("node_type") or "node"
-                preview = " ".join((l.get("content") or "").split())
+                touched_at = row.get("touched_at") or row.get("created_at")
+                node_type = row.get("node_type") or "node"
+                preview = " ".join((row.get("content") or "").split())
                 if len(preview) > 140:
                     preview = preview[:140] + "…"
                 title = f"📄 {short_name} · {node_type} · {format_msk(touched_at).split()[0]}"
                 with st.expander(f"{title} — {preview}"):
                     st.caption(f"path: `{path}`")
-                    st.markdown(l.get("content") or "")
+                    st.markdown(row.get("content") or "")
         else:
             st.info(
                 "Curated AI Research пуст. Запустите "
@@ -695,8 +695,8 @@ def render_mindmap():
             # ОТЛАДКА: Выводим список найденных доменов прямо в интерфейс (только если один)
             if domain_links:
                 unique_domains = set(
-                    [l["source_domain"] for l in domain_links]
-                    + [l["target_domain"] for l in domain_links]
+                    [lnk["source_domain"] for lnk in domain_links]
+                    + [lnk["target_domain"] for lnk in domain_links]
                 )
                 if len(unique_domains) <= 1:
                     st.warning(
@@ -707,7 +707,7 @@ def render_mindmap():
                 st.info("Междоменные связи пока не сформированы.")
                 return
 
-            G = nx.DiGraph()
+            graph = nx.DiGraph()
             domain_link_weight = {}
             for link in domain_links:
                 src, dst, w = (
@@ -715,7 +715,7 @@ def render_mindmap():
                     link["target_domain"],
                     int(link["link_count"] or 0),
                 )
-                G.add_edge(src, dst, weight=w)
+                graph.add_edge(src, dst, weight=w)
                 domain_link_weight[src] = domain_link_weight.get(src, 0) + w
                 domain_link_weight[dst] = domain_link_weight.get(dst, 0) + w
 
@@ -732,19 +732,19 @@ def render_mindmap():
                 ]
             }
 
-            node_list = list(G.nodes())
+            node_list = list(graph.nodes())
             n_nodes = len(node_list)
             adj_matrix = np.zeros((n_nodes, n_nodes))
             for i, u in enumerate(node_list):
                 for j, v in enumerate(node_list):
-                    if G.has_edge(u, v):
+                    if graph.has_edge(u, v):
                         adj_matrix[i, j] = 1
 
             pos_array = optimized_force_layout(adj_matrix, np.ones(n_nodes), iterations=50)
             pos = {node_list[i]: pos_array[i] for i in range(n_nodes)}
 
             edge_x, edge_y = [], []
-            for edge in G.edges(data=True):
+            for edge in graph.edges(data=True):
                 x0, y0 = pos[edge[0]]
                 x1, y1 = pos[edge[1]]
                 edge_x.extend([x0, x1, None])
@@ -759,7 +759,7 @@ def render_mindmap():
             )
 
             node_x, node_y, node_text, node_size_vals, node_labels = [], [], [], [], []
-            for node in G.nodes():
+            for node in graph.nodes():
                 x, y = pos[node]
                 node_x.append(x)
                 node_y.append(y)
@@ -857,11 +857,13 @@ def render_mindmap():
                 st.info("Недостаточно данных.")
                 return
 
-            G = nx.Graph()
+            graph = nx.Graph()
             node_info = {}
             node_list = []
             for n in nodes_data:
-                G.add_node(n["id"], label=n["label"], domain=n["domain"], degree=n["total_degree"])
+                graph.add_node(
+                    n["id"], label=n["label"], domain=n["domain"], degree=n["total_degree"]
+                )
                 node_info[n["id"]] = n
                 node_list.append(n["id"])
 
@@ -870,7 +872,7 @@ def render_mindmap():
                     targets = n["links"] if isinstance(n["links"], list) else json.loads(n["links"])
                     for target_id in targets:
                         if target_id in node_info:
-                            G.add_edge(n["id"], target_id)
+                            graph.add_edge(n["id"], target_id)
 
             n_nodes = len(node_list)
             if n_nodes == 0:
@@ -879,17 +881,17 @@ def render_mindmap():
 
             adj_matrix = np.zeros((n_nodes, n_nodes))
             node_id_to_idx = {nid: i for i, nid in enumerate(node_list)}
-            for u, v in G.edges():
+            for u, v in graph.edges():
                 adj_matrix[node_id_to_idx[u], node_id_to_idx[v]] = 1
                 adj_matrix[node_id_to_idx[v], node_id_to_idx[u]] = 1
 
             pos_array = optimized_force_layout(
-                adj_matrix, np.array([G.degree(n) for n in node_list]), iterations=300
+                adj_matrix, np.array([graph.degree(n) for n in node_list]), iterations=300
             )
             pos_dict = {node_list[i]: pos_array[i] for i in range(n_nodes)}
 
             edge_x, edge_y = [], []
-            for edge in G.edges():
+            for edge in graph.edges():
                 x0, y0 = pos_dict[edge[0]]
                 x1, y1 = pos_dict[edge[1]]
                 edge_x.extend([x0, x1, None])
@@ -903,7 +905,7 @@ def render_mindmap():
             )
 
             node_x, node_y, node_text, node_color, node_size, node_labels = [], [], [], [], [], []
-            degrees_in_graph = dict(G.degree())
+            degrees_in_graph = dict(graph.degree())
 
             for node_id in node_list:
                 x, y = pos_dict[node_id]
@@ -1006,22 +1008,25 @@ def render_mindmap():
                     )
 
                     if local_links:
-                        G = nx.Graph()
+                        graph = nx.Graph()
                         node_list_local = set()
                         content_map = {str(c_id): center_node[0].get("content") or ""}
-                        for l in local_links:
-                            sid, tid = str(l["source_node_id"]), str(l["target_node_id"])
-                            G.add_edge(sid, tid)
+                        for edge_row in local_links:
+                            sid, tid = (
+                                str(edge_row["source_node_id"]),
+                                str(edge_row["target_node_id"]),
+                            )
+                            graph.add_edge(sid, tid)
                             node_list_local.add(sid)
                             node_list_local.add(tid)
-                            content_map[sid] = l.get("s_content") or content_map.get(sid, "")
-                            content_map[tid] = l.get("t_content") or content_map.get(tid, "")
+                            content_map[sid] = edge_row.get("s_content") or content_map.get(sid, "")
+                            content_map[tid] = edge_row.get("t_content") or content_map.get(tid, "")
 
                         node_list_local = list(node_list_local)
                         n_nodes = len(node_list_local)
                         adj_matrix = np.zeros((n_nodes, n_nodes))
                         nid_to_idx = {nid: i for i, nid in enumerate(node_list_local)}
-                        for u, v in G.edges():
+                        for u, v in graph.edges():
                             adj_matrix[nid_to_idx[u], nid_to_idx[v]] = 1
                             adj_matrix[nid_to_idx[v], nid_to_idx[u]] = 1
 
@@ -1031,7 +1036,7 @@ def render_mindmap():
                         pos_dict = {node_list_local[i]: pos_array[i] for i in range(n_nodes)}
 
                         edge_x, edge_y = [], []
-                        for edge in G.edges():
+                        for edge in graph.edges():
                             x0, y0 = pos_dict[edge[0]]
                             x1, y1 = pos_dict[edge[1]]
                             edge_x.extend([x0, x1, None])
@@ -1047,7 +1052,7 @@ def render_mindmap():
 
                         node_x, node_y, node_text, node_colors = [], [], [], []
                         center_s = str(c_id)
-                        for node in G.nodes():
+                        for node in graph.nodes():
                             x, y = pos_dict[node]
                             node_x.append(x)
                             node_y.append(y)
@@ -1059,7 +1064,7 @@ def render_mindmap():
                             x=node_x,
                             y=node_y,
                             mode="markers+text",
-                            text=[n[:8] for n in G.nodes()],
+                            text=[n[:8] for n in graph.nodes()],
                             textposition="bottom center",
                             hoverinfo="text",
                             hovertext=node_text,
@@ -1088,7 +1093,7 @@ def render_mindmap():
                         )
                         st.plotly_chart(fig, width="stretch")
                         st.caption(
-                            f"Узлов в локальном графе: {n_nodes} · рёбер: {G.number_of_edges()}"
+                            f"Узлов в локальном графе: {n_nodes} · рёбер: {graph.number_of_edges()}"
                         )
                     else:
                         st.warning(
@@ -1103,31 +1108,142 @@ def render_mindmap():
         st.code(traceback.format_exc())
 
 
+def _mark_node_verified(node_id, method: str = "dashboard_revision") -> bool:
+    """Пишет is_verified=true + audit в metadata (человеческий gate)."""
+    return run_query(
+        """
+        UPDATE knowledge_nodes
+        SET is_verified = TRUE,
+            confidence_score = GREATEST(COALESCE(confidence_score, 0), 0.7),
+            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                'dashboard_verified', true,
+                'dashboard_verified_at', NOW()::text,
+                'dashboard_verified_method', %s
+            ),
+            quality_report = COALESCE(
+                quality_report,
+                %s
+            )
+        WHERE id = %s AND COALESCE(is_verified, FALSE) = FALSE
+        """,
+        (
+            method,
+            json.dumps({"method": method, "ts": datetime.now(timezone.utc).isoformat()}),
+            node_id,
+        ),
+    )
+
+
 def render_revision():
-    """🔍 Ревизия знаний."""
+    """🔍 Ревизия знаний — optional human gate (не блокер RAG)."""
     st.subheader("🔍 Ревизия и Верификация")
+    st.caption(
+        "Это **опциональный** human-review, не обязательный Approve. "
+        "Виктория эту вкладку не читает. Многие пайплайны уже пишут `is_verified=true` при ingest; "
+        "RAG часто берёт `verified OR confidence>0.7`. Кнопка ниже пишет в БД."
+    )
+
+    stats = fetch_data("""
+        SELECT
+            COUNT(*) FILTER (WHERE COALESCE(is_verified, FALSE) = FALSE) AS unverified_all,
+            COUNT(*) FILTER (
+                WHERE COALESCE(is_verified, FALSE) = FALSE
+                  AND COALESCE(metadata->>'source', '') = 'ingest_docs_to_rag'
+            ) AS unverified_ingest,
+            COUNT(*) FILTER (WHERE is_verified = TRUE) AS verified_all
+        FROM knowledge_nodes
+    """)
+    if stats and stats[0]:
+        s = stats[0]
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Verified (all-time)", f"{int(s['verified_all'] or 0):,}")
+        c2.metric("Unverified (all)", f"{int(s['unverified_all'] or 0):,}")
+        c3.metric("Unverified ingest_docs", f"{int(s['unverified_ingest'] or 0):,}")
+
+    # Безопасный bulk: только индексированные доки (не worker/watchdog чат)
+    ingest_n = int((stats[0]["unverified_ingest"] if stats and stats[0] else 0) or 0)
+    if ingest_n > 0:
+        st.markdown("#### Быстрое действие")
+        if st.button(
+            f"✅ Auto-verify ingest_docs_to_rag ({ingest_n})",
+            help="Только source=ingest_docs_to_rag. Не трогает worker_service / watchdog.",
+        ):
+            ok = run_query(
+                """
+                UPDATE knowledge_nodes
+                SET is_verified = TRUE,
+                    confidence_score = GREATEST(COALESCE(confidence_score, 0), 0.7),
+                    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                        'dashboard_verified', true,
+                        'dashboard_verified_at', NOW()::text,
+                        'dashboard_verified_method', 'bulk_ingest_docs'
+                    ),
+                    quality_report = COALESCE(
+                        quality_report,
+                        '{"method":"bulk_ingest_docs"}'
+                    )
+                WHERE COALESCE(is_verified, FALSE) = FALSE
+                  AND metadata->>'source' = 'ingest_docs_to_rag'
+                """
+            )
+            if ok:
+                st.success(f"Верифицированы узлы ingest_docs_to_rag (было до {ingest_n}).")
+                st.rerun()
+            else:
+                st.error("UPDATE не выполнен — смотри логи dashboard.")
 
     # Исключаем технические узлы из ревизии (память, линковка)
     pending = fetch_data("""
-        SELECT id, LEFT(content, 150) as content,
-               COALESCE(metadata->>'expert_name', metadata->>'expert', 'System') as expert_name,
-               metadata->>'source' as source,
-               created_at
-        FROM knowledge_nodes
-        WHERE is_verified = false
-        AND (metadata->>'source' NOT IN ('memory_consolidator', 'cross_domain_linker') OR metadata->>'source' IS NULL)
-        ORDER BY created_at DESC LIMIT 20
+        SELECT kn.id,
+               kn.content,
+               LEFT(kn.content, 160) AS preview,
+               COALESCE(kn.metadata->>'expert_name', kn.metadata->>'expert', 'System') AS expert_name,
+               kn.metadata->>'source' AS source,
+               kn.metadata->>'file_path' AS file_path,
+               kn.metadata->>'type' AS node_type,
+               kn.confidence_score,
+               d.name AS domain,
+               kn.created_at
+        FROM knowledge_nodes kn
+        LEFT JOIN domains d ON kn.domain_id = d.id
+        WHERE COALESCE(kn.is_verified, FALSE) = FALSE
+          AND (
+              kn.metadata->>'source' NOT IN ('memory_consolidator', 'cross_domain_linker')
+              OR kn.metadata->>'source' IS NULL
+          )
+        ORDER BY kn.created_at DESC
+        LIMIT 20
     """)
 
     if pending:
-        st.info(f"Найдено {len(pending)} узлов, требующих верификации (исключая технические).")
+        st.info(
+            f"В очереди на ручной просмотр: **{len(pending)}** последних "
+            f"(всего unverified без tech-source — см. метрики выше)."
+        )
         for p in pending:
+            nid = p["id"]
+            preview = (p.get("preview") or "").replace("\n", " ").strip()
+            src = p.get("source") or "unknown"
+            domain = p.get("domain") or "—"
+            path = p.get("file_path") or "—"
             with st.expander(
-                f"Узел {str(p['id'])[:8]} | {p['expert_name']} ({p['source'] or 'unknown'}) | {format_msk(p['created_at'])}"
+                f"Узел {str(nid)[:8]} · {src} · {domain} · {format_msk(p['created_at'])} — {preview[:100]}…"
             ):
-                st.write(p["content"])
-                if st.button("✅ Подтвердить", key=f"verify_{p['id']}"):
-                    # Здесь должен быть вызов run_query для обновления is_verified = true
-                    st.success(f"Узел {str(p['id'])[:8]} верифицирован")
+                st.markdown(
+                    f"**Domain:** `{domain}` · **type:** `{p.get('node_type') or '—'}` · "
+                    f"**conf:** `{p.get('confidence_score')}` · **path:** `{path}` · "
+                    f"**expert:** `{p.get('expert_name')}`"
+                )
+                st.markdown(p.get("content") or "_(пусто)_")
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    if st.button("✅ Подтвердить (в БД)", key=f"verify_{nid}"):
+                        if _mark_node_verified(nid, "dashboard_revision"):
+                            st.success(f"Узел {str(nid)[:8]} → is_verified=true")
+                            st.rerun()
+                        else:
+                            st.error("Не удалось обновить узел.")
+                with col_b:
+                    st.caption("Reject нет: низкий conf / ignore в metadata — отдельный flow.")
     else:
-        st.success("Все значимые знания верифицированы.")
+        st.success("Очередь ручного просмотра пуста (или остались только tech-source).")

@@ -20,10 +20,20 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-23 v115) — Revision human-gate ✅
+
+- Ревизия: реальный UPDATE is_verified, rich expander, bulk только ingest_docs_to_rag.
+- Caption: optional gate; Victoria вкладку не читает.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v115.
+
+---
+
 ## § Последние изменения (2026-07-23 v114) — Intelligence RAG UX honesty ✅
 
-- Целостность: карточки = all-time (как сайдбар); период только в Δ; Neural Graph от `knowledge_links` all-time → 100% при ~113k связей.
-- Последние находки / Карта Разума: curated filter + readable domain map.
+- AI Research «Последние находки»: curated filter + expander.
+- Целостность: period vs all-time; Neural Graph % от all-time links.
+- Карта Разума: top labels, fast clusters, local hover content.
 
 Полная фиксация: `docs/MASTER_REFERENCE.md` § v114.
 
