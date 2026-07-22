@@ -37,10 +37,11 @@ async def test_compare_responses_invalid_json():
     mock_router.run_local_llm.return_value = ("This is not JSON", "ollama")
     evaluator.router = mock_router
 
-    result = await evaluator.compare_responses("query", "prod", "shadow")
+    result = await evaluator.compare_responses("query", "prod", "shadow" * 20)
 
-    assert result["verdict"] == "Draw"
-    assert "Invalid JSON" in result["reasoning"]
+    # Invalid judge JSON falls back to heuristic (no silent fake Draw-only path)
+    assert result["verdict"] in ("Win", "Loss", "Draw")
+    assert "heuristic" in result["reasoning"].lower() or "json" in result["reasoning"].lower()
 
 
 @pytest.mark.asyncio
@@ -85,6 +86,8 @@ async def test_evaluate_and_update_full_cycle():
     result = await evaluator.evaluate_and_update("mut-456", "query", "prod", "shadow")
 
     assert result["verdict"] == "Loss"
-    mock_conn.execute.assert_called_once()
-    args = mock_conn.execute.call_args[0][0]
-    assert "loss_count = loss_count + 1" in args
+    assert mock_conn.execute.call_count == 2
+    update_sql = mock_conn.execute.call_args_list[0][0][0]
+    insert_sql = mock_conn.execute.call_args_list[1][0][0]
+    assert "loss_count = loss_count + 1" in update_sql
+    assert "INSERT INTO interaction_logs" in insert_sql

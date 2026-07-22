@@ -8,7 +8,8 @@ class TestCanaryRouter:
 
     def test_should_use_canary_imports(self):
         """canary_router module should be importable."""
-        from app.canary_router import should_use_canary, record_canary_result
+        from app.canary_router import record_canary_result, should_use_canary
+
         assert callable(should_use_canary)
         assert callable(record_canary_result)
 
@@ -23,11 +24,15 @@ class TestCanaryRouter:
         # Production is longer -> win
         assert await _judge_responses("long detailed response here", "short") == "production"
 
-        # Similar length -> production wins (conservative)
-        assert await _judge_responses("same length", "same len here") == "production"
+        # Similar length / identical -> draw (no fake win)
+        assert await _judge_responses("same length", "same len here") == "draw"
+        assert await _judge_responses("identical", "identical") == "draw"
 
         # Production error -> canary wins
-        assert await _judge_responses("[SYSTEM: All LLM sources unavailable]", "good response") == "canary"
+        assert (
+            await _judge_responses("[SYSTEM: All LLM sources unavailable]", "good response")
+            == "canary"
+        )
 
         # Empty production -> canary wins
         assert await _judge_responses("", "response") == "canary"
@@ -38,5 +43,6 @@ class TestCanaryRouter:
     def test_canary_traffic_percent(self):
         """CANARY_TRAFFIC_PERCENT should be configurable."""
         import os
+
         pct = int(os.getenv("CANARY_TRAFFIC_PERCENT", "10"))
         assert 0 <= pct <= 100

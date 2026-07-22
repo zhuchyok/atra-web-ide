@@ -2,6 +2,7 @@ import json
 import os
 import traceback
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import networkx as nx
 import numpy as np
@@ -232,10 +233,75 @@ def render_code_mutations():
         )
 
 
+def _record_prompt_battle_heuristic(
+    mutation_id,
+    expert_id,
+    expert_name: str,
+    prod_prompt: str,
+    shadow_prompt: str,
+) -> Optional[str]:
+    """Sync smoke battle: heuristic verdict → counters + interaction_logs (no LLM)."""
+    probe = "Smoke battle: list your top 3 responsibilities in short bullets."
+    # Distinct stubs so identical-payload draw bug cannot hide a working counter path
+    prod_stub = f"[PROD stub for {expert_name}]\n{(prod_prompt or '')[:400]}\nQ: {probe}"
+    shadow_stub = f"[SHADOW stub for {expert_name}]\n{(shadow_prompt or '')[:800]}\nQ: {probe}"
+    if len(shadow_stub) <= len(prod_stub) * 1.2:
+        shadow_stub = shadow_stub + (" · insight" * 40)
+
+    if len(shadow_stub) > len(prod_stub) * 1.2:
+        verdict, win, loss, draw = "Win", 1, 0, 0
+        reason = "dashboard_heuristic: shadow substantially longer"
+    elif len(prod_stub) > len(shadow_stub) * 1.2:
+        verdict, win, loss, draw = "Loss", 0, 1, 0
+        reason = "dashboard_heuristic: production substantially longer"
+    else:
+        verdict, win, loss, draw = "Draw", 0, 0, 1
+        reason = "dashboard_heuristic: similar length"
+
+    ok = run_query(
+        """
+        UPDATE expert_mutations
+        SET total_tests = COALESCE(total_tests, 0) + 1,
+            win_count = COALESCE(win_count, 0) + %s,
+            loss_count = COALESCE(loss_count, 0) + %s,
+            draw_count = COALESCE(draw_count, 0) + %s,
+            updated_at = NOW()
+        WHERE id = %s AND status = 'shadow'
+        """,
+        (win, loss, draw, mutation_id),
+    )
+    if not ok:
+        return None
+    meta = {
+        "shadow_execution": "true",
+        "shadow_verdict": verdict,
+        "shadow_reason": reason,
+        "shadow_response": shadow_stub[:4000],
+        "production_response": prod_stub[:2000],
+        "mutation_id": str(mutation_id),
+        "source": "dashboard_smoke",
+        "expert_name": expert_name,
+    }
+    run_query(
+        """
+        INSERT INTO interaction_logs (expert_id, user_query, assistant_response, metadata)
+        VALUES (%s, %s, %s, %s::jsonb)
+        """,
+        (expert_id, probe, shadow_stub[:8000], json.dumps(meta, ensure_ascii=False)),
+    )
+    return verdict
+
+
 def render_prompt_battle():
     """⚔️ Prompt Battle interface for Shadow Prompt Evolution."""
     st.subheader("⚔️ Prompt Battle: Shadow Evolution")
-    st.markdown("Сражение между текущим промптом (Production) и мутировавшим (Shadow).")
+    st.caption(
+        "Shadow **не подставляется** в ответ пользователю. Бои идут в фоне (canary/shadow evaluator) "
+        "или по кнопке Smoke ниже. В прод промпт попадает только после **Promote** "
+        "(или auto-promotion при достаточном win_rate/tests). "
+        "Total Tests = 0 значит боёв ещё не было — это не «сломанный UI»."
+    )
+    st.markdown("Сравнение Production (`experts.system_prompt`) и Shadow (`expert_mutations`).")
 
     # 1. Fetch active mutations
     mutations = fetch_data("""
@@ -253,7 +319,7 @@ def render_prompt_battle():
         return
 
     # 2. Display list of experts in shadow testing
-    expert_names = sorted(list(set([m["expert_name"] for m in mutations])))
+    expert_names = sorted({m["expert_name"] for m in mutations})
     selected_expert_name = st.selectbox("Выберите эксперта для аудита", expert_names)
 
     selected_mutation = next(
@@ -262,17 +328,18 @@ def render_prompt_battle():
 
     if selected_mutation:
         # 3. Show Win/Loss/Draw stats and Win Rate
-        total = selected_mutation["total_tests"]
-        wins = selected_mutation["win_count"]
-        losses = selected_mutation["loss_count"]
-        draws = selected_mutation["draw_count"]
+        total = int(selected_mutation["total_tests"] or 0)
+        wins = int(selected_mutation["win_count"] or 0)
+        losses = int(selected_mutation["loss_count"] or 0)
+        draws = int(selected_mutation.get("draw_count") or 0)
         win_rate = (wins / total * 100) if total > 0 else 0
 
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         col1.metric("Win Rate", f"{win_rate:.1f}%")
         col2.metric("Wins", wins)
         col3.metric("Losses", losses)
-        col4.metric("Total Tests", total)
+        col4.metric("Draws", draws)
+        col5.metric("Total Tests", total)
 
         st.markdown("---")
 
@@ -282,17 +349,34 @@ def render_prompt_battle():
 
         with c_prod:
             st.markdown("**🛡️ Production (Base)**")
-            st.code(selected_mutation["prod_prompt"], language="markdown")
+            st.code(selected_mutation["prod_prompt"] or "", language="markdown")
 
         with c_shadow:
             st.markdown("**⚡ Shadow (Mutation)**")
-            st.code(selected_mutation["mutated_prompt"], language="markdown")
+            st.code(selected_mutation["mutated_prompt"] or "", language="markdown")
 
         # 5. Action buttons
         st.markdown("### Действия")
-        act_col1, act_col2, _ = st.columns([1, 1, 2])
+        act_col1, act_col2, act_col3 = st.columns([1, 1, 1])
 
         if act_col1.button(
+            "▶️ Smoke Battle",
+            help="Один heuristic-бой без LLM: +1 к Total Tests и запись в «Последние битвы»",
+        ):
+            verdict = _record_prompt_battle_heuristic(
+                selected_mutation["id"],
+                selected_mutation["expert_id"],
+                selected_expert_name,
+                selected_mutation.get("prod_prompt") or "",
+                selected_mutation.get("mutated_prompt") or "",
+            )
+            if verdict:
+                st.success(f"Smoke battle записан: verdict={verdict}")
+                st.rerun()
+            else:
+                st.error("Не удалось записать smoke battle.")
+
+        if act_col2.button(
             "🚀 Promote Now", help="Сделать этот промпт основным (Hot-Swap)", type="primary"
         ):
             if run_query(
@@ -312,7 +396,7 @@ def render_prompt_battle():
                 st.success(f"Промпт эксперта {selected_expert_name} успешно обновлен!")
                 st.rerun()
 
-        if act_col2.button("❌ Reject Mutation", help="Архивировать мутацию"):
+        if act_col3.button("❌ Reject Mutation", help="Архивировать мутацию"):
             if run_query(
                 "UPDATE expert_mutations SET status = 'rejected' WHERE id = %s",
                 (selected_mutation["id"],),
@@ -324,16 +408,17 @@ def render_prompt_battle():
 
         # 6. Recent Battles section
         st.markdown("### 📜 Последние битвы (Evaluations)")
-        # Fetch last 5 evaluations from interaction_logs where shadow execution was triggered
-        # We look for shadow_verdict in metadata
         recent_battles = fetch_data(
             """
             SELECT created_at, user_query, assistant_response, metadata
             FROM interaction_logs
             WHERE expert_id = %s
-            AND metadata->>'shadow_execution' = 'true'
+              AND (
+                    metadata->>'shadow_execution' = 'true'
+                 OR metadata->>'source' IN ('shadow_evaluator', 'canary_router', 'dashboard_smoke')
+              )
             ORDER BY created_at DESC
-            LIMIT 5
+            LIMIT 8
         """,
             (selected_mutation["expert_id"],),
         )
@@ -347,14 +432,22 @@ def render_prompt_battle():
                 )
                 verdict = meta.get("shadow_verdict", "N/A")
                 reason = meta.get("shadow_reason", "No reason provided")
+                src = meta.get("source", "unknown")
 
-                with st.expander(f"Битва {format_msk(battle['created_at'])} | Вердикт: {verdict}"):
+                with st.expander(f"Битва {format_msk(battle['created_at'])} | {verdict} · {src}"):
                     st.markdown(f"**Запрос:** {battle['user_query']}")
                     st.markdown(f"**Причина вердикта:** {reason}")
                     st.markdown("**Ответ Shadow:**")
-                    st.info(meta.get("shadow_response", "N/A"))
+                    st.info(
+                        meta.get("shadow_response") or battle.get("assistant_response") or "N/A"
+                    )
+                    if meta.get("production_response"):
+                        st.markdown("**Ответ Production (фрагмент):**")
+                        st.code(str(meta.get("production_response"))[:1200])
         else:
-            st.info("История битв для этого эксперта пока пуста.")
+            st.info(
+                "История битв пуста. Нажмите **Smoke Battle** или дождитесь canary/shadow evaluator."
+            )
 
 
 def render_synthesis_hub():

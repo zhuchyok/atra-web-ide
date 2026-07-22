@@ -20,6 +20,14 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-23 v116) — Prompt Battle live path ✅
+
+- Canary/evaluator пишут битвы + counters; dashboard Smoke Battle; caption honesty.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v116.
+
+---
+
 ## § Последние изменения (2026-07-23 v115) — Revision human-gate ✅
 
 - Ревизия: реальный UPDATE is_verified, rich expander, bulk только ingest_docs_to_rag.

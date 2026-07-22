@@ -32,8 +32,26 @@
 
 **Дата последнего обновления:** 2026-07-23
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; Revision human-gate wired (v115)
+**Состояние:** Стабильное; Prompt Battle canary/battles wired (v116)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-23 v116) — Prompt Battle live path ✅
+
+### Диагноз
+
+UI Prompt Battle показывал shadow-промпты, но `total_tests=0`, «Последние битвы» пусты: canary брал мутации без `expert_id` и только `total_tests=0`, daemon сравнивал ответ сам с собой, evaluator не писал `interaction_logs`.
+
+### Решение
+
+1. `canary_router`: filter by expert_id + continue until `CANARY_MIN_TESTS`; win/loss/draw; battle log; daemon = prod vs shadow probe.
+2. `shadow_evaluator`: heuristic fallback + INSERT battle log.
+3. Dashboard: caption (shadow ≠ user response), Smoke Battle, richer battle list.
+
+### Evidence
+
+- Alex smoke: `total_tests 0→1`, `battle_logs≥1`; unit tests canary/shadow evaluator green.
 
 ---
 
