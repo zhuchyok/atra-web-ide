@@ -91,7 +91,11 @@ def fetch_data(query, params=None, cache_key=None):
                 if not conn:
                     return []
                 with conn.cursor() as cur:
-                    cur.execute(query, params or ())
+                    # params=None → raw SQL. Empty () forced pyformat and broke LIKE '%...'.
+                    if params is None:
+                        cur.execute(query)
+                    else:
+                        cur.execute(query, params)
                     return cur.fetchall()
         except (psycopg2.Error, psycopg2.OperationalError, psycopg2.DatabaseError) as e:
             if "deadlock detected" in str(e).lower() and attempt < 2:
@@ -120,7 +124,10 @@ def run_query(query, params=None):
             if not conn:
                 return False
             with conn.cursor() as cur:
-                cur.execute(query, params or ())
+                if params is None:
+                    cur.execute(query)
+                else:
+                    cur.execute(query, params)
                 conn.commit()
             return True
     except Exception as e:

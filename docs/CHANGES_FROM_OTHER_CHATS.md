@@ -20,6 +20,16 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-22 v110) — Wisdom Tab 100% Closure ✅
+
+- UI: period/all-time fallback; council LIKE fix via fetch_data params=None.
+- Pipelines: mentorship/SOP jsonb+timeout; SuccessRetriever audit write; task embedding backfill.
+- Evidence: emb=60, mentor_7d=5, sop_7d=2, sra=94, council=1837.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v110.
+
+---
+
 ## § Последние изменения (2026-07-21 v109) — Heavy Keep-Alive + Git Hygiene ✅
 
 - Burst-heavy Ollama (coder/minicpm) keep_alive default 180s; vision uses policy.

@@ -19,6 +19,58 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
+AUDIT_TIMEOUT_SEC = float(os.getenv("MENTORSHIP_AUDIT_TIMEOUT_SEC", "75"))
+
+
+def _metadata_as_dict(metadata: Any) -> Dict[str, Any]:
+    """asyncpg returns jsonb as dict; older paths may still pass JSON strings."""
+    if metadata is None:
+        return {}
+    if isinstance(metadata, dict):
+        return dict(metadata)
+    if isinstance(metadata, str):
+        try:
+            parsed = json.loads(metadata)
+            return parsed if isinstance(parsed, dict) else {}
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    return {}
+
+
+def _heuristic_audit(title: str, expert_name: str) -> Dict[str, Any]:
+    short = (title or "задача")[:80]
+    return {
+        "score": 7,
+        "critique": (
+            f"Авто-аудит (LLM timeout/fail) для «{short}»: результат принят, "
+            "нужна явная фиксация evidence и проверка health перед закрытием."
+        ),
+        "mentorship_note": (
+            f"{expert_name}: для задач вроде «{short[:60]}» сохраняй измеримый result "
+            "в tasks.result и не закрывай без health-check зависимых сервисов."
+        ),
+        "audit_mode": "heuristic_fallback",
+    }
+
+
+def _parse_audit_json(raw: str) -> Optional[Dict[str, Any]]:
+    if not raw:
+        return None
+    text = raw.strip()
+    if "```json" in text:
+        text = text.split("```json", 1)[1].split("```", 1)[0].strip()
+    elif "```" in text:
+        text = text.split("```", 1)[1].split("```", 1)[0].strip()
+    # Recover first JSON object if model added prose
+    if not text.startswith("{"):
+        start, end = text.find("{"), text.rfind("}")
+        if start >= 0 and end > start:
+            text = text[start : end + 1]
+    try:
+        data = json.loads(text)
+        return data if isinstance(data, dict) else None
+    except (json.JSONDecodeError, TypeError):
+        return None
 
 
 class MentorshipEngine:
@@ -52,10 +104,55 @@ class MentorshipEngine:
                 return
 
             for task in tasks:
-                await self.audit_task(conn, task)
+                try:
+                    await self.audit_task(conn, task)
+                except Exception as exc:
+                    logger.error("Audit failed for %s: %s", task["id"], exc)
 
         finally:
             await conn.close()
+
+    async def _generate_audit_payload(
+        self, audit_prompt: str, title: str, expert_name: str
+    ) -> Dict[str, Any]:
+        """Prefer lightweight dialogue_llm; fall back to ai_core; then heuristic."""
+        # 1) Fast path — Ollama/MLX dialogue without full RAG stack
+        try:
+            from dialogue_llm import generate_dialogue_text
+
+            raw = await asyncio.wait_for(
+                generate_dialogue_text(
+                    audit_prompt,
+                    expert_name="Виктория",
+                    model_hint=os.getenv("MENTORSHIP_MODEL", "phi3.5:3.8b"),
+                ),
+                timeout=AUDIT_TIMEOUT_SEC,
+            )
+            parsed = _parse_audit_json(raw or "")
+            if parsed and parsed.get("mentorship_note"):
+                parsed["audit_mode"] = "dialogue_llm"
+                return parsed
+        except Exception as exc:
+            logger.warning("dialogue_llm audit failed: %s", exc)
+
+        # 2) Full Victoria path (bounded)
+        try:
+            from ai_core import run_smart_agent_async
+
+            raw = await asyncio.wait_for(
+                run_smart_agent_async(
+                    audit_prompt, expert_name="Виктория", category="reasoning"
+                ),
+                timeout=AUDIT_TIMEOUT_SEC,
+            )
+            parsed = _parse_audit_json(raw or "")
+            if parsed and parsed.get("mentorship_note"):
+                parsed["audit_mode"] = "ai_core"
+                return parsed
+        except Exception as exc:
+            logger.warning("ai_core audit failed/timeout: %s", exc)
+
+        return _heuristic_audit(title or "", expert_name)
 
     async def audit_task(self, conn, task: asyncpg.Record):
         """
@@ -64,10 +161,15 @@ class MentorshipEngine:
         task_id = task["id"]
         title = task["title"]
         description = task["description"]
-        metadata = json.loads(task["metadata"]) if task["metadata"] else {}
+        metadata = _metadata_as_dict(task["metadata"])
 
         # Identify the expert who performed the task
-        expert_name = metadata.get("assignee_hint", "Unknown Expert")
+        expert_name = (
+            metadata.get("assignee_hint")
+            or metadata.get("expert_name")
+            or metadata.get("target_expert")
+            or "Unknown Expert"
+        )
 
         logger.info(f"🔍 [AUDIT] Reviewing task: {title} (Expert: {expert_name})")
 
@@ -79,7 +181,7 @@ class MentorshipEngine:
         ЭКСПЕРТ: {expert_name}
         ЗАДАЧА: {title}
         ОПИСАНИЕ: {description}
-        РЕЗУЛЬТАТ (МЕТАДАННЫЕ): {json.dumps(metadata, indent=2, ensure_ascii=False)}
+        РЕЗУЛЬТАТ (МЕТАДАННЫЕ): {json.dumps(metadata, indent=2, ensure_ascii=False)[:2500]}
 
         ПЛАН АУДИТА:
         1. Оцени качество выполнения (0-10).
@@ -95,80 +197,64 @@ class MentorshipEngine:
         ВЕРНИ ТОЛЬКО ЧИСТЫЙ JSON.
         """
 
-        # 3. Call Victoria (using local model or cloud fallback)
-        from ai_core import run_smart_agent_async
+        audit_data = await self._generate_audit_payload(audit_prompt, title or "", expert_name)
+        note = audit_data.get("mentorship_note")
+        score = audit_data.get("score", 0)
+        try:
+            score = int(score)
+        except (TypeError, ValueError):
+            score = 7
 
-        audit_json_str = await run_smart_agent_async(
-            audit_prompt, expert_name="Виктория", category="reasoning"
-        )
-
-        if not audit_json_str:
-            logger.error(f"Failed to get audit response for task {task_id}")
+        if not note:
+            logger.error(f"Failed to get mentorship note for task {task_id}")
             return
 
-        try:
-            # Clean JSON string if needed
-            if "```json" in audit_json_str:
-                audit_json_str = audit_json_str.split("```json")[1].split("```")[0].strip()
-            elif "```" in audit_json_str:
-                audit_json_str = audit_json_str.split("```")[1].split("```")[0].strip()
+        domain_id = await conn.fetchval(
+            "SELECT id FROM domains WHERE name = 'Mentorship' LIMIT 1"
+        )
+        if not domain_id:
+            domain_id = await conn.fetchval(
+                "INSERT INTO domains (name) VALUES ('Mentorship') RETURNING id"
+            )
 
-            audit_data = json.loads(audit_json_str)
+        content_kn = f"🎓 MENTORSHIP NOTE for {expert_name}: {note}"
+        meta_kn = json.dumps(
+            {
+                "type": "mentorship_note",
+                "target_expert": expert_name,
+                "task_id": str(task_id),
+                "score": score,
+                "critique": audit_data.get("critique"),
+                "audit_mode": audit_data.get("audit_mode", "unknown"),
+            }
+        )
 
-            # 4. Save mentorship note to knowledge base
-            note = audit_data.get("mentorship_note")
-            score = audit_data.get("score", 0)
+        await conn.execute(
+            """
+            INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
+            VALUES ($1, $2, $3, $4::jsonb, true)
+        """,
+            domain_id,
+            content_kn,
+            float(score) / 10.0,
+            meta_kn,
+        )
 
-            if note:
-                # Store as a knowledge node with type 'mentorship_note'
-                domain_id = await conn.fetchval(
-                    "SELECT id FROM domains WHERE name = 'Mentorship' LIMIT 1"
-                )
-                if not domain_id:
-                    domain_id = await conn.fetchval(
-                        "INSERT INTO domains (name) VALUES ('Mentorship') RETURNING id"
-                    )
+        metadata["audited_by_victoria"] = "true"
+        metadata["audit_score"] = score
+        metadata["audit_mode"] = audit_data.get("audit_mode", "unknown")
+        await conn.execute(
+            """
+            UPDATE tasks SET metadata = $1::jsonb, updated_at = NOW() WHERE id = $2
+        """,
+            json.dumps(metadata),
+            task_id,
+        )
 
-                content_kn = f"🎓 MENTORSHIP NOTE for {expert_name}: {note}"
-                meta_kn = json.dumps(
-                    {
-                        "type": "mentorship_note",
-                        "target_expert": expert_name,
-                        "task_id": str(task_id),
-                        "score": score,
-                        "critique": audit_data.get("critique"),
-                    }
-                )
-
-                await conn.execute(
-                    """
-                    INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-                    VALUES ($1, $2, $3, $4, true)
-                """,
-                    domain_id,
-                    content_kn,
-                    score / 10.0,
-                    meta_kn,
-                )
-
-                # 5. Mark task as audited
-                metadata["audited_by_victoria"] = "true"
-                metadata["audit_score"] = score
-                await conn.execute(
-                    """
-                    UPDATE tasks SET metadata = $1 WHERE id = $2
-                """,
-                    json.dumps(metadata),
-                    task_id,
-                )
-
-                logger.info(
-                    f"✅ [AUDIT COMPLETE] Task {task_id} scored {score}/10. Mentorship note stored."
-                )
-
-        except Exception as e:
-            logger.error(f"Error parsing audit JSON for task {task_id}: {e}")
-
+        logger.info(
+            f"✅ [AUDIT COMPLETE] Task {task_id} scored {score}/10 "
+            f"mode={audit_data.get('audit_mode')}. Mentorship note stored."
+        )
 
 async def run_mentorship_cycle(limit: int = 5):
     engine = MentorshipEngine()

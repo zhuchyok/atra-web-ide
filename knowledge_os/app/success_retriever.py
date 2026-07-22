@@ -78,25 +78,46 @@ class SuccessRetriever:
                 try:
                     # Estimate time saved: ~2 minutes per successful example (avoiding re-thinking)
                     time_saved_sec = len(rows) * 120
-                    await conn.execute(
+                    domain_id = await conn.fetchval(
                         """
-                        INSERT INTO knowledge_nodes (content, metadata)
-                        VALUES ($1, $2)
-                    """,
-                        f"Success Retrieval Audit for: {query[:100]}",
+                        SELECT id FROM domains
+                        WHERE name IN ('Wisdom & Heuristics', 'Mentorship', 'SOP')
+                        ORDER BY CASE name
+                            WHEN 'Wisdom & Heuristics' THEN 0
+                            WHEN 'Mentorship' THEN 1
+                            ELSE 2
+                        END
+                        LIMIT 1
+                        """
+                    )
+                    if domain_id is None:
+                        domain_id = await conn.fetchval(
+                            "INSERT INTO domains (name) VALUES ('Wisdom & Heuristics') RETURNING id"
+                        )
+                    meta_kn = json.dumps(
                         {
                             "type": "success_retrieval_audit",
                             "expert_name": expert_name,
                             "examples_found": len(rows),
                             "time_saved_seconds": time_saved_sec,
                             "query_preview": query[:200],
-                        },
+                        }
+                    )
+                    await conn.execute(
+                        """
+                        INSERT INTO knowledge_nodes
+                            (domain_id, content, confidence_score, metadata, is_verified)
+                        VALUES ($1, $2, 0.8, $3::jsonb, true)
+                        """,
+                        domain_id,
+                        f"Success Retrieval Audit for: {query[:100]}",
+                        meta_kn,
                     )
                     logger.info(
                         f"📊 [AUDIT] Logged Success Retrieval efficiency: {time_saved_sec}s saved."
                     )
                 except Exception as ae:
-                    logger.debug(f"Audit log error: {ae}")
+                    logger.warning(f"Audit log error: {ae}")
 
                 successes = []
                 for row in rows:

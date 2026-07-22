@@ -30,10 +30,30 @@
 
 ## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
-**Дата последнего обновления:** 2026-07-21
+**Дата последнего обновления:** 2026-07-22
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; heavy keep_alive + git hygiene (v109)
+**Состояние:** Стабильное; Wisdom tab + pipelines closure (v110)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-22 v110) — Wisdom Tab 100% Closure ✅
+
+### Диагноз
+
+Вкладка Wisdom показывала нули при живых данных: time-filter без fallback; `fetch_data(params=())` ломал `LIKE '%'` (дебаты); mentorship/SOP падали на jsonb-dict; SuccessRetriever не писал audit (`metadata=dict`); у completed tasks не было embeddings.
+
+### Решение
+
+1. Dashboard: dual metrics (период + all-time), расширенные SOP/mentor/council queries, constitution import path.
+2. `fetch_data`/`run_query`: `params=None` → raw SQL (без pyformat).
+3. Mentorship/SOP: jsonb-safe metadata, dialogue_llm + timeout + heuristic/fallback, `run_sop_cycle(limit=)`.
+4. SuccessRetriever: `json.dumps` + `domain_id` для audit nodes.
+5. Scripts: `backfill_task_embeddings.py`, `run_wisdom_closure_cycle.py`.
+
+### Evidence (live)
+
+- tasks.embedding: **60**; mentorship_7d: **5**; sop_7d: **2**; sra: **94** (~3.3h); council: **1837**; audited avg **7.8**; dashboard 200
 
 ---
 

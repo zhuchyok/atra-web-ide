@@ -17,7 +17,57 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
-SOP_DIR = os.getenv("SOP_DIR", os.path.join(os.getcwd(), "docs/SOP"))
+_DEFAULT_SOP_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "docs", "SOP")
+)
+SOP_DIR = os.getenv("SOP_DIR", _DEFAULT_SOP_DIR)
+SOP_TIMEOUT_SEC = float(os.getenv("SOP_GENERATE_TIMEOUT_SEC", "90"))
+
+
+def _metadata_as_dict(metadata: Any) -> Dict[str, Any]:
+    if metadata is None:
+        return {}
+    if isinstance(metadata, dict):
+        return dict(metadata)
+    if isinstance(metadata, str):
+        try:
+            parsed = json.loads(metadata)
+            return parsed if isinstance(parsed, dict) else {}
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    return {}
+
+
+def _fallback_sop(title: str, description: str, metadata: Dict[str, Any]) -> str:
+    expert = (
+        metadata.get("assignee_hint")
+        or metadata.get("expert_name")
+        or metadata.get("target_expert")
+        or "исполнитель"
+    )
+    return f"""# SOP: {title or 'Процесс'}
+
+## Trigger
+Применять при задачах, похожих на «{(title or '')[:120]}».
+
+## Step-by-step
+1. Уточнить цель и критерии done у заказчика / Team Lead.
+2. Проверить health зависимостей (DB, Redis, MLX/Ollama).
+3. Выполнить работу ({expert}), фиксируя промежуточные evidence.
+4. Записать `tasks.result` и ключевые артефакты в Knowledge Fabric.
+5. Закрыть задачу только после smoke-check.
+
+## Pitfalls
+- Закрытие без измеримого result.
+- Игнор health-check перед эскалацией.
+- Отсутствие mentorship/audit после сложных задач.
+
+## Tools
+- Victoria `/run`, dashboard Wisdom tab, `knowledge_nodes`, Blackboard.
+
+## Context
+{(description or '')[:500]}
+"""
 
 
 class SOPGenerator:
@@ -55,10 +105,48 @@ class SOPGenerator:
                 return
 
             for task in tasks:
-                await self.generate_sop(conn, task)
+                try:
+                    await self.generate_sop(conn, task)
+                except Exception as exc:
+                    logger.error("SOP failed for %s: %s", task["id"], exc)
 
         finally:
             await conn.close()
+
+    async def _generate_sop_text(
+        self, sop_prompt: str, title: str, description: str, metadata: Dict[str, Any]
+    ) -> str:
+        try:
+            from dialogue_llm import generate_dialogue_text
+
+            text = await asyncio.wait_for(
+                generate_dialogue_text(
+                    sop_prompt,
+                    expert_name="Виктория",
+                    model_hint=os.getenv("SOP_MODEL", "phi3.5:3.8b"),
+                ),
+                timeout=SOP_TIMEOUT_SEC,
+            )
+            if text and len(text.strip()) > 80:
+                return text.strip()
+        except Exception as exc:
+            logger.warning("dialogue_llm SOP failed: %s", exc)
+
+        try:
+            from ai_core import run_smart_agent_async
+
+            text = await asyncio.wait_for(
+                run_smart_agent_async(
+                    sop_prompt, expert_name="Виктория", category="reasoning"
+                ),
+                timeout=SOP_TIMEOUT_SEC,
+            )
+            if text and len(text.strip()) > 80:
+                return text.strip()
+        except Exception as exc:
+            logger.warning("ai_core SOP failed/timeout: %s", exc)
+
+        return _fallback_sop(title or "", description or "", metadata)
 
     async def generate_sop(self, conn, task: asyncpg.Record):
         """
@@ -67,7 +155,7 @@ class SOPGenerator:
         task_id = task["id"]
         title = task["title"]
         description = task["description"]
-        metadata = json.loads(task["metadata"]) if task["metadata"] else {}
+        metadata = _metadata_as_dict(task["metadata"])
 
         logger.info(f"📝 [SOP] Generating SOP for: {title}")
 
@@ -78,7 +166,7 @@ class SOPGenerator:
 
         НАЗВАНИЕ ЗАДАЧИ: {title}
         ОПИСАНИЕ: {description}
-        ДЕТАЛИ ВЫПОЛНЕНИЯ: {json.dumps(metadata, indent=2, ensure_ascii=False)}
+        ДЕТАЛИ ВЫПОЛНЕНИЯ: {json.dumps(metadata, indent=2, ensure_ascii=False)[:2500]}
 
         SOP ДОЛЖЕН ВКЛЮЧАТЬ:
         1. Название процесса.
@@ -91,11 +179,8 @@ class SOPGenerator:
         ВЕРНИ ТОЛЬКО ТЕКСТ SOP.
         """
 
-        # 3. Call Victoria
-        from ai_core import run_smart_agent_async
-
-        sop_content = await run_smart_agent_async(
-            sop_prompt, expert_name="Виктория", category="reasoning"
+        sop_content = await self._generate_sop_text(
+            sop_prompt, title or "", description or "", metadata
         )
 
         if not sop_content:
@@ -131,7 +216,7 @@ class SOPGenerator:
             await conn.execute(
                 """
                 INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-                VALUES ($1, $2, 1.0, $3, true)
+                VALUES ($1, $2, 1.0, $3::jsonb, true)
             """,
                 domain_id,
                 content_kn,
@@ -142,7 +227,7 @@ class SOPGenerator:
             metadata["sop_generated"] = "true"
             await conn.execute(
                 """
-                UPDATE tasks SET metadata = $1 WHERE id = $2
+                UPDATE tasks SET metadata = $1::jsonb, updated_at = NOW() WHERE id = $2
             """,
                 json.dumps(metadata),
                 task_id,
@@ -154,9 +239,9 @@ class SOPGenerator:
             logger.error(f"Error saving SOP for task {task_id}: {e}")
 
 
-async def run_sop_cycle():
+async def run_sop_cycle(limit: int = 3):
     generator = SOPGenerator()
-    await generator.run_sop_cycle()
+    await generator.run_sop_cycle(limit=limit)
 
 
 if __name__ == "__main__":
