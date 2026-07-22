@@ -121,6 +121,12 @@ class IngestionQualityGate:
             "http/1.1",
             "docker",
             "postgresql://",
+            # Agent/runtime dumps that must never enter research KB
+            "ошибка парсинга ответа модели",
+            "извините, сейчас я не могу",
+            '{"action": "create_file"',
+            '"action": "create_file"',
+            "все источники недоступны",
         )
         return any(m in lower for m in noise_markers)
 

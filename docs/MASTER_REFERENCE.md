@@ -32,8 +32,26 @@
 
 **Дата последнего обновления:** 2026-07-23
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; tail closure embeddings/DEGRADED UX/council (v113)
+**Состояние:** Стабильное; Intelligence RAG UX honesty (v114)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-23 v114) — Intelligence RAG UX honesty ✅
+
+### Диагноз
+
+«Последние находки» / «Здоровье» / «Карта Разума» выглядели сломанными: сырой хвост AI Research, карточки «Целостность» считали **только 7 дней** (~2.2k узлов / ~1.2k связей) при сайдбаре ~103k, Neural Graph **1%** (ошибочно от period-links), каша лейблов на карте доменов.
+
+### Решение
+
+1. **Последние находки:** фильтр parse-error/refusal/`create_file`; приоритет `file_path` + council; expander с полным текстом.
+2. **Целостность:** primary metrics = **all-time** (`knowledge_nodes` / `knowledge_links`); период только в Δ; coverage % эмбеддингов; Neural Graph % = `links_all / 100k`.
+3. **Карта Разума:** caption all-time; подписи только top-14 доменов; clusters degree одним проходом; local hover с content.
+
+### Evidence
+
+- Query: `nodes_all≈103k`, `links_all≈113488` → progress **100%**; `missing_emb≈91k` (~11% coverage); period Δ nodes≈2.5k / links≈1.2k.
 
 ---
 

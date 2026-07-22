@@ -454,70 +454,121 @@ def render_synthesis_hub():
 
 
 def render_ai_research_kb():
-    """📚 AI Research Knowledge Base (Новое!)."""
+    """📚 AI Research Knowledge Base — curated research docs (indexers), not LTM noise."""
     st.subheader("📚 База Мудрости (AI Research)")
-    st.markdown("Мировые практики и промпты Anthropic, OpenAI, Google, Perplexity.")
+    st.markdown(
+        "Мировые практики и промпты (Anthropic, OpenAI, Google и др.) — "
+        "только индексированные документы с `file_path`, не логи агентов."
+    )
+
+    # Curated = indexer/scout nodes with a real file path; exclude LTM/runtime dumps.
+    # Avoid LIKE '%' here: fetch_data(params=None) runs raw SQL (no pyformat escaping).
+    _AI_RESEARCH_CURATED = """
+        domain_id = (SELECT id FROM domains WHERE name = 'AI Research')
+        AND NULLIF(BTRIM(metadata->>'file_path'), '') IS NOT NULL
+        AND COALESCE(metadata->>'type', '') <> 'long_term_memory'
+        AND COALESCE(metadata->>'source', '') IN (
+            'external_docs_indexer',
+            'cognitive_code_indexer',
+            'scout_research',
+            'enhanced_scout_research',
+            'enhanced_scout_report'
+        )
+        AND content IS NOT NULL
+        AND BTRIM(content) <> ''
+        AND content !~* 'ошибка парсинга ответа модели'
+        AND content !~* 'извините, сейчас я не могу'
+        AND position('"action": "create_file"' in content) = 0
+        AND content !~* 'все источники недоступны'
+    """
 
     search_ai = st.text_input(
         "🔍 Поиск по AI Research", placeholder="Например: 'Claude Code error handling'..."
     )
 
     if search_ai:
-        # Поиск по домену AI Research
         results = fetch_data(
-            """
-            SELECT content, metadata->>'file_path' as path, confidence_score
+            f"""
+            SELECT content,
+                   metadata->>'file_path' as path,
+                   COALESCE(metadata->>'source', 'node') as src,
+                   confidence_score
             FROM knowledge_nodes
-            WHERE (content ILIKE %s OR metadata->>'file_path' ILIKE %s)
-            AND domain_id = (SELECT id FROM domains WHERE name = 'AI Research')
-            ORDER BY confidence_score DESC LIMIT 10
+            WHERE {_AI_RESEARCH_CURATED}
+              AND (content ILIKE %s OR metadata->>'file_path' ILIKE %s)
+            ORDER BY confidence_score DESC NULLS LAST, COALESCE(updated_at, created_at) DESC
+            LIMIT 12
         """,
             (f"%{search_ai}%", f"%{search_ai}%"),
         )
 
         if results:
             for r in results:
-                with st.expander(f"📄 {r['path']} (Conf: {r['confidence_score']:.2f})"):
-                    st.markdown(r["content"])
+                path = r.get("path") or "document"
+                conf = r.get("confidence_score")
+                conf_s = f"{float(conf):.2f}" if conf is not None else "—"
+                with st.expander(f"📄 {path} · {r.get('src')} · Conf {conf_s}"):
+                    st.markdown(r.get("content") or "")
         else:
-            st.info("Ничего не найдено в AI Research.")
+            st.info("Ничего не найдено среди curated AI Research документов.")
     else:
-        # Показываем последние добавленные
         st.markdown("### Последние находки")
-        freshness = fetch_data("""
+        freshness = fetch_data(f"""
             SELECT
                 MAX(created_at) AS latest_created_at,
-                MAX(COALESCE(updated_at, created_at)) AS latest_touched_at
+                MAX(COALESCE(updated_at, created_at)) AS latest_touched_at,
+                COUNT(*) AS curated_total
             FROM knowledge_nodes
-            WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Research')
+            WHERE {_AI_RESEARCH_CURATED}
         """)
         if freshness and freshness[0] and freshness[0]["latest_touched_at"]:
             latest_touch = freshness[0]["latest_touched_at"]
             if latest_touch.tzinfo is None:
                 latest_touch = latest_touch.replace(tzinfo=timezone.utc)
             age_days = (datetime.now(timezone.utc) - latest_touch).days
+            curated_total = int(freshness[0].get("curated_total") or 0)
             st.caption(
-                f"🕒 Последнее обновление AI Research: {format_msk(latest_touch)} ({age_days} дн. назад)"
+                f"🕒 Последняя индексация curated: {format_msk(latest_touch)} "
+                f"({age_days} дн. назад) · документов: **{curated_total:,}**"
             )
-            if age_days >= 3:
+            if age_days >= 14:
                 st.warning(
-                    "Данные AI Research не обновлялись более 3 дней. "
-                    "Рекомендуется запустить индексацию."
+                    "Curated AI Research не обновлялся более 14 дней. "
+                    "Запустите `index_external_docs.py` / scout."
                 )
-        latest = fetch_data("""
-            SELECT content, metadata->>'file_path' as path, created_at, COALESCE(updated_at, created_at) as touched_at
+        st.caption(
+            "Лента = только indexed docs (`external_docs_indexer` / `cognitive_code_indexer` / scout). "
+            "Ошибки парсинга и long_term_memory сюда не попадают. Раскройте строку — полный текст."
+        )
+        latest = fetch_data(f"""
+            SELECT content,
+                   metadata->>'file_path' as path,
+                   COALESCE(metadata->>'source', 'node') as node_type,
+                   created_at,
+                   COALESCE(updated_at, created_at) as touched_at
             FROM knowledge_nodes
-            WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Research')
-            ORDER BY COALESCE(updated_at, created_at) DESC LIMIT 5
+            WHERE {_AI_RESEARCH_CURATED}
+            ORDER BY COALESCE(updated_at, created_at) DESC
+            LIMIT 12
         """)
         if latest:
             for l in latest:
-                display_path = l.get("path") or "(path не указан)"
+                path = (l.get("path") or "document").strip()
+                short_name = path.rsplit("/", 1)[-1] if path else "document"
                 touched_at = l.get("touched_at") or l.get("created_at")
-                st.caption(f"📌 {display_path} - {format_msk(touched_at).split()[0]}")
-                st.markdown(f"{(l['content'] or '')[:200]}...")
+                node_type = l.get("node_type") or "node"
+                preview = " ".join((l.get("content") or "").split())
+                if len(preview) > 140:
+                    preview = preview[:140] + "…"
+                title = f"📄 {short_name} · {node_type} · {format_msk(touched_at).split()[0]}"
+                with st.expander(f"{title} — {preview}"):
+                    st.caption(f"path: `{path}`")
+                    st.markdown(l.get("content") or "")
         else:
-            st.info("База AI Research пока пуста. Запустите скрипт индексации.")
+            st.info(
+                "Curated AI Research пуст. Запустите "
+                "`python knowledge_os/scripts/index_external_docs.py`."
+            )
 
 
 def render_data_health():
@@ -528,28 +579,83 @@ def render_data_health():
     from database_service import get_time_filter
 
     t_filter = get_time_filter(time_range, "created_at")
+    # Health = all-time inventory (matches sidebar). Period filter = deltas only.
+    st.caption(
+        "Основные метрики — **вся БД** (как сайдбар «Узлов»). "
+        f"Δ под числом — прирост за **{time_range}**."
+    )
 
     try:
         stats = fetch_data(f"""
             SELECT
-                (SELECT COUNT(*) FROM knowledge_nodes WHERE {t_filter}) as total_nodes,
-                (SELECT COUNT(*) FROM knowledge_links WHERE {t_filter}) as total_links,
-                (SELECT COUNT(*) FROM knowledge_nodes WHERE embedding IS NULL AND {t_filter}) as missing_embeddings,
-                (SELECT COUNT(*) FROM knowledge_nodes WHERE confidence_score < 0.3 AND {t_filter}) as low_confidence
+                (SELECT COUNT(*) FROM knowledge_nodes) AS nodes_all,
+                (SELECT COUNT(*) FROM knowledge_links) AS links_all,
+                (SELECT COUNT(*) FROM knowledge_nodes WHERE embedding IS NULL) AS missing_emb_all,
+                (SELECT COUNT(*) FROM knowledge_nodes WHERE confidence_score < 0.3) AS low_conf_all,
+                (SELECT COUNT(*) FROM knowledge_nodes WHERE {t_filter}) AS nodes_period,
+                (SELECT COUNT(*) FROM knowledge_links WHERE {t_filter}) AS links_period,
+                (SELECT COUNT(*) FROM knowledge_nodes WHERE embedding IS NULL AND {t_filter}) AS missing_emb_period,
+                (SELECT COUNT(*) FROM knowledge_nodes WHERE confidence_score < 0.3 AND {t_filter}) AS low_conf_period
         """)
         if stats and stats[0]:
             s = stats[0]
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Всего узлов", s["total_nodes"])
-            c2.metric("Всего связей", s["total_links"])
-            c3.metric("Без векторов", s["missing_embeddings"], delta_color="inverse")
-            c4.metric("Низкий Conf", s["low_confidence"], delta_color="inverse")
+            nodes_all = int(s["nodes_all"] or 0)
+            links_all = int(s["links_all"] or 0)
+            missing_all = int(s["missing_emb_all"] or 0)
+            low_conf_all = int(s["low_conf_all"] or 0)
+            nodes_period = int(s["nodes_period"] or 0)
+            links_period = int(s["links_period"] or 0)
+            missing_period = int(s["missing_emb_period"] or 0)
+            low_conf_period = int(s["low_conf_period"] or 0)
 
-            # Прогресс к цели 10/10 (100k связей)
-            st.markdown("### 🏆 Путь к Neural Graph (100k связей)")
-            progress = min(100, int(s["total_links"] / 1000))
-            st.progress(progress / 100)
-            st.caption(f"Текущий прогресс: {progress}% (Цель: 100,000 семантических связей)")
+            with_emb = max(0, nodes_all - missing_all)
+            emb_pct = int(round(100.0 * with_emb / nodes_all)) if nodes_all else 0
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric(
+                "Всего узлов",
+                f"{nodes_all:,}",
+                delta=f"+{nodes_period:,} за период" if time_range != "За все время" else None,
+            )
+            c2.metric(
+                "Всего связей",
+                f"{links_all:,}",
+                delta=f"+{links_period:,} за период" if time_range != "За все время" else None,
+            )
+            c3.metric(
+                "Без векторов",
+                f"{missing_all:,}",
+                delta=f"+{missing_period:,} за период" if time_range != "За все время" else None,
+                delta_color="inverse",
+            )
+            c4.metric(
+                "Низкий Conf",
+                f"{low_conf_all:,}",
+                delta=f"+{low_conf_period:,} за период" if time_range != "За все время" else None,
+                delta_color="inverse",
+            )
+
+            st.caption(
+                f"Покрытие эмбеддингами: **{with_emb:,}** / {nodes_all:,} "
+                f"(**{emb_pct}%**). Источник связей: `knowledge_links` "
+                f"(таблица `knowledge_edges` не используется в этом виджете)."
+            )
+
+            # Goal: 100k semantic links — always all-time
+            goal_links = 100_000
+            st.markdown(f"### 🏆 Путь к Neural Graph ({goal_links // 1000}k связей)")
+            progress = min(100, int(links_all * 100 / goal_links)) if links_all else 0
+            st.progress(progress / 100.0)
+            if links_all >= goal_links:
+                st.success(
+                    f"Цель достигнута: **{links_all:,}** / {goal_links:,} связей "
+                    f"(**{progress}%**). Дальше — качество и покрытие эмбеддингами."
+                )
+            else:
+                st.caption(
+                    f"All-time связей: **{links_all:,}** / {goal_links:,} → **{progress}%** "
+                    f"(+{links_period:,} за «{time_range}»)."
+                )
 
     except Exception as e:
         st.error(f"Ошибка аудита данных: {e}")
@@ -558,6 +664,10 @@ def render_data_health():
 def render_mindmap():
     """🧠 Карта разума корпорации (Иерархическая визуализация 100k+)."""
     st.subheader("🧠 Семантический Граф Знаний (Neural Graph)")
+    st.caption(
+        "Карта строится по **всем** связям (all-time). Глобальный фильтр «7 дней» на эту вкладку не влияет. "
+        "Подписи — у крупных доменов; остальное — hover."
+    )
 
     view_mode = st.radio(
         "Режим отображения",
@@ -598,13 +708,29 @@ def render_mindmap():
                 return
 
             G = nx.DiGraph()
+            domain_link_weight = {}
             for link in domain_links:
-                G.add_edge(link["source_domain"], link["target_domain"], weight=link["link_count"])
+                src, dst, w = (
+                    link["source_domain"],
+                    link["target_domain"],
+                    int(link["link_count"] or 0),
+                )
+                G.add_edge(src, dst, weight=w)
+                domain_link_weight[src] = domain_link_weight.get(src, 0) + w
+                domain_link_weight[dst] = domain_link_weight.get(dst, 0) + w
 
             domain_stats = fetch_data(
                 "SELECT d.name, COUNT(k.id) as node_count FROM domains d LEFT JOIN knowledge_nodes k ON d.id = k.domain_id GROUP BY d.name"
             )
             node_sizes_map = {d["name"]: d["node_count"] for d in domain_stats}
+
+            # Подписи только у топ-доменов по весу связей (иначе каша в центре)
+            labeled = {
+                name
+                for name, _ in sorted(domain_link_weight.items(), key=lambda x: x[1], reverse=True)[
+                    :14
+                ]
+            }
 
             node_list = list(G.nodes())
             n_nodes = len(node_list)
@@ -632,24 +758,26 @@ def render_mindmap():
                 mode="lines",
             )
 
-            node_x, node_y, node_text, node_size_vals = [], [], [], []
+            node_x, node_y, node_text, node_size_vals, node_labels = [], [], [], [], []
             for node in G.nodes():
                 x, y = pos[node]
                 node_x.append(x)
                 node_y.append(y)
-                count = node_sizes_map.get(node, 0)
-                node_text.append(f"Домен: {node}<br>Узлов: {count}")
-                node_size_vals.append(min(60, max(25, count / 3)))
+                count = int(node_sizes_map.get(node, 0) or 0)
+                weight = int(domain_link_weight.get(node, 0) or 0)
+                node_text.append(f"Домен: {node}<br>Узлов: {count}<br>Вес связей: {weight}")
+                node_size_vals.append(min(60, max(18, (count / 80) + 12)))
+                node_labels.append(node if node in labeled else "")
 
             node_trace = go.Scatter(
                 x=node_x,
                 y=node_y,
                 mode="markers+text",
-                text=[n for n in G.nodes()],
+                text=node_labels,
                 textposition="top center",
                 hoverinfo="text",
                 hovertext=node_text,
-                textfont=dict(size=14, color="white"),
+                textfont=dict(size=12, color="white"),
                 marker=dict(
                     size=node_size_vals, color="#FF7F50", line=dict(width=2, color="white")
                 ),
@@ -660,41 +788,50 @@ def render_mindmap():
                 layout=go.Layout(
                     showlegend=False,
                     hovermode="closest",
-                    margin=dict(b=0, l=0, r=0, t=0),
+                    margin=dict(b=20, l=20, r=20, t=20),
                     xaxis=dict(
-                        showgrid=False, zeroline=False, showticklabels=False, range=[-1.1, 1.1]
+                        showgrid=False, zeroline=False, showticklabels=False, range=[-1.25, 1.25]
                     ),
                     yaxis=dict(
-                        showgrid=False, zeroline=False, showticklabels=False, range=[-1.1, 1.1]
+                        showgrid=False, zeroline=False, showticklabels=False, range=[-1.25, 1.25]
                     ),
                     template="plotly_dark",
                     height=700,
                 ),
             )
             st.plotly_chart(fig, width="stretch")
+            st.caption(
+                f"Доменов на графе: {n_nodes} · пар связей: {len(domain_links)} · подписей: {len(labeled)}"
+            )
 
         elif view_mode == "🧬 Семантические Кластеры":
             st.markdown("### Кластеризация знаний (Созвездия)")
             limit = st.slider("Лимит узлов для визуализации", 50, 1000, 400)
 
-            # ПРАВИЛЬНЫЙ SQL: Убираем фильтр уверенности для теста, чтобы увидеть ВСЕ домены
+            # Degree одним проходом по links (без correlated subquery на каждый узел)
             nodes_data = fetch_data(
                 """
-                WITH connection_counts AS (
-                    SELECT
-                        kn.id, kn.domain_id, kn.content, kn.confidence_score, d.name as domain_name,
-                        (SELECT COUNT(*) FROM knowledge_links WHERE source_node_id = kn.id OR target_node_id = kn.id) AS total_degree
-                    FROM knowledge_nodes kn
-                    JOIN domains d ON kn.domain_id = d.id
+                WITH degrees AS (
+                    SELECT node_id, COUNT(*)::int AS total_degree
+                    FROM (
+                        SELECT source_node_id AS node_id FROM knowledge_links
+                        UNION ALL
+                        SELECT target_node_id AS node_id FROM knowledge_links
+                    ) e
+                    GROUP BY node_id
                 ),
                 ranked_nodes AS (
                     SELECT
-                        id, domain_id, content, confidence_score, domain_name as domain, total_degree,
-                        ROW_NUMBER() OVER (PARTITION BY domain_id ORDER BY total_degree DESC) AS rn
-                    FROM connection_counts
+                        kn.id, kn.domain_id, kn.content, kn.confidence_score,
+                        d.name AS domain, deg.total_degree,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY kn.domain_id ORDER BY deg.total_degree DESC
+                        ) AS rn
+                    FROM degrees deg
+                    JOIN knowledge_nodes kn ON kn.id = deg.node_id
+                    JOIN domains d ON kn.domain_id = d.id
                 ),
                 top_nodes AS (
-                    -- Берем до 20 узлов из КАЖДОГО домена
                     SELECT * FROM ranked_nodes
                     WHERE rn <= 20
                     ORDER BY total_degree DESC
@@ -831,11 +968,22 @@ def render_mindmap():
 
             if search_query:
                 center_node = fetch_data(
-                    "SELECT id, content FROM knowledge_nodes WHERE content ILIKE %s OR id::text = %s LIMIT 1",
+                    """
+                    SELECT id, content, d.name AS domain
+                    FROM knowledge_nodes kn
+                    LEFT JOIN domains d ON kn.domain_id = d.id
+                    WHERE content ILIKE %s OR id::text = %s
+                    LIMIT 1
+                    """,
                     (f"%{search_query}%", search_query),
                 )
                 if center_node:
                     c_id = center_node[0]["id"]
+                    center_preview = (center_node[0].get("content") or "").replace("\n", " ")[:240]
+                    st.info(
+                        f"Центр: `{str(c_id)[:8]}…` · "
+                        f"{center_node[0].get('domain') or 'no-domain'} · {center_preview}…"
+                    )
                     local_links = fetch_data(
                         """
                         WITH RECURSIVE graph AS (
@@ -860,10 +1008,14 @@ def render_mindmap():
                     if local_links:
                         G = nx.Graph()
                         node_list_local = set()
+                        content_map = {str(c_id): center_node[0].get("content") or ""}
                         for l in local_links:
-                            G.add_edge(str(l["source_node_id"]), str(l["target_node_id"]))
-                            node_list_local.add(str(l["source_node_id"]))
-                            node_list_local.add(str(l["target_node_id"]))
+                            sid, tid = str(l["source_node_id"]), str(l["target_node_id"])
+                            G.add_edge(sid, tid)
+                            node_list_local.add(sid)
+                            node_list_local.add(tid)
+                            content_map[sid] = l.get("s_content") or content_map.get(sid, "")
+                            content_map[tid] = l.get("t_content") or content_map.get(tid, "")
 
                         node_list_local = list(node_list_local)
                         n_nodes = len(node_list_local)
@@ -893,12 +1045,15 @@ def render_mindmap():
                             mode="lines",
                         )
 
-                        node_x, node_y, node_text = [], [], []
+                        node_x, node_y, node_text, node_colors = [], [], [], []
+                        center_s = str(c_id)
                         for node in G.nodes():
                             x, y = pos_dict[node]
                             node_x.append(x)
                             node_y.append(y)
-                            node_text.append(f"Node ID: {node}")
+                            preview = (content_map.get(node) or "").replace("\n", " ").strip()
+                            node_text.append(f"ID: {node[:8]}…<br>{preview[:160]}")
+                            node_colors.append("#FF7F50" if node == center_s else "#ffcc00")
 
                         node_trace = go.Scatter(
                             x=node_x,
@@ -908,7 +1063,7 @@ def render_mindmap():
                             textposition="bottom center",
                             hoverinfo="text",
                             hovertext=node_text,
-                            marker=dict(size=20, color="#ffcc00", line_width=2),
+                            marker=dict(size=20, color=node_colors, line_width=2),
                         )
 
                         fig = go.Figure(
@@ -932,6 +1087,15 @@ def render_mindmap():
                             ),
                         )
                         st.plotly_chart(fig, width="stretch")
+                        st.caption(
+                            f"Узлов в локальном графе: {n_nodes} · рёбер: {G.number_of_edges()}"
+                        )
+                    else:
+                        st.warning(
+                            "У найденного центра нет связей в knowledge_links (или глубина=0)."
+                        )
+                else:
+                    st.warning("Центр не найден по тексту/ID.")
     except Exception as e:
         st.error(f"Ошибка визуализации: {e}")
         import traceback

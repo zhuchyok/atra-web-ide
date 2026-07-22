@@ -20,6 +20,15 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-23 v114) — Intelligence RAG UX honesty ✅
+
+- Целостность: карточки = all-time (как сайдбар); период только в Δ; Neural Graph от `knowledge_links` all-time → 100% при ~113k связей.
+- Последние находки / Карта Разума: curated filter + readable domain map.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v114.
+
+---
+
 ## § Последние изменения (2026-07-23 v113) — Tail Closure ✅
 
 - Task embeddings → 510 (OKR KR met); Tasks tab DEGRADED UX; council_7d=4.

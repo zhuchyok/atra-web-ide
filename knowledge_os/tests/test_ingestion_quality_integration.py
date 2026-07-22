@@ -29,6 +29,27 @@ class _FakePool:
 
 
 @pytest.mark.asyncio
+async def test_ltm_hard_rejects_parse_error_dumps(monkeypatch):
+    async def _fake_get_pool():
+        return _FakePool()
+
+    async def _fake_embedding(_):
+        raise AssertionError("Embedding must not run for hard-rejected dumps")
+
+    async def _log_reject(*args, **kwargs):
+        return True
+
+    monkeypatch.setattr("app.long_term_memory.get_pool", _fake_get_pool)
+    monkeypatch.setattr("app.long_term_memory.get_embedding", _fake_embedding)
+
+    ltm = LongTermMemory()
+    monkeypatch.setattr(ltm.quality_gate, "log_reject", _log_reject)
+
+    dump = 'Ошибка парсинга ответа модели. Ответ: {"action": "create_file", "path": "x.md"}'
+    assert await ltm.store_memory(dump, "react_agent") is None
+
+
+@pytest.mark.asyncio
 async def test_ltm_rejects_before_embedding(monkeypatch):
     async def _fake_get_pool():
         return _FakePool()

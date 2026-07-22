@@ -937,7 +937,23 @@ def main():
             # Новое в AI Research
             try:
                 latest_ai = fetch_data(
-                    f"SELECT metadata->>'file_path' as path FROM knowledge_nodes WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Research') AND {t_filter} ORDER BY created_at DESC LIMIT 3"
+                    f"""
+                    SELECT metadata->>'file_path' as path
+                    FROM knowledge_nodes
+                    WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Research')
+                      AND {t_filter}
+                      AND NULLIF(BTRIM(metadata->>'file_path'), '') IS NOT NULL
+                      AND COALESCE(metadata->>'type', '') <> 'long_term_memory'
+                      AND COALESCE(metadata->>'source', '') IN (
+                          'external_docs_indexer',
+                          'cognitive_code_indexer',
+                          'scout_research',
+                          'enhanced_scout_research',
+                          'enhanced_scout_report'
+                      )
+                    ORDER BY created_at DESC
+                    LIMIT 3
+                    """
                 )
                 if latest_ai:
                     st.markdown("**📚 AI Research**")
@@ -947,11 +963,19 @@ def main():
                         st.caption(f"📄 {file_name}")
                 else:
                     ai_total = fetch_data(
-                        "SELECT COUNT(*) AS total FROM knowledge_nodes WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Research')"
+                        """
+                        SELECT COUNT(*) AS total FROM knowledge_nodes
+                        WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Research')
+                          AND NULLIF(BTRIM(metadata->>'file_path'), '') IS NOT NULL
+                          AND COALESCE(metadata->>'source', '') IN (
+                              'external_docs_indexer', 'cognitive_code_indexer',
+                              'scout_research', 'enhanced_scout_research', 'enhanced_scout_report'
+                          )
+                        """
                     )
                     ai_total_count = ai_total[0]["total"] if ai_total else 0
-                    st.caption("📚 Нет свежих AI Research данных за выбранный период")
-                    st.caption(f"Всего AI Research узлов в базе: {ai_total_count:,}")
+                    st.caption("📚 Нет свежих curated AI Research за период")
+                    st.caption(f"Curated документов в базе: {ai_total_count:,}")
             except Exception as e:
                 st.caption(f"📚 AI Research: данные недоступны ({str(e)[:40]}...)")
 

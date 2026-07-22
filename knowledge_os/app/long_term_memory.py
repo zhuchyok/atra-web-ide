@@ -44,10 +44,44 @@ class LongTermMemory:
             return value
         return value[:max_chars]
 
+    @staticmethod
+    def _is_unusable_memory(content: Optional[str]) -> Optional[str]:
+        """Hard reject runtime/agent dumps — never shadow-pass into research KB."""
+        text = (content or "").strip()
+        if not text:
+            return "empty_content"
+        lower = text.lower()
+        hard_markers = (
+            "ошибка парсинга ответа модели",
+            "извините, сейчас я не могу",
+            '{"action": "create_file"',
+            '"action": "create_file"',
+            "все источники недоступны",
+            "traceback (most recent call last)",
+        )
+        for marker in hard_markers:
+            if marker in lower:
+                return f"hard_reject:{marker[:40]}"
+        return None
+
     async def store_memory(self, content: str, source: str, metadata: Dict[str, Any] = None):
         """Store a memory node and generate its embedding."""
-        decision = await self.quality_gate.evaluate_async(content, source_type=source or "unknown")
+        hard_reason = self._is_unusable_memory(content)
         pool = await get_pool()
+        if hard_reason:
+            async with pool.acquire() as conn:
+                await self.quality_gate.log_reject(
+                    conn,
+                    content=content,
+                    source_type=source or "unknown",
+                    reason=hard_reason,
+                    gate_stage="long_term_memory_hard",
+                    metadata={"decision": "reject", "enforce": "always"},
+                )
+            logger.warning(f"⛔ [LTM] Hard-rejected from {source}: {hard_reason}")
+            return None
+
+        decision = await self.quality_gate.evaluate_async(content, source_type=source or "unknown")
         if self.quality_gate.should_block(decision):
             async with pool.acquire() as conn:
                 await self.quality_gate.log_reject(
@@ -69,17 +103,26 @@ class LongTermMemory:
             embedding = [0.0] * 768  # Fallback
 
         embedding_str = "[" + ",".join(map(str, embedding)) + "]"
+        domain_name = self._default_domain or "AI Research"
 
         async with pool.acquire() as conn:
             memory_id = await conn.fetchval(
                 """
                 INSERT INTO knowledge_nodes (content, domain_id, confidence_score, embedding, is_verified, metadata)
-                VALUES ($1, (SELECT id FROM domains WHERE name = 'AI Research' LIMIT 1), 1.0, $2, TRUE, $3::jsonb)
+                VALUES (
+                    $1,
+                    (SELECT id FROM domains WHERE name = $4 LIMIT 1),
+                    1.0,
+                    $2,
+                    TRUE,
+                    $3::jsonb
+                )
                 RETURNING id
                 """,
                 content,
                 embedding_str,
                 json.dumps({**(metadata or {}), "source": source, "type": "long_term_memory"}),
+                domain_name,
             )
             logger.info(f"💾 [LTM] Stored memory from {source}: {memory_id}")
             return memory_id
