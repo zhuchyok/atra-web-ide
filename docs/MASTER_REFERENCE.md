@@ -32,8 +32,22 @@
 
 **Дата последнего обновления:** 2026-07-23
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; OKR Grove/Doerr lite + DNA all-experts (v112)
+**Состояние:** Стабильное; tail closure embeddings/DEGRADED UX/council (v113)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-23 v113) — Tail Closure (emb / DEGRADED / council) ✅
+
+### Решение
+
+1. Backfill `tasks.embedding` → **510** (≥ OKR KR 500).
+2. Tasks UI: cancelled + rule-fallback → бейдж **DEGRADED** (не путать с аварией); фильтр + метрика.
+3. Extra council phase → **4** debates / 7d (KR закрыт).
+
+### Evidence
+
+- emb=510; council_1d=4; mentor KR 5/5; degraded count visible in tasks tab.
 
 ---
 

@@ -106,6 +106,15 @@ def _render_tasks_list(time_range):
             COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress,
             COUNT(*) FILTER (WHERE status = 'pending') as pending,
             COUNT(*) FILTER (WHERE status = 'failed') as failed,
+            COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled,
+            COUNT(*) FILTER (
+                WHERE status = 'cancelled'
+                  AND (
+                    COALESCE(result, '') LIKE '%%[DEGRADED_RULE_FALLBACK]%%'
+                    OR COALESCE(metadata->>'quality_degraded', '') IN ('true', 'True', '1')
+                    OR COALESCE(metadata->>'completion_kind', '') = 'rule_fallback_degraded'
+                  )
+            ) as degraded,
             CASE
                 WHEN COUNT(*) FILTER (
                     WHERE status = 'completed'
@@ -170,6 +179,15 @@ def _render_tasks_list(time_range):
                 "⏱️ Среднее время", f"{to['avg_hours']:.1f}ч" if to["avg_hours"] else "N/A"
             )
 
+        failed_n = to.get("failed") or 0
+        cancelled_n = to.get("cancelled") or 0
+        degraded_n = to.get("degraded") or 0
+        if failed_n or cancelled_n:
+            st.caption(
+                f"❌ failed: **{failed_n}** · 🚫 cancelled: **{cancelled_n}** "
+                f"(из них ⚠️ DEGRADED rule-fallback: **{degraded_n}** — не путать с аварией)"
+            )
+
         if recent_done and recent_done[0]:
             rd = recent_done[0]
             cnt15 = rd.get("cnt") or 0
@@ -201,6 +219,7 @@ def _render_tasks_list(time_range):
                 "in_progress",
                 "completed",
                 "cancelled",
+                "degraded (rule-fallback)",
                 "failed",
                 "Ручная проверка (deferred)",
             ],
@@ -238,6 +257,18 @@ def _render_tasks_list(time_range):
         query_parts.append(
             "AND t.status = 'completed' AND t.metadata->>'deferred_to_human' = 'true'"
         )
+    elif status_filter == "degraded (rule-fallback)":
+        query_parts.append(
+            """
+            AND t.status = 'cancelled'
+            AND (
+                COALESCE(t.result, '') LIKE %s
+                OR COALESCE(t.metadata->>'quality_degraded', '') IN ('true', 'True', '1')
+                OR COALESCE(t.metadata->>'completion_kind', '') = 'rule_fallback_degraded'
+            )
+            """
+        )
+        query_params.append("%[DEGRADED_RULE_FALLBACK]%")
     elif status_filter != "Все":
         query_parts.append("AND t.status = %s")
         query_params.append(status_filter)
@@ -376,15 +407,41 @@ def _render_tasks_list(time_range):
         st.info("Задач не найдено.")
 
 
+def _is_degraded_cancelled(task) -> bool:
+    """Soft rule-fallback: status cancelled but work often done (not a hard failure)."""
+    if (task.get("status") or "") != "cancelled":
+        return False
+    result = task.get("result") or ""
+    if "[DEGRADED_RULE_FALLBACK]" in result:
+        return True
+    meta = task.get("metadata") or {}
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except (json.JSONDecodeError, TypeError):
+            meta = {}
+    if not isinstance(meta, dict):
+        return False
+    return bool(
+        meta.get("quality_degraded")
+        or meta.get("completion_kind") == "rule_fallback_degraded"
+        or meta.get("llm_unavailable_fallback")
+    )
+
+
 def _render_task_card(task):
     """Render a single task card."""
+    degraded = _is_degraded_cancelled(task)
+    status_key = "degraded" if degraded else (task.get("status") or "")
+
     status_color = {
         "pending": "#f38ba8",
         "completed": "#238636",
         "in_progress": "#fab387",
         "failed": "#da3633",
         "cancelled": "#8b949e",
-    }.get(task["status"], "#8b949e")
+        "degraded": "#d29922",
+    }.get(status_key, "#8b949e")
 
     status_icon = {
         "pending": "⏳",
@@ -392,9 +449,26 @@ def _render_task_card(task):
         "in_progress": "🔄",
         "failed": "❌",
         "cancelled": "🚫",
-    }.get(task["status"], "❓")
+        "degraded": "⚠️",
+    }.get(status_key, "❓")
 
+    status_label = "DEGRADED" if degraded else (task.get("status") or "unknown").upper()
     created_date = format_msk(task.get("created_at"))
+    result_preview = (task.get("result") or "").replace("[DEGRADED_RULE_FALLBACK]", "").strip()
+    result_snip = (
+        f'<div class="task-card-meta" style="margin-top:8px;color:#8b949e;">'
+        f"Результат: {result_preview[:180]}{'…' if len(result_preview) > 180 else ''}"
+        f"</div>"
+        if result_preview
+        else ""
+    )
+    degraded_hint = (
+        '<div class="task-card-meta" style="margin-top:6px;color:#d29922;">'
+        "Rule-fallback (не KPI-успех эксперта; ответ мог быть получен без LLM)"
+        "</div>"
+        if degraded
+        else ""
+    )
 
     st.markdown(
         f"""
@@ -406,9 +480,11 @@ def _render_task_card(task):
                         👤 {task["assignee"]} | 📁 {task["department"]} | 📅 {created_date}
                     </div>
                 </div>
-                <span class="task-card-meta" style="color: {status_color}; font-weight: 800; padding: 4px 12px; background: rgba(88, 166, 255, 0.1); border-radius: 12px;">{task["status"].upper()}</span>
+                <span class="task-card-meta" style="color: {status_color}; font-weight: 800; padding: 4px 12px; background: rgba(88, 166, 255, 0.1); border-radius: 12px;">{status_label}</span>
             </div>
             <div class="task-card-desc" style="color: var(--dash-text); margin-top: 10px;">{(task.get("description") or "")[:300]}...</div>
+            {degraded_hint}
+            {result_snip}
         </div>
     """,
         unsafe_allow_html=True,

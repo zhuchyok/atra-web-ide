@@ -20,6 +20,14 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-23 v113) — Tail Closure ✅
+
+- Task embeddings → 510 (OKR KR met); Tasks tab DEGRADED UX; council_7d=4.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v113.
+
+---
+
 ## § Последние изменения (2026-07-23 v112) — OKR Grove/Doerr lite + DNA all experts ✅
 
 - Active OKR period `2026-H2` via `okr_service`; Board/morning ignore archive.
