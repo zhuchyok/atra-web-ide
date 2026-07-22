@@ -20,6 +20,15 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-23 v112) — OKR Grove/Doerr lite + DNA all experts ✅
+
+- Active OKR period `2026-H2` via `okr_service`; Board/morning ignore archive.
+- Dashboard OKR shows live KR progress; Strategy DNA select = all experts.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v112.
+
+---
+
 ## § Последние изменения (2026-07-23 v111) — Nightly Expert Council Restored ✅
 
 - Root cause: `run_expert_council` removed in 5d8bbbf7 (2026-04-25); last council node 2026-04-24.

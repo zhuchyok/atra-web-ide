@@ -32,8 +32,23 @@
 
 **Дата последнего обновления:** 2026-07-23
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; Expert Council restored in nightly (v111)
+**Состояние:** Стабильное; OKR Grove/Doerr lite + DNA all-experts (v112)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-23 v112) — OKR Active Period + DNA All Experts ✅
+
+### Решение (лучшее из практик Grove/Doerr + Cognitive Code)
+
+1. **Active period** `ACTIVE_OKR_PERIOD=2026-H2`: Board / morning / dashboard читают только его; архив 2025-Q4 остаётся в БД.
+2. **`okr_service.py`**: seed 3 Objective + KR, refresh `current_value` из live metrics.
+3. Dashboard OKR: прогресс KR (в т.ч. inverse для failed/stale).
+4. Strategy DNA select: все эксперты из `experts` (не top-10); новые появляются после sync.
+
+### Evidence
+
+- Seed `2026-H2`: 3 OKR / 7 KR; metrics refresh OK (council_7d, mentor_7d, nodes, emb, failed).
 
 ---
 

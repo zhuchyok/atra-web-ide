@@ -659,14 +659,12 @@ async def consult_board(
             # 1. Сбор контекста
             okr_context = ""
             try:
-                okrs = await conn.fetch("SELECT objective, department, period FROM okrs LIMIT 5")
-                okr_context = (
-                    "\n".join(
-                        [f"- {o['objective']} ({o['department']}, {o['period']})" for o in okrs]
-                    )
-                    if okrs
-                    else ""
-                )
+                from okr_service import fetch_active_okrs, format_okr_context, get_active_okr_period
+
+                okrs = await fetch_active_okrs(conn, limit=5)
+                okr_context = format_okr_context(okrs)
+                if not okr_context:
+                    okr_context = f"(нет OKR за период {get_active_okr_period()})"
             except Exception as e:
                 print(
                     f"⚠️ Не удалось получить OKR (таблица может отсутствовать или схема иная): {e}"
@@ -1178,17 +1176,24 @@ async def run_board_meeting():
         pool = await get_db_pool()
         async with pool.acquire() as conn:
             # 1. Сбор данных для заседания
-            # - Текущие OKR
+            # - Текущие OKR (только active period — Grove/Doerr: не тащить архив)
             okr_context = ""
             try:
-                okrs = await conn.fetch("SELECT objective, department, period FROM okrs")
-                okr_context = (
-                    "\n".join(
-                        [f"- {o['objective']} ({o['department']}, {o['period']})" for o in okrs]
-                    )
-                    if okrs
-                    else ""
+                from okr_service import (
+                    fetch_active_okrs,
+                    format_okr_context,
+                    get_active_okr_period,
+                    refresh_key_results_from_metrics,
                 )
+
+                try:
+                    await refresh_key_results_from_metrics(conn)
+                except Exception as re:
+                    print(f"⚠️ OKR metrics refresh skipped: {re}")
+                okrs = await fetch_active_okrs(conn)
+                okr_context = format_okr_context(okrs)
+                if not okr_context:
+                    okr_context = f"(нет OKR за период {get_active_okr_period()})"
             except Exception as e:
                 print(
                     f"⚠️ Не удалось получить OKR (таблица может отсутствовать или схема иная): {e}"

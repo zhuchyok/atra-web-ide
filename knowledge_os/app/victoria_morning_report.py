@@ -136,13 +136,30 @@ async def generate_morning_plan():
             WHERE created_at > NOW() - INTERVAL '24 hours'
         """)
 
-        # 3. Собираем OKR данные
-        okrs = await conn.fetch("""
+        # 3. Собираем OKR данные (active period only — не хардкод 2025-Q4)
+        from okr_service import (
+            ensure_active_okrs_seeded,
+            get_active_okr_period,
+            refresh_key_results_from_metrics,
+        )
+
+        try:
+            await ensure_active_okrs_seeded(conn)
+            await refresh_key_results_from_metrics(conn)
+        except Exception as okr_seed_err:
+            logger.warning("OKR seed/refresh skipped: %s", okr_seed_err)
+
+        active_period = get_active_okr_period()
+        okrs = await conn.fetch(
+            """
             SELECT o.objective, kr.description, kr.current_value, kr.target_value, kr.unit
             FROM okrs o
             JOIN key_results kr ON o.id = kr.okr_id
-            WHERE o.period = '2025-Q4'
-        """)
+            WHERE o.period = $1
+            ORDER BY o.created_at, kr.description
+            """,
+            active_period,
+        )
 
         okr_str = ""
         current_obj = ""

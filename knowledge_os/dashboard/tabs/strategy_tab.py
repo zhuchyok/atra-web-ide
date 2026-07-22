@@ -196,7 +196,9 @@ def render_structure():
     """🏛️ Рейтинг экспертов и структура."""
     st.subheader("🏛️ Рейтинг Экспертов и Лидеры")
 
-    leaderboard = fetch_data(
+    # Full roster (new experts appear automatically from `experts` table).
+    # Podium / table below still use top-10 by usage.
+    experts_ranked = fetch_data(
         """
         WITH knowledge_by_expert AS (
             SELECT
@@ -230,18 +232,26 @@ def render_structure():
         FROM experts e
         LEFT JOIN knowledge_by_expert k ON k.expert_name = e.name
         LEFT JOIN tasks_by_expert t ON t.expert_id = e.id
-        ORDER BY total_usage DESC NULLS LAST
-        LIMIT 10
+        ORDER BY total_usage DESC NULLS LAST, e.name ASC
         """
     )
+    leaderboard = (experts_ranked or [])[:10]
+    experts_for_dna = sorted(
+        experts_ranked or [],
+        key=lambda e: (e.get("name") or "").lower(),
+    )
 
-    if leaderboard:
-        # Секция эволюции (прокачки)
+    if experts_for_dna:
+        # Секция эволюции (прокачки) — все эксперты из БД, не только топ-10
         st.markdown("### 🧬 Эволюция и Управление ДНК")
+        st.caption(
+            f"Настройка доступна для всех экспертов в реестре (**{len(experts_for_dna)}**). "
+            "Новые сотрудники из `experts` появляются здесь автоматически после sync."
+        )
 
-        expert_names = [e["name"] for e in leaderboard]
+        expert_names = [e["name"] for e in experts_for_dna]
         selected_expert = st.selectbox("Выберите эксперта для настройки", expert_names)
-        exp_data = next(e for e in leaderboard if e["name"] == selected_expert)
+        exp_data = next(e for e in experts_for_dna if e["name"] == selected_expert)
 
         # --- Редактор Эксперта (DNA Editor) ---
         with st.expander(f"🛠️ Настройка личности: {selected_expert}", expanded=False):
@@ -416,33 +426,172 @@ def render_structure():
         )
 
 
+def _okr_kr_progress(current, target, description: str) -> float:
+    """0..100. Inverse KR (failed/stale/меньше) — ниже current лучше."""
+    try:
+        cur = float(current or 0)
+        tgt = float(target or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    desc = (description or "").lower()
+    inverse = any(x in desc for x in ("меньше", "failed", "провален", "stale", "зависш"))
+    if inverse:
+        if tgt <= 0:
+            return 100.0 if cur <= 0 else 0.0
+        return max(0.0, min(100.0, (1.0 - (cur / tgt)) * 100.0))
+    if tgt <= 0:
+        return 0.0
+    return max(0.0, min(100.0, (cur / tgt) * 100.0))
+
+
 def render_okr():
-    """🎯 Стратегия OKR."""
+    """🎯 Стратегия OKR — active period + Key Results (Grove/Doerr lite)."""
     st.subheader("🎯 Стратегические Цели (OKR)")
 
-    # Пытаемся получить OKR из специальной таблицы (Singularity 10.0)
-    okrs = fetch_data(
-        "SELECT objective, department, period, created_at FROM okrs ORDER BY created_at DESC"
+    active_period = "2026-H2"
+    try:
+        import sys
+        from pathlib import Path
+
+        _app = Path(__file__).resolve().parents[2] / "app"
+        if _app.is_dir() and str(_app) not in sys.path:
+            sys.path.insert(0, str(_app))
+        from okr_service import get_active_okr_period
+
+        active_period = get_active_okr_period()
+    except Exception:
+        pass
+
+    st.caption(
+        f"Активный период: **{active_period}** (env `ACTIVE_OKR_PERIOD`). "
+        "Архивные OKR хранятся, но Board/отчёты читают только active."
     )
 
-    if okrs:
-        for okr in okrs:
-            with st.expander(f"🎯 {okr['objective'][:100]}..."):
+    # Refresh metrics best-effort (UPDATE via run_query — fetch_data is read-only)
+    from database_service import run_query
+
+    run_query(
+        """
+        WITH m AS (
+            SELECT
+              (SELECT COUNT(*)::float FROM knowledge_nodes) AS nodes_total,
+              (SELECT COUNT(*)::float FROM knowledge_nodes
+                 WHERE metadata->>'cycle' LIKE 'nightly_council%%'
+                   AND created_at > NOW() - INTERVAL '7 days') AS council_7d,
+              (SELECT COUNT(*)::float FROM knowledge_nodes
+                 WHERE metadata->>'type' = 'mentorship_note'
+                   AND created_at > NOW() - INTERVAL '7 days') AS mentor_7d,
+              (SELECT COUNT(*)::float FROM tasks WHERE embedding IS NOT NULL) AS tasks_embedded,
+              (SELECT COUNT(*)::float FROM tasks
+                 WHERE status = 'failed'
+                   AND updated_at > NOW() - INTERVAL '7 days') AS failed_7d,
+              (SELECT COUNT(*)::float FROM tasks
+                 WHERE status IN ('pending', 'in_progress')
+                   AND updated_at < NOW() - INTERVAL '4 hours') AS stale_4h
+        )
+        UPDATE key_results kr SET
+            current_value = CASE
+                WHEN lower(kr.description) LIKE '%%дебат%%' OR lower(kr.description) LIKE '%%council%%'
+                    THEN (SELECT council_7d FROM m)
+                WHEN lower(kr.description) LIKE '%%ментор%%' OR lower(kr.description) LIKE '%%mentorship%%'
+                    THEN (SELECT mentor_7d FROM m)
+                WHEN lower(kr.description) LIKE '%%embedding%%'
+                    THEN (SELECT tasks_embedded FROM m)
+                WHEN lower(kr.description) LIKE '%%провален%%' OR lower(kr.description) LIKE '%%failed%%'
+                    THEN (SELECT failed_7d FROM m)
+                WHEN lower(kr.description) LIKE '%%stale%%' OR lower(kr.description) LIKE '%%зависш%%'
+                    THEN (SELECT stale_4h FROM m)
+                WHEN lower(kr.description) LIKE '%%узлов%%'
+                    THEN (SELECT nodes_total FROM m)
+                ELSE kr.current_value
+            END,
+            last_updated_at = NOW()
+        FROM okrs o
+        WHERE kr.okr_id = o.id AND o.period = %s
+        """,
+        (active_period,),
+    )
+
+    rows = fetch_data(
+        """
+        SELECT o.id AS okr_id, o.objective, o.department, o.period, o.created_at,
+               kr.description AS kr_description, kr.current_value, kr.target_value, kr.unit
+        FROM okrs o
+        LEFT JOIN key_results kr ON kr.okr_id = o.id
+        WHERE o.period = %s
+        ORDER BY o.created_at ASC, kr.description ASC
+        """,
+        (active_period,),
+    )
+
+    if rows:
+        # Group by OKR
+        by_okr: dict = {}
+        for r in rows:
+            oid = r["okr_id"]
+            if oid not in by_okr:
+                by_okr[oid] = {
+                    "objective": r["objective"],
+                    "department": r["department"],
+                    "period": r["period"],
+                    "created_at": r["created_at"],
+                    "krs": [],
+                }
+            if r.get("kr_description"):
+                by_okr[oid]["krs"].append(r)
+
+        for okr in by_okr.values():
+            krs = okr["krs"]
+            avg_pct = (
+                sum(
+                    _okr_kr_progress(k["current_value"], k["target_value"], k["kr_description"])
+                    for k in krs
+                )
+                / len(krs)
+                if krs
+                else 0.0
+            )
+            with st.expander(
+                f"🎯 {okr['objective'][:90]}… · {avg_pct:.0f}%",
+                expanded=avg_pct < 80,
+            ):
                 st.markdown(f"**Цель:** {okr['objective']}")
                 st.markdown(f"**Отдел:** {okr['department'] or 'Общий'}")
                 st.markdown(f"**Период:** {okr['period']}")
-                st.caption(f"Дата создания: {format_msk(okr['created_at'])}")
+                st.caption(f"Создано: {format_msk(okr['created_at'])}")
+                st.progress(min(1.0, avg_pct / 100.0))
+                if not krs:
+                    st.info("Key Results ещё не заданы.")
+                for k in krs:
+                    pct = _okr_kr_progress(
+                        k["current_value"], k["target_value"], k["kr_description"]
+                    )
+                    st.markdown(
+                        f"**KR:** {k['kr_description']}  \n"
+                        f"`{k['current_value']}` / `{k['target_value']}` {k['unit'] or ''} · **{pct:.0f}%**"
+                    )
+                    st.progress(min(1.0, pct / 100.0))
     else:
-        # Fallback на knowledge_nodes
-        okrs_kn = fetch_data(
-            "SELECT content, metadata, created_at FROM knowledge_nodes WHERE metadata->>'type' = 'okr' ORDER BY created_at DESC"
+        st.warning(
+            f"Нет OKR за период `{active_period}`. "
+            "Запустите seed: `python -m okr_service` в knowledge_os/app или morning report."
         )
-        if okrs_kn:
-            for okr in okrs_kn:
-                with st.expander(f"🎯 {okr['content'][:100]}..."):
-                    st.json(okr["metadata"])
-        else:
-            st.info("Стратегические цели не заданы.")
+        # Show archive briefly
+        archive = fetch_data(
+            """
+            SELECT objective, department, period, created_at
+            FROM okrs WHERE period <> %s
+            ORDER BY created_at DESC LIMIT 5
+            """,
+            (active_period,),
+        )
+        if archive:
+            st.caption("Архив (не active):")
+            for okr in archive:
+                st.markdown(
+                    f"- [{okr['period']}] {okr['objective'][:100]} "
+                    f"({okr['department'] or '—'})"
+                )
 
 
 def render_board_decisions():
