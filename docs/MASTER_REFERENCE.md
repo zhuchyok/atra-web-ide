@@ -30,10 +30,29 @@
 
 ## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
-**Дата последнего обновления:** 2026-07-22
+**Дата последнего обновления:** 2026-07-23
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; Wisdom tab + pipelines closure (v110)
+**Состояние:** Стабильное; Expert Council restored in nightly (v111)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-23 v111) — Nightly Expert Council Restored ✅
+
+### Диагноз
+
+Wisdom «Дебаты» застыли на **2026-04-24**: `run_expert_council` удалён в `5d8bbbf7` (Phase 8.2 cleanup, 25.04). Nightly писал только mentorship/SOP; `create_debate_for_hypothesis` стал stub (task only).
+
+### Решение
+
+1. Новый модуль `nightly_expert_council.py` — Red Team (critique→rebuttal→synthesis) через dialogue_llm + timeout.
+2. Пишет `knowledge_nodes` с `cycle=nightly_council_v2` (+ `expert_discussions`, `council_review` на source).
+3. Фаза 5 в `run_nightly_cycle`; re-export `run_expert_council` для старых скриптов.
+4. `create_debate_for_hypothesis` снова вызывает council.
+
+### Evidence
+
+- Smoke: **2** новых council nodes (2026-07-23 00:09); dashboard query MAX(created_at) обновлён; import OK.
 
 ---
 

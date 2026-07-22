@@ -5,8 +5,8 @@ Runs in the background:
 - Continuous distillation (independent asyncio task)
 - Nightly cycle (self-learning, evolution, promotion, mentorship) every 24h
 
-Also provides helper used by orchestrators:
-`create_debate_for_hypothesis`.
+Also provides helpers used by orchestrators / scripts:
+`create_debate_for_hypothesis`, `run_expert_council` (re-export).
 """
 
 import asyncio
@@ -17,6 +17,16 @@ from typing import Optional
 
 import asyncpg
 from distillation_tail_metrics import get_distill_eligible_now
+from nightly_expert_council import run_expert_council, run_nightly_council_phase
+
+# Re-export for scripts: create_debates_for_existing / test_expert_council
+__all__ = [
+    "create_debate_for_hypothesis",
+    "run_expert_council",
+    "run_nightly_council_phase",
+    "run_nightly_cycle",
+    "main_loop",
+]
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", force=True)
 logger = logging.getLogger(__name__)
@@ -187,13 +197,47 @@ async def create_debate_for_hypothesis(
     domain_id: Optional[str] = None,
 ) -> Optional[str]:
     """
-    Create a review/audit task for a generated hypothesis.
-    Used by enhanced orchestrators as a safe async hook.
+    Run Expert Council on a hypothesis and also enqueue a verification task.
+    Restores pre-8.2 behavior (council nodes for Wisdom tab) + task hook.
     """
+    expert = None
+    if domain_id:
+        try:
+            expert = await conn.fetchrow(
+                "SELECT id FROM experts WHERE domain_id = $1 ORDER BY RANDOM() LIMIT 1",
+                domain_id,
+            )
+        except Exception:
+            expert = None
+    if not expert and domain_id:
+        try:
+            domain = await conn.fetchrow("SELECT name FROM domains WHERE id = $1", domain_id)
+            if domain:
+                expert = await conn.fetchrow(
+                    "SELECT id FROM experts WHERE department = $1 ORDER BY RANDOM() LIMIT 1",
+                    domain["name"],
+                )
+        except Exception:
+            expert = None
+    if not expert:
+        expert = await conn.fetchrow("SELECT id FROM experts ORDER BY RANDOM() LIMIT 1")
+
+    council_node_id = None
+    if expert:
+        try:
+            council_node_id = await run_expert_council(
+                conn, knowledge_node_id, hypothesis_text, expert["id"]
+            )
+        except Exception as exc:
+            logger.warning("create_debate_for_hypothesis council failed: %s", exc)
+    else:
+        logger.warning("No experts found for hypothesis debate, skipping council")
+
     title = f"Debate hypothesis {str(knowledge_node_id)[:8]}"
     metadata = {
         "source": "nightly_hypothesis_debate",
         "hypothesis_node_id": str(knowledge_node_id),
+        "council_node_id": council_node_id,
         "is_verification": True,
         "priority": "high",
         "required_capabilities": ["verification", "analysis"],
@@ -204,7 +248,6 @@ async def create_debate_for_hypothesis(
     )
 
     try:
-        # Preferred path for schemas with domain_id.
         task_id = await conn.fetchval(
             """
             INSERT INTO tasks (title, description, status, priority, domain_id, metadata)
@@ -216,9 +259,8 @@ async def create_debate_for_hypothesis(
             domain_id,
             json.dumps(metadata, ensure_ascii=False),
         )
-        return str(task_id) if task_id else None
+        return str(task_id) if task_id else council_node_id
     except Exception:
-        # Fallback for schemas without domain_id.
         task_id = await conn.fetchval(
             """
             INSERT INTO tasks (title, description, status, priority, metadata)
@@ -229,7 +271,7 @@ async def create_debate_for_hypothesis(
             description,
             json.dumps(metadata, ensure_ascii=False),
         )
-        return str(task_id) if task_id else None
+        return str(task_id) if task_id else council_node_id
 
 
 async def run_nightly_cycle() -> None:
@@ -273,6 +315,13 @@ async def run_nightly_cycle() -> None:
         logger.info("✅ [NIGHTLY] Mentorship and SOP cycles completed.")
     except Exception as exc:
         logger.error("❌ [NIGHTLY] Mentorship/SOP cycle failed: %s", exc)
+
+    # 5) Expert Council / Red Team debates → Wisdom tab (restored after 8.2 cleanup)
+    try:
+        n = await run_nightly_council_phase()
+        logger.info("✅ [NIGHTLY] Expert Council phase completed (%s debate node(s)).", n)
+    except Exception as exc:
+        logger.error("❌ [NIGHTLY] Expert Council phase failed: %s", exc)
 
 
 async def run_continuous_distillation() -> None:

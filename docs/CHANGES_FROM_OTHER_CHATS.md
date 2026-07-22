@@ -20,6 +20,15 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-23 v111) — Nightly Expert Council Restored ✅
+
+- Root cause: `run_expert_council` removed in 5d8bbbf7 (2026-04-25); last council node 2026-04-24.
+- Restored: `nightly_expert_council.py` + nightly phase 5; Wisdom debates live again (smoke 2 nodes).
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v111.
+
+---
+
 ## § Последние изменения (2026-07-22 v110) — Wisdom Tab 100% Closure ✅
 
 - UI: period/all-time fallback; council LIKE fix via fetch_data params=None.
