@@ -20,6 +20,15 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-23 v117) — MetaArchitect guarded evolution ✅
+
+- Phase 11/nightly: `run_guarded_evolution` (1 hotspot / 12h cooldown).
+- Code Mutations UX: hotspots + honest empty + safe Promote.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v117.
+
+---
+
 ## § Последние изменения (2026-07-23 v116) — Prompt Battle live path ✅
 
 - Canary/evaluator пишут битвы + counters; dashboard Smoke Battle; caption honesty.

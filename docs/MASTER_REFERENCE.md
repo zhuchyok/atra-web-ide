@@ -32,8 +32,26 @@
 
 **Дата последнего обновления:** 2026-07-23
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; Prompt Battle canary/battles wired (v116)
+**Состояние:** Стабильное; MetaArchitect guarded evolution (v117)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-23 v117) — MetaArchitect guarded evolution ✅
+
+### Диагноз
+
+Code Mutations UI был пуст при живом `architecture_performance_log`: Phase 11 звал только `self_repair_cycle`, не `self_evolution_cycle`.
+
+### Решение
+
+1. `MetaArchitect.run_guarded_evolution`: env enable + max 1 hotspot + 12h cooldown; mutations с `status=shadow`.
+2. Phase 11 + nightly phase 6 вызывают guarded evolution.
+3. Dashboard: caption, metrics, hotspots 24h, guarded Promote (confirm + RO-safe).
+
+### Evidence
+
+- Hotspots SQL 24h returns rows; guarded path returns `evolution_disabled` when env false; compile OK.
 
 ---
 

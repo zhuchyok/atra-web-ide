@@ -564,6 +564,12 @@ except ImportError:
         async def self_repair_cycle(self):
             pass
 
+        async def self_evolution_cycle(self, max_hotspots: int = 3):
+            pass
+
+        async def run_guarded_evolution(self) -> str:
+            return "fallback_noop"
+
 
 try:
     from knowledge_graph import run_auto_link_detection

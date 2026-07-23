@@ -32,7 +32,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 # Suppress noisy HTTP client logs so [NIGHTLY] markers stay visible
-for _lib in ('httpx', 'httpcore', 'urllib3'):
+for _lib in ("httpx", "httpcore", "urllib3"):
     logging.getLogger(_lib).setLevel(logging.WARNING)
 
 DB_URL = os.getenv(
@@ -322,6 +322,15 @@ async def run_nightly_cycle() -> None:
         logger.info("✅ [NIGHTLY] Expert Council phase completed (%s debate node(s)).", n)
     except Exception as exc:
         logger.error("❌ [NIGHTLY] Expert Council phase failed: %s", exc)
+
+    # 6) MetaArchitect guarded code evolution (shadow mutations; cooldown 12h default)
+    try:
+        from meta_architect import MetaArchitect
+
+        evo = await MetaArchitect().run_guarded_evolution()
+        logger.info("✅ [NIGHTLY] MetaArchitect guarded evolution: %s", evo)
+    except Exception as exc:
+        logger.error("❌ [NIGHTLY] MetaArchitect evolution failed: %s", exc)
 
 
 async def run_continuous_distillation() -> None:

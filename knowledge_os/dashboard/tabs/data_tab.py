@@ -60,19 +60,83 @@ def render_data_tab():
 def render_code_mutations():
     """🧬 Code Mutations (MetaArchitect) interface for Shadow Execution."""
     st.subheader("🧬 Code Mutations: MetaArchitect")
-    st.markdown("Мониторинг и управление архитектурными мутациями кода в режиме Shadow Testing.")
+    st.caption(
+        "Пустой список ≠ поломка UI. Вкладка показывает только "
+        "`knowledge_nodes` с `metadata.type=architecture_mutation` (status ≠ promoted). "
+        "Создаёт их `MetaArchitect.run_guarded_evolution` (Phase 11 / nightly): "
+        "по умолчанию **1 hotspot / 12ч cooldown**. "
+        "Это **не** Prompt Battle (промпты) и не `neural_mutation`. "
+        "Promote — опасный hot-swap файла; на RO mount дашборда часто только DB-status."
+    )
+    st.markdown("Мониторинг архитектурных мутаций кода в режиме Shadow Testing.")
+
+    stats = fetch_data("""
+        SELECT
+            COUNT(*) FILTER (
+                WHERE metadata->>'type' = 'architecture_mutation'
+                  AND COALESCE(metadata->>'status', 'shadow') NOT IN ('promoted', 'rejected')
+            ) AS active_shadow,
+            COUNT(*) FILTER (
+                WHERE metadata->>'type' = 'architecture_mutation'
+                  AND metadata->>'status' = 'promoted'
+            ) AS promoted,
+            COUNT(*) FILTER (
+                WHERE metadata->>'type' = 'architecture_mutation'
+            ) AS all_mut,
+            (SELECT COUNT(*) FROM architecture_performance_log
+             WHERE created_at > NOW() - INTERVAL '24 hours') AS perf_24h
+        FROM knowledge_nodes
+    """)
+    if stats and stats[0]:
+        s = stats[0]
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Shadow mutations", int(s["active_shadow"] or 0))
+        c2.metric("Promoted (all-time)", int(s["promoted"] or 0))
+        c3.metric("All architecture_mutation", int(s["all_mut"] or 0))
+        c4.metric("Perf log rows (24h)", f"{int(s['perf_24h'] or 0):,}")
+
+    # Hotspots always visible (pipeline signal even when queue empty)
+    st.markdown("### 🔥 Hotspots (24h) — вход для evolution")
+    hotspots = fetch_data("""
+        SELECT
+            module_name,
+            function_name,
+            AVG(execution_time_ms)::float AS avg_time,
+            COUNT(*)::int AS call_count,
+            COUNT(*) FILTER (WHERE success = false)::int AS failure_count
+        FROM architecture_performance_log
+        WHERE created_at > NOW() - INTERVAL '24 hours'
+        GROUP BY module_name, function_name
+        ORDER BY avg_time DESC
+        LIMIT 8
+    """)
+    if hotspots:
+        for hs in hotspots:
+            st.caption(
+                f"`{hs['module_name']}.{hs['function_name']}` · "
+                f"avg **{float(hs['avg_time'] or 0):.1f}ms** · "
+                f"calls {hs['call_count']} · fails {hs['failure_count']}"
+            )
+    else:
+        st.info("Нет строк в architecture_performance_log за 24ч — profiler ещё не писал метрики.")
 
     # 1. Fetch active code mutations from knowledge_nodes
     mutations = fetch_data("""
         SELECT id, content, metadata, created_at
         FROM knowledge_nodes
         WHERE metadata->>'type' = 'architecture_mutation'
-        AND (metadata->>'status' IS NULL OR metadata->>'status' != 'promoted')
+        AND (metadata->>'status' IS NULL OR metadata->>'status' NOT IN ('promoted', 'rejected'))
         ORDER BY created_at DESC
+        LIMIT 50
     """)
 
+    st.markdown("### 🧬 Активные shadow-мутации")
     if not mutations:
-        st.info("Нет активных архитектурных мутаций в режиме Shadow Testing.")
+        st.info(
+            "Нет активных `architecture_mutation` в Shadow. "
+            "Evolution подключён осторожно (cooldown 12ч, max 1 hotspot). "
+            "После следующего Phase 11 / nightly здесь появится карточка, если hotspot и LLM отработают."
+        )
         return
 
     # 2. Display list of modules in shadow testing
@@ -81,51 +145,61 @@ def render_code_mutations():
         meta = (
             m["metadata"] if isinstance(m["metadata"], dict) else json.loads(m["metadata"] or "{}")
         )
+        hyp = meta.get("hypothesis") or {}
+        if not isinstance(hyp, dict):
+            hyp = {}
         mutation_list.append(
             {
                 "id": m["id"],
                 "module": meta.get("module", "Unknown"),
                 "function": meta.get("function", "Unknown"),
-                "hypothesis": meta.get("hypothesis", {}).get("mutation_hypothesis", "N/A"),
-                "safety_score": meta.get("safety_report", {}).get("score", 0.0)
-                if "safety_report" in meta
-                else meta.get("safety_score", 0.0),
-                "risks": meta.get("safety_report", {}).get("risks", [])
-                if "safety_report" in meta
-                else meta.get("risks", []),
+                "hypothesis": hyp.get("mutation_hypothesis", "N/A"),
+                "safety_score": (
+                    meta.get("safety_report", {}).get("score", 0.0)
+                    if isinstance(meta.get("safety_report"), dict)
+                    else meta.get("safety_score") or 0.0
+                ),
+                "risks": (
+                    meta.get("safety_report", {}).get("risks", [])
+                    if isinstance(meta.get("safety_report"), dict)
+                    else meta.get("risks") or []
+                ),
                 "mutation_path": meta.get("mutation_path", ""),
+                "status": meta.get("status") or "shadow",
                 "created_at": m["created_at"],
             }
         )
 
-    module_names = sorted(list(set([m["module"] for m in mutation_list])))
+    module_names = sorted({m["module"] for m in mutation_list})
     selected_module = st.selectbox("Выберите модуль для аудита", module_names)
 
     selected_mutation = next((m for m in mutation_list if m["module"] == selected_module), None)
 
     if selected_mutation:
         # 3. Show Safety Score and Risk Factors
-        score = selected_mutation["safety_score"]
-        risks = selected_mutation["risks"]
+        try:
+            score = float(selected_mutation["safety_score"] or 0)
+        except (TypeError, ValueError):
+            score = 0.0
+        risks = selected_mutation["risks"] or []
 
         col1, col2 = st.columns(2)
         score_color = "normal" if score > 0.7 else "inverse"
         col1.metric("Safety Score", f"{score * 100:.1f}%", delta_color=score_color)
+        col2.metric("Status", selected_mutation.get("status") or "shadow")
 
-        with col2:
-            st.markdown("**Risk Factors:**")
-            if risks:
-                for risk in risks:
-                    st.warning(f"⚠️ {risk}")
-            else:
-                st.success("✅ No critical risks identified")
+        st.markdown("**Risk Factors:**")
+        if risks:
+            for risk in risks:
+                st.warning(f"⚠️ {risk}")
+        else:
+            st.success("✅ No critical risks identified")
 
         st.markdown("---")
 
         # 4. Side-by-side code diff (Original vs. Mutated)
         st.markdown("### Сравнение кода (Original vs Mutated)")
 
-        # Try to read original code
         original_code = "N/A"
         mutated_code = "N/A"
 
@@ -134,23 +208,38 @@ def render_code_mutations():
             "app",
             f"{selected_mutation['module']}.py",
         )
-        # [FIX] Корректировка путей для Docker
         if not os.path.exists(module_path) and os.path.exists(
             f"/app/knowledge_os/app/{selected_mutation['module']}.py"
         ):
             module_path = f"/app/knowledge_os/app/{selected_mutation['module']}.py"
+        if not os.path.exists(module_path) and os.path.exists(
+            f"/app/project/knowledge_os/app/{selected_mutation['module']}.py"
+        ):
+            module_path = f"/app/project/knowledge_os/app/{selected_mutation['module']}.py"
 
-        mutation_path = selected_mutation["mutation_path"]
-        if not os.path.exists(mutation_path) and mutation_path.startswith("knowledge_os/"):
-            alt_path = os.path.join("/app", mutation_path)
-            if os.path.exists(alt_path):
-                mutation_path = alt_path
+        mutation_path = selected_mutation["mutation_path"] or ""
+        if mutation_path and not os.path.exists(mutation_path):
+            candidates = [
+                os.path.join("/app", mutation_path),
+                os.path.join("/app/project", mutation_path),
+            ]
+            if mutation_path.startswith("knowledge_os/"):
+                candidates.extend(
+                    [
+                        os.path.join("/app", mutation_path),
+                        os.path.join("/app/project", mutation_path),
+                    ]
+                )
+            for alt in candidates:
+                if alt and os.path.exists(alt):
+                    mutation_path = alt
+                    break
 
         try:
             if os.path.exists(module_path):
                 with open(module_path) as f:
                     original_code = f.read()
-            if os.path.exists(mutation_path):
+            if mutation_path and os.path.exists(mutation_path):
                 with open(mutation_path) as f:
                     mutated_code = f.read()
         except Exception as e:
@@ -159,69 +248,93 @@ def render_code_mutations():
         c_orig, c_mut = st.columns(2)
         with c_orig:
             st.markdown("**🛡️ Original (Production)**")
-            st.code(original_code, language="python")
+            st.code(original_code[:12000] if original_code else "N/A", language="python")
         with c_mut:
             st.markdown("**⚡ Mutated (Shadow)**")
-            st.code(mutated_code, language="python")
+            st.code(mutated_code[:12000] if mutated_code else "N/A", language="python")
 
-        # 5. Action buttons
+        # 5. Action buttons (guarded promote)
         st.markdown("### Действия")
+        confirm_swap = st.checkbox(
+            "Подтверждаю hot-swap файла в production (опасно)",
+            value=False,
+            key=f"confirm_promote_{selected_mutation['id']}",
+        )
         act_col1, act_col2, _ = st.columns([1, 1, 2])
 
-        from database_service import run_query
-
         if act_col1.button(
-            "🚀 Promote Code", help="Заменить основной файл мутировавшим (Hot-Swap)", type="primary"
+            "🚀 Promote Code",
+            help="Сначала пишет status=promoted в БД; файл копирует только при confirm + writable FS",
+            type="primary",
+            disabled=not confirm_swap,
         ):
             try:
-                # In a real system, we would call MetaArchitect.promote_mutation
-                # For now, we simulate the file swap and update the node status
-                if os.path.exists(mutation_path):
-                    import shutil
+                new_meta = fetch_data(
+                    "SELECT metadata FROM knowledge_nodes WHERE id = %s",
+                    (selected_mutation["id"],),
+                )[0]["metadata"]
+                if isinstance(new_meta, str):
+                    new_meta = json.loads(new_meta)
+                new_meta["status"] = "promoted"
+                new_meta["promoted_at"] = datetime.now(timezone.utc).isoformat()
+                new_meta["promoted_via"] = "dashboard_code_mutations"
 
-                    shutil.copy2(mutation_path, module_path)
+                run_query(
+                    "UPDATE knowledge_nodes SET metadata = %s::jsonb WHERE id = %s",
+                    (json.dumps(new_meta), selected_mutation["id"]),
+                )
 
-                    # Update metadata in knowledge_nodes
-                    new_meta = fetch_data(
-                        "SELECT metadata FROM knowledge_nodes WHERE id = %s",
-                        (selected_mutation["id"],),
-                    )[0]["metadata"]
-                    if isinstance(new_meta, str):
-                        new_meta = json.loads(new_meta)
-                    new_meta["status"] = "promoted"
-                    new_meta["promoted_at"] = datetime.now(timezone.utc).isoformat()
+                file_swapped = False
+                if (
+                    mutation_path
+                    and os.path.exists(mutation_path)
+                    and os.path.exists(os.path.dirname(module_path))
+                ):
+                    try:
+                        import shutil
 
-                    run_query(
-                        "UPDATE knowledge_nodes SET metadata = %s WHERE id = %s",
-                        (json.dumps(new_meta), selected_mutation["id"]),
-                    )
-                    st.success(f"Код модуля {selected_module} успешно обновлен!")
-                    st.rerun()
+                        if os.access(os.path.dirname(module_path), os.W_OK):
+                            shutil.copy2(mutation_path, module_path)
+                            file_swapped = True
+                    except OSError as copy_err:
+                        st.warning(f"БД: promoted. File swap skipped: {copy_err}")
+
+                if file_swapped:
+                    st.success(f"Promoted + file swap: {selected_module}")
                 else:
-                    st.error("Файл мутации не найден.")
+                    st.success(
+                        f"БД: status=promoted для {selected_module}. "
+                        "File hot-swap не выполнен (нет файла или RO filesystem)."
+                    )
+                st.rerun()
             except Exception as e:
                 st.error(f"Ошибка при продвижении кода: {e}")
 
-        if act_col2.button("❌ Reject Code", help="Удалить мутацию и остановить Shadow Testing"):
+        if act_col2.button(
+            "❌ Reject Code", help="Пометить rejected (файл shadow удалить если есть)"
+        ):
             try:
-                # Update metadata in knowledge_nodes
                 new_meta = fetch_data(
-                    "SELECT metadata FROM knowledge_nodes WHERE id = %s", (selected_mutation["id"],)
+                    "SELECT metadata FROM knowledge_nodes WHERE id = %s",
+                    (selected_mutation["id"],),
                 )[0]["metadata"]
                 if isinstance(new_meta, str):
                     new_meta = json.loads(new_meta)
                 new_meta["status"] = "rejected"
+                new_meta["rejected_at"] = datetime.now(timezone.utc).isoformat()
 
                 run_query(
-                    "UPDATE knowledge_nodes SET metadata = %s WHERE id = %s",
+                    "UPDATE knowledge_nodes SET metadata = %s::jsonb WHERE id = %s",
                     (json.dumps(new_meta), selected_mutation["id"]),
                 )
 
-                # Optionally delete the mutation file
-                if os.path.exists(mutation_path):
-                    os.remove(mutation_path)
+                if mutation_path and os.path.exists(mutation_path):
+                    try:
+                        os.remove(mutation_path)
+                    except OSError:
+                        pass
 
-                st.warning("Мутация отклонена и удалена.")
+                st.warning("Мутация отклонена.")
                 st.rerun()
             except Exception as e:
                 st.error(f"Ошибка при отклонении кода: {e}")

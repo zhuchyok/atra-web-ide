@@ -75,7 +75,9 @@ USER_NAME = getpass.getuser()
 if USER_NAME == "zhuchyok":
     DEFAULT_DB_URL = f"postgresql://{USER_NAME}@localhost:6432/knowledge_os"
 else:
-    DEFAULT_DB_URL = "postgresql://admin:secret@localhost:6432/knowledge_os"
+    DEFAULT_DB_URL = (
+        "postgresql://admin:secret@localhost:6432/knowledge_os"  # pragma: allowlist secret
+    )
 
 DB_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
 # GLOBAL VISION: Meta-Architect now scans the entire workspace
@@ -234,7 +236,65 @@ class MetaArchitect:
             logger.error(f"Safety verification failed: {e}")
             return {"score": 0.0, "risks": [str(e)]}
 
-    async def self_evolution_cycle(self):
+    async def run_guarded_evolution(self) -> str:
+        """
+        Cautious entrypoint for orchestrator/nightly.
+        Env:
+          META_ARCHITECT_EVOLUTION_ENABLED (default true)
+          META_ARCHITECT_EVOLUTION_MAX_HOTSPOTS (default 1)
+          META_ARCHITECT_EVOLUTION_COOLDOWN_HOURS (default 12)
+        """
+        enabled = os.getenv("META_ARCHITECT_EVOLUTION_ENABLED", "true").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        if not enabled:
+            logger.info("🏗️ [EVOLUTION] Skipped (META_ARCHITECT_EVOLUTION_ENABLED=false)")
+            return "evolution_disabled"
+
+        max_hotspots = max(1, int(os.getenv("META_ARCHITECT_EVOLUTION_MAX_HOTSPOTS", "1")))
+        cooldown_h = max(1, int(os.getenv("META_ARCHITECT_EVOLUTION_COOLDOWN_HOURS", "12")))
+
+        if not ASYNCPG_AVAILABLE or asyncpg is None:
+            logger.error("🏗️ [EVOLUTION] asyncpg missing — skip")
+            return "asyncpg_missing"
+
+        try:
+            conn = await asyncpg.connect(self.db_url)
+            try:
+                recent = await conn.fetchval(
+                    """
+                    SELECT COUNT(*)::int
+                    FROM knowledge_nodes
+                    WHERE metadata->>'type' = 'architecture_mutation'
+                      AND created_at > NOW() - make_interval(hours => $1::int)
+                    """,
+                    cooldown_h,
+                )
+            finally:
+                await conn.close()
+        except Exception as e:
+            logger.warning("🏗️ [EVOLUTION] Cooldown check failed: %s", e)
+            recent = 0
+
+        if recent and int(recent) > 0:
+            logger.info(
+                "🏗️ [EVOLUTION] Cooldown active (%s mutation(s) in last %sh) — skip",
+                recent,
+                cooldown_h,
+            )
+            return f"cooldown_active recent={recent}"
+
+        logger.info(
+            "🏗️ [EVOLUTION] Guarded cycle starting (max_hotspots=%s, cooldown=%sh)",
+            max_hotspots,
+            cooldown_h,
+        )
+        await self.self_evolution_cycle(max_hotspots=max_hotspots)
+        return "ok"
+
+    async def self_evolution_cycle(self, max_hotspots: int = 3):
         """[SINGULARITY 10.0] Analyze performance hot spots and generate architectural mutations."""
         # Run graph optimization as part of evolution
         logger.info("🔧 [EVOLUTION] Starting Graph Optimization (Pruning & Caching)...")
@@ -245,7 +305,7 @@ class MetaArchitect:
             return
 
         profiler = get_profiler()
-        hot_spots = await profiler.get_hot_spots(limit=3)
+        hot_spots = await profiler.get_hot_spots(limit=max(1, int(max_hotspots)))
 
         if not hot_spots:
             logger.info("No architectural hot spots identified yet.")
@@ -438,10 +498,14 @@ class MetaArchitect:
             node_meta = json.dumps(
                 {
                     "type": "architecture_mutation",
+                    "status": "shadow",
                     "module": spot["module_name"],
                     "function": spot["function_name"],
                     "hypothesis": hypothesis,
                     "mutation_path": mutation_path,
+                    "safety_score": (
+                        hypothesis.get("safety_score") if isinstance(hypothesis, dict) else None
+                    ),
                 }
             )
             await conn.execute(

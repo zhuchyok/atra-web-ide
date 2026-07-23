@@ -1351,6 +1351,10 @@ async def phase_heavy_tail(
     try:
         architect = get_meta_architect()
         await architect.self_repair_cycle()
+        # Cautious code-mutation path (cooldown + max 1 hotspot by default)
+        if hasattr(architect, "run_guarded_evolution"):
+            evo_status = await architect.run_guarded_evolution()
+            logger.info("🏗️ Phase 11 evolution: %s", evo_status)
     except Exception as exc:  # pylint: disable=broad-exception-caught
         logger.error("Meta-Architect error: %s", exc)
 
