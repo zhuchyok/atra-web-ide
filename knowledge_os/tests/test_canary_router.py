@@ -46,3 +46,27 @@ class TestCanaryRouter:
 
         pct = int(os.getenv("CANARY_TRAFFIC_PERCENT", "10"))
         assert 0 <= pct <= 100
+
+    @pytest.mark.asyncio
+    async def test_run_llm_uses_dialogue_llm_not_missing_symbol(self, monkeypatch):
+        """Daemon must not call non-existent ai_core._run_local_llm."""
+        from app import canary_router
+
+        async def fake_gen(prompt, **kwargs):
+            return "bullet one\nbullet two\nbullet three"
+
+        monkeypatch.setattr(
+            "app.dialogue_llm.generate_dialogue_text",
+            fake_gen,
+            raising=False,
+        )
+        # Patch import path used inside _run_llm
+        import sys
+        import types
+
+        mod = types.ModuleType("dialogue_llm")
+        mod.generate_dialogue_text = fake_gen
+        monkeypatch.setitem(sys.modules, "dialogue_llm", mod)
+
+        text = await canary_router._run_llm("USER REQUEST: hi")
+        assert "bullet" in text

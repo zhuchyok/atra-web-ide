@@ -10,6 +10,7 @@ Canary Router (Singularity 31.3) — безопасный rollout мутаций
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -167,17 +168,25 @@ async def _get_pool():
 
 
 async def _run_llm(prompt: str) -> str:
-    """Best-effort local LLM call for daemon probes."""
+    """Best-effort local LLM call for daemon probes (dialogue_llm → fast Ollama)."""
+    timeout = float(os.getenv("CANARY_DAEMON_LLM_TIMEOUT_SEC", "90"))
+    model_hint = os.getenv("CANARY_DAEMON_MODEL", "phi3.5:3.8b")
+    max_chars = max(500, int(os.getenv("CANARY_DAEMON_PROMPT_CHARS", "1800")))
     try:
         try:
-            from app.ai_core import _run_local_llm
+            from dialogue_llm import generate_dialogue_text
         except ImportError:
-            from ai_core import _run_local_llm  # type: ignore
+            from app.dialogue_llm import generate_dialogue_text  # type: ignore
 
-        res = await _run_local_llm(prompt, category="general")
-        return str(res[0] if isinstance(res, tuple) else res)
+        # Keep prompt short — full expert system_prompt often exceeds local SLA.
+        clipped = (prompt or "")[-max_chars:]
+        text = await asyncio.wait_for(
+            generate_dialogue_text(clipped, expert_name="CanaryDaemon", model_hint=model_hint),
+            timeout=timeout,
+        )
+        return str(text or "").strip()
     except Exception as e:
-        logger.debug(f"[CANARY_DAEMON] LLM failed: {e}")
+        logger.warning("[CANARY_DAEMON] LLM failed: %s: %s", type(e).__name__, e or repr(e))
         return ""
 
 
@@ -218,12 +227,13 @@ async def run_canary_daemon(limit: int = 5) -> int:
             )
             prod_resp = await _run_llm(prod_prompt)
             shadow_resp = await _run_llm(shadow_prompt)
+            # Always record a battle so total_tests moves; empty → honest stub (loss/draw path).
             if not shadow_resp or shadow_resp.startswith("[SYSTEM:"):
-                logger.info(
-                    f"[CANARY_DAEMON] Mutation {str(mutation['id'])[:8]} produced error response"
+                logger.warning(
+                    "[CANARY_DAEMON] Mutation %s shadow probe empty/error — recording stub",
+                    str(mutation["id"])[:8],
                 )
-                continue
-            # If prod LLM failed, still record with short stub so counters move
+                shadow_resp = "(canary probe unavailable)"
             if not prod_resp or prod_resp.startswith("[SYSTEM:"):
                 prod_resp = "(production probe unavailable)"
 
@@ -236,6 +246,10 @@ async def run_canary_daemon(limit: int = 5) -> int:
             )
             tested += 1
         except Exception as e:
-            logger.debug(f"[CANARY_DAEMON] Test failed for {str(mutation.get('id', ''))[:8]}: {e}")
+            logger.warning(
+                "[CANARY_DAEMON] Test failed for %s: %s",
+                str(mutation.get("id", ""))[:8],
+                e,
+            )
 
     return tested

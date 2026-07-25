@@ -68,6 +68,14 @@ _PLACEHOLDER_DECISION_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Models copy numbered template lines as "1) первое действие" / "первый фокус".
+_TEMPLATE_ACTION_RE = re.compile(
+    r"(?:^|\n)\s*\d+\)\s*(?:перв|втор|треть|четв|пят)"
+    r"(?:ое|ый|ий|ая)?\s+(?:действие|фокус)\b"
+    r"|(?:^|\n)\s*действия:\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
 
 def is_low_quality_directive(text: Optional[str]) -> bool:
     """
@@ -81,6 +89,8 @@ def is_low_quality_directive(text: Optional[str]) -> bool:
         return True
     low = t.lower()
     if _PLACEHOLDER_DECISION_RE.search(t):
+        return True
+    if _TEMPLATE_ACTION_RE.search(t) or "первое действие" in low or "первый фокус" in low:
         return True
     echo_markers = (
         "вопрос от пользователя",
@@ -467,15 +477,13 @@ async def _call_victoria_board_directive(
 - Задачи: {tasks_summary}
 - Новые знания (сводка): {insights_summary}
 
-Сформулируй ДИРЕКТИВУ СОВЕТА строго в формате (без квадратных скобок и плейсхолдеров):
+Сформулируй ДИРЕКТИВУ СОВЕТА строго в формате (без квадратных скобок и плейсхолдеров).
+Не копируй слова «первое/второе действие» и не оставляй пустые нумерованные строки.
+Формат:
 РЕШЕНИЕ: главное направление на 24 часа одной фразой
 ОБОСНОВАНИЕ: почему это важно (2-3 предложения)
 РИСКИ: список конкретных рисков
 УВЕРЕННОСТЬ: число от 0.0 до 1.0
-ФОКУСЫ:
-1) первый фокус
-2) второй фокус
-3) третий фокус
 """
     timeout = float(os.getenv("BOARD_VICTORIA_TIMEOUT_SEC", "480"))
     board_model = os.getenv("BOARD_CONSULT_MODEL", "victoria-wisdom-v3.5")
@@ -694,7 +702,17 @@ async def consult_board(
                     ORDER BY created_at DESC LIMIT 1
                 """)
                 if last_dir_row:
-                    last_directive = last_dir_row["content"][:300] + "..."
+                    candidate = (last_dir_row["content"] or "")[:300]
+                    # Do not seed the next meeting with template garbage (self-reinforcing).
+                    clow = candidate.lower()
+                    if (
+                        "первое действие" in clow
+                        or "первый фокус" in clow
+                        or _TEMPLATE_ACTION_RE.search(candidate)
+                    ):
+                        last_directive = ""
+                    else:
+                        last_directive = candidate + "..."
             except Exception as e:
                 print(f"⚠️ Не удалось получить последнюю директиву: {e}")
 

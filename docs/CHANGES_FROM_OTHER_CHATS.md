@@ -20,6 +20,17 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-25 v118) — Tip-top runtime hardening ✅
+
+- Throttle `success_retrieval_audit` (60m/expert).
+- Canary daemon → `dialogue_llm` (fix empty `_run_local_llm`); always record battles.
+- Hotspot filters + function-level MetaArchitect mutations.
+- Board rejects «первое действие» template spam.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v118.
+
+---
+
 ## § Последние изменения (2026-07-23 v117) — MetaArchitect guarded evolution ✅
 
 - Phase 11/nightly: `run_guarded_evolution` (1 hotspot / 12h cooldown).

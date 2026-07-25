@@ -4,6 +4,7 @@ Autonomous Meta-Architect Agent (Singularity v3.0).
 Responsible for self-authoring, patching, and code-level optimization across the workspace.
 """
 
+import ast
 import asyncio
 import getpass
 import json
@@ -11,7 +12,7 @@ import logging
 import os
 import subprocess
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 # Third-party imports with fallback
 try:
@@ -83,6 +84,70 @@ DB_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
 # GLOBAL VISION: Meta-Architect now scans the entire workspace
 base_dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 WORKSPACE_ROOT = os.getenv("WORKSPACE_ROOT", base_dir_path)
+
+
+def _extract_function_source(
+    module_path: str, function_name: str, max_chars: int = 14000
+) -> Optional[str]:
+    """Extract one top-level function/async function by name (AST)."""
+    try:
+        with open(module_path, encoding="utf-8") as f:
+            src = f.read()
+        tree = ast.parse(src)
+        lines = src.splitlines(keepends=True)
+        for node in tree.body:
+            if (
+                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name == function_name
+            ):
+                start = node.lineno - 1
+                end = getattr(node, "end_lineno", None) or node.lineno
+                chunk = "".join(lines[start:end])
+                if len(chunk) > max_chars:
+                    logger.warning(
+                        "Function %s too large (%s chars > %s) — skip for evolution",
+                        function_name,
+                        len(chunk),
+                        max_chars,
+                    )
+                    return None
+                return chunk
+        return None
+    except Exception as e:
+        logger.warning("Failed to extract %s from %s: %s", function_name, module_path, e)
+        return None
+
+
+def _splice_function_into_module(
+    module_path: str, function_name: str, mutated_fn_source: str
+) -> Optional[str]:
+    """Replace one function in a module source; return full new module text."""
+    try:
+        with open(module_path, encoding="utf-8") as f:
+            src = f.read()
+        tree = ast.parse(src)
+        lines = src.splitlines(keepends=True)
+        for node in tree.body:
+            if (
+                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name == function_name
+            ):
+                start = node.lineno - 1
+                end = getattr(node, "end_lineno", None) or node.lineno
+                replacement = mutated_fn_source
+                if not replacement.endswith("\n"):
+                    replacement += "\n"
+                new_src = "".join(lines[:start]) + replacement + "".join(lines[end:])
+                # Validate syntax of spliced module
+                ast.parse(new_src)
+                return new_src
+        return None
+    except SyntaxError as e:
+        logger.error("Spliced module syntax error for %s: %s", function_name, e)
+        return None
+    except Exception as e:
+        logger.warning("Failed to splice %s into %s: %s", function_name, module_path, e)
+        return None
 
 
 try:
@@ -308,20 +373,50 @@ class MetaArchitect:
         hot_spots = await profiler.get_hot_spots(limit=max(1, int(max_hotspots)))
 
         if not hot_spots:
-            logger.info("No architectural hot spots identified yet.")
+            logger.info(
+                "No architectural hot spots identified yet (after outlier/ai_core filters)."
+            )
             return
+
+        llm_timeout = float(os.getenv("META_ARCHITECT_LLM_TIMEOUT_SEC", "180"))
+        max_fn_chars = max(2000, int(os.getenv("META_ARCHITECT_MAX_FN_CHARS", "14000")))
 
         for spot in hot_spots:
             logger.info(
                 f"🚀 [EVOLUTION] Analyzing hot spot: {spot['module_name']}.{spot['function_name']} (Avg: {spot['avg_time']:.2f}ms)"
             )
 
+            module_path = os.path.join(
+                WORKSPACE_ROOT, "knowledge_os", "app", f"{spot['module_name']}.py"
+            )
+            if not os.path.exists(module_path):
+                logger.warning("🏗️ [EVOLUTION] Module file missing: %s — skip", module_path)
+                continue
+
+            fn_source = _extract_function_source(
+                module_path, str(spot["function_name"]), max_chars=max_fn_chars
+            )
+            if not fn_source:
+                logger.warning(
+                    "🏗️ [EVOLUTION] Cannot extract %s.%s (missing/too large) — skip",
+                    spot["module_name"],
+                    spot["function_name"],
+                )
+                continue
+
             # 0. Retrieve GraphRAG Context
             graph_context = ""
             graphrag_service = get_graphrag_service()
             if graphrag_service:
                 query = f"module {spot['module_name']} function {spot['function_name']}"
-                graph_context = await graphrag_service.retrieve_graph_context(query)
+                try:
+                    graph_context = await asyncio.wait_for(
+                        graphrag_service.retrieve_graph_context(query),
+                        timeout=30,
+                    )
+                except Exception as e:
+                    logger.warning("🏗️ [EVOLUTION] GraphRAG failed: %s", e)
+                    graph_context = ""
                 if graph_context:
                     logger.info(
                         f"🌐 [EVOLUTION] GraphRAG context retrieved for {spot['function_name']}"
@@ -353,11 +448,22 @@ class MetaArchitect:
     "dependency_impact": "..."
 }}
 """
-            hypothesis_json = await run_smart_agent_async(
-                hypothesis_prompt, expert_name="Виктория", category="architectural_evolution"
-            )
+            try:
+                hypothesis_json = await asyncio.wait_for(
+                    run_smart_agent_async(
+                        hypothesis_prompt,
+                        expert_name="Виктория",
+                        category="architectural_evolution",
+                    ),
+                    timeout=llm_timeout,
+                )
+            except Exception as e:
+                logger.error("🏗️ [EVOLUTION] Hypothesis LLM failed: %s", e)
+                continue
 
             try:
+                if not hypothesis_json:
+                    raise ValueError("empty hypothesis")
                 # Clean JSON if needed
                 if "```json" in hypothesis_json:
                     hypothesis_json = hypothesis_json.split("```json")[1].split("```")[0].strip()
@@ -366,38 +472,39 @@ class MetaArchitect:
                 logger.error(f"Failed to parse hypothesis JSON: {e}")
                 continue
 
-            # 2. Generate Mutated Code
-            # Find the file path for the module
-            module_path = os.path.join(
-                WORKSPACE_ROOT, "knowledge_os", "app", f"{spot['module_name']}.py"
-            )
-            if not os.path.exists(module_path):
-                continue
-
-            with open(module_path, encoding="utf-8") as f:
-                original_code = f.read()
-
+            # 2. Generate Mutated Code — function body only (never whole mega-modules)
             mutation_prompt = f"""
 ВЫ - ГЛАВНЫЙ АРХИТЕКТОР (CTO) SINGULARITY 10.0.
-ЗАДАЧА: Реализовать мутацию кода для оптимизации.
+ЗАДАЧА: Реализовать мутацию кода для оптимизации ОДНОЙ функции.
 
 ФАЙЛ: {module_path}
+ФУНКЦИЯ: {spot["function_name"]}
 ГИПОТЕЗА МУТАЦИИ: {hypothesis["mutation_hypothesis"]}
 
 {graph_context}
 
-ТЕКУЩИЙ КОД:
+ТЕКУЩИЙ КОД ФУНКЦИИ:
 ```python
-{original_code}
+{fn_source}
 ```
 
-ВЕРНИТЕ ПОЛНЫЙ ИСПРАВЛЕННЫЙ КОД ФАЙЛА.
-Используйте только валидный Python. Не обрезайте код.
-Учитывайте зависимости и логические связи, указанные в контексте GraphRAG (если есть).
+ВЕРНИТЕ ТОЛЬКО ПОЛНЫЙ ИСПРАВЛЕННЫЙ КОД ЭТОЙ ФУНКЦИИ (с def/async def).
+Используйте только валидный Python. Не возвращайте весь файл.
 """
-            mutated_code = await run_smart_agent_async(
-                mutation_prompt, expert_name="Виктория", category="code_mutation"
-            )
+            try:
+                mutated_code = await asyncio.wait_for(
+                    run_smart_agent_async(
+                        mutation_prompt, expert_name="Виктория", category="code_mutation"
+                    ),
+                    timeout=llm_timeout,
+                )
+            except Exception as e:
+                logger.error("🏗️ [EVOLUTION] Mutation LLM failed: %s", e)
+                continue
+
+            if not mutated_code:
+                logger.error("🏗️ [EVOLUTION] Mutation LLM returned empty — skip")
+                continue
 
             if "```python" in mutated_code:
                 mutated_code = mutated_code.split("```python")[1].split("```")[0].strip()
@@ -470,14 +577,23 @@ class MetaArchitect:
                     await conn.close()
                     continue
 
-            # 3. Save as Mutation for Shadow Execution
+            # 3. Save as Mutation for Shadow Execution (full module with spliced function)
             mutation_id = f"mut_{spot['module_name']}_{int(time.time())}"
             mutation_path = os.path.join(
                 WORKSPACE_ROOT, "knowledge_os", "app", f"{spot['module_name']}_v2.py"
             )
 
+            full_mutated = _splice_function_into_module(
+                module_path, str(spot["function_name"]), mutated_code
+            )
+            if not full_mutated:
+                logger.error(
+                    "🏗️ [EVOLUTION] Could not splice mutated function into module — skip persist"
+                )
+                continue
+
             with open(mutation_path, "w", encoding="utf-8") as f:
-                f.write(mutated_code)
+                f.write(full_mutated)
 
             logger.info(f"🧬 [MUTATION] Created mutated version: {mutation_path}")
 

@@ -7,18 +7,57 @@ import asyncio
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import asyncpg
 
 logger = logging.getLogger(__name__)
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
+DB_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://admin:secret@localhost:6432/knowledge_os",  # pragma: allowlist secret
+)
+
+# Audit nodes were flooding KB (~3–4k/hour). Default: at most 1 audit / expert / hour.
+SUCCESS_AUDIT_ENABLED = os.getenv("SUCCESS_AUDIT_ENABLED", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+SUCCESS_AUDIT_COOLDOWN_MIN = max(1, int(os.getenv("SUCCESS_AUDIT_COOLDOWN_MIN", "60")))
+SUCCESS_AUDIT_SAMPLE_RATE = float(os.getenv("SUCCESS_AUDIT_SAMPLE_RATE", "1.0"))
 
 
 class SuccessRetriever:
     def __init__(self, db_url: str = DB_URL):
         self.db_url = db_url
+
+    async def _should_write_audit(self, conn: Any, expert_name: Optional[str]) -> bool:
+        if not SUCCESS_AUDIT_ENABLED:
+            return False
+        if SUCCESS_AUDIT_SAMPLE_RATE < 1.0:
+            import random
+
+            if random.random() > max(0.0, min(1.0, SUCCESS_AUDIT_SAMPLE_RATE)):
+                return False
+        expert_key = (expert_name or "_global").strip() or "_global"
+        try:
+            recent = await conn.fetchval(
+                """
+                SELECT 1
+                FROM knowledge_nodes
+                WHERE metadata->>'type' = 'success_retrieval_audit'
+                  AND COALESCE(metadata->>'expert_name', '_global') = $1
+                  AND created_at > NOW() - make_interval(mins => $2::int)
+                LIMIT 1
+                """,
+                expert_key,
+                SUCCESS_AUDIT_COOLDOWN_MIN,
+            )
+            return recent is None
+        except Exception as e:
+            logger.debug("Success audit cooldown check failed: %s", e)
+            return False
 
     async def get_relevant_successes(
         self,
@@ -74,48 +113,49 @@ class SuccessRetriever:
                 if not rows:
                     return ""
 
-                # [SINGULARITY 21.18] Success Retrieval Audit: Log efficiency metrics
+                # [SINGULARITY 21.18] Success Retrieval Audit — throttled (cooldown / sample)
                 try:
-                    # Estimate time saved: ~2 minutes per successful example (avoiding re-thinking)
-                    time_saved_sec = len(rows) * 120
-                    domain_id = await conn.fetchval(
-                        """
-                        SELECT id FROM domains
-                        WHERE name IN ('Wisdom & Heuristics', 'Mentorship', 'SOP')
-                        ORDER BY CASE name
-                            WHEN 'Wisdom & Heuristics' THEN 0
-                            WHEN 'Mentorship' THEN 1
-                            ELSE 2
-                        END
-                        LIMIT 1
-                        """
-                    )
-                    if domain_id is None:
+                    if await self._should_write_audit(conn, expert_name):
+                        time_saved_sec = len(rows) * 120
                         domain_id = await conn.fetchval(
-                            "INSERT INTO domains (name) VALUES ('Wisdom & Heuristics') RETURNING id"
+                            """
+                            SELECT id FROM domains
+                            WHERE name IN ('Wisdom & Heuristics', 'Mentorship', 'SOP')
+                            ORDER BY CASE name
+                                WHEN 'Wisdom & Heuristics' THEN 0
+                                WHEN 'Mentorship' THEN 1
+                                ELSE 2
+                            END
+                            LIMIT 1
+                            """
                         )
-                    meta_kn = json.dumps(
-                        {
-                            "type": "success_retrieval_audit",
-                            "expert_name": expert_name,
-                            "examples_found": len(rows),
-                            "time_saved_seconds": time_saved_sec,
-                            "query_preview": query[:200],
-                        }
-                    )
-                    await conn.execute(
-                        """
-                        INSERT INTO knowledge_nodes
-                            (domain_id, content, confidence_score, metadata, is_verified)
-                        VALUES ($1, $2, 0.8, $3::jsonb, true)
-                        """,
-                        domain_id,
-                        f"Success Retrieval Audit for: {query[:100]}",
-                        meta_kn,
-                    )
-                    logger.info(
-                        f"📊 [AUDIT] Logged Success Retrieval efficiency: {time_saved_sec}s saved."
-                    )
+                        if domain_id is None:
+                            domain_id = await conn.fetchval(
+                                "INSERT INTO domains (name) VALUES ('Wisdom & Heuristics') RETURNING id"
+                            )
+                        meta_kn = json.dumps(
+                            {
+                                "type": "success_retrieval_audit",
+                                "expert_name": expert_name or "_global",
+                                "examples_found": len(rows),
+                                "time_saved_seconds": time_saved_sec,
+                                "query_preview": query[:200],
+                            }
+                        )
+                        await conn.execute(
+                            """
+                            INSERT INTO knowledge_nodes
+                                (domain_id, content, confidence_score, metadata, is_verified)
+                            VALUES ($1, $2, 0.8, $3::jsonb, true)
+                            """,
+                            domain_id,
+                            f"Success Retrieval Audit for: {query[:100]}",
+                            meta_kn,
+                        )
+                        logger.info(
+                            "📊 [AUDIT] Logged Success Retrieval efficiency: %ss saved.",
+                            time_saved_sec,
+                        )
                 except Exception as ae:
                     logger.warning(f"Audit log error: {ae}")
 

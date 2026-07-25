@@ -79,6 +79,18 @@ class TestLowQualityDirective:
 УВЕРЕННОСТЬ: 0.86"""
         assert is_low_quality_directive(text) is False
 
+    def test_rejects_template_action_placeholders(self):
+        text = """ДЕЙСТВИЯ:
+1) первое действие
+2) второе действие
+3) третье действие
+
+РЕШЕНИЕ: Приоритизировать завершение backlog Knowledge OS
+ОБОСНОВАНИЕ: Нужен фокус на стабильности.
+РИСКИ: Задержка фич.
+УВЕРЕННОСТЬ: 0.7"""
+        assert is_low_quality_directive(text) is True
+
 
 class TestParseDirectiveStructure:
     """Test parsing of board directive text into structured decisions."""

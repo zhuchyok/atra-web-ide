@@ -30,10 +30,33 @@
 
 ## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
-**Дата последнего обновления:** 2026-07-23
+**Дата последнего обновления:** 2026-07-25
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; MetaArchitect guarded evolution (v117)
+**Состояние:** Стабильное; tip-top runtime hardening (v118)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-25 v118) — Tip-top: audit flood / canary LLM / evolution hotspots / board templates ✅
+
+### Диагноз
+
+1. KB рос на ~100k+/сут из `success_retrieval_audit` (INSERT на каждый hit).
+2. Canary daemon вызывал несуществующий `ai_core._run_local_llm` → empty → `total_tests` не росли.
+3. MetaArchitect брал outlier hotspot `ai_core` (~8e6 ms wall-clock LLM wait) и слал весь mega-файл в LLM → 0 mutations.
+4. Board директивы копировали шаблон «1) первое действие» и самоусиливались через last_directive.
+
+### Решение
+
+1. `success_retriever`: cooldown 60м/expert (+ optional sample rate).
+2. `canary_router._run_llm`: `dialogue_llm` + всегда писать battle (stub при пустом ответе).
+3. `architecture_profiler` фильтр outliers/`ai_core`; MetaArchitect — AST extract + splice + LLM timeout.
+4. `strategic_board.is_low_quality_directive` режет template actions; убран placeholder ФОКУСЫ из Victoria prompt.
+
+### Evidence
+
+- Unit: strategic_board template reject; canary `_run_llm` path.
+- Ops: prune старых `success_retrieval_audit`; restart nightly/workers.
 
 ---
 

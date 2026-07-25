@@ -10,7 +10,7 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 try:
     import asyncpg
@@ -25,7 +25,8 @@ class ArchitectureProfiler:
 
     def __init__(self, db_url: Optional[str] = None):
         self.db_url = db_url or os.getenv(
-            "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
+            "DATABASE_URL",
+            "postgresql://admin:secret@localhost:6432/knowledge_os",  # pragma: allowlist secret
         )
         self._pool = None
 
@@ -43,7 +44,7 @@ class ArchitectureProfiler:
         function_name: str,
         execution_time_ms: float,
         success: bool,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
     ):
         """Log a single function execution metric to the database."""
         pool = await self.get_pool()
@@ -80,11 +81,22 @@ class ArchitectureProfiler:
         except Exception as e:
             logger.debug(f"Profiler failed to log metric: {e}")
 
-    async def get_hot_spots(self, limit: int = 5) -> List[Dict[str, Any]]:
-        """Identify functions with highest average execution time or failure rates."""
+    async def get_hot_spots(self, limit: int = 5) -> list[dict[str, Any]]:
+        """Identify actionable hotspots (exclude LLM-wait outliers / tiny samples)."""
         pool = await self.get_pool()
         if not pool:
             return []
+
+        # ai_core wrappers often log wall-clock including LLM waits (~hours) — not code bugs.
+        max_avg_ms = float(os.getenv("ARCH_HOTSPOT_MAX_AVG_MS", "60000"))
+        min_avg_ms = float(os.getenv("ARCH_HOTSPOT_MIN_AVG_MS", "20"))
+        min_calls = max(3, int(os.getenv("ARCH_HOTSPOT_MIN_CALLS", "10")))
+        max_sample_ms = float(os.getenv("ARCH_HOTSPOT_MAX_SAMPLE_MS", "120000"))
+        exclude_modules = {
+            m.strip()
+            for m in os.getenv("ARCH_HOTSPOT_EXCLUDE_MODULES", "ai_core").split(",")
+            if m.strip()
+        }
 
         try:
             async with pool.acquire() as conn:
@@ -98,13 +110,29 @@ class ArchitectureProfiler:
                         COUNT(*) FILTER (WHERE success = false) as failure_count
                     FROM architecture_performance_log
                     WHERE created_at > NOW() - INTERVAL '24 hours'
+                      AND execution_time_ms > 0
+                      AND execution_time_ms < $2
                     GROUP BY module_name, function_name
-                    ORDER BY avg_time DESC
+                    HAVING AVG(execution_time_ms) BETWEEN $3 AND $4
+                       AND COUNT(*) >= $5
+                    ORDER BY AVG(execution_time_ms) * LN(COUNT(*) + 1) DESC
                     LIMIT $1
                 """,
-                    limit,
+                    limit * 3,  # overfetch then filter excluded modules in Python
+                    max_sample_ms,
+                    min_avg_ms,
+                    max_avg_ms,
+                    min_calls,
                 )
-                return [dict(r) for r in rows]
+                spots = []
+                for r in rows:
+                    d = dict(r)
+                    if str(d.get("module_name") or "") in exclude_modules:
+                        continue
+                    spots.append(d)
+                    if len(spots) >= limit:
+                        break
+                return spots
         except Exception as e:
             logger.error(f"Failed to get hot spots: {e}")
             return []
