@@ -30,10 +30,31 @@
 
 ## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
-**Дата последнего обновления:** 2026-07-25
+**Дата последнего обновления:** 2026-07-26
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; tip-top runtime hardening (v118)
+**Состояние:** Стабильное; RAG-eligible embeddings (v119)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-26 v119) — RAG-eligible embeddings (quality-over-quantity) ✅
+
+### Диагноз
+
+Raw embedding coverage ~3–11% выглядел как «сломанный индекс»: знаменатель включал venv PROJECT_FILE, audit и discovery stubs; writers часто INSERT без embedding; backfill не был в continuous loop.
+
+### Решение (практика RAG: index signal, not noise)
+
+1. `embedding_eligibility.py` — eligible SQL + path guards + priority `backfill_eligible_embeddings` + junk purge.
+2. Health widget: **RAG-eligible %** (цель ≥80%) + raw отдельно.
+3. `indexing_daemon`: skip `venv`/`site-packages`; prune dirs on walk.
+4. Mentorship/SOP: embed-on-insert; nightly continuous backfill (batch/env).
+5. Purge existing venv/site-packages PROJECT_FILE nodes.
+
+### Evidence
+
+- Unit: `test_embedding_eligibility.py`.
+- Ops: eligible_with_emb / eligible_all after purge+backfill; nightly logs `Embedding backfill`.
 
 ---
 

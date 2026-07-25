@@ -10,7 +10,7 @@ import logging
 import os
 import sys
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import asyncpg
 
@@ -18,11 +18,14 @@ import asyncpg
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
+DB_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://admin:secret@localhost:6432/knowledge_os",  # pragma: allowlist secret
+)
 AUDIT_TIMEOUT_SEC = float(os.getenv("MENTORSHIP_AUDIT_TIMEOUT_SEC", "75"))
 
 
-def _metadata_as_dict(metadata: Any) -> Dict[str, Any]:
+def _metadata_as_dict(metadata: Any) -> dict[str, Any]:
     """asyncpg returns jsonb as dict; older paths may still pass JSON strings."""
     if metadata is None:
         return {}
@@ -37,7 +40,7 @@ def _metadata_as_dict(metadata: Any) -> Dict[str, Any]:
     return {}
 
 
-def _heuristic_audit(title: str, expert_name: str) -> Dict[str, Any]:
+def _heuristic_audit(title: str, expert_name: str) -> dict[str, Any]:
     short = (title or "задача")[:80]
     return {
         "score": 7,
@@ -53,7 +56,7 @@ def _heuristic_audit(title: str, expert_name: str) -> Dict[str, Any]:
     }
 
 
-def _parse_audit_json(raw: str) -> Optional[Dict[str, Any]]:
+def _parse_audit_json(raw: str) -> Optional[dict[str, Any]]:
     if not raw:
         return None
     text = raw.strip()
@@ -114,7 +117,7 @@ class MentorshipEngine:
 
     async def _generate_audit_payload(
         self, audit_prompt: str, title: str, expert_name: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Prefer lightweight dialogue_llm; fall back to ai_core; then heuristic."""
         # 1) Fast path — Ollama/MLX dialogue without full RAG stack
         try:
@@ -140,9 +143,7 @@ class MentorshipEngine:
             from ai_core import run_smart_agent_async
 
             raw = await asyncio.wait_for(
-                run_smart_agent_async(
-                    audit_prompt, expert_name="Виктория", category="reasoning"
-                ),
+                run_smart_agent_async(audit_prompt, expert_name="Виктория", category="reasoning"),
                 timeout=AUDIT_TIMEOUT_SEC,
             )
             parsed = _parse_audit_json(raw or "")
@@ -209,9 +210,7 @@ class MentorshipEngine:
             logger.error(f"Failed to get mentorship note for task {task_id}")
             return
 
-        domain_id = await conn.fetchval(
-            "SELECT id FROM domains WHERE name = 'Mentorship' LIMIT 1"
-        )
+        domain_id = await conn.fetchval("SELECT id FROM domains WHERE name = 'Mentorship' LIMIT 1")
         if not domain_id:
             domain_id = await conn.fetchval(
                 "INSERT INTO domains (name) VALUES ('Mentorship') RETURNING id"
@@ -229,16 +228,39 @@ class MentorshipEngine:
             }
         )
 
-        await conn.execute(
-            """
-            INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-            VALUES ($1, $2, $3, $4::jsonb, true)
-        """,
-            domain_id,
-            content_kn,
-            float(score) / 10.0,
-            meta_kn,
-        )
+        emb_str = None
+        try:
+            from embedding_eligibility import get_embedding_vector_str
+
+            emb_str = await get_embedding_vector_str(content_kn)
+        except Exception:
+            emb_str = None
+
+        if emb_str:
+            await conn.execute(
+                """
+                INSERT INTO knowledge_nodes
+                    (domain_id, content, confidence_score, metadata, is_verified, embedding)
+                VALUES ($1, $2, $3, $4::jsonb, true, $5::vector)
+            """,
+                domain_id,
+                content_kn,
+                float(score) / 10.0,
+                meta_kn,
+                emb_str,
+            )
+        else:
+            await conn.execute(
+                """
+                INSERT INTO knowledge_nodes
+                    (domain_id, content, confidence_score, metadata, is_verified)
+                VALUES ($1, $2, $3, $4::jsonb, true)
+            """,
+                domain_id,
+                content_kn,
+                float(score) / 10.0,
+                meta_kn,
+            )
 
         metadata["audited_by_victoria"] = "true"
         metadata["audit_score"] = score
@@ -255,6 +277,7 @@ class MentorshipEngine:
             f"✅ [AUDIT COMPLETE] Task {task_id} scored {score}/10 "
             f"mode={audit_data.get('audit_mode')}. Mentorship note stored."
         )
+
 
 async def run_mentorship_cycle(limit: int = 5):
     engine = MentorshipEngine()

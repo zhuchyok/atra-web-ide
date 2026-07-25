@@ -20,6 +20,16 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-26 v119) — RAG-eligible embeddings ✅
+
+- Eligible coverage metric (не raw 3%).
+- Stop venv/site-packages indexing; purge junk; priority backfill in nightly.
+- Mentorship/SOP embed-on-insert.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v119.
+
+---
+
 ## § Последние изменения (2026-07-25 v118) — Tip-top runtime hardening ✅
 
 - Throttle `success_retrieval_audit` (60m/expert).

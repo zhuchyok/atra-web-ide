@@ -12,7 +12,7 @@ import json
 import logging
 import os
 import re
-from typing import Any, List, Optional
+from typing import Any
 from uuid import UUID
 
 import asyncpg
@@ -30,9 +30,7 @@ async def _llm(prompt: str) -> str:
         from dialogue_llm import generate_dialogue_text
 
         text = await asyncio.wait_for(
-            generate_dialogue_text(
-                prompt, expert_name="Виктория", model_hint=COUNCIL_MODEL
-            ),
+            generate_dialogue_text(prompt, expert_name="Виктория", model_hint=COUNCIL_MODEL),
             timeout=COUNCIL_ROUND_TIMEOUT_SEC,
         )
         return (text or "").strip()
@@ -41,7 +39,7 @@ async def _llm(prompt: str) -> str:
         return ""
 
 
-def _parse_consensus_score(text: str) -> Optional[float]:
+def _parse_consensus_score(text: str) -> float | None:
     if not text:
         return None
     patterns = [
@@ -72,7 +70,7 @@ async def run_expert_council(
     knowledge_id: Any,
     content: str,
     original_expert_id: Any,
-) -> Optional[str]:
+) -> str | None:
     """
     Red Team debate (critique → rebuttal → synthesis).
     Returns id of the council knowledge_node when created.
@@ -102,12 +100,12 @@ async def run_expert_council(
         logger.warning("council skip: missing author/opponents")
         return None
 
-    debate_log: List[str] = [f"📝 **Автор ({author['name']}):** {snippet[:500]}"]
-    criticisms: List[str] = []
+    debate_log: list[str] = [f"📝 **Автор ({author['name']}):** {snippet[:500]}"]
+    criticisms: list[str] = []
 
     # Round 1 — critique
     for opp in opponents:
-        prompt = f"""Ты RED TEAM эксперт {opp['name']} ({opp['role']}).
+        prompt = f"""Ты RED TEAM эксперт {opp["name"]} ({opp["role"]}).
 Найди 2-3 критических риска/ошибки в инсайте (кратко, 2-3 предложения):
 \"{snippet}\"
 Ответь только критикой, без вступлений."""
@@ -121,7 +119,7 @@ async def run_expert_council(
         debate_log.append(f"❌ **Критика от {opp['name']}:** {comment}")
 
     # Round 2 — author rebuttal
-    rebuttal_prompt = f"""Ты {author['name']} ({author['role']}).
+    rebuttal_prompt = f"""Ты {author["name"]} ({author["role"]}).
 Твой инсайт: \"{snippet}\"
 Критика:
 {chr(10).join(criticisms)}
@@ -222,18 +220,42 @@ async def run_expert_council(
         "author": author["name"],
         "opponents": [o["name"] for o in opponents],
     }
-    council_node_id = await conn.fetchval(
-        """
-        INSERT INTO knowledge_nodes
-            (domain_id, content, confidence_score, metadata, is_verified)
-        VALUES ($1, $2, $3, $4::jsonb, true)
-        RETURNING id
-        """,
-        domain_id,
-        council_content[:50000],
-        score,
-        json.dumps(meta, ensure_ascii=False),
-    )
+    content_to_store = council_content[:50000]
+    emb_str = None
+    try:
+        from embedding_eligibility import get_embedding_vector_str
+
+        emb_str = await get_embedding_vector_str(content_to_store)
+    except Exception:
+        emb_str = None
+
+    if emb_str:
+        council_node_id = await conn.fetchval(
+            """
+            INSERT INTO knowledge_nodes
+                (domain_id, content, confidence_score, metadata, is_verified, embedding)
+            VALUES ($1, $2, $3, $4::jsonb, true, $5::vector)
+            RETURNING id
+            """,
+            domain_id,
+            content_to_store,
+            score,
+            json.dumps(meta, ensure_ascii=False),
+            emb_str,
+        )
+    else:
+        council_node_id = await conn.fetchval(
+            """
+            INSERT INTO knowledge_nodes
+                (domain_id, content, confidence_score, metadata, is_verified)
+            VALUES ($1, $2, $3, $4::jsonb, true)
+            RETURNING id
+            """,
+            domain_id,
+            content_to_store,
+            score,
+            json.dumps(meta, ensure_ascii=False),
+        )
     logger.info(
         "✅ [COUNCIL] Finished node=%s score=%.2f source=%s",
         council_node_id,
@@ -243,7 +265,7 @@ async def run_expert_council(
     return str(council_node_id) if council_node_id else None
 
 
-async def run_nightly_council_phase(limit: Optional[int] = None) -> int:
+async def run_nightly_council_phase(limit: int | None = None) -> int:
     """Pick recent high-confidence nodes without council_review and debate them."""
     lim = max(1, limit if limit is not None else COUNCIL_PHASE_LIMIT)
     db_url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_DIRECT_URL")

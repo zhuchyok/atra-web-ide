@@ -792,6 +792,21 @@ def render_data_health():
     )
 
     try:
+        # RAG-eligible = quality-over-quantity (exclude venv/audit/discovery stubs).
+        # Keep SQL inline so dashboard works even if app package isn't on PYTHONPATH.
+        eligible_where = """
+            content IS NOT NULL
+            AND length(trim(content)) >= 40
+            AND COALESCE(metadata->>'type', '') NOT IN (
+                'success_retrieval_audit', 'swarm_resolution', 'recovery_incident',
+                'mutation_rollout_report', 'recruitment_event', 'ollama_model',
+                'database_optimization'
+            )
+            AND content NOT LIKE 'PROJECT_FILE:%/venv/%'
+            AND content NOT LIKE '%/site-packages/%'
+            AND content NOT LIKE '💎 ФУНДАМЕНТАЛЬНОЕ ЗНАНИЕ: 📋 Discovery фаза%'
+            AND content NOT LIKE '💎 ФУНДАМЕНТАЛЬНОЕ ЗНАНИЕ: ⚠️ Все источники недоступны%'
+        """
         stats = fetch_data(f"""
             SELECT
                 (SELECT COUNT(*) FROM knowledge_nodes) AS nodes_all,
@@ -801,7 +816,10 @@ def render_data_health():
                 (SELECT COUNT(*) FROM knowledge_nodes WHERE {t_filter}) AS nodes_period,
                 (SELECT COUNT(*) FROM knowledge_links WHERE {t_filter}) AS links_period,
                 (SELECT COUNT(*) FROM knowledge_nodes WHERE embedding IS NULL AND {t_filter}) AS missing_emb_period,
-                (SELECT COUNT(*) FROM knowledge_nodes WHERE confidence_score < 0.3 AND {t_filter}) AS low_conf_period
+                (SELECT COUNT(*) FROM knowledge_nodes WHERE confidence_score < 0.3 AND {t_filter}) AS low_conf_period,
+                (SELECT COUNT(*) FROM knowledge_nodes WHERE ({eligible_where})) AS eligible_all,
+                (SELECT COUNT(*) FROM knowledge_nodes
+                 WHERE embedding IS NOT NULL AND ({eligible_where})) AS eligible_with_emb
         """)
         if stats and stats[0]:
             s = stats[0]
@@ -813,9 +831,14 @@ def render_data_health():
             links_period = int(s["links_period"] or 0)
             missing_period = int(s["missing_emb_period"] or 0)
             low_conf_period = int(s["low_conf_period"] or 0)
+            eligible_all = int(s.get("eligible_all") or 0)
+            eligible_with_emb = int(s.get("eligible_with_emb") or 0)
 
             with_emb = max(0, nodes_all - missing_all)
             emb_pct = int(round(100.0 * with_emb / nodes_all)) if nodes_all else 0
+            eligible_pct = (
+                int(round(100.0 * eligible_with_emb / eligible_all)) if eligible_all else 0
+            )
 
             c1, c2, c3, c4 = st.columns(4)
             c1.metric(
@@ -829,7 +852,7 @@ def render_data_health():
                 delta=f"+{links_period:,} за период" if time_range != "За все время" else None,
             )
             c3.metric(
-                "Без векторов",
+                "Без векторов (raw)",
                 f"{missing_all:,}",
                 delta=f"+{missing_period:,} за период" if time_range != "За все время" else None,
                 delta_color="inverse",
@@ -842,10 +865,17 @@ def render_data_health():
             )
 
             st.caption(
-                f"Покрытие эмбеддингами: **{with_emb:,}** / {nodes_all:,} "
-                f"(**{emb_pct}%**). Источник связей: `knowledge_links` "
+                f"**RAG-eligible покрытие:** **{eligible_with_emb:,}** / {eligible_all:,} "
+                f"(**{eligible_pct}%**) — целевая метрика (без venv/audit/discovery-stubs). "
+                f"Raw: {with_emb:,} / {nodes_all:,} ({emb_pct}%). "
+                f"Источник связей: `knowledge_links` "
                 f"(таблица `knowledge_edges` не используется в этом виджете)."
             )
+            if eligible_all:
+                st.progress(min(1.0, eligible_with_emb / eligible_all))
+                st.caption(
+                    "Цель eligible ≥ **80%**. Raw % намеренно ниже — junk не индексируем (KISS / quality-over-quantity)."
+                )
 
             # Goal: 100k semantic links — always all-time
             goal_links = 100_000

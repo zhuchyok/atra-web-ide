@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 import logging
 import os
-from typing import List, Optional
+from typing import Optional
 
 import aiohttp
 from watchdog.events import FileSystemEventHandler
@@ -16,7 +16,10 @@ logger = logging.getLogger("IndexingDaemon")
 
 # Конфигурация из окружения
 WORKSPACE_ROOT = os.getenv("WORKSPACE_ROOT", os.getcwd())
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
+DB_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://admin:secret@localhost:6432/knowledge_os",  # pragma: allowlist secret
+)
 OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 
@@ -55,6 +58,15 @@ class IndexingHandler(FileSystemEventHandler):
             self.daemon.queue_file(event.src_path)
 
     def _is_allowed(self, path):
+        try:
+            from embedding_eligibility import path_is_indexable
+        except ImportError:
+            try:
+                from app.embedding_eligibility import path_is_indexable
+            except ImportError:
+                path_is_indexable = lambda p: "venv" not in p.replace("\\", "/")  # noqa: E731
+        if not path_is_indexable(path):
+            return False
         return any(path.endswith(ext) for ext in ALLOWED_EXTENSIONS)
 
 
@@ -68,7 +80,7 @@ class IndexingDaemon:
     def queue_file(self, path):
         self.queue.put_nowait(path)
 
-    async def get_embedding(self, text: str) -> Optional[List[float]]:
+    async def get_embedding(self, text: str) -> Optional[list[float]]:
         """Получить эмбеддинг через Ollama."""
         try:
             async with aiohttp.ClientSession() as session:
@@ -88,6 +100,15 @@ class IndexingDaemon:
         """Проиндексировать один файл."""
         try:
             if not os.path.exists(path):
+                return
+
+            try:
+                from embedding_eligibility import path_is_indexable
+            except ImportError:
+                from app.embedding_eligibility import path_is_indexable
+
+            if not path_is_indexable(path):
+                logger.debug("Skip non-indexable path: %s", path)
                 return
 
             with open(path, encoding="utf-8", errors="ignore") as f:
@@ -144,9 +165,19 @@ class IndexingDaemon:
 
                 import json as _json
 
+                # Content prefix for legacy PROJECT_FILE rows — never write venv paths
+                rel = path
+                try:
+                    rel = os.path.relpath(path, WORKSPACE_ROOT)
+                except ValueError:
+                    rel = path
+                content_kn = f'PROJECT_FILE: "{rel}"\n\n{content[:10000]}'
+
                 metadata_obj = {
                     "file_path": path,
                     "source": "indexing_daemon",
+                    "type": "project_file",
+                    "rag_eligible": True,
                 }
                 if project_slug:
                     metadata_obj["project_slug"] = project_slug
@@ -158,7 +189,7 @@ class IndexingDaemon:
                     INSERT INTO knowledge_nodes (content, domain_id, confidence_score, embedding, is_verified, metadata)
                     VALUES ($1, $2, 1.0, $3, TRUE, $4::jsonb)
                 """,
-                    content[:10000],
+                    content_kn,
                     domain_id,
                     embedding,
                     metadata_json,
@@ -183,10 +214,22 @@ class IndexingDaemon:
     async def initial_scan(self):
         """Первоначальное сканирование всего проекта."""
         logger.info(f"🚀 Начало первичного сканирования: {WORKSPACE_ROOT}")
+        skip_dirs = {
+            ".git",
+            "node_modules",
+            ".venv",
+            "venv",
+            "__pycache__",
+            "dist",
+            "build",
+            "site-packages",
+            ".tox",
+            ".mypy_cache",
+            ".ruff_cache",
+        }
         for root, dirs, files in os.walk(WORKSPACE_ROOT):
-            if any(
-                d in root for d in {".git", "node_modules", ".venv", "__pycache__", "dist", "build"}
-            ):
+            dirs[:] = [d for d in dirs if d not in skip_dirs]
+            if any(part in skip_dirs for part in root.replace("\\", "/").split("/")):
                 continue
             for file in files:
                 path = os.path.join(root, file)

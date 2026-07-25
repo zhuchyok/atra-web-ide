@@ -341,10 +341,55 @@ async def run_continuous_distillation() -> None:
         await asyncio.sleep(300)
 
 
+async def run_continuous_embedding_backfill() -> None:
+    """Priority RAG embedding backfill (eligible nodes only). Bounded rate."""
+    interval = max(60, int(os.getenv("EMBED_BACKFILL_INTERVAL_SEC", "300")))
+    batch = max(5, int(os.getenv("EMBED_BACKFILL_BATCH", "40")))
+    enabled = os.getenv("EMBED_BACKFILL_ENABLED", "true").lower() in ("1", "true", "yes")
+    logger.info(
+        "🧩 [NIGHTLY] Continuous embedding backfill started (enabled=%s batch=%s interval=%ss)",
+        enabled,
+        batch,
+        interval,
+    )
+    # One-shot junk purge at start (venv/site-packages PROJECT_FILE)
+    if enabled:
+        try:
+            from embedding_eligibility import purge_non_rag_junk
+
+            purged = await purge_non_rag_junk(
+                limit=int(os.getenv("EMBED_JUNK_PURGE_LIMIT", "25000"))
+            )
+            if purged:
+                logger.info(
+                    "🧹 [NIGHTLY] Purged %s non-RAG junk nodes (venv/site-packages)", purged
+                )
+        except Exception as exc:
+            logger.warning("🧹 [NIGHTLY] Junk purge skipped: %s", exc)
+
+    while True:
+        if enabled:
+            try:
+                from embedding_eligibility import backfill_eligible_embeddings
+
+                stats = await backfill_eligible_embeddings(limit=batch)
+                logger.info(
+                    "🧩 [NIGHTLY] Embedding backfill: updated=%s failed=%s candidates=%s",
+                    stats.get("updated"),
+                    stats.get("failed"),
+                    stats.get("candidates"),
+                )
+            except Exception as exc:
+                logger.warning("🧩 [NIGHTLY] Embedding backfill failed: %s", exc)
+        await asyncio.sleep(interval)
+
+
 async def main_loop() -> None:
     """Run nightly cycle periodically with continuous distillation in background."""
     distill_task = asyncio.create_task(run_continuous_distillation())
-    logger.info("🌙 [NIGHTLY] Distillation running as background task")
+    embed_task = asyncio.create_task(run_continuous_embedding_backfill())
+    logger.info("🌙 [NIGHTLY] Distillation + embedding backfill running as background tasks")
+    _ = (distill_task, embed_task)
 
     while True:
         await run_nightly_cycle()

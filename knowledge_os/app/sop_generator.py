@@ -8,7 +8,7 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import asyncpg
 
@@ -16,7 +16,10 @@ import asyncpg
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
+DB_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://admin:secret@localhost:6432/knowledge_os",  # pragma: allowlist secret
+)
 _DEFAULT_SOP_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "docs", "SOP")
 )
@@ -24,7 +27,7 @@ SOP_DIR = os.getenv("SOP_DIR", _DEFAULT_SOP_DIR)
 SOP_TIMEOUT_SEC = float(os.getenv("SOP_GENERATE_TIMEOUT_SEC", "90"))
 
 
-def _metadata_as_dict(metadata: Any) -> Dict[str, Any]:
+def _metadata_as_dict(metadata: Any) -> dict[str, Any]:
     if metadata is None:
         return {}
     if isinstance(metadata, dict):
@@ -38,17 +41,17 @@ def _metadata_as_dict(metadata: Any) -> Dict[str, Any]:
     return {}
 
 
-def _fallback_sop(title: str, description: str, metadata: Dict[str, Any]) -> str:
+def _fallback_sop(title: str, description: str, metadata: dict[str, Any]) -> str:
     expert = (
         metadata.get("assignee_hint")
         or metadata.get("expert_name")
         or metadata.get("target_expert")
         or "исполнитель"
     )
-    return f"""# SOP: {title or 'Процесс'}
+    return f"""# SOP: {title or "Процесс"}
 
 ## Trigger
-Применять при задачах, похожих на «{(title or '')[:120]}».
+Применять при задачах, похожих на «{(title or "")[:120]}».
 
 ## Step-by-step
 1. Уточнить цель и критерии done у заказчика / Team Lead.
@@ -66,7 +69,7 @@ def _fallback_sop(title: str, description: str, metadata: Dict[str, Any]) -> str
 - Victoria `/run`, dashboard Wisdom tab, `knowledge_nodes`, Blackboard.
 
 ## Context
-{(description or '')[:500]}
+{(description or "")[:500]}
 """
 
 
@@ -114,7 +117,7 @@ class SOPGenerator:
             await conn.close()
 
     async def _generate_sop_text(
-        self, sop_prompt: str, title: str, description: str, metadata: Dict[str, Any]
+        self, sop_prompt: str, title: str, description: str, metadata: dict[str, Any]
     ) -> str:
         try:
             from dialogue_llm import generate_dialogue_text
@@ -136,9 +139,7 @@ class SOPGenerator:
             from ai_core import run_smart_agent_async
 
             text = await asyncio.wait_for(
-                run_smart_agent_async(
-                    sop_prompt, expert_name="Виктория", category="reasoning"
-                ),
+                run_smart_agent_async(sop_prompt, expert_name="Виктория", category="reasoning"),
                 timeout=SOP_TIMEOUT_SEC,
             )
             if text and len(text.strip()) > 80:
@@ -213,15 +214,37 @@ class SOPGenerator:
                 }
             )
 
-            await conn.execute(
-                """
-                INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-                VALUES ($1, $2, 1.0, $3::jsonb, true)
-            """,
-                domain_id,
-                content_kn,
-                meta_kn,
-            )
+            emb_str = None
+            try:
+                from embedding_eligibility import get_embedding_vector_str
+
+                emb_str = await get_embedding_vector_str(content_kn)
+            except Exception:
+                emb_str = None
+
+            if emb_str:
+                await conn.execute(
+                    """
+                    INSERT INTO knowledge_nodes
+                        (domain_id, content, confidence_score, metadata, is_verified, embedding)
+                    VALUES ($1, $2, 1.0, $3::jsonb, true, $4::vector)
+                """,
+                    domain_id,
+                    content_kn,
+                    meta_kn,
+                    emb_str,
+                )
+            else:
+                await conn.execute(
+                    """
+                    INSERT INTO knowledge_nodes
+                        (domain_id, content, confidence_score, metadata, is_verified)
+                    VALUES ($1, $2, 1.0, $3::jsonb, true)
+                """,
+                    domain_id,
+                    content_kn,
+                    meta_kn,
+                )
 
             # 6. Mark task
             metadata["sop_generated"] = "true"
