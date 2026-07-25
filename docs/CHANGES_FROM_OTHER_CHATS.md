@@ -20,6 +20,15 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-26 v120) — Tasks twin feed fix ✅
+
+- orchestration_tracking больше не COMPLETED-близнец; скрыт в UI.
+- File-audit rule = substantive; HTML escape в карточках; monster re-route.
+
+Полная фиксация: `docs/MASTER_REFERENCE.md` § v120.
+
+---
+
 ## § Последние изменения (2026-07-26 v119) — RAG-eligible embeddings ✅
 
 - Eligible coverage metric (не raw 3%).

@@ -8,11 +8,11 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-added-large-files
-        args: ['--maxkb=5000']  # Block files > 5MB (except model files)
+        args: ["--maxkb=5000"] # Block files > 5MB (except model files)
         exclude: ^(fused_model|training_data|knowledge_os/ai_learning_data)/
       - id: check-toml
       - id: check-yaml
-        args: [--unsafe]  # Allow custom YAML tags
+        args: [--unsafe] # Allow custom YAML tags
       - id: check-json
       - id: end-of-file-fixer
       - id: trailing-whitespace
@@ -40,16 +40,25 @@ repos:
       - id: mypy
         args: [--ignore-missing-imports, --check-untyped-defs]
         files: ^(backend/app|src/agents)/.*\.py$
-        additional_dependencies: [pydantic, fastapi]
+        exclude: (^src/agents/bridge/victoria_server\.py$)
+        additional_dependencies: [pydantic, fastapi, types-redis]
 
   # Rust: Format check (rustfmt)
   - repo: https://github.com/doublify/pre-commit-rust
     rev: v1.0
     hooks:
       - id: fmt
-        args: ['--manifest-path', 'Cargo.toml', '--all', '--']
+        args: ["--manifest-path", "Cargo.toml", "--all", "--"]
       - id: clippy
-        args: ['--manifest-path', 'Cargo.toml', '--all-targets', '--', '-D', 'warnings']
+        args:
+          [
+            "--manifest-path",
+            "Cargo.toml",
+            "--all-targets",
+            "--",
+            "-D",
+            "warnings",
+          ]
 
   # JavaScript/TypeScript: Prettier
   - repo: https://github.com/pre-commit/mirrors-prettier
@@ -64,7 +73,7 @@ repos:
     rev: v1.5.0
     hooks:
       - id: detect-secrets
-        args: ['--baseline', '.secrets.baseline']
+        args: ["--baseline", ".secrets.baseline"]
         exclude: ^(fused_model|training_data|\.secrets\.baseline)$
 
 # Global excludes

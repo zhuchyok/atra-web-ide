@@ -3,6 +3,7 @@ Tasks Tab Module - Modular interface for task management.
 Follows Singularity 10.0 microservices standards.
 """
 
+import html
 import json
 import logging
 import os
@@ -75,6 +76,12 @@ def render_tasks_tab():
 
 def _render_tasks_list(time_range):
     st.subheader("🛠️ Автономные Задачи и Оркестрация")
+    st.caption(
+        "**Почему бывает «с экспертом» и «без»:** Victoria пишет метрический трек "
+        "`orchestration_tracking` (без assignee) и отдельно делегирует эксперту "
+        "(`victoria_monster_delegation`). Треки по умолчанию скрыты. "
+        "**DEGRADED** = soft rule-fallback без LLM (не авария контейнера)."
+    )
 
     from database_service import get_time_filter
 
@@ -98,6 +105,8 @@ def _render_tasks_list(time_range):
 
     # Принудительный сброс кэша: разный _cache_bust даёт новый запрос к БД после «Обновить»
     _cache_bust = st.session_state.get("tasks_refresh_ts", 0)
+    # Exclude Victoria orchestration_tracking rows from work-queue KPIs (metrics-only twins).
+    _work_queue = "AND COALESCE(metadata->>'source', '') <> 'orchestration_tracking'"
     task_overview = fetch_data_tasks(
         f"""
         SELECT
@@ -134,6 +143,7 @@ def _render_tasks_list(time_range):
             END as avg_hours
         FROM tasks
         WHERE {t_filter}
+          {_work_queue}
     """,
         _cache_bust=_cache_bust,
     )
@@ -252,6 +262,15 @@ def _render_tasks_list(time_range):
         f"SELECT t.id, t.title, t.description, t.status, t.result, t.created_at, t.updated_at, COALESCE(e.name, 'Не назначен') as assignee, COALESCE(e.department, 'N/A') as department, t.metadata, t.project_context FROM tasks t LEFT JOIN experts e ON t.assignee_expert_id = e.id WHERE {t_filter}"
     ]
     query_params = []
+
+    show_tracking = st.checkbox(
+        "Показать метрические треки Victoria (orchestration_tracking)",
+        value=False,
+        key="tasks_show_orchestration_tracking",
+        help="Служебные строки A/B — не рабочие задачи. По умолчанию скрыты, чтобы не путать с «Делегировано: Expert».",
+    )
+    if not show_tracking:
+        query_parts.append("AND COALESCE(t.metadata->>'source', '') <> 'orchestration_tracking'")
 
     if status_filter == "Ручная проверка (deferred)":
         query_parts.append(
@@ -454,10 +473,17 @@ def _render_task_card(task):
 
     status_label = "DEGRADED" if degraded else (task.get("status") or "unknown").upper()
     created_date = format_msk(task.get("created_at"))
+    title_safe = html.escape(str(task.get("title") or ""))
+    assignee_safe = html.escape(str(task.get("assignee") or "Не назначен"))
+    dept_safe = html.escape(str(task.get("department") or "N/A"))
+    desc_safe = html.escape((task.get("description") or "")[:300])
     result_preview = (task.get("result") or "").replace("[DEGRADED_RULE_FALLBACK]", "").strip()
+    result_safe = html.escape(result_preview[:180])
+    if len(result_preview) > 180:
+        result_safe += "…"
     result_snip = (
         f'<div class="task-card-meta" style="margin-top:8px;color:#8b949e;">'
-        f"Результат: {result_preview[:180]}{'…' if len(result_preview) > 180 else ''}"
+        f"Результат: {result_safe}"
         f"</div>"
         if result_preview
         else ""
@@ -475,14 +501,14 @@ def _render_task_card(task):
         <div style="background: linear-gradient(145deg, #11111b, #0d1117); border: 1px solid {status_color}; padding: 18px; border-radius: 12px; margin-bottom: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
                 <div style="flex: 1;">
-                    <div class="task-card-title" style="color: #cdd6f4; margin-bottom: 6px;">{status_icon} {task["title"]}</div>
+                    <div class="task-card-title" style="color: #cdd6f4; margin-bottom: 6px;">{status_icon} {title_safe}</div>
                     <div class="task-card-meta">
-                        👤 {task["assignee"]} | 📁 {task["department"]} | 📅 {created_date}
+                        👤 {assignee_safe} | 📁 {dept_safe} | 📅 {html.escape(created_date)}
                     </div>
                 </div>
-                <span class="task-card-meta" style="color: {status_color}; font-weight: 800; padding: 4px 12px; background: rgba(88, 166, 255, 0.1); border-radius: 12px;">{status_label}</span>
+                <span class="task-card-meta" style="color: {status_color}; font-weight: 800; padding: 4px 12px; background: rgba(88, 166, 255, 0.1); border-radius: 12px;">{html.escape(status_label)}</span>
             </div>
-            <div class="task-card-desc" style="color: var(--dash-text); margin-top: 10px;">{(task.get("description") or "")[:300]}...</div>
+            <div class="task-card-desc" style="color: var(--dash-text); margin-top: 10px;">{desc_safe}...</div>
             {degraded_hint}
             {result_snip}
         </div>

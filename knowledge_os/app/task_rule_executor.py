@@ -14,7 +14,7 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +24,16 @@ DEGRADED_PREFIX = "[DEGRADED_RULE_FALLBACK]"
 
 def is_substantive_rule_result(result: str) -> bool:
     """
-    True only for rule results that actually did work (e.g. real HTTP health-check).
+    True only for rule results that actually did work (file audit / HTTP health-check).
     Soft 'AI unavailable' status templates must NOT count as task success.
     """
-    r = (result or "").lower()
-    if not r.strip():
+    raw = (result or "").strip()
+    if not raw:
         return False
+    # Strip optional degraded prefix if present before classification
+    if raw.startswith(DEGRADED_PREFIX):
+        raw = raw[len(DEGRADED_PREFIX) :].lstrip()
+    r = raw.lower()
     if "rule-based статусный ответ" in r or "ai временно недоступен" in r:
         return False
     if "rule-based research fallback" in r:
@@ -40,10 +44,14 @@ def is_substantive_rule_result(result: str) -> bool:
         return True
     if "rule-based health-check:" in r and "ошибк" not in r:
         return True
+    # Monster / file-audit fast path: real filesystem scan (OK or ПРОБЛЕМА).
+    if ("файл:" in r or "file:" in r) and ("проверка:" in r or "check:" in r):
+        if raw.startswith("ОК") or raw.upper().startswith("OK") or raw.startswith("ПРОБЛЕМА"):
+            return True
     return False
 
 
-def finalize_rule_result(result: str) -> tuple[str, Dict[str, Any], str]:
+def finalize_rule_result(result: str) -> tuple[str, dict[str, Any], str]:
     """
     Returns (result_text, metadata_patch, db_status).
     Soft fallbacks → cancelled + quality_degraded; substantive → completed.
@@ -78,7 +86,7 @@ def finalize_rule_result(result: str) -> tuple[str, Dict[str, Any], str]:
 # ---------------------------------------------------------------------------
 # Старые шаблоны (dashboard_daily_improver)
 # ---------------------------------------------------------------------------
-DASHBOARD_IMPROVEMENT_TEMPLATES: Dict[str, str] = {
+DASHBOARD_IMPROVEMENT_TEMPLATES: dict[str, str] = {
     "max_entries": "Рекомендация: проверить st.cache_data(max_entries=100) в dashboard/app.py. Убедитесь, что кэш не растёт бесконечно.",
     "LEFT(content,N)": "Рекомендация: в запросах к knowledge_nodes использовать LEFT(content, 500) или аналог для избежания загрузки полного content. Проверить dashboard/app.py и связанные модули.",
     "lazy load": "Рекомендация: использовать st.fragment для lazy load вкладок (Streamlit best practices). Проверить структуру вкладок в дашборде.",
@@ -148,7 +156,7 @@ _PIP_RUNTIME_PATTERNS = [
 ]
 
 
-def _match_template(title: str) -> Optional[str]:
+def _match_template(title: str) -> str | None:
     title_lower = (title or "").lower()
     for keyword, template_key in TITLE_KEYWORDS:
         if keyword.lower() in title_lower:
@@ -187,7 +195,7 @@ def _is_file_audit_task(title: str, description: str = "") -> bool:
     return bool(_FILE_AUDIT_PATTERN.search(text)) and bool(_FILE_PATH_PATTERN.search(text))
 
 
-def _extract_file_audit_params(title: str, description: str = "") -> tuple[Optional[str], int]:
+def _extract_file_audit_params(title: str, description: str = "") -> tuple[str | None, int]:
     text = (title or "") + "\n" + (description or "")
     path_match = _FILE_PATH_PATTERN.search(text)
     file_path = path_match.group(1) if path_match else None
@@ -325,7 +333,7 @@ def _execute_verify_response(title: str, description: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def can_handle(task: Dict[str, Any]) -> bool:
+def can_handle(task: dict[str, Any]) -> bool:
     """Проверяет, может ли rule executor обработать задачу."""
     source = (task.get("metadata") or {}).get("source", "")
     title = task.get("title", "")
@@ -354,7 +362,7 @@ def can_handle(task: Dict[str, Any]) -> bool:
     return False
 
 
-async def execute_fallback(task: Dict[str, Any]) -> Optional[str]:
+async def execute_fallback(task: dict[str, Any]) -> str | None:
     """
     Выполняет задачу без LLM по rule-based шаблону.
     Returns: строка результата или None если шаблона нет.

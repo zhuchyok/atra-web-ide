@@ -32,8 +32,24 @@
 
 **Дата последнего обновления:** 2026-07-26
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; RAG-eligible embeddings (v119)
+**Состояние:** Стабильное; task feed twin-fix (v120)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-26 v120) — Tasks feed: twin tracking + DEGRADED honesty ✅
+
+### Диагноз
+
+В «Задачи и SLA» одна проверка файла давала две карточки: COMPLETED без эксперта (`orchestration_tracking`) и DEGRADED «Делегировано: X» (monster). Tracking complete ошибочно ставил `completed`. File-audit rule OK помечался DEGRADED. Сырой HTML в результате — незаэкрапированный текст в карточке.
+
+### Решение
+
+1. Tracking complete → `cancelled` + `tracking_complete` (не KPI).
+2. UI: скрыть `orchestration_tracking` по умолчанию; escape HTML.
+3. File-audit OK/ПРОБЛЕМА = substantive → `completed`.
+4. Monster: file-audit с Marketing → re-route на Алексей/Игорь/Анна/Сергей.
+5. Demote 548 historical tracking completed → cancelled.
 
 ---
 

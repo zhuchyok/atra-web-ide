@@ -4607,21 +4607,43 @@ async def _record_orchestration_task_complete(
     status: str,
     result_preview: str = "",
 ) -> None:
-    """Обновить задачу в knowledge_os.tasks (completed_at, status, result)."""
+    """Закрыть метрический orchestration_tracking row (не рабочая задача).
+
+    Остаётся cancelled + tracking_complete — иначе в ленте «Задачи и SLA»
+    появляется COMPLETED-близнец рядом с «Делегировано: Expert».
+    """
     if not knowledge_os_task_id or not USE_KNOWLEDGE_OS or not KNOWLEDGE_OS_AVAILABLE:
         return
     pool = await agent._get_db_pool()
     if not pool:
         return
     try:
+        import json as _json
+
+        # Keep failed signal for A/B; never promote tracking rows to completed KPI.
+        final_status = "failed" if status == "failed" else "cancelled"
+        meta_patch = _json.dumps(
+            {
+                "tracking_complete": True,
+                "tracking_outcome": status if status else "unknown",
+                "kpi_success": False,
+                "orchestration_tracking_only": True,
+            }
+        )
         async with pool.acquire() as conn:
             await conn.execute(
                 """
-                UPDATE tasks SET status = $1, completed_at = CURRENT_TIMESTAMP, result = $2
-                WHERE id = $3
+                UPDATE tasks
+                SET status = $1,
+                    completed_at = CURRENT_TIMESTAMP,
+                    result = $2,
+                    metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb,
+                    updated_at = NOW()
+                WHERE id = $4
                 """,
-                status if status in ("completed", "failed") else "completed",
+                final_status,
                 (result_preview or "")[:5000],
+                meta_patch,
                 uuid.UUID(knowledge_os_task_id),
             )
     except Exception as e:

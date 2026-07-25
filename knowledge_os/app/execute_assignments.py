@@ -9,12 +9,12 @@
 import asyncio
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def _is_veronica_only(assignments: Dict[str, Any]) -> bool:
+def _is_veronica_only(assignments: dict[str, Any]) -> bool:
     """Проверяет, что в назначениях только Veronica (тогда исполнение через делегирование)."""
     if not assignments or not isinstance(assignments, dict):
         return True
@@ -42,10 +42,10 @@ def _is_audit_goal(goal: str) -> bool:
 
 
 async def execute_assignments_async(
-    assignments: Dict[str, Any],
+    assignments: dict[str, Any],
     goal: str,
-    strategy: Optional[str] = None,
-    project_context: Optional[str] = None,
+    strategy: str | None = None,
+    project_context: str | None = None,
     timeout_per_expert: float = 600.0,  # Увеличили таймаут для "монстра" до 10 минут
 ) -> str:
     """
@@ -102,6 +102,52 @@ async def execute_assignments_async(
 
             for key, val in assignments.items():
                 expert_name = val.get("expert_name") or val.get("expert_id") or key
+                # File/security audits must not land on Marketing/etc. (wrong twin UX).
+                goal_l = (goal or "").lower()
+                is_file_audit = any(
+                    p in goal_l
+                    for p in (
+                        "проверь файл",
+                        "check file",
+                        "pip install",
+                        "hardcoded",
+                        "секрет",
+                        "subprocess",
+                    )
+                )
+                if is_file_audit:
+                    dept = await conn.fetchval(
+                        "SELECT department FROM experts WHERE name = $1 LIMIT 1",
+                        expert_name,
+                    )
+                    dept_l = (dept or "").lower()
+                    if dept_l and not any(
+                        x in dept_l
+                        for x in ("backend", "security", "devops", "qa", "engineering", "tech")
+                    ):
+                        preferred = await conn.fetchval(
+                            """
+                            SELECT name FROM experts
+                            WHERE name IN ('Алексей', 'Игорь', 'Анна', 'Сергей')
+                            ORDER BY CASE name
+                                WHEN 'Алексей' THEN 0
+                                WHEN 'Игорь' THEN 1
+                                WHEN 'Анна' THEN 2
+                                ELSE 3
+                            END
+                            LIMIT 1
+                            """
+                        )
+                        if preferred:
+                            logger.info(
+                                "🛡️ [MONSTER] Re-route file-audit %s → %s (was %s/%s)",
+                                key,
+                                preferred,
+                                expert_name,
+                                dept,
+                            )
+                            expert_name = preferred
+
                 # Резолвим эксперта
                 expert_id = await conn.fetchval(
                     "SELECT id FROM experts WHERE name = $1 LIMIT 1", expert_name
@@ -212,7 +258,9 @@ async def execute_assignments_async(
                                     timeout=timeout_per_expert,
                                 )
                             except RecursionError:
-                                logger.error(f"⚠️ [MONSTER] RecursionError detected during wait_for for {expert_name}. Attempting recovery.")
+                                logger.error(
+                                    f"⚠️ [MONSTER] RecursionError detected during wait_for for {expert_name}. Attempting recovery."
+                                )
                                 # Fallback to a direct call without wait_for if recursion happens in asyncio internals
                                 report = await run_smart_agent_async(
                                     subtask_desc,
