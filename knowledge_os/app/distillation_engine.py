@@ -68,6 +68,48 @@ class KnowledgeDistiller:
             "additionalProperties": False,
         }
 
+    @staticmethod
+    def _should_disable_thinking(model_name: str | None) -> bool:
+        """Victoria/Qwen3 thinking models burn num_predict into `thinking` with empty `response`."""
+        if not model_name:
+            return False
+        lowered = model_name.lower()
+        return "qwen3" in lowered or "victoria-wisdom" in lowered
+
+    @staticmethod
+    def _extract_ollama_generate_text(payload: dict | None) -> str:
+        """Prefer `response`; if empty, salvage JSON from `thinking` (thinking-model trap)."""
+        if not isinstance(payload, dict):
+            return ""
+        text = (payload.get("response") or "") if isinstance(payload.get("response"), str) else ""
+        if str(text).strip():
+            return str(text)
+        thinking = payload.get("thinking") or ""
+        if not isinstance(thinking, str) or not thinking.strip():
+            return ""
+        # Salvage last JSON object from thinking trace.
+        start = thinking.rfind("{")
+        end = thinking.rfind("}")
+        if start >= 0 and end > start:
+            candidate = thinking[start : end + 1].strip()
+            if '"wisdom_summary"' in candidate or '"instruction"' in candidate:
+                return candidate
+        return ""
+
+    def _ollama_generate_body(self, model: str, prompt: str) -> dict:
+        num_predict = max(128, int(os.getenv("DISTILL_TEACHER_NUM_PREDICT", "768")))
+        body: dict = {
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+            "format": self._ollama_response_format(),
+            "keep_alive": "10m",
+            "options": {"temperature": 0.1, "num_predict": num_predict},
+        }
+        if self._should_disable_thinking(model):
+            body["think"] = False
+        return body
+
     async def _get_elastic_batch_size(self) -> int:
         """
         [SINGULARITY 30.6] Elastic Batch: Динамический расчет размера батча на основе RAM.
@@ -210,18 +252,20 @@ class KnowledgeDistiller:
             async with httpx.AsyncClient(timeout=teacher_timeout) as client:
                 response = await client.post(
                     url,
-                    json={
-                        "model": self.teacher_model,
-                        "prompt": prompt,
-                        "stream": False,
-                        "format": self._ollama_response_format(),
-                        "keep_alive": "10m",
-                        "options": {"temperature": 0.1, "num_predict": 512},
-                    },
+                    json=self._ollama_generate_body(self.teacher_model, prompt),
                 )
                 if response.status_code == 200:
-                    text = (response.json() or {}).get("response", "") or ""
+                    payload = response.json() or {}
+                    text = self._extract_ollama_generate_text(payload)
                     if str(text).strip():
+                        if (
+                            not (payload.get("response") or "").strip()
+                            and (payload.get("thinking") or "").strip()
+                        ):
+                            logger.info(
+                                "⚗️ [OLLAMA-DIRECT] Salvaged JSON from thinking (%s)",
+                                self.teacher_model,
+                            )
                         self.last_teacher_used = self.teacher_model
                         return text
                     # Empty 200 (e.g. large model stall) — try fallback once.
@@ -233,16 +277,10 @@ class KnowledgeDistiller:
                         )
                         fallback_resp = await client.post(
                             url,
-                            json={
-                                "model": self.teacher_fallback_model,
-                                "prompt": prompt,
-                                "stream": False,
-                                "format": self._ollama_response_format(),
-                                "options": {"temperature": 0.1, "num_predict": 512},
-                            },
+                            json=self._ollama_generate_body(self.teacher_fallback_model, prompt),
                         )
                         if fallback_resp.status_code == 200:
-                            fb_text = (fallback_resp.json() or {}).get("response", "") or ""
+                            fb_text = self._extract_ollama_generate_text(fallback_resp.json() or {})
                             if str(fb_text).strip():
                                 self.last_teacher_used = self.teacher_fallback_model
                             return fb_text
@@ -262,16 +300,10 @@ class KnowledgeDistiller:
                     )
                     fallback_resp = await client.post(
                         url,
-                        json={
-                            "model": self.teacher_fallback_model,
-                            "prompt": prompt,
-                            "stream": False,
-                            "format": self._ollama_response_format(),
-                            "options": {"temperature": 0.1, "num_predict": 512},
-                        },
+                        json=self._ollama_generate_body(self.teacher_fallback_model, prompt),
                     )
                     if fallback_resp.status_code == 200:
-                        fb_text = fallback_resp.json().get("response", "") or ""
+                        fb_text = self._extract_ollama_generate_text(fallback_resp.json() or {})
                         if str(fb_text).strip():
                             self.last_teacher_used = self.teacher_fallback_model
                         return fb_text
@@ -291,14 +323,15 @@ class KnowledgeDistiller:
     def _build_distill_prompt(self, content: str) -> str:
         return f"""
                 SYSTEM: You are the Supreme Knowledge Distiller. Your task is to compress raw information into a high-density wisdom node.
+                Do not explain your reasoning. Output JSON only — no preamble, no markdown.
 
                 INPUT CONTENT:
                 {content}
 
                 OUTPUT FORMAT (STRICT JSON):
                 {{
-                  "wisdom_summary": "One concise sentence capturing the core insight",
-                  "instruction": "One clear actionable command or rule for an AI agent",
+                  "wisdom_summary": "1-2 sentences, >=90 characters, capturing the core insight and why it matters",
+                  "instruction": "One clear actionable command for an AI agent (>=25 characters)",
                   "category": "One word: coding, strategy, ops, or research"
                 }}
                 """
@@ -547,6 +580,16 @@ class KnowledgeDistiller:
         if (wisdom or {}).get("_quality_source") == "fallback_parse":
             score -= 0.25
             reasons.append("fallback_parse_penalty")
+
+        # Full-signal bonus: without this, max score was ~0.75 → band_high unreachable.
+        if (
+            "summary_rich" in reasons
+            and "instruction_present" in reasons
+            and "category_valid" in reasons
+            and "fallback_parse_penalty" not in reasons
+        ):
+            score += 0.10
+            reasons.append("full_signal_bonus")
 
         # Short content penalty
         if wisdom_summary and len(wisdom_summary.strip()) < 30:

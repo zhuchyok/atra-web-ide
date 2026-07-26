@@ -20,6 +20,13 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-27 v122) — Strong teacher path ✅
+
+- Ollama `think:false` + salvage from `thinking`; prompt length nudge; full_signal_bonus → `band_high` reachable.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v122.
+
+---
+
 ## § Последние изменения (2026-07-26 v121) — Knowledge depth pass ✅
 
 - Health: coverage vs depth KPI (bands / avg conf).

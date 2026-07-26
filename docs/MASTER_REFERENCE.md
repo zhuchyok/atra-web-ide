@@ -30,10 +30,34 @@
 
 ## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
-**Дата последнего обновления:** 2026-07-26
+**Дата последнего обновления:** 2026-07-27
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; knowledge depth pass (v121)
+**Состояние:** Стабильное; strong teacher path (v122)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-27 v122) — Strong teacher: think:false + reachable high band ✅
+
+### Диагноз
+
+Priority re-distill предпочитал victoria, но Ollama thinking-модель писала в `thinking`, `response=""`, `done_reason=length` → fallback на phi → `band_high=0`. Даже при живом ответе quality gate max≈0.75 → high (≥0.8) был недостижим.
+
+### Решение
+
+1. Distiller: `think: false` для victoria/qwen3; `num_predict` env; salvage JSON из `thinking`.
+2. Промпт: JSON-only + длины под quality gate (≥90 / ≥25).
+3. `full_signal_bonus` +0.10 → high band достижим честно.
+4. Tests: `test_distill_teacher_ollama_extract.py`.
+
+### Evidence
+
+- Unit: extract / think flag / high-band gate.
+- Smoke: `teacher=victoria…`, `band=high conf=0.85`, `band_high≥2`.
+
+### Guardrails
+
+- Порог high=0.8 не снижали; phi fallback остаётся; batch priority ограничен.
 
 ---
 
