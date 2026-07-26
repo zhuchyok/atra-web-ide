@@ -877,6 +877,62 @@ def render_data_health():
                     "Цель eligible ≥ **80%**. Raw % намеренно ниже — junk не индексируем (KISS / quality-over-quantity)."
                 )
 
+            # Distillation depth KPI (coverage ≠ quality)
+            distill_stats = fetch_data(
+                """
+                SELECT
+                    COUNT(*) FILTER (WHERE metadata->>'distilled' = 'true') AS distilled,
+                    COUNT(*) FILTER (
+                        WHERE metadata->>'distillation_quality_band' = 'high'
+                    ) AS band_high,
+                    COUNT(*) FILTER (
+                        WHERE metadata->>'distillation_quality_band' = 'medium'
+                    ) AS band_medium,
+                    COUNT(*) FILTER (
+                        WHERE metadata->>'distillation_quality_band' = 'low'
+                    ) AS band_low,
+                    ROUND(
+                        AVG(
+                            NULLIF(metadata->>'distill_confidence', '')::float
+                        )::numeric,
+                        3
+                    ) AS avg_distill_conf,
+                    COUNT(*) FILTER (
+                        WHERE metadata->>'type' IN (
+                            'mentorship_note', 'sop_document', 'expert_council_debate',
+                            'distilled_wisdom', 'meta_wisdom', 'board_directive'
+                        )
+                    ) AS wisdom_n,
+                    COUNT(*) FILTER (
+                        WHERE metadata->>'type' IN (
+                            'mentorship_note', 'sop_document', 'expert_council_debate',
+                            'distilled_wisdom', 'meta_wisdom', 'board_directive'
+                        )
+                        AND metadata->>'distillation_quality_band' = 'high'
+                    ) AS wisdom_high
+                FROM knowledge_nodes
+                """
+            )
+            if distill_stats and distill_stats[0]:
+                ds = distill_stats[0]
+                d_high = int(ds.get("band_high") or 0)
+                d_med = int(ds.get("band_medium") or 0)
+                d_low = int(ds.get("band_low") or 0)
+                d_avg = ds.get("avg_distill_conf")
+                wisdom_n = int(ds.get("wisdom_n") or 0)
+                wisdom_high = int(ds.get("wisdom_high") or 0)
+                st.markdown("### ⚗️ Дистилляция: coverage vs depth")
+                dc1, dc2, dc3, dc4 = st.columns(4)
+                dc1.metric("Distilled", f"{int(ds.get('distilled') or 0):,}")
+                dc2.metric("Band high", f"{d_high:,}")
+                dc3.metric("Band medium", f"{d_med:,}")
+                dc4.metric("Avg distill conf", f"{d_avg if d_avg is not None else '—'}")
+                st.caption(
+                    f"Depth KPI: wisdom high **{wisdom_high}** / {wisdom_n} "
+                    f"(цель ≥5% high на wisdom). "
+                    f"Low band: {d_low:,}. Coverage почти 100% ≠ качество — смотрите **high**."
+                )
+
             # Goal: 100k semantic links — always all-time
             goal_links = 100_000
             st.markdown(f"### 🏆 Путь к Neural Graph ({goal_links // 1000}k связей)")

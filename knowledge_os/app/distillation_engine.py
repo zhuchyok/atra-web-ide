@@ -17,11 +17,25 @@ logger = logging.getLogger(__name__)
 
 DB_URL = os.getenv(
     "POSTGRES_DIRECT_URL",
-    os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"),
+    os.getenv(
+        "DATABASE_URL",
+        "postgresql://admin:secret@localhost:6432/knowledge_os",  # pragma: allowlist secret
+    ),
 )
 DEFAULT_DISTILLATION_BATCH_SIZE = 40
 MAX_DISTILL_RETRIES = int(os.getenv("DISTILL_MAX_RETRIES", "3"))
 RETRY_BASE_SECONDS = int(os.getenv("DISTILL_RETRY_BASE_SECONDS", "300"))
+
+# Depth pass: re-distill elite medium/low wisdom with a stronger teacher (small batches).
+PRIORITY_REDISTILL_TYPES = (
+    "mentorship_note",
+    "sop_document",
+    "expert_council_debate",
+    "distilled_wisdom",
+    "meta_wisdom",
+    "board_directive",
+    "board_consult",
+)
 
 
 class KnowledgeDistiller:
@@ -36,6 +50,8 @@ class KnowledgeDistiller:
             "yes",
             "on",
         )
+        # Last model that actually returned non-empty text (primary or fallback).
+        self.last_teacher_used: str | None = None
 
     def _ollama_response_format(self):
         """Return Ollama response format: strict schema or plain json."""
@@ -204,7 +220,39 @@ class KnowledgeDistiller:
                     },
                 )
                 if response.status_code == 200:
-                    return response.json().get("response", "")
+                    text = (response.json() or {}).get("response", "") or ""
+                    if str(text).strip():
+                        self.last_teacher_used = self.teacher_model
+                        return text
+                    # Empty 200 (e.g. large model stall) — try fallback once.
+                    if self.teacher_model != self.teacher_fallback_model:
+                        logger.warning(
+                            "⚠️ [OLLAMA-DIRECT] Empty response from %s, fallback to %s",
+                            self.teacher_model,
+                            self.teacher_fallback_model,
+                        )
+                        fallback_resp = await client.post(
+                            url,
+                            json={
+                                "model": self.teacher_fallback_model,
+                                "prompt": prompt,
+                                "stream": False,
+                                "format": self._ollama_response_format(),
+                                "options": {"temperature": 0.1, "num_predict": 512},
+                            },
+                        )
+                        if fallback_resp.status_code == 200:
+                            fb_text = (fallback_resp.json() or {}).get("response", "") or ""
+                            if str(fb_text).strip():
+                                self.last_teacher_used = self.teacher_fallback_model
+                            return fb_text
+                        logger.error(
+                            "❌ [OLLAMA-DIRECT] Fallback error %s: %s",
+                            fallback_resp.status_code,
+                            fallback_resp.text[:200],
+                        )
+                        return ""
+                    return ""
                 if (
                     response.status_code == 404
                     and self.teacher_model != self.teacher_fallback_model
@@ -223,7 +271,10 @@ class KnowledgeDistiller:
                         },
                     )
                     if fallback_resp.status_code == 200:
-                        return fallback_resp.json().get("response", "")
+                        fb_text = fallback_resp.json().get("response", "") or ""
+                        if str(fb_text).strip():
+                            self.last_teacher_used = self.teacher_fallback_model
+                        return fb_text
                     logger.error(
                         f"❌ [OLLAMA-DIRECT] Fallback error {fallback_resp.status_code}: {fallback_resp.text}"
                     )
@@ -912,6 +963,142 @@ class KnowledgeDistiller:
             except Exception:
                 pass
             logger.error(f"❌ [DISTILLATION] Quantum Leap error: {e}")
+
+    async def redistill_priority_batch(self, limit: int = 5) -> dict:
+        """
+        Careful depth pass: re-distill a few priority wisdom nodes with a stronger teacher.
+        Does not touch the 80k bulk corpus. Skips Unknown Expert junk content.
+        """
+        limit = max(1, min(int(limit), 25))
+        priority_teacher = os.getenv(
+            "DISTILL_PRIORITY_TEACHER_MODEL",
+            "victoria-wisdom-v3.5:latest",
+        )
+        stats = {"updated": 0, "failed": 0, "candidates": 0, "teacher": priority_teacher}
+        old_teacher = self.teacher_model
+        old_fallback = self.teacher_fallback_model
+        self.teacher_model = priority_teacher
+        self.teacher_fallback_model = os.getenv(
+            "DISTILL_PRIORITY_TEACHER_FALLBACK",
+            old_teacher or "phi3.5:3.8b",
+        )
+        conn = await asyncpg.connect(DB_URL)
+        try:
+            rows = await conn.fetch(
+                """
+                SELECT id::text AS id, content, metadata::text AS metadata_str
+                FROM knowledge_nodes
+                WHERE metadata->>'type' = ANY($1::text[])
+                  AND COALESCE(metadata->>'distillation_quality_band', 'medium')
+                      IN ('medium', 'low', '')
+                  AND COALESCE(metadata->>'redistill_priority_done', '') <> 'true'
+                  AND content NOT ILIKE '%%Unknown Expert%%'
+                  AND length(trim(content)) >= 40
+                ORDER BY
+                    CASE metadata->>'type'
+                        WHEN 'mentorship_note' THEN 1
+                        WHEN 'sop_document' THEN 2
+                        WHEN 'expert_council_debate' THEN 3
+                        WHEN 'board_directive' THEN 4
+                        WHEN 'distilled_wisdom' THEN 5
+                        ELSE 9
+                    END,
+                    COALESCE((metadata->>'distill_confidence')::float, 0) ASC,
+                    created_at DESC
+                LIMIT $2
+                """,
+                list(PRIORITY_REDISTILL_TYPES),
+                limit,
+            )
+            stats["candidates"] = len(rows)
+            if not rows:
+                logger.info("⚗️ [REDISTILL] No priority candidates")
+                return stats
+
+            for row in rows:
+                node_id = row["id"]
+                content = row["content"] or ""
+                try:
+                    wisdom = await self._distill_single_node(node_id, content)
+                    if not wisdom or wisdom.get("_error"):
+                        stats["failed"] += 1
+                        continue
+                    wisdom_summary = self._as_text(wisdom.get("wisdom_summary")) or self._as_text(
+                        wisdom.get("summary")
+                    )
+                    instruction = self._as_text(wisdom.get("instruction")) or self._as_text(
+                        wisdom.get("action")
+                    )
+                    category = (
+                        self._as_text(wisdom.get("category"))
+                        or self._as_text(wisdom.get("topic"))
+                        or "strategy"
+                    )
+                    if not wisdom_summary:
+                        stats["failed"] += 1
+                        continue
+                    quality_confidence, verification_reason = self._compute_quality_gate(
+                        wisdom_summary, instruction, category, wisdom
+                    )
+                    try:
+                        old_metadata = json.loads(row["metadata_str"] or "{}")
+                    except Exception:
+                        old_metadata = {}
+                    structured = self._compose_structured_metadata(
+                        old_metadata=old_metadata,
+                        content=content,
+                        wisdom_summary=wisdom_summary,
+                        instruction=instruction or "",
+                        category=category,
+                        quality_confidence=quality_confidence,
+                    )
+                    used_teacher = self.last_teacher_used or self.teacher_model
+                    patch = {
+                        "distilled": "true",
+                        "distilled_at": datetime.now().isoformat(),
+                        "wisdom_summary": wisdom_summary,
+                        "instruction": instruction,
+                        "distilled_by": used_teacher,
+                        "category": category,
+                        "distill_status": "done",
+                        "distill_confidence": quality_confidence,
+                        "verification_reason": verification_reason,
+                        "redistill_priority_done": "true",
+                        "redistilled_at": datetime.now().isoformat(),
+                        "redistill_teacher": used_teacher,
+                        "redistill_teacher_preferred": self.teacher_model,
+                        "redistill_prev_band": old_metadata.get("distillation_quality_band"),
+                        "redistill_prev_conf": old_metadata.get("distill_confidence"),
+                    }
+                    patch.update(structured)
+                    await conn.execute(
+                        """
+                        UPDATE knowledge_nodes
+                        SET metadata = COALESCE(metadata, '{}'::jsonb) || $1::jsonb,
+                            confidence_score = $2
+                        WHERE id = $3::uuid
+                        """,
+                        json.dumps(patch),
+                        quality_confidence,
+                        node_id,
+                    )
+                    stats["updated"] += 1
+                    logger.info(
+                        "⚗️ [REDISTILL] %s band=%s conf=%.2f teacher=%s (preferred=%s)",
+                        node_id[:8],
+                        structured.get("distillation_quality_band"),
+                        quality_confidence,
+                        used_teacher,
+                        self.teacher_model,
+                    )
+                except Exception as exc:
+                    stats["failed"] += 1
+                    logger.warning("⚗️ [REDISTILL] node %s failed: %s", node_id[:8], exc)
+            return stats
+        finally:
+            self.teacher_model = old_teacher
+            self.teacher_fallback_model = old_fallback
+            await conn.close()
 
 
 if __name__ == "__main__":

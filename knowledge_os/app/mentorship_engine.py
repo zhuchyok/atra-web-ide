@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sys
 from datetime import datetime
 from typing import Any, Optional
@@ -56,6 +57,44 @@ def _heuristic_audit(title: str, expert_name: str) -> dict[str, Any]:
     }
 
 
+_DELEGATED_RE = re.compile(
+    r"Делегировано:\s*([^\n(]+)",
+    re.IGNORECASE,
+)
+
+
+def resolve_mentorship_expert_name(
+    *,
+    title: str | None,
+    metadata: dict[str, Any] | None,
+    assignee_name: str | None = None,
+) -> str | None:
+    """
+    Resolve real expert for mentorship notes.
+    Returns None when we would otherwise write «Unknown Expert» junk into KB.
+    """
+    meta = metadata or {}
+    candidates = [
+        (assignee_name or "").strip(),
+        str(meta.get("assignee_hint") or "").strip(),
+        str(meta.get("expert_name") or "").strip(),
+        str(meta.get("target_expert") or "").strip(),
+    ]
+    m = _DELEGATED_RE.search(title or "")
+    if m:
+        candidates.insert(0, m.group(1).strip())
+    for name in candidates:
+        if not name:
+            continue
+        low = name.lower()
+        if low in {"unknown expert", "не назначен", "n/a", "none", "null"}:
+            continue
+        if name.startswith("🤖"):
+            continue
+        return name
+    return None
+
+
 def _parse_audit_json(raw: str) -> Optional[dict[str, Any]]:
     if not raw:
         return None
@@ -92,11 +131,16 @@ class MentorshipEngine:
             # We look for tasks in the 'tasks' table or interaction_logs
             tasks = await conn.fetch(
                 """
-                SELECT id, title, description, metadata, updated_at
-                FROM tasks
-                WHERE status = 'completed'
-                  AND (metadata->>'audited_by_victoria' IS NULL OR metadata->>'audited_by_victoria' = 'false')
-                ORDER BY updated_at DESC
+                SELECT t.id, t.title, t.description, t.metadata, t.updated_at,
+                       e.name AS assignee_name
+                FROM tasks t
+                LEFT JOIN experts e ON e.id = t.assignee_expert_id
+                WHERE t.status = 'completed'
+                  AND (
+                    t.metadata->>'audited_by_victoria' IS NULL
+                    OR t.metadata->>'audited_by_victoria' = 'false'
+                  )
+                ORDER BY t.updated_at DESC
                 LIMIT $1
             """,
                 limit,
@@ -164,13 +208,33 @@ class MentorshipEngine:
         description = task["description"]
         metadata = _metadata_as_dict(task["metadata"])
 
-        # Identify the expert who performed the task
-        expert_name = (
-            metadata.get("assignee_hint")
-            or metadata.get("expert_name")
-            or metadata.get("target_expert")
-            or "Unknown Expert"
+        assignee_name = None
+        try:
+            assignee_name = task["assignee_name"]
+        except (KeyError, IndexError, TypeError):
+            assignee_name = None
+        expert_name = resolve_mentorship_expert_name(
+            title=title,
+            metadata=metadata,
+            assignee_name=assignee_name,
         )
+
+        if not expert_name:
+            # Do not pollute Mentorship KB with «Unknown Expert» notes.
+            metadata["audited_by_victoria"] = "skipped_unknown_expert"
+            metadata["audit_skip_reason"] = "unresolved_expert"
+            await conn.execute(
+                """
+                UPDATE tasks SET metadata = $1::jsonb, updated_at = NOW() WHERE id = $2
+                """,
+                json.dumps(metadata),
+                task_id,
+            )
+            logger.info(
+                "⏭️ [AUDIT] Skip task %s — expert unresolved (avoid Unknown Expert junk)",
+                task_id,
+            )
+            return
 
         logger.info(f"🔍 [AUDIT] Reviewing task: {title} (Expert: {expert_name})")
 

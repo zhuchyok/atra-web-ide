@@ -384,12 +384,46 @@ async def run_continuous_embedding_backfill() -> None:
         await asyncio.sleep(interval)
 
 
+async def run_continuous_priority_redistill() -> None:
+    """Small depth pass: re-distill elite wisdom with stronger teacher (bounded)."""
+    interval = max(300, int(os.getenv("REDISTILL_PRIORITY_INTERVAL_SEC", "900")))
+    batch = max(1, min(int(os.getenv("REDISTILL_PRIORITY_BATCH", "3")), 10))
+    enabled = os.getenv("REDISTILL_PRIORITY_ENABLED", "true").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    logger.info(
+        "⚗️ [NIGHTLY] Priority re-distill started (enabled=%s batch=%s interval=%ss)",
+        enabled,
+        batch,
+        interval,
+    )
+    while True:
+        if enabled:
+            try:
+                from distillation_engine import KnowledgeDistiller
+
+                stats = await KnowledgeDistiller().redistill_priority_batch(limit=batch)
+                logger.info(
+                    "⚗️ [NIGHTLY] Priority re-distill: updated=%s failed=%s candidates=%s teacher=%s",
+                    stats.get("updated"),
+                    stats.get("failed"),
+                    stats.get("candidates"),
+                    stats.get("teacher"),
+                )
+            except Exception as exc:
+                logger.warning("⚗️ [NIGHTLY] Priority re-distill failed: %s", exc)
+        await asyncio.sleep(interval)
+
+
 async def main_loop() -> None:
     """Run nightly cycle periodically with continuous distillation in background."""
     distill_task = asyncio.create_task(run_continuous_distillation())
     embed_task = asyncio.create_task(run_continuous_embedding_backfill())
-    logger.info("🌙 [NIGHTLY] Distillation + embedding backfill running as background tasks")
-    _ = (distill_task, embed_task)
+    redistill_task = asyncio.create_task(run_continuous_priority_redistill())
+    logger.info("🌙 [NIGHTLY] Distillation + embedding backfill + priority re-distill running")
+    _ = (distill_task, embed_task, redistill_task)
 
     while True:
         await run_nightly_cycle()

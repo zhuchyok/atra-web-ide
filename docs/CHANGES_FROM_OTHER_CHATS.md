@@ -20,6 +20,15 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-26 v121) — Knowledge depth pass ✅
+
+- Health: coverage vs depth KPI (bands / avg conf).
+- Mentorship/SOP upstream: skip Unknown Expert + junk «Делегировано» titles.
+- Priority re-distill (bounded) + empty-teacher fallback; smoke script.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v121.
+
+---
+
 ## § Последние изменения (2026-07-26 v120) — Tasks twin feed fix ✅
 
 - orchestration_tracking больше не COMPLETED-близнец; скрыт в UI.

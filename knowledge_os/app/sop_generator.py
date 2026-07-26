@@ -7,6 +7,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from datetime import datetime
 from typing import Any
 
@@ -39,6 +40,38 @@ def _metadata_as_dict(metadata: Any) -> dict[str, Any]:
         except (json.JSONDecodeError, TypeError):
             return {}
     return {}
+
+
+_DELEGATED_TITLE_RE = re.compile(r"^\s*🤖?\s*Делегировано:", re.IGNORECASE)
+
+
+def resolve_sop_process_title(
+    *,
+    title: str | None,
+    description: str | None,
+    metadata: dict[str, Any] | None,
+) -> str | None:
+    """
+    Prefer human process name over monster titles like «Делегировано: X».
+    Returns None when we should skip SOP generation (junk title, no parent goal).
+    """
+    meta = metadata or {}
+    parent = str(meta.get("parent_goal") or "").strip()
+    if parent and len(parent) >= 12:
+        return parent[:160]
+    desc = (description or "").strip()
+    # Monster prompt often embeds the real goal after "Задача от Team Lead"
+    for marker in ("Задача от Team Lead Victoria:", "USER REQUEST:", "Цель:"):
+        if marker in desc:
+            chunk = desc.split(marker, 1)[1].strip().split("\n", 1)[0].strip()
+            if len(chunk) >= 12 and not _DELEGATED_TITLE_RE.match(chunk):
+                return chunk[:160]
+    t = (title or "").strip()
+    if t and not _DELEGATED_TITLE_RE.match(t) and not t.startswith("🤖"):
+        return t[:160]
+    if desc and len(desc) >= 20 and not _DELEGATED_TITLE_RE.match(desc):
+        return desc.split("\n", 1)[0].strip()[:160]
+    return None
 
 
 def _fallback_sop(title: str, description: str, metadata: dict[str, Any]) -> str:
@@ -158,14 +191,34 @@ class SOPGenerator:
         description = task["description"]
         metadata = _metadata_as_dict(task["metadata"])
 
-        logger.info(f"📝 [SOP] Generating SOP for: {title}")
+        process_title = resolve_sop_process_title(
+            title=title, description=description, metadata=metadata
+        )
+        if not process_title:
+            metadata["sop_generated"] = "skipped_junk_title"
+            metadata["sop_skip_reason"] = "delegated_title_without_goal"
+            await conn.execute(
+                """
+                UPDATE tasks SET metadata = $1::jsonb, updated_at = NOW() WHERE id = $2
+                """,
+                json.dumps(metadata),
+                task_id,
+            )
+            logger.info(
+                "⏭️ [SOP] Skip task %s — junk delegated title without parent_goal",
+                task_id,
+            )
+            return
+
+        logger.info(f"📝 [SOP] Generating SOP for: {process_title}")
 
         # 2. Prepare the SOP prompt
         sop_prompt = f"""
         ТЫ - ВИКТОРИЯ, ГЛАВНЫЙ АРХИТЕКТОР ПРОЦЕССОВ (LEVEL 20 WISDOM).
         ЗАДАЧА: Создать Standard Operating Procedure (SOP) на основе успешно выполненной сложной задачи.
 
-        НАЗВАНИЕ ЗАДАЧИ: {title}
+        НАЗВАНИЕ ПРОЦЕССА: {process_title}
+        ИСХОДНЫЙ TITLE ЗАДАЧИ: {title}
         ОПИСАНИЕ: {description}
         ДЕТАЛИ ВЫПОЛНЕНИЯ: {json.dumps(metadata, indent=2, ensure_ascii=False)[:2500]}
 
@@ -181,7 +234,7 @@ class SOPGenerator:
         """
 
         sop_content = await self._generate_sop_text(
-            sop_prompt, title or "", description or "", metadata
+            sop_prompt, process_title, description or "", metadata
         )
 
         if not sop_content:
@@ -204,13 +257,16 @@ class SOPGenerator:
                 )
 
             content_kn = (
-                f"📜 NEW SOP: {title}\nFile: docs/SOP/{filename}\n\nSummary: {sop_content[:500]}..."
+                f"📜 NEW SOP: {process_title}\n"
+                f"File: docs/SOP/{filename}\n\nSummary: {sop_content[:500]}..."
             )
             meta_kn = json.dumps(
                 {
                     "type": "sop_document",
                     "task_id": str(task_id),
                     "file_path": f"docs/SOP/{filename}",
+                    "process_title": process_title,
+                    "source_task_title": title,
                 }
             )
 

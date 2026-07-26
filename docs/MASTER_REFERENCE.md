@@ -32,8 +32,34 @@
 
 **Дата последнего обновления:** 2026-07-26
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; task feed twin-fix (v120)
+**Состояние:** Стабильное; knowledge depth pass (v121)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-26 v121) — Knowledge depth: KPI + upstream + priority re-distill ✅
+
+### Диагноз
+
+Coverage дистилляции ~99.8%, очередь `eligible_now≈4` — drained. Depth слабый: `band_high=0`, avg conf ~0.73, teacher почти весь `phi3.5`. Upstream wisdom: mentorship «Unknown Expert», SOP titles «Делегировано: …».
+
+### Решение (depth over coverage)
+
+1. Health: блок **«Дистилляция: coverage vs depth»** (bands, avg conf, wisdom high).
+2. Upstream: `resolve_mentorship_expert_name` / `resolve_sop_process_title` — skip Unknown Expert + junk delegated titles.
+3. `KnowledgeDistiller.redistill_priority_batch` + nightly loop (batch≤3 / 900s): mentorship/SOP/council/board only; `redistill_priority_done`.
+4. Empty-200 teacher → fallback; metadata пишет _used_ teacher (`redistill_teacher`) + preferred.
+5. Smoke: `knowledge_os/scripts/redistill_priority_smoke.py`.
+
+### Evidence
+
+- Unit: `test_wisdom_upstream_quality.py` (6 passed).
+- Smoke: updated≥1; empty victoria → phi fallback; `prio_done` grows.
+- Ops: `knowledge_nightly` log `Priority re-distill started`.
+
+### Guardrails
+
+- Не turbo-distill при empty queue; не mass-verify; не re-distill 80k corpus.
 
 ---
 
