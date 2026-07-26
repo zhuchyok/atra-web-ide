@@ -20,6 +20,13 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-27 v123) — Local-first evolver (no Cursor CLI) ✅
+
+- `victoria_local_agent` + evolver без `/root/.local/bin/cursor-agent`; SQL metadata patch type-safe.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v123.
+
+---
+
 ## § Последние изменения (2026-07-27 v122) — Strong teacher path ✅
 
 - Ollama `think:false` + salvage from `thinking`; prompt length nudge; full_signal_bonus → `band_high` reachable.

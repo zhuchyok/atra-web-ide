@@ -32,8 +32,28 @@
 
 **Дата последнего обновления:** 2026-07-27
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; strong teacher path (v122)
+**Состояние:** Стабильное; local-first evolution (v123)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-27 v123) — Local-first: drop Cursor CLI from evolver ✅
+
+### Диагноз
+
+Корпорация не требует Cursor CLI. `run_cursor_agent` в оркестраторе уже был алиасом на Victoria, но `expert_evolver` / `enhanced_expert_evolver` звали `/root/.local/bin/cursor-agent` → ERROR в Docker. Параллельно UPDATE experts с `jsonb_build_object(..., $3, $4)` давал `could not determine data type of parameter $3`.
+
+### Решение
+
+1. `victoria_local_agent.py` — local-only (router / ai_core), без бинаря Cursor.
+2. Evolver mutation → `prefer_router=True` + `EVOLUTION_LOCAL_MODEL` (default phi3.5).
+3. SQL evolve/specialize/insights → `metadata || $n::jsonb` с явным JSON patch.
+
+### Evidence
+
+- Unit: `test_victoria_local_agent.py`.
+- Smoke: `generate_local … LOCAL_OK`; SQL patch on expert Alex OK.
+- Guardrail: Cursor CLI не ставится в контейнеры.
 
 ---
 

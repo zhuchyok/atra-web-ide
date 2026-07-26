@@ -2,7 +2,6 @@ import argparse
 import asyncio
 import json
 import os
-import subprocess
 from datetime import datetime
 from typing import Optional
 
@@ -31,36 +30,36 @@ def _get_local_router_singleton():
 
 
 def run_cursor_agent(prompt: str):
+    """Legacy name: local-first Victoria (Cursor CLI binary is never called)."""
+    from victoria_local_agent import generate_local_sync
+
+    return generate_local_sync(prompt, category="reasoning", expert_name="ExpertEvolver")
+
+
+async def run_local_mutation_agent(prompt: str, model: str = "qwen2.5-coder:14b"):
+    """
+    [SINGULARITY 14.0] Mutation generation using local model (no Cursor CLI).
+    """
     try:
-        env = os.environ.copy()
-        result = subprocess.run(
-            ["/root/.local/bin/cursor-agent", "--print", prompt],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=400,
-            env=env,
+        from victoria_local_agent import generate_local
+
+        out = await generate_local(
+            prompt,
+            category="reasoning",
+            expert_name="ExpertEvolver",
+            prefer_router=True,
+            model_hint=model,
         )
-        return result.stdout.strip()
-    except Exception as e:
-        print(f"Evolution Agent error: {e}")
-        return None
-
-
-async def run_local_mutation_agent(prompt: str, model: str = "qwen2.5-coder:32b"):
-    """
-    [SINGULARITY 14.0] Mutation generation using local model.
-    """
-    try:
+        if out:
+            return out
         router = _get_local_router_singleton()
-        # Используем reasoning категорию для качественной мутации
         result = await router.run_local_llm(prompt, category="reasoning", model_hint=model)
         if isinstance(result, tuple):
             return result[0]
         return result
     except Exception as e:
         print(f"Local Mutation Agent error: {e}")
-        return run_cursor_agent(prompt)  # Fallback to cloud
+        return None
 
 
 async def evolve_experts(expert_name: Optional[str] = None):

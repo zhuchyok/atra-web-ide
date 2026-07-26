@@ -14,15 +14,9 @@ import hashlib
 import json
 import logging
 import os
-import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import (  # noqa: F401 - Optional used in evolve_expert_from_insights
-    Dict,
-    List,
-    Optional,
-    Tuple,
-)
+from typing import Optional
 
 import asyncpg
 
@@ -79,38 +73,23 @@ class ExpertMetrics:
 
 
 def run_cursor_agent(prompt: str) -> Optional[str]:
-    """Запуск Cursor Agent для генерации контента"""
-    try:
-        env = os.environ.copy()
-        result = subprocess.run(
-            ["/root/.local/bin/cursor-agent", "--print", prompt],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=400,
-            env=env,
-        )
-        return result.stdout.strip()
-    except Exception as e:
-        logger.error(f"Cursor Agent error: {e}")
-        return None
+    """Legacy name: local-first Victoria (Cursor CLI binary is never called)."""
+    from victoria_local_agent import generate_local_sync
+
+    return generate_local_sync(prompt, category="reasoning", expert_name="ExpertEvolver")
 
 
 async def run_mutation_agent(prompt: str) -> Optional[str]:
-    """Try cursor-agent first, then fallback to local router model."""
-    result = run_cursor_agent(prompt)
-    if result:
-        return result
+    """Local-first mutation generation (direct router; no Cursor CLI)."""
+    from victoria_local_agent import generate_local
 
-    try:
-        from local_router import LocalAIRouter
-
-        router = LocalAIRouter()
-        local_result = await router.run_local_llm(prompt, category="reasoning")
-        return local_result[0] if isinstance(local_result, tuple) else local_result
-    except Exception as e:
-        logger.error("Local mutation fallback error: %s", e)
-        return None
+    return await generate_local(
+        prompt,
+        category="reasoning",
+        expert_name="ExpertEvolver",
+        prefer_router=True,
+        model_hint=os.getenv("EVOLUTION_LOCAL_MODEL", "phi3.5:3.8b"),
+    )
 
 
 class ExpertMetricsCollector:
@@ -275,7 +254,7 @@ class ExpertMetricsCollector:
             logger.error(f"Error collecting metrics for expert {expert_id}: {e}")
             return None
 
-    async def get_all_experts_metrics(self) -> List[ExpertMetrics]:
+    async def get_all_experts_metrics(self) -> list[ExpertMetrics]:
         """Сбор метрик для всех экспертов"""
         try:
             conn = await asyncpg.connect(self.db_url)
@@ -310,7 +289,7 @@ class ExpertEvolver:
         mutated_prompt: str,
         base_version: int,
         source: str,
-        metrics: Optional[Dict] = None,
+        metrics: Optional[dict] = None,
         status: str = "promoted",
     ) -> None:
         """Persist mutation event for dashboard/status tracking."""
@@ -433,30 +412,31 @@ class ExpertEvolver:
                         )
                         return True
 
+                    meta_patch = json.dumps(
+                        {
+                            "last_evolution": datetime.now().isoformat(),
+                            "prev_prompt": expert["system_prompt"],
+                            "evolution_metrics": {
+                                "success_rate": metrics.success_rate,
+                                "response_time": metrics.response_time_avg,
+                                "knowledge_quality": metrics.knowledge_quality,
+                            },
+                        }
+                    )
                     await conn.execute(
                         """
                         UPDATE experts
                         SET system_prompt = $1,
                             version = $2,
-                            metadata = metadata || jsonb_build_object(
-                                'last_evolution', NOW(),
-                                'prev_prompt', $3,
-                                'evolution_metrics', $4
-                            )
-                        WHERE id = $5
+                            metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+                        WHERE id = $4::uuid
                     """,
                         new_prompt,
                         new_version,
-                        expert["system_prompt"],
-                        json.dumps(
-                            {
-                                "success_rate": metrics.success_rate,
-                                "response_time": metrics.response_time_avg,
-                                "knowledge_quality": metrics.knowledge_quality,
-                            }
-                        ),
+                        meta_patch,
                         expert_id,
                     )
+
                     await self._record_mutation_event(
                         conn=conn,
                         expert_id=expert_id,
@@ -586,22 +566,26 @@ class ExpertEvolver:
                     EVOLUTION_ROLLOUT_MODE,
                 )
                 return True
+            meta_patch = json.dumps(
+                {
+                    "last_evolution": datetime.now().isoformat(),
+                    "evolution_source": "insights_task",
+                    "evolution_task_id": str(task_id) if task_id is not None else "",
+                }
+            )
             await conn.execute(
                 """
                 UPDATE experts
                 SET system_prompt = $1, version = $2,
-                    metadata = metadata || jsonb_build_object(
-                        'last_evolution', NOW(),
-                        'evolution_source', 'insights_task',
-                        'evolution_task_id', $3::text
-                    )
-                WHERE id = $4
+                    metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+                WHERE id = $4::uuid
             """,
                 new_prompt.strip(),
                 new_version,
-                task_id,
+                meta_patch,
                 expert_id,
             )
+
             await self._record_mutation_event(
                 conn=conn,
                 expert_id=expert_id,
@@ -623,7 +607,7 @@ class ExpertEvolver:
             logger.warning("evolve_expert_from_insights failed for %s: %s", expert_id, e)
             return False
 
-    def _format_feedback_data(self, feedback_data: List) -> str:
+    def _format_feedback_data(self, feedback_data: list) -> str:
         """Форматирование данных feedback для промпта"""
         if not feedback_data:
             return "Активности не было, используйте общие тренды 2026."
@@ -638,7 +622,7 @@ class ExpertEvolver:
 
         return "\n\n".join(formatted)
 
-    async def remove_ineffective_experts(self, metrics_list: List[ExpertMetrics]) -> List[str]:
+    async def remove_ineffective_experts(self, metrics_list: list[ExpertMetrics]) -> list[str]:
         """Удаление неэффективных экспертов"""
         removed = []
 
@@ -759,20 +743,23 @@ class ExpertEvolver:
                 new_prompt = await run_mutation_agent(specialization_prompt)
 
                 if new_prompt and len(new_prompt) > 100:
+                    meta_patch = json.dumps(
+                        {
+                            "specialized_at": datetime.now().isoformat(),
+                            "specialization_domain": best_domain,
+                        }
+                    )
                     await conn.execute(
                         """
                         UPDATE experts
                         SET system_prompt = $1,
                             department = $2,
-                            metadata = metadata || jsonb_build_object(
-                                'specialized_at', NOW(),
-                                'specialization_domain', $3
-                            )
-                        WHERE id = $4
+                            metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+                        WHERE id = $4::uuid
                     """,
                         new_prompt,
                         best_domain,
-                        best_domain,
+                        meta_patch,
                         expert_id,
                     )
 
