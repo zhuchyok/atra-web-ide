@@ -77,10 +77,17 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
         echo "   ✅ Все контейнеры Knowledge OS запущены"
     fi
     # Явная проверка оркестратора и Nightly Learner (задачи и обучение)
+    # Guardrail: nightly может перегружать Ollama и мешать интерактивному чату Open WebUI.
+    # Включать только явным флагом ENABLE_NIGHTLY_AUTOSTART=true.
+    ENABLE_NIGHTLY_AUTOSTART=${ENABLE_NIGHTLY_AUTOSTART:-false}
     if ! docker ps --format '{{.Names}}' | grep -q '^knowledge_nightly$'; then
-        echo "   ⚠️  Nightly Learner не запущен — поднимаю..."
-        docker-compose -f knowledge_os/docker-compose.yml up -d knowledge_nightly 2>&1 | grep -v "level=warning" || true
-        sleep 3
+        if [ "$ENABLE_NIGHTLY_AUTOSTART" = "true" ]; then
+            echo "   ⚠️  Nightly Learner не запущен — поднимаю (ENABLE_NIGHTLY_AUTOSTART=true)..."
+            docker-compose -f knowledge_os/docker-compose.yml up -d knowledge_nightly 2>&1 | grep -v "level=warning" || true
+            sleep 3
+        else
+            echo "   ⏭️  Nightly Learner отключен автозапуском (ENABLE_NIGHTLY_AUTOSTART=false)"
+        fi
     fi
     if ! docker ps --format '{{.Names}}' | grep -q '^knowledge_os_orchestrator$'; then
         echo "   ⚠️  Orchestrator не запущен — поднимаю..."

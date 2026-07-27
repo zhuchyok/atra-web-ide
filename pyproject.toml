@@ -74,6 +74,15 @@ ignore = ["E501", "F401", "F841"]  # Line too long; unused imports/vars (CI: Ð¿Ð
 # Legacy typing / naming in large orchestrator modules
 "knowledge_os/app/orchestrator_phases.py" = ["UP006", "UP007", "UP035"]
 "knowledge_os/app/enhanced_orchestrator.py" = ["UP006", "UP007", "UP035", "N806"]
+"knowledge_os/app/smart_worker_autonomous.py" = [
+    "UP006",
+    "UP007",
+    "UP035",
+    "E402",
+    "E722",
+    "N806",
+    "E731",
+]
 "knowledge_os/app/meta_architect.py" = ["UP006", "UP007", "UP035"]
 # Bridge monolith: bare except / legacy typing (touched for tracking twin fix v120)
 "src/agents/bridge/victoria_server.py" = [

@@ -20,6 +20,14 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-28 v126) — Queue triage + work_item_timeout cap ✅
+
+- Root cause: `victoria_monster_delegation` после `work_item_timeout` уходил в `pending` без потолка (`attempt_count` до 1182).
+- Fix: `SMART_WORKER_WORK_ITEM_TIMEOUT_MAX_ATTEMPTS=3` → cancel + `failed_requires_intervention` / `work_item_timeout_manual_triage`.
+- Ops triage: 3 zombie in_progress + 8 failed + 1 stale curiosity → cancelled; очередь `pending=0 in_progress=0 failed=0`.
+- Guardrail: `scripts/check_and_start_containers.sh` не автостартует nightly без `ENABLE_NIGHTLY_AUTOSTART=true`.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v126.
+
 ## § Последние изменения (2026-07-28 v125) — Hybrid distill grounding ✅
 
 - Template + lexical + optional embed; reject ungrounded redistill (RAGAS-inspired).

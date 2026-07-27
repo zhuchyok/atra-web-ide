@@ -32,8 +32,28 @@
 
 **Дата последнего обновления:** 2026-07-28
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; tandem redistill+grounding live (v125.1)
+**Состояние:** Стабильное; tandem live + queue drained (v126)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-28 v126) — Work-item timeout cap + queue triage ✅
+
+### Диагноз
+
+Delegation-задачи (`victoria_monster_delegation`) при `work_item_timeout_420s` сбрасывались в `pending` без потолка → retry storm (`attempt_count` до 1182). Failed=8: LLM timeout на проверке `swarm_intelligence.py` + пустые tracking-only board shells.
+
+### Решение
+
+1. Cap `SMART_WORKER_WORK_ITEM_TIMEOUT_MAX_ATTEMPTS` (default 3) → `cancelled` + manual triage flags.
+2. Watchdog sweep тех же зомби.
+3. Ops cancel: 3 in_progress + 8 failed + 1 stale curiosity.
+4. Autostart nightly только с `ENABLE_NIGHTLY_AUTOSTART=true`.
+
+### Evidence
+
+- Queue: `pending=0 in_progress=0 failed=0`.
+- Tandem: `ENABLED=true GROUNDING=true`, nightly healthy.
 
 ---
 

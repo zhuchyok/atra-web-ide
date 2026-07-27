@@ -1826,6 +1826,10 @@ async def main():
         "SMART_WORKER_WATCHDOG_BACKGROUND_ENABLED", "false"
     ).lower() in ("true", "1", "yes")
     WORK_ITEM_TIMEOUT_SEC = int(os.getenv("SMART_WORKER_WORK_ITEM_TIMEOUT_SEC", "420"))
+    # Cap infinite retry loop for victoria_monster_delegation after work_item_timeout.
+    WORK_ITEM_TIMEOUT_MAX_ATTEMPTS = int(
+        os.getenv("SMART_WORKER_WORK_ITEM_TIMEOUT_MAX_ATTEMPTS", "3")
+    )
 
     async def _watchdog_cycle():
         async with pool.acquire() as conn:
@@ -2114,6 +2118,38 @@ async def main():
                 if n != "0":
                     print(
                         f"[{datetime.now()}] 🧭 [HARD CAP] Delegation moved to manual triage (cancelled): {n}"
+                    )
+
+            # Kill zombie delegation tasks stuck in work_item_timeout retry storms.
+            timeout_cap_result = await conn.execute(
+                """
+                UPDATE tasks
+                SET status = 'cancelled',
+                    updated_at = NOW(),
+                    retry_after = NULL,
+                    result = COALESCE(
+                        NULLIF(TRIM(result), ''),
+                        'Cancelled: work_item_timeout attempt cap exhausted (manual triage)'
+                    ),
+                    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                        'auto_fallback_reason', 'work_item_timeout_exhausted',
+                        'failed_requires_intervention', true,
+                        'diagnostic_path', 'work_item_timeout_manual_triage'
+                    )
+                WHERE status IN ('pending', 'in_progress')
+                  AND COALESCE(metadata->>'source', '') = 'victoria_monster_delegation'
+                  AND COALESCE(metadata->>'reset_reason', '') = 'work_item_timeout'
+                  AND COALESCE((metadata->>'attempt_count')::int, 0) >= $1::int
+                  AND COALESCE((metadata->>'failed_requires_intervention')::boolean, false) = false
+                """,
+                WORK_ITEM_TIMEOUT_MAX_ATTEMPTS,
+            )
+            if timeout_cap_result and timeout_cap_result.startswith("UPDATE"):
+                n = timeout_cap_result.split()[-1]
+                if n != "0":
+                    print(
+                        f"[{datetime.now()}] 🧭 [TIMEOUT CAP] Delegation cancelled after "
+                        f"work_item_timeout x{WORK_ITEM_TIMEOUT_MAX_ATTEMPTS}: {n}"
                     )
 
             if AUTO_REQUEUE_DELEGATION:
@@ -2747,32 +2783,74 @@ async def main():
                             print(
                                 f"[{datetime.now()}] ⏱️ Work item timeout ({WORK_ITEM_TIMEOUT_SEC}s). ids={','.join(ids)}"
                             )
-                            timeout_meta = json.dumps(
-                                {
-                                    "last_attempt_failed": True,
-                                    "last_error": f"work_item_timeout_{WORK_ITEM_TIMEOUT_SEC}s",
-                                    "reset_reason": "work_item_timeout",
-                                }
-                            )
+                            timeout_meta = {
+                                "last_attempt_failed": True,
+                                "last_error": f"work_item_timeout_{WORK_ITEM_TIMEOUT_SEC}s",
+                                "reset_reason": "work_item_timeout",
+                            }
                             async with pool.acquire() as conn:
                                 for task_id in ids:
-                                    await conn.execute(
+                                    row = await conn.fetchrow(
                                         """
                                         UPDATE tasks
-                                        SET status = 'pending',
+                                        SET
+                                            status = CASE
+                                                WHEN COALESCE(metadata->>'source', '') = 'victoria_monster_delegation'
+                                                 AND COALESCE((metadata->>'attempt_count')::int, 0) + 1
+                                                     >= $3::int
+                                                THEN 'cancelled'
+                                                ELSE 'pending'
+                                            END,
+                                            retry_after = CASE
+                                                WHEN COALESCE(metadata->>'source', '') = 'victoria_monster_delegation'
+                                                 AND COALESCE((metadata->>'attempt_count')::int, 0) + 1
+                                                     >= $3::int
+                                                THEN NULL
+                                                ELSE retry_after
+                                            END,
+                                            result = CASE
+                                                WHEN COALESCE(metadata->>'source', '') = 'victoria_monster_delegation'
+                                                 AND COALESCE((metadata->>'attempt_count')::int, 0) + 1
+                                                     >= $3::int
+                                                THEN COALESCE(
+                                                    NULLIF(TRIM(result), ''),
+                                                    'Cancelled: work_item_timeout attempt cap exhausted (manual triage)'
+                                                )
+                                                ELSE result
+                                            END,
                                             updated_at = NOW(),
                                             metadata = jsonb_set(
-                                                COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
+                                                COALESCE(metadata, '{}'::jsonb) || $2::jsonb
+                                                || CASE
+                                                    WHEN COALESCE(metadata->>'source', '') = 'victoria_monster_delegation'
+                                                     AND COALESCE((metadata->>'attempt_count')::int, 0) + 1
+                                                         >= $3::int
+                                                    THEN jsonb_build_object(
+                                                        'auto_fallback_reason', 'work_item_timeout_exhausted',
+                                                        'failed_requires_intervention', true,
+                                                        'diagnostic_path', 'work_item_timeout_manual_triage'
+                                                    )
+                                                    ELSE '{}'::jsonb
+                                                END,
                                                 '{attempt_count}',
-                                                to_jsonb(COALESCE((metadata->>'attempt_count')::int, 0) + 1),
+                                                to_jsonb(
+                                                    COALESCE((metadata->>'attempt_count')::int, 0) + 1
+                                                ),
                                                 true
                                             )
                                         WHERE id = $1
                                           AND status = 'in_progress'
-                                    """,
+                                        RETURNING status, metadata->>'attempt_count' AS attempt_count
+                                        """,
                                         task_id,
-                                        timeout_meta,
+                                        json.dumps(timeout_meta),
+                                        WORK_ITEM_TIMEOUT_MAX_ATTEMPTS,
                                     )
+                                    if row and row["status"] == "cancelled":
+                                        print(
+                                            f"[{datetime.now()}] 🧭 [TIMEOUT CAP] id={task_id} "
+                                            f"cancelled after attempt={row['attempt_count']}"
+                                        )
 
                 await asyncio.gather(
                     *[process_work_item(w) for w in work_items], return_exceptions=True
