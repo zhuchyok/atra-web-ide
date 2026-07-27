@@ -53,3 +53,12 @@ def test_quality_gate_full_signal_can_reach_high_band():
     )
     assert score >= 0.8
     assert "full_signal_bonus" in reason
+
+
+def test_ollama_is_busy_detects_503_and_pending():
+    assert KnowledgeDistiller._ollama_is_busy(503, "")
+    assert KnowledgeDistiller._ollama_is_busy(
+        200, '{"error":"server busy, please try again. maximum pending requests exceeded"}'
+    )
+    assert not KnowledgeDistiller._ollama_is_busy(200, '{"response":"ok"}')
+    assert not KnowledgeDistiller._ollama_is_busy(404, "model not found")

@@ -32,8 +32,27 @@
 
 **Дата последнего обновления:** 2026-07-27
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; local-first evolution (v123)
+**Состояние:** Стабильное; Ollama-busy resilient redistill (v124)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-27 v124) — Priority re-distill: 503 backoff + light teacher ✅
+
+### Диагноз
+
+Днём `Priority re-distill: updated=0 failed=3` из‑за Ollama `503 maximum pending requests` (контеншн с workers/`qwen2.5-coder:14b`). Distiller на 503 сразу сдавался без fallback; compose временно выключал redistill (`ENABLED=false`).
+
+### Решение
+
+1. `_call_teacher_direct`: busy detect → backoff retries → fallback model.
+2. Node delay между кандидатами; default teacher `phi3.5:3.8b`.
+3. Compose: `ENABLED=true`, batch=1, interval=1800s, busy retries env.
+
+### Evidence
+
+- Unit: `_ollama_is_busy`.
+- Ops: `updated=1 failed=0 teacher=phi3.5`; `prio_done`/`band_high` снова растут.
 
 ---
 

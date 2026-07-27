@@ -77,6 +77,13 @@ class KnowledgeDistiller:
         return "qwen3" in lowered or "victoria-wisdom" in lowered
 
     @staticmethod
+    def _ollama_is_busy(status_code: int, body: str = "") -> bool:
+        if int(status_code or 0) == 503:
+            return True
+        s = (body or "").lower()
+        return "maximum pending" in s or "server busy" in s or "queue is full" in s
+
+    @staticmethod
     def _extract_ollama_generate_text(payload: dict | None) -> str:
         """Prefer `response`; if empty, salvage JSON from `thinking` (thinking-model trap)."""
         if not isinstance(payload, dict):
@@ -246,76 +253,75 @@ class KnowledgeDistiller:
                     return ""
 
         url = os.getenv("OLLAMA_API_URL", "http://host.docker.internal:11434") + "/api/generate"
-
         teacher_timeout = float(os.getenv("DISTILL_TEACHER_TIMEOUT_SEC", "180"))
+        busy_retries = max(0, min(int(os.getenv("DISTILL_OLLAMA_BUSY_RETRIES", "3")), 6))
+        busy_backoff = float(os.getenv("DISTILL_OLLAMA_BUSY_BACKOFF_SEC", "4"))
+
         try:
             async with httpx.AsyncClient(timeout=teacher_timeout) as client:
-                response = await client.post(
-                    url,
-                    json=self._ollama_generate_body(self.teacher_model, prompt),
-                )
-                if response.status_code == 200:
-                    payload = response.json() or {}
-                    text = self._extract_ollama_generate_text(payload)
-                    if str(text).strip():
-                        if (
-                            not (payload.get("response") or "").strip()
-                            and (payload.get("thinking") or "").strip()
-                        ):
-                            logger.info(
-                                "⚗️ [OLLAMA-DIRECT] Salvaged JSON from thinking (%s)",
-                                self.teacher_model,
-                            )
-                        self.last_teacher_used = self.teacher_model
-                        return text
-                    # Empty 200 (e.g. large model stall) — try fallback once.
-                    if self.teacher_model != self.teacher_fallback_model:
-                        logger.warning(
-                            "⚠️ [OLLAMA-DIRECT] Empty response from %s, fallback to %s",
-                            self.teacher_model,
-                            self.teacher_fallback_model,
-                        )
-                        fallback_resp = await client.post(
-                            url,
-                            json=self._ollama_generate_body(self.teacher_fallback_model, prompt),
-                        )
-                        if fallback_resp.status_code == 200:
-                            fb_text = self._extract_ollama_generate_text(fallback_resp.json() or {})
-                            if str(fb_text).strip():
-                                self.last_teacher_used = self.teacher_fallback_model
-                            return fb_text
-                        logger.error(
-                            "❌ [OLLAMA-DIRECT] Fallback error %s: %s",
-                            fallback_resp.status_code,
-                            fallback_resp.text[:200],
-                        )
-                        return ""
+
+                async def _post_model(model: str) -> tuple[int, dict, str]:
+                    resp = await client.post(url, json=self._ollama_generate_body(model, prompt))
+                    body = resp.text or ""
+                    payload: dict = {}
+                    if resp.status_code == 200:
+                        try:
+                            payload = resp.json() or {}
+                        except Exception:
+                            payload = {}
+                    return resp.status_code, payload, body
+
+                async def _try_model(model: str) -> str:
+                    for attempt in range(busy_retries + 1):
+                        status, payload, body = await _post_model(model)
+                        if status == 200:
+                            text = self._extract_ollama_generate_text(payload)
+                            if str(text).strip():
+                                if (
+                                    not (payload.get("response") or "").strip()
+                                    and (payload.get("thinking") or "").strip()
+                                ):
+                                    logger.info(
+                                        "⚗️ [OLLAMA-DIRECT] Salvaged JSON from thinking (%s)",
+                                        model,
+                                    )
+                                self.last_teacher_used = model
+                                return text
+                            # Empty 200 — no point retrying same model many times.
+                            break
+                        if self._ollama_is_busy(status, body):
+                            if attempt < busy_retries:
+                                delay = busy_backoff * (attempt + 1)
+                                logger.warning(
+                                    "⚠️ [OLLAMA-DIRECT] Busy (%s) on %s, retry in %.1fs (%s/%s)",
+                                    status,
+                                    model,
+                                    delay,
+                                    attempt + 1,
+                                    busy_retries,
+                                )
+                                await asyncio.sleep(delay)
+                                continue
+                            logger.warning("⚠️ [OLLAMA-DIRECT] Still busy after retries (%s)", model)
+                            break
+                        if status == 404:
+                            logger.warning("⚠️ [OLLAMA-DIRECT] Model missing: %s", model)
+                            break
+                        logger.error("❌ [OLLAMA-DIRECT] Error %s: %s", status, body[:200])
+                        break
                     return ""
-                if (
-                    response.status_code == 404
-                    and self.teacher_model != self.teacher_fallback_model
-                ):
+
+                text = await _try_model(self.teacher_model)
+                if text:
+                    return text
+                if self.teacher_model != self.teacher_fallback_model:
                     logger.warning(
-                        f"⚠️ [OLLAMA-DIRECT] Teacher model {self.teacher_model} missing, fallback to {self.teacher_fallback_model}"
+                        "⚠️ [OLLAMA-DIRECT] Falling back %s → %s",
+                        self.teacher_model,
+                        self.teacher_fallback_model,
                     )
-                    fallback_resp = await client.post(
-                        url,
-                        json=self._ollama_generate_body(self.teacher_fallback_model, prompt),
-                    )
-                    if fallback_resp.status_code == 200:
-                        fb_text = self._extract_ollama_generate_text(fallback_resp.json() or {})
-                        if str(fb_text).strip():
-                            self.last_teacher_used = self.teacher_fallback_model
-                        return fb_text
-                    logger.error(
-                        f"❌ [OLLAMA-DIRECT] Fallback error {fallback_resp.status_code}: {fallback_resp.text}"
-                    )
-                    return ""
-                else:
-                    logger.error(
-                        f"❌ [OLLAMA-DIRECT] Error {response.status_code}: {response.text}"
-                    )
-                    return ""
+                    return await _try_model(self.teacher_fallback_model)
+                return ""
         except Exception as e:
             logger.error(f"❌ [OLLAMA-DIRECT] Failed to call Ollama: {e}")
             return ""
@@ -1013,9 +1019,10 @@ class KnowledgeDistiller:
         Does not touch the 80k bulk corpus. Skips Unknown Expert junk content.
         """
         limit = max(1, min(int(limit), 25))
+        # Default phi under contention; override to victoria when Ollama is quiet.
         priority_teacher = os.getenv(
             "DISTILL_PRIORITY_TEACHER_MODEL",
-            "victoria-wisdom-v3.5:latest",
+            "phi3.5:3.8b",
         )
         stats = {"updated": 0, "failed": 0, "candidates": 0, "teacher": priority_teacher}
         old_teacher = self.teacher_model
@@ -1023,8 +1030,9 @@ class KnowledgeDistiller:
         self.teacher_model = priority_teacher
         self.teacher_fallback_model = os.getenv(
             "DISTILL_PRIORITY_TEACHER_FALLBACK",
-            old_teacher or "phi3.5:3.8b",
+            "phi3.5:3.8b-stable",
         )
+        node_delay = max(0.0, float(os.getenv("REDISTILL_PRIORITY_NODE_DELAY_SEC", "8")))
         conn = await asyncpg.connect(DB_URL)
         try:
             rows = await conn.fetch(
@@ -1058,7 +1066,9 @@ class KnowledgeDistiller:
                 logger.info("⚗️ [REDISTILL] No priority candidates")
                 return stats
 
-            for row in rows:
+            for idx, row in enumerate(rows):
+                if idx > 0 and node_delay > 0:
+                    await asyncio.sleep(node_delay)
                 node_id = row["id"]
                 content = row["content"] or ""
                 try:

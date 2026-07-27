@@ -386,8 +386,8 @@ async def run_continuous_embedding_backfill() -> None:
 
 async def run_continuous_priority_redistill() -> None:
     """Small depth pass: re-distill elite wisdom with stronger teacher (bounded)."""
-    interval = max(300, int(os.getenv("REDISTILL_PRIORITY_INTERVAL_SEC", "900")))
-    batch = max(1, min(int(os.getenv("REDISTILL_PRIORITY_BATCH", "3")), 10))
+    interval = max(300, int(os.getenv("REDISTILL_PRIORITY_INTERVAL_SEC", "1800")))
+    batch = max(1, min(int(os.getenv("REDISTILL_PRIORITY_BATCH", "1")), 10))
     enabled = os.getenv("REDISTILL_PRIORITY_ENABLED", "true").lower() in (
         "1",
         "true",

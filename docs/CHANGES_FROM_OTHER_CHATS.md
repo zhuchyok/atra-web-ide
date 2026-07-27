@@ -20,6 +20,13 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-27 v124) — Ollama-busy resilient redistill ✅
+
+- 503 backoff + light teacher; redistill re-enabled batch=1 / 1800s.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v124.
+
+---
+
 ## § Последние изменения (2026-07-27 v123) — Local-first evolver (no Cursor CLI) ✅
 
 - `victoria_local_agent` + evolver без `/root/.local/bin/cursor-agent`; SQL metadata patch type-safe.
