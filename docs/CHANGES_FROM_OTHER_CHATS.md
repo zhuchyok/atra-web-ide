@@ -24,7 +24,8 @@
 
 - Template + lexical + optional embed; reject ungrounded redistill (RAGAS-inspired).
 - Design: `docs/plans/2026-07-28-distill-grounding-hybrid-design.md`.
-- Полная фиксация: `docs/MASTER_REFERENCE.md` § v125.
+- Ops: nightly tandem ON (`ENABLED=true` + grounding); first live `accepted=1 ground=0.76`.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v125 / ops note.
 
 ---
 

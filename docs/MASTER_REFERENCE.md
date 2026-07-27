@@ -32,8 +32,16 @@
 
 **Дата последнего обновления:** 2026-07-28
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; hybrid distill grounding (v125)
+**Состояние:** Стабильное; tandem redistill+grounding live (v125.1)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Ops note (2026-07-28) — Tandem ON: redistill + grounding live ✅
+
+- `knowledge_nightly` recreated: `REDISTILL_PRIORITY_ENABLED=true`, `DISTILL_GROUNDING_ENABLED=true`, batch=1, skip-if-busy.
+- Compose default ENABLED restored to `true` (was false → loop silent).
+- Evidence: `Priority re-distill: updated=1 failed=0 ungrounded=0`, DB `accepted=1`, `ground=0.76`.
 
 ---
 
