@@ -1717,8 +1717,14 @@ async def process_task(task_data: dict):
                     try:
                         from strategic_board import consult_board
 
+                        goal_snip = str(
+                            task_data.get("description")
+                            or task_data.get("goal")
+                            or task_data.get("title")
+                            or task_id
+                        )[:100]
                         await consult_board(
-                            question=f"Задача приоритета {priority}: {goal[:100]}",
+                            question=f"Задача приоритета {priority}: {goal_snip}",
                             source="task_escalation",
                         )
                     except Exception as board_err:
@@ -2742,63 +2748,84 @@ async def worker_loop():
                                     "SELECT status, updated_at, last_llm_call_at FROM tasks WHERE id = $1",
                                     db_task_id,
                                 )
-                                if state:
-                                    task_status = state["status"]
-                                    if task_status in ("completed", "failed", "cancelled"):
-                                        await client.hdel(goals_key, tid)
+                                if not state:
+                                    # Ghost Redis goal: task row gone → infinite resume storm.
+                                    await client.hdel(goals_key, tid)
+                                    await client.delete(f"blackboard:heartbeat:{tid}")
+                                    try:
+                                        await client.srem(
+                                            f"blackboard:active_tasks:{expert_name}", tid
+                                        )
+                                    except Exception:
+                                        pass
+                                    logger.warning(
+                                        "🧹 [RESURRECTION] Removed ghost goal %s for %s (missing in DB)",
+                                        tid,
+                                        expert_name,
+                                    )
+                                    continue
+                                task_status = state["status"]
+                                if task_status in ("completed", "failed", "cancelled"):
+                                    await client.hdel(goals_key, tid)
+                                    await client.delete(f"blackboard:heartbeat:{tid}")
+                                    try:
+                                        await client.srem(
+                                            f"blackboard:active_tasks:{expert_name}", tid
+                                        )
+                                    except Exception:
+                                        pass
+                                    logger.info(
+                                        "🧹 [RESURRECTION] Removed terminal task goal %s (%s) for %s",
+                                        tid,
+                                        task_status,
+                                        expert_name,
+                                    )
+                                    continue
+                                progress_ts = state["last_llm_call_at"] or state["updated_at"]
+                                if task_status == "in_progress" and progress_ts is not None:
+                                    age_seconds = (
+                                        datetime.now(timezone.utc) - progress_ts
+                                    ).total_seconds()
+                                    if age_seconds > stale_progress_minutes * 60:
+                                        await conn.execute(
+                                            """
+                                            UPDATE tasks
+                                            SET status = 'pending',
+                                                assignee_expert_id = NULL,
+                                                updated_at = NOW(),
+                                                metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
+                                            WHERE id = $1
+                                              AND status = 'in_progress'
+                                            """,
+                                            db_task_id,
+                                            json.dumps(
+                                                {
+                                                    "worker_recovery_requeue": True,
+                                                    "worker_recovery_requeue_reason": "stale_no_progress",
+                                                    "worker_recovery_requeue_at": datetime.now(
+                                                        timezone.utc
+                                                    ).isoformat(),
+                                                    "worker_recovery_expert": expert_name,
+                                                }
+                                            ),
+                                        )
+                                        data["status"] = "bidding_open"
+                                        data["assignee"] = None
+                                        data["reclaimed_at"] = datetime.now(
+                                            timezone.utc
+                                        ).isoformat()
+                                        data["recovery_skip_reason"] = "stale_no_progress"
+                                        await client.hset(goals_key, tid, json.dumps(data))
                                         await client.delete(f"blackboard:heartbeat:{tid}")
-                                        logger.info(
-                                            "🧹 [RESURRECTION] Removed terminal task goal %s (%s) for %s",
+                                        logger.warning(
+                                            "♻️ [RESURRECTION] Requeued stale task %s after %.0fs without progress",
                                             tid,
-                                            task_status,
-                                            expert_name,
+                                            age_seconds,
                                         )
                                         continue
-                                    progress_ts = state["last_llm_call_at"] or state["updated_at"]
-                                    if task_status == "in_progress" and progress_ts is not None:
-                                        age_seconds = (
-                                            datetime.now(timezone.utc) - progress_ts
-                                        ).total_seconds()
-                                        if age_seconds > stale_progress_minutes * 60:
-                                            await conn.execute(
-                                                """
-                                                UPDATE tasks
-                                                SET status = 'pending',
-                                                    assignee_expert_id = NULL,
-                                                    updated_at = NOW(),
-                                                    metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
-                                                WHERE id = $1
-                                                  AND status = 'in_progress'
-                                                """,
-                                                db_task_id,
-                                                json.dumps(
-                                                    {
-                                                        "worker_recovery_requeue": True,
-                                                        "worker_recovery_requeue_reason": "stale_no_progress",
-                                                        "worker_recovery_requeue_at": datetime.now(
-                                                            timezone.utc
-                                                        ).isoformat(),
-                                                        "worker_recovery_expert": expert_name,
-                                                    }
-                                                ),
-                                            )
-                                            data["status"] = "bidding_open"
-                                            data["assignee"] = None
-                                            data["reclaimed_at"] = datetime.now(
-                                                timezone.utc
-                                            ).isoformat()
-                                            data["recovery_skip_reason"] = "stale_no_progress"
-                                            await client.hset(goals_key, tid, json.dumps(data))
-                                            await client.delete(f"blackboard:heartbeat:{tid}")
-                                            logger.warning(
-                                                "♻️ [RESURRECTION] Requeued stale task %s after %.0fs without progress",
-                                                tid,
-                                                age_seconds,
-                                            )
-                                            continue
-                                        # Task is actively progressing inside SLA window.
-                                        # Do not re-spawn processing from recovery loop.
-                                        continue
+                                    # Task is actively progressing inside SLA window.
+                                    # Do not re-spawn processing from recovery loop.
+                                    continue
 
                             recovery_probe = {
                                 "task_id": tid,

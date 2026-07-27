@@ -21,7 +21,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-
 ROOT = Path(__file__).resolve().parents[1]
 AUDITS_DIR = ROOT / "docs" / "audits"
 sys.path.insert(0, str(ROOT / "knowledge_os" / "app"))
@@ -51,15 +50,25 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def run_cmd(args: List[str]) -> str:
-    return subprocess.check_output(args, text=True).strip()
+def run_cmd(args: List[str], timeout_sec: int = 20) -> str:
+    return subprocess.check_output(args, text=True, timeout=timeout_sec).strip()
 
 
-def run_cmd_safe(args: List[str], default: str = "") -> str:
+def run_cmd_safe(args: List[str], default: str = "", timeout_sec: int = 20) -> str:
     try:
-        return run_cmd(args)
+        return run_cmd(args, timeout_sec=timeout_sec)
     except Exception:
         return default
+
+
+def run_redis_cli(args: List[str], timeout_sec: int = 8) -> str:
+    """Read Redis state with socket-first and TCP fallback, bounded by timeout."""
+    socket_cmd = ["docker", "exec", "knowledge_os_redis", "redis-cli", "-s", "/data/redis.sock", *args]
+    out = run_cmd_safe(socket_cmd, default="", timeout_sec=timeout_sec)
+    if out:
+        return out
+    tcp_cmd = ["docker", "exec", "knowledge_os_redis", "redis-cli", "-u", "redis://127.0.0.1:6379/0", *args]
+    return run_cmd_safe(tcp_cmd, default="", timeout_sec=timeout_sec)
 
 
 def get_container_statuses() -> Dict[str, str]:
@@ -204,19 +213,7 @@ def get_distillation_metrics() -> Dict[str, int]:
 
 
 def get_contract_flags() -> Tuple[str, str]:
-    out = run_cmd(
-        [
-            "docker",
-            "exec",
-            "knowledge_os_redis",
-            "redis-cli",
-            "-s",
-            "/data/redis.sock",
-            "MGET",
-            "system:contract_rollout_mode",
-            "system:contract_enforce",
-        ]
-    )
+    out = run_redis_cli(["MGET", "system:contract_rollout_mode", "system:contract_enforce"])
     lines = [x.strip() for x in out.splitlines() if x.strip()]
     if len(lines) >= 2:
         return lines[0], lines[1]
@@ -245,19 +242,7 @@ def get_dynamic_alert_metrics(interval_sec: int) -> Dict[str, int]:
     failed_nonzero_rc = log_l.count("failed_nonzero_rc")
     no_live_registry = log_l.count("no live experts found")
 
-    dynamic_slots_raw = run_cmd_safe(
-        [
-            "docker",
-            "exec",
-            "knowledge_os_redis",
-            "redis-cli",
-            "-s",
-            "/data/redis.sock",
-            "GET",
-            "runtime:dynamic_worker_slots",
-        ],
-        default="",
-    )
+    dynamic_slots_raw = run_redis_cli(["GET", "runtime:dynamic_worker_slots"])
     dynamic_slot_count = 0
     dynamic_slot_running = 0
     if dynamic_slots_raw and dynamic_slots_raw not in {"(nil)", "{}", "null"}:

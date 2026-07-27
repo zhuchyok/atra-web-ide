@@ -8240,7 +8240,6 @@ async def list_models():
     return {
         "object": "list",
         "data": [
-            {"id": "Victoria", "object": "model", "created": int(time.time()), "owned_by": "atra"},
             {
                 "id": "Victoria-Enhanced",
                 "object": "model",

@@ -20,6 +20,13 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-28 v127) — Ghost Redis resurrection + residual tails ✅
+
+- Root cause: `blackboard:goals` claimed на удалённых tasks → Anna RESURRECTION storm (`178ed052…`).
+- Fix: `expert_worker.recover_my_tasks` purge ghost/missing DB goals; ops HDEL claimed ghosts.
+- Orphan curiosity R&D cancelled; shipped OpenWebUI policy + KPI redis timeout + remove phantom `Victoria` model id.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v127.
+
 ## § Последние изменения (2026-07-28 v126) — Queue triage + work_item_timeout cap ✅
 
 - Root cause: `victoria_monster_delegation` после `work_item_timeout` уходил в `pending` без потолка (`attempt_count` до 1182).

@@ -32,8 +32,27 @@
 
 **Дата последнего обновления:** 2026-07-28
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; tandem live + queue drained (v126)
+**Состояние:** Стабильное; tandem live + tails drained (v127)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-28 v127) — Ghost Redis resurrection + residual tails ✅
+
+### Диагноз
+
+Anna worker крутил `RESURRECTION` на goal `178ed052…` (Trading & Quant): Redis `claimed`, строки в `tasks` нет → бесконечный resume. Плюс orphan curiosity R&D `in_progress` при idle smart_worker; локальные dirty-патчи OpenWebUI/KPI.
+
+### Решение
+
+1. Purge ghost goals when DB row missing/terminal; SREM `active_tasks`.
+2. Ops: HDEL claimed ghosts (Anna/Roman); cancel orphan R&D.
+3. Ship: OpenWebUI tool-router fallback, KPI redis timeout, drop phantom model id `Victoria`.
+
+### Evidence
+
+- `redis_claimed=0`, Anna `Found my task` count=0 за recovery interval.
+- Queue: `pending=0 in_progress=0 failed=0`.
 
 ---
 

@@ -16,20 +16,23 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 TOOL_ID = "ask_victoria_singularity_15"
 TARGET_MODEL_IDS = [
-    "Victoria",
     "victoria-wisdom-v3.5:latest",
     "victoria-wisdom-v3.5:latest-pre-qwen36",
     "victoria-wisdom-v3.5-pre-qwen36:latest",
 ]
-TOOL_ROUTER_MODEL = "qwen3.6:35b-a3b-nvfp4"
-TOOL_ROUTER_OVERRIDES = {
-    "Victoria": TOOL_ROUTER_MODEL,
-    "victoria-wisdom-v3.5:latest": TOOL_ROUTER_MODEL,
-    "victoria-wisdom-v3.5:latest-pre-qwen36": TOOL_ROUTER_MODEL,
-    "victoria-wisdom-v3.5-pre-qwen36:latest": TOOL_ROUTER_MODEL,
+PREFERRED_TOOL_ROUTER_MODELS = [
+    "qwen3.6:35b-a3b-nvfp4",
+    "qwen2.5-coder:14b",
+    "deepseek-r1:14b",
+    "phi3.5:3.8b-stable",
+    "phi3.5:3.8b",
+]
+TOOL_ROUTER_OVERRIDES_TARGETS = {
+    "victoria-wisdom-v3.5:latest",
+    "victoria-wisdom-v3.5:latest-pre-qwen36",
+    "victoria-wisdom-v3.5-pre-qwen36:latest",
 }
 DEFAULT_SYSTEM = (
     "Ты — Виктория, Team Lead корпорации ATRA. "
@@ -81,6 +84,14 @@ def _discover_ollama_model_ids() -> set[str]:
     return ids
 
 
+def _pick_tool_router_model(available_ids: set[str]) -> str | None:
+    """Choose the best available tool-router model. Return None if nothing suitable exists."""
+    for candidate in PREFERRED_TOOL_ROUTER_MODELS:
+        if candidate in available_ids:
+            return candidate
+    return None
+
+
 def _load_golden_persona() -> str:
     docs_path = Path(__file__).resolve().parents[1] / "docs" / "SINGULARITY_15_GOLDEN_PERSONA.md"
     try:
@@ -118,13 +129,13 @@ def main() -> int:
 
     golden_persona = _load_golden_persona()
 
-    read_code = f"""
+    read_code = """
 import sqlite3, json
 c=sqlite3.connect('/app/backend/data/webui.db')
 c.row_factory=sqlite3.Row
 rows=c.execute("SELECT id,name,meta,params FROM model").fetchall()
 for r in rows:
-    print(json.dumps({{"id": r["id"], "name": r["name"], "meta": r["meta"] or "{{}}", "params": r["params"] or "{{}}"}}, ensure_ascii=False))
+    print(json.dumps({"id": r["id"], "name": r["name"], "meta": r["meta"] or "{}", "params": r["params"] or "{}"}, ensure_ascii=False))
 """
     read = run(["docker", "exec", "-i", "open-webui", "python", "-"], stdin=read_code)
     if read.returncode != 0:
@@ -166,9 +177,12 @@ print((u["id"] if u else "").strip())
         model_map[model_id] = item
         existing_ids.add(model_id)
 
+    available_ollama_ids = _discover_ollama_model_ids()
+    tool_router_model = _pick_tool_router_model(available_ollama_ids)
+
     target_ids = set(existing_ids)
     target_ids.update(TARGET_MODEL_IDS)
-    target_ids.update(_discover_ollama_model_ids())
+    target_ids.update(available_ollama_ids)
     for item in model_payloads:
         model_id = str(item.get("id") or "").strip()
         if not model_id:
@@ -207,11 +221,12 @@ print((u["id"] if u else "").strip())
         system_prompt = _upsert_policy_block(system_prompt)
         params["system"] = system_prompt
 
+        base_override = tool_router_model if model_id in TOOL_ROUTER_OVERRIDES_TARGETS else None
         updates.append(
             (
                 model_id,
                 str(item.get("name") or model_id),
-                TOOL_ROUTER_OVERRIDES.get(model_id),
+                base_override,
                 json.dumps(meta, ensure_ascii=False),
                 json.dumps(params, ensure_ascii=False),
             )
@@ -252,10 +267,12 @@ print(f"updated_models={len(updates)}")
     if up.returncode != 0:
         print(f"openwebui-policy: update failed: {up.stderr.strip()}", file=sys.stderr)
         return 1
-    print(f"openwebui-policy: updated ({len(updates)} model(s), inserted={inserted})")
+    print(
+        f"openwebui-policy: updated ({len(updates)} model(s), inserted={inserted}, "
+        f"tool_router_model={tool_router_model or 'none'})"
+    )
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
