@@ -20,6 +20,14 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-28 v125) — Hybrid distill grounding ✅
+
+- Template + lexical + optional embed; reject ungrounded redistill (RAGAS-inspired).
+- Design: `docs/plans/2026-07-28-distill-grounding-hybrid-design.md`.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v125.
+
+---
+
 ## § Последние изменения (2026-07-27 v124) — Ollama-busy resilient redistill ✅
 
 - 503 backoff + light teacher; redistill re-enabled batch=1 / 1800s.

@@ -13,9 +13,11 @@ import asyncio
 import json
 import logging
 import os
+import time
 from typing import Optional
 
 import asyncpg
+import httpx
 from distillation_tail_metrics import get_distill_eligible_now
 from nightly_expert_council import run_expert_council, run_nightly_council_phase
 
@@ -60,6 +62,7 @@ _DISTILLER_SINGLETON = None
 _DISTILL_MODE = "normal"
 _DISTILL_HIGH_STREAK = 0
 _DISTILL_LOW_STREAK = 0
+_PRIORITY_BUSY_PAUSE_UNTIL_TS = 0.0
 
 
 def _get_distiller_singleton():
@@ -388,32 +391,86 @@ async def run_continuous_priority_redistill() -> None:
     """Small depth pass: re-distill elite wisdom with stronger teacher (bounded)."""
     interval = max(300, int(os.getenv("REDISTILL_PRIORITY_INTERVAL_SEC", "1800")))
     batch = max(1, min(int(os.getenv("REDISTILL_PRIORITY_BATCH", "1")), 10))
-    enabled = os.getenv("REDISTILL_PRIORITY_ENABLED", "true").lower() in (
-        "1",
-        "true",
-        "yes",
-    )
     logger.info(
-        "⚗️ [NIGHTLY] Priority re-distill started (enabled=%s batch=%s interval=%ss)",
-        enabled,
+        "⚗️ [NIGHTLY] Priority re-distill started (batch=%s interval=%ss)",
         batch,
         interval,
     )
+
+    def _enabled_now() -> bool:
+        return os.getenv("REDISTILL_PRIORITY_ENABLED", "true").lower() in ("1", "true", "yes")
+
+    def _is_ollama_busy(status_code: int, body: str) -> bool:
+        if status_code in (429, 503):
+            return True
+        s = (body or "").lower()
+        return "maximum pending" in s or "server busy" in s or "queue is full" in s
+
+    async def _ollama_is_busy_probe() -> bool:
+        if os.getenv("REDISTILL_PRIORITY_SKIP_IF_OLLAMA_BUSY", "true").lower() not in (
+            "1",
+            "true",
+            "yes",
+        ):
+            return False
+        base = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434").rstrip("/")
+        model = os.getenv("REDISTILL_PRIORITY_HEALTHCHECK_MODEL", "phi3.5:3.8b")
+        timeout_sec = max(1.0, float(os.getenv("REDISTILL_PRIORITY_HEALTHCHECK_TIMEOUT_SEC", "6")))
+        body = {
+            "model": model,
+            "prompt": "ping",
+            "stream": False,
+            "options": {"num_predict": 1, "temperature": 0},
+        }
+        try:
+            async with httpx.AsyncClient(timeout=timeout_sec) as client:
+                resp = await client.post(f"{base}/api/generate", json=body)
+                txt = resp.text or ""
+                if _is_ollama_busy(resp.status_code, txt):
+                    logger.warning(
+                        "⚠️ [NIGHTLY] Skip priority re-distill: Ollama busy probe (%s)",
+                        resp.status_code,
+                    )
+                    return True
+                return False
+        except Exception as exc:
+            # Conservative: treat probe failures as pressure/unavailability.
+            logger.warning("⚠️ [NIGHTLY] Skip priority re-distill: Ollama probe failed: %s", exc)
+            return True
+
     while True:
-        if enabled:
+        if _enabled_now():
+            global _PRIORITY_BUSY_PAUSE_UNTIL_TS
+            now_ts = time.monotonic()
+            if now_ts < _PRIORITY_BUSY_PAUSE_UNTIL_TS:
+                wait_left = int(_PRIORITY_BUSY_PAUSE_UNTIL_TS - now_ts)
+                logger.info(
+                    "⏭️ [NIGHTLY] Priority re-distill paused due busy cooldown (%ss left).",
+                    max(wait_left, 0),
+                )
+                await asyncio.sleep(min(interval, max(wait_left, 30)))
+                continue
+            if await _ollama_is_busy_probe():
+                pause_sec = max(300, int(os.getenv("REDISTILL_PRIORITY_BUSY_PAUSE_SEC", "1800")))
+                _PRIORITY_BUSY_PAUSE_UNTIL_TS = time.monotonic() + pause_sec
+                await asyncio.sleep(min(interval, pause_sec))
+                continue
             try:
                 from distillation_engine import KnowledgeDistiller
 
                 stats = await KnowledgeDistiller().redistill_priority_batch(limit=batch)
                 logger.info(
-                    "⚗️ [NIGHTLY] Priority re-distill: updated=%s failed=%s candidates=%s teacher=%s",
+                    "⚗️ [NIGHTLY] Priority re-distill: updated=%s failed=%s ungrounded=%s candidates=%s teacher=%s",
                     stats.get("updated"),
                     stats.get("failed"),
+                    stats.get("ungrounded"),
                     stats.get("candidates"),
                     stats.get("teacher"),
                 )
             except Exception as exc:
                 logger.warning("⚗️ [NIGHTLY] Priority re-distill failed: %s", exc)
+                pause_sec = max(300, int(os.getenv("REDISTILL_PRIORITY_BUSY_PAUSE_SEC", "1800")))
+                _PRIORITY_BUSY_PAUSE_UNTIL_TS = time.monotonic() + pause_sec
         await asyncio.sleep(interval)
 
 

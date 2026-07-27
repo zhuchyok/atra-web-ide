@@ -1024,7 +1024,13 @@ class KnowledgeDistiller:
             "DISTILL_PRIORITY_TEACHER_MODEL",
             "phi3.5:3.8b",
         )
-        stats = {"updated": 0, "failed": 0, "candidates": 0, "teacher": priority_teacher}
+        stats = {
+            "updated": 0,
+            "failed": 0,
+            "ungrounded": 0,
+            "candidates": 0,
+            "teacher": priority_teacher,
+        }
         old_teacher = self.teacher_model
         old_fallback = self.teacher_fallback_model
         self.teacher_model = priority_teacher
@@ -1090,6 +1096,62 @@ class KnowledgeDistiller:
                     if not wisdom_summary:
                         stats["failed"] += 1
                         continue
+
+                    # Hybrid grounding (RAGAS-inspired): template + lexical (+ optional embed).
+                    from distill_grounding import check_grounding
+
+                    embed_src = None
+                    embed_claim = None
+                    if os.getenv("DISTILL_GROUNDING_USE_EMBED", "true").lower() in (
+                        "1",
+                        "true",
+                        "yes",
+                    ):
+                        try:
+                            from semantic_cache import get_embedding
+
+                            embed_src = await get_embedding((content or "")[:4000])
+                            embed_claim = await get_embedding(
+                                f"{wisdom_summary} {instruction or ''}"[:2000]
+                            )
+                        except Exception as emb_exc:
+                            logger.debug("⚗️ [REDISTILL] embed grounding skipped: %s", emb_exc)
+
+                    grounded, g_score, g_reason = check_grounding(
+                        content,
+                        wisdom_summary,
+                        instruction or "",
+                        embed_source=embed_src if isinstance(embed_src, list) else None,
+                        embed_claim=embed_claim if isinstance(embed_claim, list) else None,
+                    )
+                    if not grounded:
+                        reject_patch = {
+                            "redistill_priority_done": "true",
+                            "redistill_status": "rejected_ungrounded",
+                            "redistill_grounding_score": g_score,
+                            "redistill_grounding_reason": g_reason,
+                            "redistilled_at": datetime.now().isoformat(),
+                            "redistill_teacher": self.last_teacher_used or self.teacher_model,
+                            "redistill_teacher_preferred": self.teacher_model,
+                        }
+                        await conn.execute(
+                            """
+                            UPDATE knowledge_nodes
+                            SET metadata = COALESCE(metadata, '{}'::jsonb) || $1::jsonb
+                            WHERE id = $2::uuid
+                            """,
+                            json.dumps(reject_patch),
+                            node_id,
+                        )
+                        stats["ungrounded"] += 1
+                        logger.warning(
+                            "⚗️ [REDISTILL] %s rejected ungrounded score=%.2f reason=%s",
+                            node_id[:8],
+                            g_score,
+                            g_reason,
+                        )
+                        continue
+
                     quality_confidence, verification_reason = self._compute_quality_gate(
                         wisdom_summary, instruction, category, wisdom
                     )
@@ -1117,6 +1179,9 @@ class KnowledgeDistiller:
                         "distill_confidence": quality_confidence,
                         "verification_reason": verification_reason,
                         "redistill_priority_done": "true",
+                        "redistill_status": "accepted",
+                        "redistill_grounding_score": g_score,
+                        "redistill_grounding_reason": g_reason,
                         "redistilled_at": datetime.now().isoformat(),
                         "redistill_teacher": used_teacher,
                         "redistill_teacher_preferred": self.teacher_model,
@@ -1137,10 +1202,11 @@ class KnowledgeDistiller:
                     )
                     stats["updated"] += 1
                     logger.info(
-                        "⚗️ [REDISTILL] %s band=%s conf=%.2f teacher=%s (preferred=%s)",
+                        "⚗️ [REDISTILL] %s band=%s conf=%.2f ground=%.2f teacher=%s (preferred=%s)",
                         node_id[:8],
                         structured.get("distillation_quality_band"),
                         quality_confidence,
+                        g_score,
                         used_teacher,
                         self.teacher_model,
                     )

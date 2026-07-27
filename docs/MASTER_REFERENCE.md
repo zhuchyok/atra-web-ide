@@ -30,10 +30,31 @@
 
 ## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
-**Дата последнего обновления:** 2026-07-27
+**Дата последнего обновления:** 2026-07-28
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; Ollama-busy resilient redistill (v124)
+**Состояние:** Стабильное; hybrid distill grounding (v125)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-28 v125) — Hybrid distill grounding (RAGAS-inspired) ✅
+
+### Диагноз
+
+`band=high` поднимался по длине текста; victoria/phi писали шаблоны («aggressively scale digital service…») без опоры на source.
+
+### Решение (гибрид как у гигантов)
+
+1. **Template reject** — mode-collapse phrases.
+2. **Lexical faithfulness** — claim tokens ⊆ source (min overlap).
+3. **Embed rescue** — cosine source↔claim если embedder доступен.
+4. Fail closed: `redistill_status=rejected_ungrounded` без записи ложной wisdom.
+5. Design: `docs/plans/2026-07-28-distill-grounding-hybrid-design.md`.
+
+### Evidence
+
+- Unit: `test_distill_grounding.py`.
+- Smoke: template board sample → reject; mentorship-like → accept.
 
 ---
 
