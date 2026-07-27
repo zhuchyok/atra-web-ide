@@ -20,6 +20,12 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-28 v128) — Docker Created mounts denied (dynamic-1 / sandbox-qa) ✅
+
+- Root cause: compose/sandbox create via docker.sock with bind sources `/app/...` → Docker Desktop «mounts denied» → Status=`Created`.
+- Fix: `HOST_PROJECT_ROOT` for dynamic worker volumes; sandbox_manager refuses `/app` binds; recreate dynamic-1; remove zombie `sandbox-qa`.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v128.
+
 ## § Последние изменения (2026-07-28 v127) — Ghost Redis resurrection + residual tails ✅
 
 - Root cause: `blackboard:goals` claimed на удалённых tasks → Anna RESURRECTION storm (`178ed052…`).

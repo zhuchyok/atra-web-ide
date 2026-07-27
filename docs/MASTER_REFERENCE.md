@@ -32,8 +32,26 @@
 
 **Дата последнего обновления:** 2026-07-28
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; tandem live + tails drained (v127)
+**Состояние:** Стабильное; tandem live + Docker mounts fixed (v128)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-28 v128) — Docker Created: mounts denied ✅
+
+### Диагноз
+
+`7bc0ce8…` (`expert-worker-dynamic-1`) и `0c0bb59…` (`sandbox-qa`) в Status=`Created`, не Exited. Start → `mounts denied: The path /app/data is not shared`. Compose project.working_dir был `/app/knowledge_os` (оркестратор через docker.sock), relative volumes → `/app/...` на Mac host.
+
+### Решение
+
+1. Recreate dynamic-1 с host binds; `docker rm` sandbox-qa.
+2. `HOST_PROJECT_ROOT` / `HOST_SANDBOX_SHARED_DIR` в `.env` + compose dynamic slots + orchestrator env.
+3. `sandbox_manager`: resolve host path; recreate on bad mount.
+
+### Evidence
+
+- dynamic-1 healthy; sandbox-qa removed; orchestrator `HOST_PROJECT_ROOT` set.
 
 ---
 

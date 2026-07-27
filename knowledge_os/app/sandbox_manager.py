@@ -1,11 +1,40 @@
 import logging
 import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import docker
 from cube_sandbox_manager import get_cube_manager
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_host_sandbox_shared_dir() -> Optional[str]:
+    """Resolve a Docker Desktop-safe *host* bind path for sandbox_shared.
+
+    When the Docker API is called from inside a container, ``abspath(...)`` yields
+    ``/app/...`` paths. Docker Desktop then tries to mount that path from the Mac
+    host → containers stuck in ``Created`` with "mounts denied".
+    """
+    explicit = (os.environ.get("HOST_SANDBOX_SHARED_DIR") or "").strip()
+    if explicit:
+        return explicit
+
+    host_root = (os.environ.get("HOST_PROJECT_ROOT") or "").rstrip("/")
+    if host_root:
+        return f"{host_root}/knowledge_os/sandbox_shared"
+
+    # knowledge_os/app/sandbox_manager.py → knowledge_os/sandbox_shared
+    candidate = Path(__file__).resolve().parents[1] / "sandbox_shared"
+    path = str(candidate)
+    if path.startswith("/app/") or path == "/app":
+        logger.error(
+            "Sandbox bind path %s is container-local; set HOST_PROJECT_ROOT or "
+            "HOST_SANDBOX_SHARED_DIR on the host before creating sandbox-* containers",
+            path,
+        )
+        return None
+    return path
 
 
 class SandboxManager:
@@ -34,7 +63,7 @@ class SandboxManager:
         self.use_tmpfs = os.environ.get("CUBE_USE_TMPFS", "true").lower() == "true"
 
         self.network_name = "atra-sandbox-net"
-        self.host_shared_dir = os.environ.get("HOST_SANDBOX_SHARED_DIR")
+        self.host_shared_dir = _resolve_host_sandbox_shared_dir()
         self._ensure_docker_network()
 
     @property
@@ -94,13 +123,40 @@ class SandboxManager:
             return {"error": "No sandbox backend available (Docker/Cube)"}
 
         container_name = self.get_container_name(expert_name)
-        mount_path = self.host_shared_dir or os.path.abspath("./knowledge_os/sandbox_shared")
+        mount_path = self.host_shared_dir or _resolve_host_sandbox_shared_dir()
+        if not mount_path:
+            return {
+                "error": (
+                    "Sandbox host bind path unavailable. Set HOST_PROJECT_ROOT or "
+                    "HOST_SANDBOX_SHARED_DIR (Docker Desktop cannot mount /app/...)."
+                )
+            }
+        try:
+            Path(mount_path).mkdir(parents=True, exist_ok=True)
+        except OSError as mkdir_err:
+            # Inside container the host path may not exist locally; Docker still
+            # needs the path string. Creation on host is best-effort.
+            logger.debug("sandbox shared mkdir skipped for %s: %s", mount_path, mkdir_err)
 
         try:
             try:
                 container = self.docker_client.containers.get(container_name)
                 if container.status != "running":
-                    container.start()
+                    try:
+                        container.start()
+                    except Exception as start_err:
+                        # Broken Created containers from bad /app bind mounts.
+                        logger.warning(
+                            "Sandbox %s start failed (%s); recreating with host path %s",
+                            container_name,
+                            start_err,
+                            mount_path,
+                        )
+                        try:
+                            container.remove(force=True)
+                        except Exception:
+                            pass
+                        raise docker.errors.NotFound("recreate after bad mount") from start_err
             except docker.errors.NotFound:
                 logger.info(f"🚀 Creating Docker sandbox for {expert_name}...")
                 container = self.docker_client.containers.run(

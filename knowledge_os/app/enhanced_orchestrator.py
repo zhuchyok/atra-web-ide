@@ -799,6 +799,9 @@ DYNAMIC_WORKER_IDLE_TTL_SEC = max(300, int(os.getenv("ORCHESTRATOR_DYNAMIC_IDLE_
 DYNAMIC_WORKER_STATE_KEY = os.getenv(
     "ORCHESTRATOR_DYNAMIC_WORKER_STATE_KEY", "runtime:dynamic_worker_slots"
 )
+# Compose -f paths must be readable *inside* the orchestrator container (/app/...).
+# Bind mount *sources* in compose YAML must be host paths (HOST_PROJECT_ROOT) so
+# Docker Desktop does not get /app/data → mounts denied → Status=Created.
 DYNAMIC_COMPOSE_FILES = [
     item.strip()
     for item in os.getenv(

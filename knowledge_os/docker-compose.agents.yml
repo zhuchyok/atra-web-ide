@@ -183,6 +183,9 @@ services:
       METRICS_PORT: "8000"
       VICTORIA_STRATEGIST_MODEL: ${VICTORIA_STRATEGIST_MODEL:-victoria-wisdom-v3.5:latest}
       VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-qwen2.5-coder:14b}
+      # Mac Docker Desktop: absolute host binds when orchestrator recreates dynamic workers
+      HOST_PROJECT_ROOT: ${HOST_PROJECT_ROOT:-}
+      HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-}
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - ../certs:/certs:ro
@@ -357,9 +360,12 @@ services:
       HITL_ENFORCE_HIGH_RISK_TASKS: "true"
       HITL_HIGH_RISK_LEVELS: "critical"
       HITL_APPROVAL_TIMEOUT_SEC: "180"
+      HOST_PROJECT_ROOT: ${HOST_PROJECT_ROOT:-}
+      HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-}
     volumes:
-      - ../data:/app/data
-      - ../knowledge_os:/app/knowledge_os
+      # HOST_PROJECT_ROOT required when recreate runs via docker.sock from orchestrator
+      - ${HOST_PROJECT_ROOT:-..}/data:/app/data
+      - ${HOST_PROJECT_ROOT:-..}/knowledge_os:/app/knowledge_os
       - redis_data:/data/redis
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -398,9 +404,11 @@ services:
       HITL_ENFORCE_HIGH_RISK_TASKS: "true"
       HITL_HIGH_RISK_LEVELS: "critical"
       HITL_APPROVAL_TIMEOUT_SEC: "180"
+      HOST_PROJECT_ROOT: ${HOST_PROJECT_ROOT:-}
+      HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-}
     volumes:
-      - ../data:/app/data
-      - ../knowledge_os:/app/knowledge_os
+      - ${HOST_PROJECT_ROOT:-..}/data:/app/data
+      - ${HOST_PROJECT_ROOT:-..}/knowledge_os:/app/knowledge_os
       - redis_data:/data/redis
     extra_hosts:
       - "host.docker.internal:host-gateway"
