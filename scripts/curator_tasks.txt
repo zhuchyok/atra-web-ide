@@ -2,7 +2,6 @@
 какой статус проекта?
 что ты умеешь?
 напиши одну строку кода на Python: вывод текущей даты
-проверь файл /app/knowledge_os/app/swarm_intelligence.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
 проверь файл /app/knowledge_os/app/ingestion/judge.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
 проверь файл /app/knowledge_os/app/expert_worker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
 проверь файл /app/knowledge_os/scripts/backfill_distillation_v2.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата

@@ -32,8 +32,25 @@
 
 **Дата последнего обновления:** 2026-07-28
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; tandem live + Docker mounts fixed (v128)
+**Состояние:** Стабильное; tip-top queue + tracking KPI clean (v129)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-28 v129) — Orchestration tracking ≠ work-queue failed ✅
+
+### Диагноз
+
+4 `failed` за день — все `orchestration_tracking` twins (swarm LLM timeout + board shells). Не рабочие задачи, но портили KPI.
+
+### Решение
+
+1. `_record_orchestration_task_complete`: всегда `cancelled`; outcome в metadata.
+2. Triage cancel 4 rows; drop known-OK `swarm_intelligence` curator line.
+
+### Evidence
+
+- `failed=0`, tracking noise cancelled; Victoria restarted with patch.
 
 ---
 

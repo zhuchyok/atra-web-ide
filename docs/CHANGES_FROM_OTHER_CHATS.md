@@ -20,6 +20,12 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-28 v129) — Tracking twins never pollute failed KPI ✅
+
+- Root cause: `_record_orchestration_task_complete` писал `status=failed` для metrics-only twins → ложный failed в очереди.
+- Fix: tracking rows всегда `cancelled`; исход в `tracking_outcome`. Ops: 4 failed → cancelled; убран `swarm_intelligence` из curator_tasks.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v129.
+
 ## § Последние изменения (2026-07-28 v128) — Docker Created mounts denied (dynamic-1 / sandbox-qa) ✅
 
 - Root cause: compose/sandbox create via docker.sock with bind sources `/app/...` → Docker Desktop «mounts denied» → Status=`Created`.

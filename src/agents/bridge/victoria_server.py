@@ -4609,8 +4609,9 @@ async def _record_orchestration_task_complete(
 ) -> None:
     """Закрыть метрический orchestration_tracking row (не рабочая задача).
 
-    Остаётся cancelled + tracking_complete — иначе в ленте «Задачи и SLA»
-    появляется COMPLETED-близнец рядом с «Делегировано: Expert».
+    Всегда status=cancelled + tracking_complete — иначе в ленте «Задачи и SLA»
+    появляется COMPLETED-близнец рядом с «Делегировано: Expert», а failed-outcome
+    загрязняет work-queue KPI (failed count). Исход храним в tracking_outcome.
     """
     if not knowledge_os_task_id or not USE_KNOWLEDGE_OS or not KNOWLEDGE_OS_AVAILABLE:
         return
@@ -4620,12 +4621,12 @@ async def _record_orchestration_task_complete(
     try:
         import json as _json
 
-        # Keep failed signal for A/B; never promote tracking rows to completed KPI.
-        final_status = "failed" if status == "failed" else "cancelled"
+        outcome = (status or "unknown").strip() or "unknown"
+        # Never write status=failed for metrics-only twins (v129).
         meta_patch = _json.dumps(
             {
                 "tracking_complete": True,
-                "tracking_outcome": status if status else "unknown",
+                "tracking_outcome": outcome,
                 "kpi_success": False,
                 "orchestration_tracking_only": True,
             }
@@ -4634,14 +4635,13 @@ async def _record_orchestration_task_complete(
             await conn.execute(
                 """
                 UPDATE tasks
-                SET status = $1,
+                SET status = 'cancelled',
                     completed_at = CURRENT_TIMESTAMP,
-                    result = $2,
-                    metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb,
+                    result = $1,
+                    metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
                     updated_at = NOW()
-                WHERE id = $4
+                WHERE id = $3
                 """,
-                final_status,
                 (result_preview or "")[:5000],
                 meta_patch,
                 uuid.UUID(knowledge_os_task_id),
