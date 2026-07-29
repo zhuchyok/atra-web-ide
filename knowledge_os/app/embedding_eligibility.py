@@ -151,6 +151,7 @@ async def backfill_eligible_embeddings(limit: int = 50) -> dict[str, Any]:
     """
     Fill embeddings for eligible nodes missing vectors (priority order).
     Safe for nightly/continuous: bounded limit, skips junk.
+    v132: prefer local batch encode (cached ST) for catch-up throughput.
     """
     import asyncpg
 
@@ -158,7 +159,8 @@ async def backfill_eligible_embeddings(limit: int = 50) -> dict[str, Any]:
         "DATABASE_URL",
         "postgresql://admin:secret@localhost:6432/knowledge_os",  # pragma: allowlist secret
     )
-    limit = max(1, min(int(limit), 500))
+    # Catch-up runs may request up to 2000; continuous nightly stays env-capped.
+    limit = max(1, min(int(limit), 2000))
     updated = 0
     failed = 0
     conn = await asyncpg.connect(db_url)
@@ -176,6 +178,41 @@ async def backfill_eligible_embeddings(limit: int = 50) -> dict[str, Any]:
         )
         if not rows:
             return {"updated": 0, "failed": 0, "candidates": 0}
+
+        # Chunked encode→write (Ollama GPU preferred, ST singleton fallback).
+        try:
+            try:
+                from semantic_cache import encode_texts_best
+            except ImportError:
+                from app.semantic_cache import encode_texts_best
+
+            chunk = max(8, min(int(os.getenv("EMBED_BACKFILL_ENCODE_CHUNK", "64")), 128))
+            for i in range(0, len(rows), chunk):
+                batch_rows = rows[i : i + chunk]
+                batch_texts = [(r["content"] or "").strip()[:8000] for r in batch_rows]
+                try:
+                    batch_vecs = await encode_texts_best(batch_texts)
+                except Exception as exc:
+                    logger.warning("chunk encode failed at %s: %s", i, exc)
+                    batch_vecs = [None] * len(batch_rows)
+                for row, vec in zip(batch_rows, batch_vecs):
+                    try:
+                        if not vec:
+                            failed += 1
+                            continue
+                        emb = "[" + ",".join(map(str, vec)) + "]"
+                        await conn.execute(
+                            "UPDATE knowledge_nodes SET embedding = $1::vector WHERE id = $2",
+                            emb,
+                            row["id"],
+                        )
+                        updated += 1
+                    except Exception as e:
+                        failed += 1
+                        logger.debug("backfill node %s: %s", row["id"], e)
+            return {"updated": updated, "failed": failed, "candidates": len(rows)}
+        except Exception as exc:
+            logger.warning("chunked backfill failed, per-node fallback: %s", exc)
 
         for row in rows:
             try:

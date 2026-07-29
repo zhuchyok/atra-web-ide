@@ -32,8 +32,28 @@
 
 **Дата последнего обновления:** 2026-07-29
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; tip-top + closure lite DoD (v131)
+**Состояние:** Стабильное; tip-top + RAG eligible ≥80% (v132)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-29 v132) — Eligible ≥80% + embed path fix ✅
+
+### Диагноз (Five Whys)
+
+Eligible был ~67% при «живом» nightly: каждый `get_embedding` заново грузил SentenceTransformer (~5s/node) + VectorCore URL битый (`:8100`). Root cause — нет singleton + нет Ollama-primary на host Metal.
+
+### Решение
+
+1. `semantic_cache`: ST singleton; Ollama `/api/embeddings` primary; VectorCore secondary; `encode_texts_best` для batch.
+2. `embedding_eligibility`: chunked encode→write; catch-up script `scripts/catchup_eligible_embeddings.py`.
+3. Nightly compose: `EMBED_BACKFILL_BATCH=200`, `EMBED_PREFER_OLLAMA=true`.
+
+### Evidence (live 2026-07-29)
+
+- Catch-up: eligible **52417/65290 = 80.28%** (`TARGET_REACHED`); Ollama 16/16 in ~0.8s.
+- Queue tip-top: failed|pending|stale = `0|0|0`; Victoria/MLX/Grafana 200.
+- Out of scope: Approach C (coverage/E2E), raw 100%, wipe cancelled ledger.
 
 ---
 

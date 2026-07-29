@@ -57,7 +57,10 @@ def main() -> int:
         description="Priority RAG embedding backfill for eligible knowledge_nodes"
     )
     parser.add_argument(
-        "--limit", type=int, default=100, help="Максимум узлов за один запуск (по умолчанию 100)"
+        "--limit",
+        type=int,
+        default=500,
+        help="Максимум узлов за один запуск (по умолчанию 500, cap 2000)",
     )
     args = parser.parse_args()
     n = asyncio.run(run(limit=args.limit))

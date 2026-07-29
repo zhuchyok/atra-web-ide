@@ -10,7 +10,7 @@ import logging
 import os
 import random
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional, Union
 
 # [SINGULARITY 24.3] Circuit Breaker для Ollama Embeddings
 try:
@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 # Throttle repetitive warning logs to avoid warning floods under temporary Ollama backpressure.
 _WARN_THROTTLE_SEC = float(os.getenv("SEMANTIC_CACHE_WARN_THROTTLE_SEC", "60"))
-_last_warn_at: Dict[str, float] = {}
+_last_warn_at: dict[str, float] = {}
 
 
 def _warn_throttled(key: str, message: str) -> None:
@@ -102,7 +102,7 @@ def _safe_record_hit(cache_type: str):
     if _METRICS_AVAILABLE:
         try:
             record_semantic_cache_hit(cache_type)
-        except:
+        except Exception:
             pass
 
 
@@ -110,7 +110,7 @@ def _safe_record_collapsed():
     if _METRICS_AVAILABLE:
         try:
             record_embedding_collapsed()
-        except:
+        except Exception:
             pass
 
 
@@ -118,7 +118,7 @@ def _safe_record_throttle():
     if _METRICS_AVAILABLE:
         try:
             record_embedding_throttle()
-        except:
+        except Exception:
             pass
 
 
@@ -128,7 +128,7 @@ CACHE_THRESHOLD = 0.92  # Similarity threshold to return cached result
 STRATEGIC_CACHE_THRESHOLD = 0.95  # Более строгий threshold для стратегических вопросов
 
 # [SINGULARITY 24.3] Request Collapsing & Backpressure
-_inflight_embeddings: Dict[str, asyncio.Future] = {}
+_inflight_embeddings: dict[str, asyncio.Future] = {}
 _embedding_lock = asyncio.Lock()
 _embedding_semaphore = asyncio.Semaphore(5)  # Базовый лимит параллелизма
 
@@ -218,7 +218,7 @@ async def get_embedding(text: str) -> Optional[list]:
                 try:
                     await client.set(cache_key, json.dumps(res), ex=86400)  # 24h TTL
                     logger.debug(f"💾 [CACHE SAVE] Embedding stored in Redis: {text_hash}")
-                except:
+                except Exception:
                     pass
 
             future.set_result(res)
@@ -238,17 +238,135 @@ async def get_embedding(text: str) -> Optional[list]:
                 del _inflight_embeddings[text_hash]
 
 
+# v132: cache local ST model — loading per call made nightly backfill thrash (~5s/node).
+_st_model = None
+_st_model_lock = asyncio.Lock()
+_VECTOR_CORE_URL = (
+    os.getenv("VECTOR_CORE_URL")
+    or os.getenv("VECTORCORE_URL")
+    or ("http://knowledge_vector_core:8001" if _is_docker else "http://localhost:8001")
+)
+
+
+def _get_st_model_sync():
+    """Lazy singleton for local sentence-transformers fallback."""
+    global _st_model
+    if _st_model is None:
+        from sentence_transformers import SentenceTransformer
+
+        model_name = os.getenv("VECTOR_MODEL_NAME", "nomic-ai/nomic-embed-text-v1.5")
+        logger.info("📦 [EMBED] Loading local SentenceTransformer once: %s", model_name)
+        _st_model = SentenceTransformer(model_name)
+    return _st_model
+
+
+async def encode_texts_local(texts: list) -> list:
+    """
+    Batch-encode texts with cached local ST model (executor, non-blocking).
+    Returns list aligned with input; failed entries are None.
+    """
+    if not texts:
+        return []
+    clipped = [(t or "")[:2000] for t in texts]
+    loop = asyncio.get_event_loop()
+
+    def _encode_batch():
+        model = _get_st_model_sync()
+        vectors = model.encode(clipped, show_progress_bar=False)
+        out = []
+        for vec in vectors:
+            try:
+                out.append(vec.tolist() if hasattr(vec, "tolist") else list(vec))
+            except Exception:
+                out.append(None)
+        return out
+
+    async with _st_model_lock:
+        return await loop.run_in_executor(None, _encode_batch)
+
+
+async def encode_texts_ollama(texts: list) -> list:
+    """
+    Concurrent Ollama /api/embeddings (host Metal). Same 768d nomic family.
+    Returns list aligned with input; failed entries are None.
+    """
+    if not texts:
+        return []
+    concurrency = max(1, min(int(os.getenv("EMBED_OLLAMA_CONCURRENCY", "8")), 16))
+    timeout = float(os.getenv("OLLAMA_EMBED_TIMEOUT_SEC", "8"))
+    sem = asyncio.Semaphore(concurrency)
+    url = OLLAMA_EMBED_URL
+    model = OLLAMA_MODEL
+
+    async def _one(client: httpx.AsyncClient, text: str):
+        prompt = (text or "")[:2000]
+        if not prompt.strip():
+            return None
+        async with sem:
+            try:
+                resp = await client.post(
+                    url, json={"model": model, "prompt": prompt}, timeout=timeout
+                )
+                if resp.status_code == 200:
+                    emb = resp.json().get("embedding")
+                    if emb and len(emb) >= 64:
+                        return emb
+            except Exception:
+                return None
+        return None
+
+    async with httpx.AsyncClient() as client:
+        return list(await asyncio.gather(*[_one(client, t) for t in texts]))
+
+
+async def encode_texts_best(texts: list) -> list:
+    """Prefer Ollama (GPU host); fallback to local ST singleton."""
+    prefer = os.getenv("EMBED_PREFER_OLLAMA", "true").lower() in ("1", "true", "yes")
+    if prefer:
+        try:
+            out = await encode_texts_ollama(texts)
+            # If majority succeeded, use it; fill gaps via ST.
+            ok = sum(1 for v in out if v)
+            if ok >= max(1, len(texts) // 2):
+                if ok < len(texts):
+                    missing = [i for i, v in enumerate(out) if not v]
+                    if missing:
+                        st = await encode_texts_local([texts[i] for i in missing])
+                        for j, i in enumerate(missing):
+                            out[i] = st[j] if j < len(st) else None
+                return out
+        except Exception as exc:
+            logger.debug("encode_texts_ollama failed: %s", exc)
+    return await encode_texts_local(texts)
+
+
 async def _execute_embedding_request(text: str) -> Optional[list]:
     """
-    Внутренняя логика выполнения запроса с ретраями.
-    [SINGULARITY 31.3] Primary: VectorCore microservice (port 8001).
-    Fallback: sentence-transformers (local).
+    Embedding request with retries.
+    Order: Ollama (host GPU) → VectorCore → local ST singleton.
     """
-    # [PRIMARY] VectorCore microservice (dedicated, no Ollama contention)
+    # [PRIMARY] Ollama embeddings on Mac host (Metal)
+    try:
+        async with httpx.AsyncClient(
+            timeout=float(os.getenv("OLLAMA_EMBED_TIMEOUT_SEC", "8"))
+        ) as client:
+            resp = await client.post(
+                OLLAMA_EMBED_URL,
+                json={"model": OLLAMA_MODEL, "prompt": text[:2000]},
+            )
+            if resp.status_code == 200:
+                _emb = resp.json().get("embedding")
+                if _emb and len(_emb) >= 64:
+                    logger.debug("✅ [EMBED] Ollama OK")
+                    return _emb
+    except Exception:
+        pass
+
+    # [SECONDARY] VectorCore microservice
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
             resp = await client.post(
-                "http://localhost:8100/encode",
+                f"{_VECTOR_CORE_URL.rstrip('/')}/encode",
                 json={"text": text[:2000]},
             )
             if resp.status_code == 200:
@@ -259,18 +377,16 @@ async def _execute_embedding_request(text: str) -> Optional[list]:
     except Exception:
         pass
 
-    # [FALLBACK] Sentence-transformers local
+    # [FALLBACK] Sentence-transformers local (singleton — do not reload per call)
     try:
-        from sentence_transformers import SentenceTransformer
-        _st_model = SentenceTransformer('nomic-ai/nomic-embed-text-v1.5')
-        _emb = _st_model.encode(text[:2000])
-        logger.debug("✅ [EMBED] sentence-transformers fallback OK")
-        return _emb.tolist()
+        vecs = await encode_texts_local([text[:2000]])
+        if vecs and vecs[0]:
+            logger.debug("✅ [EMBED] sentence-transformers fallback OK")
+            return vecs[0]
     except Exception as _st_err:
         logger.debug(f"[EMBED] sentence-transformers failed: {_st_err}")
 
     return None
-
 
 
 class SemanticAICache:
@@ -398,7 +514,7 @@ class SemanticAICache:
                                 logger.info("✅ [GRACEFUL DEGRADATION] Found exact match in DB")
                                 _safe_record_hit("graceful_degradation")
                                 return emb
-                            except:
+                            except Exception:
                                 pass
                         elif isinstance(emb_val, list):
                             logger.info("✅ [GRACEFUL DEGRADATION] Found exact match in DB (list)")
@@ -494,7 +610,7 @@ class SemanticAICache:
                     if isinstance(meta, str):
                         try:
                             meta = json.loads(meta)
-                        except:
+                        except Exception:
                             meta = {}
                     ids = meta.get("knowledge_node_ids", [])
                     if ids:

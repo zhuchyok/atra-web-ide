@@ -20,6 +20,13 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-29 v132) — Eligible ≥80% + Ollama embed path ✅
+
+- Root cause: ST reload per call + dead VectorCore `:8100` → nightly backfill thrash.
+- Fix: ST singleton + Ollama-primary batch (`encode_texts_best`) + catch-up script.
+- Evidence: eligible **80.28%** TARGET_REACHED; tip-top queue held.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v132.
+
 ## § Последние изменения (2026-07-29 v131) — Closure lite DoD ✅
 
 - RAG KPI = eligible % (норма ≥80%); raw % не авария; dashboard caption + info.

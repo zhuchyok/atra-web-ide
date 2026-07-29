@@ -346,8 +346,8 @@ async def run_continuous_distillation() -> None:
 
 async def run_continuous_embedding_backfill() -> None:
     """Priority RAG embedding backfill (eligible nodes only). Bounded rate."""
-    interval = max(60, int(os.getenv("EMBED_BACKFILL_INTERVAL_SEC", "300")))
-    batch = max(5, int(os.getenv("EMBED_BACKFILL_BATCH", "40")))
+    interval = max(60, int(os.getenv("EMBED_BACKFILL_INTERVAL_SEC", "120")))
+    batch = max(5, int(os.getenv("EMBED_BACKFILL_BATCH", "200")))
     enabled = os.getenv("EMBED_BACKFILL_ENABLED", "true").lower() in ("1", "true", "yes")
     logger.info(
         "🧩 [NIGHTLY] Continuous embedding backfill started (enabled=%s batch=%s interval=%ss)",
