@@ -20,6 +20,14 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-29 v131) — Closure lite DoD ✅
+
+- RAG KPI = eligible % (норма ≥80%); raw % не авария; dashboard caption + info.
+- MLX SoT = `/health` (не `/v1/models`).
+- Grafana healthcheck recreate → docker `(healthy)`.
+- Evidence: eligible 43824/65260=67.2%; raw 53.7%; mlx `/health` 200 + `/v1/models` 404; grafana healthy.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v131.
+
 ## § Последние изменения (2026-07-29 v130) — Observability hygiene (stuck alert + MLX monitor) ✅
 
 - `stuck_delegation` больше не считает `cancelled` (ledger); alert = failed + stale in_progress.

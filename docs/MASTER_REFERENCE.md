@@ -30,10 +30,45 @@
 
 ## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
-**Дата последнего обновления:** 2026-07-28
+**Дата последнего обновления:** 2026-07-29
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; tip-top + observability quiet (v130)
+**Состояние:** Стабильное; tip-top + closure lite DoD (v131)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-29 v131) — Closure lite (eligible KPI + MLX probe + Grafana HC) ✅
+
+### Definition of Done (корпорация tip-top+)
+
+1. Очередь: `failed=0`, `stale=0`, pending кратковременно.
+2. Телеметрия: `DELEGATION_ALERT=0` при failed=0; MLX monitor fail=0 при host healthy.
+3. **RAG KPI = eligible %**, не raw % (цель eligible ≥80%; raw низкий ≠ авария).
+4. **MLX SoT probe:** `GET http://127.0.0.1:11435/health` (или `host.docker.internal:11435/health` из Docker).  
+   `GET /v1/models` **не** обязателен (может 404) — не считать это «MLX down».
+5. Grafana: docker Healthcheck → `(healthy)` при живом `/api/health`.
+
+### Норма метрик (не паника)
+
+| Метрика                              | Норма                                 | Паника?        |
+| ------------------------------------ | ------------------------------------- | -------------- |
+| RAG-eligible with_emb / eligible_all | ≥80% цель; 55–80% = догон nightly     | Нет            |
+| Raw with_emb / all nodes             | часто 50–60% из‑за junk в знаменателе | **Нет**        |
+| MLX RAM ~84%                         | watch у порога 85%, concurrent=1      | Нет            |
+| cancelled delegation ledger          | история timeout-cap                   | Нет (не stuck) |
+
+### Решение
+
+1. Dashboard caption: eligible KPI + anti-panic raw.
+2. Bible: MLX `/health` contract.
+3. Recreate Grafana with working healthcheck (`curl -sf` + start_period).
+
+### Evidence (live 2026-07-29)
+
+- Grafana: `Health=healthy` Healthcheck=set; `/api/health` → 200; `docker ps` → `(healthy)`.
+- MLX: `/health` → 200; `/v1/models` → **404** (ожидаемо; не down).
+- RAG: nodes_all=82617 with_emb=44398 (**raw 53.7%**); eligible_all=65260 eligible_with_emb=43824 (**eligible 67.2%**, догон к ≥80%).
+- Tasks: failed/pending/stale отсутствуют в срезе; cancelled/completed — ledger.
 
 ---
 

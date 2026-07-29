@@ -865,12 +865,17 @@ def render_data_health():
             )
 
             st.caption(
-                f"**RAG-eligible покрытие:** **{eligible_with_emb:,}** / {eligible_all:,} "
-                f"(**{eligible_pct}%**) — целевая метрика (без venv/audit/discovery-stubs). "
-                f"Raw: {with_emb:,} / {nodes_all:,} ({emb_pct}%). "
-                f"Источник связей: `knowledge_links` "
-                f"(таблица `knowledge_edges` не используется в этом виджете)."
+                f"**RAG-eligible покрытие (KPI):** **{eligible_with_emb:,}** / {eligible_all:,} "
+                f"(**{eligible_pct}%**) — норма ≥80% (venv/audit/discovery stubs исключены). "
+                f"Raw: {with_emb:,} / {nodes_all:,} ({emb_pct}%) — **не** сигнал «RAG сломан»; "
+                f"raw включает junk-знаменатель. Догон: nightly Embedding backfill, не mass-job. "
+                f"Источник связей: `knowledge_links`."
             )
+            if emb_pct < 60 and eligible_pct >= 55:
+                st.info(
+                    "Raw embedding % низкий при приемлемом RAG-eligible — это ожидаемый фон "
+                    "(quality-over-quantity, v119/v131). Смотрите eligible KPI, не raw."
+                )
             if eligible_all:
                 st.progress(min(1.0, eligible_with_emb / eligible_all))
                 st.caption(
