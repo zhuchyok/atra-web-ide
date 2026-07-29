@@ -38,14 +38,28 @@ class ResourceMonitor:
     """Мониторинг ресурсов системы"""
 
     def __init__(self):
+        # Docker Desktop: localhost inside container ≠ host MLX/Ollama (v130).
+        in_docker = (
+            os.path.exists("/.dockerenv")
+            or "pgbouncer" in os.getenv("DATABASE_URL", "")
+            or "knowledge_postgres" in os.getenv("DATABASE_URL", "")
+        )
+        default_mlx = "http://host.docker.internal:11435" if in_docker else "http://localhost:11435"
+        default_ollama = (
+            "http://host.docker.internal:11434" if in_docker else "http://localhost:11434"
+        )
         self.mlx_url = (
-            os.getenv("MLX_API_URL") or os.getenv("MAC_LLM_URL") or "http://localhost:11435"
+            os.getenv("MLX_API_URL")
+            or os.getenv("MLX_BASE_URL")
+            or os.getenv("MLX_MONITOR_URL")
+            or os.getenv("MAC_LLM_URL")
+            or default_mlx
         )
         self.ollama_url = (
             os.getenv("OLLAMA_API_URL")
             or os.getenv("OLLAMA_BASE_URL")
             or os.getenv("SERVER_LLM_URL")
-            or "http://localhost:11434"
+            or default_ollama
         )
         # Ensure URLs have protocol
         if self.mlx_url and not self.mlx_url.startswith("http"):

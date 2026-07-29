@@ -32,8 +32,26 @@
 
 **Дата последнего обновления:** 2026-07-28
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; tip-top queue + tracking KPI clean (v129)
+**Состояние:** Стабильное; tip-top + observability quiet (v130)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-29 v130) — Observability hygiene (OpenCode noise) ✅
+
+### Диагноз
+
+Ложные сигналы: `stuck_delegation=cancelled` и `resource_monitor` → `localhost:11435` внутри Docker при живом MLX на хосте.
+
+### Решение
+
+1. Alert stuck = `failed + stale_in_progress`; cancelled — ledger only.
+2. Docker-aware MLX/Ollama URL в `resource_monitor` + env на `knowledge_os_worker`.
+3. Cancel stale curiosity pending >24h.
+
+### Evidence
+
+- `DELEGATION_ALERT` count=0 при cancelled=51; `MLX health check failed`=0; mlx_url=host.docker.internal.
 
 ---
 

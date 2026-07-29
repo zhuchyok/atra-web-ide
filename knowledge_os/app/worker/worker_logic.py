@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict
 
@@ -20,18 +21,29 @@ def _structured_cancel_reason(reason_code: str, component: str, details: str = "
 
 
 async def _emit_delegation_metrics(conn, alert_threshold: int) -> None:
-    """Печатает метрики и алерт по stuck delegation задачам."""
+    """Печатает метрики и алерт по stuck delegation задачам.
+
+    v130: cancelled — исторический ledger политики timeout-cap / triage, не stuck.
+    stuck = failed + in_progress older than SLA (default 30m).
+    """
     try:
+        stale_minutes = max(5, int(os.getenv("DELEGATION_STUCK_IN_PROGRESS_MINUTES", "30")))
         row = await conn.fetchrow(
             """
             SELECT
                 COUNT(*) FILTER (WHERE status = 'pending') AS pending_cnt,
                 COUNT(*) FILTER (WHERE status = 'in_progress') AS in_progress_cnt,
                 COUNT(*) FILTER (WHERE status = 'failed') AS failed_cnt,
-                COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled_cnt
+                COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled_cnt,
+                COUNT(*) FILTER (
+                    WHERE status = 'in_progress'
+                      AND COALESCE(updated_at, created_at)
+                          < NOW() - make_interval(mins => $1::int)
+                ) AS stale_in_progress_cnt
             FROM tasks
             WHERE metadata->>'source' = 'victoria_monster_delegation'
-            """
+            """,
+            stale_minutes,
         )
         if not row:
             return
@@ -39,13 +51,19 @@ async def _emit_delegation_metrics(conn, alert_threshold: int) -> None:
         in_progress_cnt = int(row["in_progress_cnt"] or 0)
         failed_cnt = int(row["failed_cnt"] or 0)
         cancelled_cnt = int(row["cancelled_cnt"] or 0)
+        stale_ip_cnt = int(row["stale_in_progress_cnt"] or 0)
         print(
-            f"[{datetime.now()}] 📊 [DELEGATION_METRICS] pending={pending_cnt} in_progress={in_progress_cnt} failed={failed_cnt} cancelled={cancelled_cnt}"
+            f"[{datetime.now()}] 📊 [DELEGATION_METRICS] pending={pending_cnt} "
+            f"in_progress={in_progress_cnt} stale_in_progress={stale_ip_cnt} "
+            f"failed={failed_cnt} cancelled={cancelled_cnt}"
         )
-        stuck_total = failed_cnt + cancelled_cnt
+        # Cancelled is ledger noise after work_item_timeout_exhausted / triage — not stuck.
+        stuck_total = failed_cnt + stale_ip_cnt
         if stuck_total >= alert_threshold:
             print(
-                f"[{datetime.now()}] 🚨 [DELEGATION_ALERT] stuck_delegation={stuck_total} (failed={failed_cnt}, cancelled={cancelled_cnt}) threshold={alert_threshold}"
+                f"[{datetime.now()}] 🚨 [DELEGATION_ALERT] stuck_delegation={stuck_total} "
+                f"(failed={failed_cnt}, stale_in_progress={stale_ip_cnt}, "
+                f"cancelled_ledger={cancelled_cnt}) threshold={alert_threshold}"
             )
     except Exception as _metrics_err:
         logger.debug("Delegation metrics failed: %s", _metrics_err)

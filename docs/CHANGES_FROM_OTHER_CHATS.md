@@ -20,6 +20,14 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-29 v130) — Observability hygiene (stuck alert + MLX monitor) ✅
+
+- `stuck_delegation` больше не считает `cancelled` (ledger); alert = failed + stale in_progress.
+- `resource_monitor` Docker-aware MLX/Ollama defaults; worker env `MLX_API_URL`/`MLX_BASE_URL`.
+- Stale curiosity System Ops pending >24h cancelled.
+- Evidence: DELEGATION_ALERT=0, MLX health fail=0 при cancelled=51.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v130.
+
 ## § Последние изменения (2026-07-28 v129) — Tracking twins never pollute failed KPI ✅
 
 - Root cause: `_record_orchestration_task_complete` писал `status=failed` для metrics-only twins → ложный failed в очереди.

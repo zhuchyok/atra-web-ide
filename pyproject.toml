@@ -94,6 +94,8 @@ ignore = ["E501", "F401", "F841"]  # Line too long; unused imports/vars (CI: Ð¿Ð
 ]
 "scripts/runtime_kpi_gate_monitor.py" = ["UP006", "UP007", "UP035", "E402"]
 "knowledge_os/app/sandbox_manager.py" = ["UP006", "UP035"]
+"knowledge_os/app/resource_monitor.py" = ["UP006", "UP035", "E722"]
+"knowledge_os/app/worker/worker_logic.py" = ["UP006", "UP035"]
 "knowledge_os/app/meta_architect.py" = ["UP006", "UP007", "UP035"]
 # Bridge monolith: bare except / legacy typing (touched for tracking twin fix v120)
 "src/agents/bridge/victoria_server.py" = [

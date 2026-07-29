@@ -439,6 +439,8 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      MLX_BASE_URL: http://host.docker.internal:11435
+      MLX_API_URL: http://host.docker.internal:11435
       OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
