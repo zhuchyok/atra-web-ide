@@ -20,6 +20,13 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-30 v133) — Expert skills injection wire ✅
+
+- Root cause: `expert_worker` import `app.worker_memory` (missing) + name≠role key.
+- Fix: `app.worker.worker_memory`, role/dept resolve, name hints, warning on fail.
+- Evidence: pytest 5 passed; Анна skills non-empty; workers restarted.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v133.
+
 ## § Последние изменения (2026-07-29 v132) — Eligible ≥80% + Ollama embed path ✅
 
 - Root cause: ST reload per call + dead VectorCore `:8100` → nightly backfill thrash.

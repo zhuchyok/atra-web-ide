@@ -1,7 +1,5 @@
-import os
 import logging
-from typing import List, Optional, Dict, Any
-from datetime import datetime
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +15,39 @@ ROLE_DEPARTMENT_TO_SKILLS = {
     "general": ["ask-questions-if-underspecified", "code-review"],
 }
 
-def _read_skill_snippets_sync(skill_folders: List[str], max_chars_per_skill: int = 2000) -> str:
+# Имена экспертов → role hint (когда DB role недоступен / не совпал с map)
+EXPERT_NAME_TO_ROLE_HINTS = {
+    "анна": "qa",
+    "игорь": "backend",
+    "роман": "backend",
+    "сергей": "devops",
+    "дмитрий": "ml",
+    "татьяна": "documentation",
+    "ольга": "backend",
+    "алексей": "backend",
+    "елена": "devops",
+    "виктория": "general",
+    "максим": "general",
+    "мария": "general",
+    "павел": "python",
+    "арина": "general",
+}
+
+
+def _folders_for_role_dept(role: str = "", department: str = "") -> list[str]:
+    """Match ROLE_DEPARTMENT_TO_SKILLS keys as substrings of role/department (smart-worker style)."""
+    role_lower = (role or "").lower()
+    dept_lower = (department or "").lower()
+    skill_folders: list[str] = []
+    for key, folders in ROLE_DEPARTMENT_TO_SKILLS.items():
+        if key in role_lower or key in dept_lower:
+            for f in folders:
+                if f not in skill_folders:
+                    skill_folders.append(f)
+    return skill_folders
+
+
+def _read_skill_snippets_sync(skill_folders: list[str], max_chars_per_skill: int = 2000) -> str:
     """Читает первые max_chars_per_skill символов из SKILL.md для каждой папки."""
     skills_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "skills")
     parts = []
@@ -43,6 +73,7 @@ def _read_skill_snippets_sync(skill_folders: List[str], max_chars_per_skill: int
         return ""
     return "\n\n📋 ИНСТРУКЦИИ ИЗ СКИЛЛОВ (используй при решении):\n" + "\n\n---\n\n".join(parts)
 
+
 def _get_skill_description_sync(skills_dir: str, folder: str) -> str:
     """Читает из SKILL.md description из frontmatter или имя папки."""
     path = os.path.join(skills_dir, folder, "SKILL.md")
@@ -59,7 +90,10 @@ def _get_skill_description_sync(skills_dir: str, folder: str) -> str:
     except Exception:
         return folder.replace("-", " ")
 
-def _select_skills_by_relevance_sync(task_title: str, task_description: str, max_skills: int = 3) -> List[str]:
+
+def _select_skills_by_relevance_sync(
+    task_title: str, task_description: str, max_skills: int = 3
+) -> list[str]:
     """Выбирает до max_skills скиллов по ключевым словам задачи."""
     skills_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "skills")
     if not os.path.isdir(skills_dir):
@@ -79,13 +113,41 @@ def _select_skills_by_relevance_sync(task_title: str, task_description: str, max
     return [f for _, f in scored[:max_skills]]
 
 
-async def load_skills_for_expert(expert_name: str, task_description: str) -> str:
-    """Async wrapper: loads relevant skills for an expert based on task description."""
-    role_key = expert_name.lower()
-    skill_folders = ROLE_DEPARTMENT_TO_SKILLS.get(role_key, [])
+async def load_skills_for_expert(
+    expert_name: str,
+    task_description: str,
+    role: str | None = None,
+    department: str | None = None,
+) -> str:
+    """
+    Load up to 3 skill snippets for an expert.
+    Order: explicit role/dept → name hint → keyword relevance → general.
+    """
+    skill_folders = _folders_for_role_dept(role or "", department or "")
+
     if not skill_folders:
-        # Fallback: select by relevance
+        # Direct key match (tests pass role key as expert_name)
+        role_key = (expert_name or "").lower().strip()
+        skill_folders = list(ROLE_DEPARTMENT_TO_SKILLS.get(role_key, []))
+
+    if not skill_folders:
+        hint = EXPERT_NAME_TO_ROLE_HINTS.get((expert_name or "").lower().strip())
+        if hint:
+            skill_folders = list(ROLE_DEPARTMENT_TO_SKILLS.get(hint, []))
+
+    if not skill_folders:
         skill_folders = _select_skills_by_relevance_sync(expert_name, task_description)
+
+    # Merge task-relevant skills (cap 3 total), same idea as smart_worker
+    relevant = _select_skills_by_relevance_sync(expert_name, task_description, 3)
+    for f in relevant:
+        if f not in skill_folders:
+            skill_folders.append(f)
+
+    if not skill_folders:
+        skill_folders = list(ROLE_DEPARTMENT_TO_SKILLS.get("general", []))
+
+    skill_folders = skill_folders[:3]
     if not skill_folders:
         return ""
     return _read_skill_snippets_sync(skill_folders)

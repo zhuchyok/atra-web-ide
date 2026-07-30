@@ -30,10 +30,31 @@
 
 ## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
-**Дата последнего обновления:** 2026-07-29
+**Дата последнего обновления:** 2026-07-30
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; tip-top + RAG eligible ≥80% (v132)
+**Состояние:** Стабильное; tip-top + eligible 100% + skills wired (v133)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-30 v133) — Expert skills injection wire ✅
+
+### Диагноз
+
+Docker `expert_worker` импортировал несуществующий `app.worker_memory` → skills никогда не inject; ошибка в `debug`. Имя «Анна» не матчило ключи `qa/backend/...`.
+
+### Решение
+
+1. Import → `app.worker.worker_memory`; fail → `warning`.
+2. `load_skills_for_expert(role=, department=)` + name hints + relevance + general.
+3. Role/dept из metadata или `experts` table.
+4. Tests: Анна/QA non-empty; workers restarted.
+
+### Evidence
+
+- `pytest tests/test_worker_memory.py` → 5 passed.
+- Container: `load_skills_for_expert('Анна', …)` → chars>0, `ИНСТРУКЦИИ ИЗ СКИЛЛОВ`.
+- `process_task` source contains `app.worker.worker_memory`.
 
 ---
 

@@ -672,17 +672,47 @@ async def process_task(task_data: dict):
         "audit_required": bool(contract.get("audit_required", False)),
     }
 
-    # [SINGULARITY 31.3] Skills injection for expert
+    # [SINGULARITY 31.3 / v133] Skills injection for expert
     _expert_skills_context = ""
     try:
-        from app.worker_memory import load_skills_for_expert
+        try:
+            from app.worker.worker_memory import load_skills_for_expert
+        except ImportError:
+            from worker.worker_memory import load_skills_for_expert
 
-        _expert_skills_context = await load_skills_for_expert(expert_name, description)
+        _role = ""
+        _dept = ""
+        if isinstance(metadata, dict):
+            _role = str(metadata.get("expert_role") or metadata.get("role") or "")
+            _dept = str(metadata.get("department") or "")
+        if not _role:
+            try:
+                _pool = await get_db_pool()
+                async with _pool.acquire() as _conn:
+                    _row = await _conn.fetchrow(
+                        "SELECT role, department FROM experts WHERE name = $1 LIMIT 1",
+                        expert_name,
+                    )
+                    if _row:
+                        _role = str(_row.get("role") or "")
+                        _dept = str(_row.get("department") or "")
+            except Exception as _role_err:
+                logger.debug("[SKILLS] role lookup skipped: %s", _role_err)
+
+        _expert_skills_context = await load_skills_for_expert(
+            expert_name, description, role=_role, department=_dept
+        )
         if _expert_skills_context:
             description = _expert_skills_context + "\n\n" + description
-            logger.info(f"📋 [SKILLS] Injected skills for {expert_name}")
+            logger.info(
+                "📋 [SKILLS] Injected skills for %s (role=%s dept=%s chars=%s)",
+                expert_name,
+                _role or "-",
+                _dept or "-",
+                len(_expert_skills_context),
+            )
     except Exception as _sk_err:
-        logger.debug(f"[SKILLS] Not available: {_sk_err}")
+        logger.warning("[SKILLS] Not available for %s: %s", expert_name, _sk_err)
 
     def _extract_source_attribution() -> List[Dict[str, str]]:
         md = metadata if isinstance(metadata, dict) else {}
