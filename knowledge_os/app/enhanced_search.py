@@ -5,61 +5,67 @@ Enhanced Multimodal Search for Knowledge OS - FIXED
 
 import asyncio
 import json
+import logging
+import math
 import os
 import re
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import asyncpg
 import httpx
 import redis.asyncio as redis
-from sentence_transformers import CrossEncoder
+
+logger = logging.getLogger(__name__)
 
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 VECTOR_CORE_URL = "http://localhost:8001"
 
-# [RERANKER v2] Инициализация Cross-Encoder (ленивая загрузка)
+# [RERANKER v2] Lazy Cross-Encoder — only when RAG_RERANKER_ENABLED=true
 _RERANKER_MODEL = None
+
+
+def _reranker_enabled() -> bool:
+    return os.getenv("RAG_RERANKER_ENABLED", "true").lower() in ("1", "true", "yes")
+
 
 def get_reranker():
     global _RERANKER_MODEL
     if _RERANKER_MODEL is None:
-        # Используем легкую, но точную модель
-        model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-        print(f"📥 Загрузка Cross-Encoder модели: {model_name}...")
+        from sentence_transformers import CrossEncoder
+
+        model_name = os.getenv("RAG_RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+        logger.info("📥 Loading Cross-Encoder: %s", model_name)
         _RERANKER_MODEL = CrossEncoder(model_name, max_length=512)
     return _RERANKER_MODEL
 
 
-async def rerank_results(query: str, results: List[Dict]) -> List[Dict]:
-    """Переранжирование результатов с помощью Cross-Encoder [RERANKER v2]"""
+async def rerank_results(query: str, results: list[dict]) -> list[dict]:
+    """Переранжирование результатов с помощью Cross-Encoder [RERANKER v2]."""
     if not results:
         return []
-    
+    if not _reranker_enabled():
+        return results
+
+    load_timeout = float(os.getenv("RAG_RERANKER_LOAD_TIMEOUT_SEC", "20"))
+    predict_timeout = float(os.getenv("RAG_RERANKER_PREDICT_TIMEOUT_SEC", "15"))
     try:
-        model = await asyncio.to_thread(get_reranker)
-        
-        # Формируем пары (query, content)
-        pairs = [[query, r["content"]] for r in results]
-        
-        # Получаем скоры (чем выше, тем релевантнее)
-        scores = await asyncio.to_thread(model.predict, pairs)
-        
-        # Обновляем similarity и сортируем
+        model = await asyncio.wait_for(asyncio.to_thread(get_reranker), timeout=load_timeout)
+        pairs = [[query, (r.get("content") or "")[:2000]] for r in results]
+        scores = await asyncio.wait_for(
+            asyncio.to_thread(model.predict, pairs), timeout=predict_timeout
+        )
+
         for i, result in enumerate(results):
-            # Нормализуем скор (MiniLM выдает логиты, приведем к 0..1 примерно)
-            # Для ms-marco MiniLM скоры обычно в диапазоне [-10, 10]
-            import math
-            sig_score = 1 / (1 + math.exp(-scores[i]))
+            sig_score = 1 / (1 + math.exp(-float(scores[i])))
             result["rerank_score"] = float(scores[i])
             result["similarity"] = sig_score
-            
-        sorted_results = sorted(results, key=lambda x: x["similarity"], reverse=True)
-        return sorted_results
+
+        return sorted(results, key=lambda x: x["similarity"], reverse=True)
     except Exception as e:
-        print(f"⚠️ Ошибка реранкинга: {e}")
+        logger.warning("⚠️ Rerank skipped: %s", e)
         return results
 
 
@@ -76,39 +82,40 @@ class SearchMode(Enum):
 class QueryParams:
     """Helper to manage dynamic SQL parameters"""
 
-    def __init__(self, initial_params: List[Any] = None):
+    def __init__(self, initial_params: list[Any] = None):
         self.params = initial_params or []
 
     def add(self, value: Any) -> str:
         self.params.append(value)
         return f"${len(self.params)}"
 
-    def get_all(self) -> List[Any]:
+    def get_all(self) -> list[Any]:
         return self.params
 
 
-async def get_embedding(text: str) -> List[float]:
+async def get_embedding(text: str) -> list[float]:
     """Получение эмбеддинга через Ollama [HYBRID v2]"""
     try:
         from app.semantic_cache import get_embedding as get_ollama_embedding
+
         emb = await get_ollama_embedding(text)
         if emb:
             return emb
     except Exception as e:
         print(f"⚠️ Ошибка получения эмбеддинга через semantic_cache: {e}")
-    
+
     # Fallback на прямой запрос к Ollama если импорт не сработал
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            "http://localhost:11434/api/embeddings", 
-            json={"model": "nomic-embed-text", "prompt": text}, 
-            timeout=30.0
+            "http://localhost:11434/api/embeddings",
+            json={"model": "nomic-embed-text", "prompt": text},
+            timeout=30.0,
         )
         response.raise_for_status()
         return response.json()["embedding"]
 
 
-def detect_search_mode(query: str) -> Tuple[SearchMode, Dict]:
+def detect_search_mode(query: str) -> tuple[SearchMode, dict]:
     """Автоматическое определение режима поиска"""
     query_lower = query.lower()
     metadata = {}
@@ -156,7 +163,7 @@ def detect_search_mode(query: str) -> Tuple[SearchMode, Dict]:
 
 async def semantic_search(
     conn: asyncpg.Connection, query: str, domain: Optional[str] = None, limit: int = 5
-) -> List[Dict]:
+) -> list[dict]:
     """Семантический поиск через эмбеддинги"""
     embedding = await get_embedding(query)
     qp = QueryParams([str(embedding)])
@@ -181,14 +188,14 @@ async def semantic_search(
 
 async def keyword_search(
     conn: asyncpg.Connection, query: str, domain: Optional[str] = None, limit: int = 5
-) -> List[Dict]:
+) -> list[dict]:
     """Поиск по ключевым словам (BM25/FTS) [HYBRID v2]"""
     qp = QueryParams()
-    
+
     # Очищаем запрос для tsquery
-    clean_query = re.sub(r'[^\w\s]', ' ', query).strip()
+    clean_query = re.sub(r"[^\w\s]", " ", query).strip()
     ts_query = " & ".join(clean_query.split())
-    
+
     if not ts_query:
         return []
 
@@ -212,7 +219,7 @@ async def keyword_search(
 
 async def metric_search(
     conn: asyncpg.Connection, query: str, domain: Optional[str] = None, limit: int = 5
-) -> List[Dict]:
+) -> list[dict]:
     """Поиск по метрикам (числовые значения)"""
     numbers = re.findall(r"\d+\.?\d*", query)
     qp = QueryParams()
@@ -262,7 +269,7 @@ async def metric_search(
 
 async def temporal_search(
     conn: asyncpg.Connection, query: str, domain: Optional[str] = None, limit: int = 5
-) -> List[Dict]:
+) -> list[dict]:
     """Поиск по временным меткам"""
     query_lower = query.lower()
     qp = QueryParams()
@@ -305,7 +312,7 @@ async def temporal_search(
 
 async def hybrid_search(
     conn: asyncpg.Connection, query: str, domain: Optional[str] = None, limit: int = 5
-) -> List[Dict]:
+) -> list[dict]:
     """Гибридный поиск: семантический + BM25 [HYBRID v2]"""
     # 1. Получаем результаты из обоих источников
     semantic_results = await semantic_search(conn, query, domain, limit * 3)
@@ -315,7 +322,7 @@ async def hybrid_search(
 
     # 2. Нормализуем веса (Reciprocal Rank Fusion или взвешенная сумма)
     # Используем взвешенную сумму: 0.7 Vector + 0.3 BM25
-    
+
     for result in semantic_results:
         node_id = str(result["id"])
         similarity = float(result.get("similarity", 0))
@@ -341,18 +348,16 @@ async def hybrid_search(
         v = combined[node_id].get("vector_score", 0)
         k = combined[node_id].get("keyword_score", 0)
         # Нормализация BM25 (ts_rank может быть > 1)
-        k_norm = min(1.0, k) 
+        k_norm = min(1.0, k)
         combined[node_id]["similarity"] = (v * 0.7) + (k_norm * 0.3)
 
     sorted_results = sorted(combined.values(), key=lambda x: x.get("similarity", 0), reverse=True)
 
-    # 4. Cross-Encoder Re-ranking [RERANKER v2]
-    # Берем топ-15 кандидатов для уточнения
+    # 4. Cross-Encoder Re-ranking [RERANKER v2] — only if enabled
     candidates = sorted_results[:15]
-    if len(candidates) > 1:
-        print(f"🔍 [RERANKER] Переранжирование {len(candidates)} кандидатов...")
+    if _reranker_enabled() and len(candidates) > 1:
+        logger.info("🔍 [RERANKER] Re-ranking %s candidates...", len(candidates))
         reranked = await rerank_results(query, candidates)
-        # Объединяем с остальными результатами (если были)
         final_results = reranked + sorted_results[15:]
         return final_results[:limit]
 
@@ -365,7 +370,7 @@ async def enhanced_search_knowledge(
     mode: Optional[SearchMode] = None,
     limit: int = 5,
     use_cache: bool = True,
-) -> Dict:
+) -> dict:
     """Улучшенный мультимодальный поиск"""
     if mode is None:
         mode, metadata = detect_search_mode(query)
@@ -423,9 +428,13 @@ async def enhanced_search_knowledge(
         else:
             results = await semantic_search(conn, query, domain, limit)
 
-        # [RERANKER v2] Применяем реранкинг для всех режимов кроме HYBRID (там он уже внутри)
-        if mode != SearchMode.HYBRID and results and len(results) > 1:
-            print(f"🔍 [RERANKER] Переранжирование {len(results)} результатов ({mode.value})...")
+        # [RERANKER v2] non-HYBRID modes (HYBRID already gated inside hybrid_search)
+        if mode != SearchMode.HYBRID and _reranker_enabled() and results and len(results) > 1:
+            logger.info(
+                "🔍 [RERANKER] Re-ranking %s results (%s)...",
+                len(results),
+                mode.value,
+            )
             results = await rerank_results(query, results)
 
         if results:

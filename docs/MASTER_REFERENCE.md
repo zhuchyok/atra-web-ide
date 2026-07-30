@@ -30,10 +30,24 @@
 
 ## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
-**Дата последнего обновления:** 2026-07-30
+**Дата последнего обновления:** 2026-07-31
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; tip-top + eligible 100% + skills wired (v133)
+**Состояние:** Стабильное; tip-top + omni-rag unblocked (v134)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-07-31 v134) — Omni-RAG hang: honor RAG_RERANKER_ENABLED ✅
+
+### Диагноз
+
+`/api/omni-rag/search` получал Ollama embed 200, затем зависал. Semantic/keyword ~0.16s; hang = CrossEncoder в `hybrid_search` при `RAG_RERANKER_ENABLED=false` (флаг игнорировался).
+
+### Решение
+
+1. `enhanced_search`: gate rerank на `_reranker_enabled()`; lazy import CrossEncoder; load/predict timeouts.
+2. `omni_rag_search`: `asyncio.wait_for` → 504 при timeout.
+3. Victoria: victoria-agent; evidence omni-rag HTTP 200 ~0.19s.
 
 ---
 

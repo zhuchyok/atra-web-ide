@@ -20,6 +20,13 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-07-31 v134) — Omni-RAG hang fix ✅
+
+- Root cause: CrossEncoder rerank always ran; `RAG_RERANKER_ENABLED=false` ignored → hang after embed.
+- Fix: honor flag + lazy CE + timeouts; omni-rag `wait_for` → 504.
+- Evidence: `POST /api/omni-rag/search` HTTP 200 ~0.19s, results_count=2.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v134.
+
 ## § Последние изменения (2026-07-30 v133) — Expert skills injection wire ✅
 
 - Root cause: `expert_worker` import `app.worker_memory` (missing) + name≠role key.

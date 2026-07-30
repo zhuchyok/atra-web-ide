@@ -8530,18 +8530,23 @@ class OmniSearchRequest(BaseModel):
 async def omni_rag_search(request: OmniSearchRequest):
     """
     Унифицированный поиск Omni-RAG для внешних систем (Telegram, Open WebUI и др.)
-    Использует Hybrid Search v2 + Cross-Encoder Re-ranking.
+    Hybrid Search v2; Cross-Encoder only when RAG_RERANKER_ENABLED=true.
     """
     try:
         from app.enhanced_search import SearchMode, enhanced_search_knowledge
 
         logger.info(f"🔍 [OMNI-RAG] Search request: {request.query} (domain: {request.domain})")
 
-        results = await enhanced_search_knowledge(
-            query=request.query,
-            domain=request.domain,
-            mode=SearchMode.HYBRID,
-            limit=request.limit or 3,
+        # Bound runtime — hung CrossEncoder previously returned 0 bytes to clients.
+        timeout_sec = float(os.getenv("OMNI_RAG_SEARCH_TIMEOUT_SEC", "45"))
+        results = await asyncio.wait_for(
+            enhanced_search_knowledge(
+                query=request.query,
+                domain=request.domain,
+                mode=SearchMode.HYBRID,
+                limit=request.limit or 3,
+            ),
+            timeout=timeout_sec,
         )
 
         # Sanitize NaN/Inf values in results (JSON-safe)
@@ -8557,6 +8562,12 @@ async def omni_rag_search(request: OmniSearchRequest):
             return obj
 
         return _sanitize(results)
+    except asyncio.TimeoutError:
+        logger.error(
+            "❌ [OMNI-RAG] Search timed out after %ss",
+            os.getenv("OMNI_RAG_SEARCH_TIMEOUT_SEC", "45"),
+        )
+        raise HTTPException(status_code=504, detail="omni-rag search timed out")
     except Exception as e:
         logger.error(f"❌ [OMNI-RAG] Search failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
