@@ -87,6 +87,11 @@ services:
       OLLAMA_EMBED_TIMEOUT_SEC: "8"
       OLLAMA_EMBED_MAX_RETRIES: "2"
       MLX_BASE_URL: http://host.docker.internal:11435
+      # v135: brain on MLX (world practice); Ollama = hands/light/embed
+      VICTORIA_MLX_BRAIN: ${VICTORIA_MLX_BRAIN:-true}
+      VICTORIA_WISDOM_MLX_PRIMARY: ${VICTORIA_WISDOM_MLX_PRIMARY:-true}
+      USE_MLX_FOR_PLANNER: ${USE_MLX_FOR_PLANNER:-true}
+      USE_MLX_FALLBACK: ${USE_MLX_FALLBACK:-true}
       VICTORIA_STRATEGIST_MODEL: ${VICTORIA_STRATEGIST_MODEL:-victoria-wisdom-v3.5:latest}
       VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-qwen2.5-coder:14b}
       UVICORN_WORKERS: "2"

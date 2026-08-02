@@ -20,6 +20,14 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-08-02 v135) — Wisdom MLX-primary + SRE taxonomy ✅
+
+- Brain on MLX: `executor` routes `victoria-wisdom*` to healthy MLX first; strip `:latest` for MLX registry.
+- Logs: `client_timeout` vs `[LLM_BUSY]` (429/503); stop calling every timeout «Ollama busy?».
+- Compose/defaults: `VICTORIA_MLX_BRAIN`, `VICTORIA_WISDOM_MLX_PRIMARY`, `USE_MLX_FOR_PLANNER=true`; `local_router` aligned.
+- Evidence: tests 3 passed; in-container `[LLM_ROUTE] wisdom MLX-primary` → HTTP 200 on `:11435`.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v135.
+
 ## § Последние изменения (2026-07-31 v134) — Omni-RAG hang fix ✅
 
 - Root cause: CrossEncoder rerank always ran; `RAG_RERANKER_ENABLED=false` ignored → hang after embed.

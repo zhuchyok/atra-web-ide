@@ -1505,7 +1505,8 @@ class VictoriaAgent(BaseAgent):
         # VICTORIA_PLANNER_MODEL можно задать отдельно (например быстрая модель для планов)
         # USE_MLX_FOR_PLANNER=true — направить planner в MLX чтобы не конкурировать с Ollama
         planner_model = env_planner_model or model_name
-        use_mlx_planner = os.getenv("USE_MLX_FOR_PLANNER", "false").lower() == "true"
+        # v135: world practice — planner brain on MLX by default (Ollama = hands/light)
+        use_mlx_planner = os.getenv("USE_MLX_FOR_PLANNER", "true").lower() == "true"
         if use_mlx_planner:
             mlx_base = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
             mlx_model = os.getenv("VICTORIA_PLANNER_MODEL", "victoria-wisdom-v3.5")
@@ -2991,7 +2992,7 @@ Q: "покажи файлы в текущей директории" → План
             # Planner model - используем БЫСТРУЮ модель для планирования!
             # Это критично для отзывчивости Victoria
             # Если USE_MLX_FOR_PLANNER=true — planner уже на MLX, не переопределять!
-            _use_mlx_planner = os.getenv("USE_MLX_FOR_PLANNER", "false").lower() == "true"
+            _use_mlx_planner = os.getenv("USE_MLX_FOR_PLANNER", "true").lower() == "true"
             if _use_mlx_planner:
                 logger.info(
                     "[MODEL_SELECT] ℹ️ USE_MLX_FOR_PLANNER=true — planner на MLX (%s), пропускаем Ollama-override",

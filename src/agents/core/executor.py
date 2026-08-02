@@ -7,7 +7,7 @@ import re
 import sys
 import time
 import traceback
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import aiohttp
 from pydantic import ValidationError
@@ -103,6 +103,31 @@ def _mlx_base_url() -> str:
     return os.getenv("MLX_BASE_URL", "http://localhost:11435")
 
 
+def _is_victoria_wisdom(model: Optional[str]) -> bool:
+    """True for victoria-wisdom* (brain/hands tags)."""
+    return bool(model) and "victoria-wisdom" in (model or "").lower()
+
+
+def _normalize_model_for_backend(model: str, base_url: str, mlx_url: str) -> str:
+    """
+    World practice: one logical model, backend-specific ids.
+    MLX registry uses untagged victoria-wisdom-v3.5; Ollama often has :latest.
+    """
+    if not model:
+        return model
+    base = (base_url or "").rstrip("/")
+    mlx = (mlx_url or "").rstrip("/")
+    if base == mlx or ":11435" in base:
+        if model.endswith(":latest"):
+            return model[: -len(":latest")]
+    return model
+
+
+def _wisdom_mlx_primary_enabled() -> bool:
+    """MLX-first for wisdom (default on). Opt out: VICTORIA_WISDOM_MLX_PRIMARY=false."""
+    return os.getenv("VICTORIA_WISDOM_MLX_PRIMARY", "true").lower() in ("1", "true", "yes")
+
+
 class OllamaExecutor:
     """Исполнитель запросов к Ollama / MLX API с автоматическим fallback"""
 
@@ -126,7 +151,7 @@ class OllamaExecutor:
 
         # === CACHE CONFIGURATION [SINGULARITY 21.13] ===
         self.use_semantic_cache = os.getenv("VICTORIA_USE_SEMANTIC_CACHE", "true").lower() == "true"
-        self._local_hash_cache: Dict[str, str] = {}  # L1: Exact match (in-memory)
+        self._local_hash_cache: dict[str, str] = {}  # L1: Exact match (in-memory)
         self._cache_manager = None  # L2: SemanticAICache (lazy load)
         self._cache_threshold = float(os.getenv("VICTORIA_CACHE_THRESHOLD", "0.95"))
 
@@ -134,7 +159,7 @@ class OllamaExecutor:
         self._semaphore = DynamicSemaphore(
             initial_limit=int(os.getenv("VICTORIA_MAX_CONCURRENT", "5"))
         )
-        self._monitor_task = None
+        self._monitor_task: Optional[asyncio.Task[Any]] = None
         self._start_monitor()
 
         logger.info("[EXECUTOR_INIT] ========== OllamaExecutor initialization ==========")
@@ -199,7 +224,7 @@ A: {"thought": "Выполню ls для текущей директории", "
             logger.debug(f"[MODEL_CHECK] Failed to check {model} on {base_url}: {e}")
         return False
 
-    async def _get_fallback_model(self) -> Tuple[Optional[str], Optional[str]]:
+    async def _get_fallback_model(self) -> tuple[Optional[str], Optional[str]]:
         """
         Get next available fallback model.
         Returns: (model_name, base_url) or (None, None) if no fallback available
@@ -297,10 +322,10 @@ A: {"thought": "Выполню ls для текущей директории", "
     async def ask(
         self,
         prompt: str,
-        history: Optional[List[Dict[str, str]]] = None,
+        history: Optional[list[dict[str, str]]] = None,
         raw_response: bool = False,
         phase: Optional[str] = None,
-        blocked_tools: Optional[List[str]] = None,
+        blocked_tools: Optional[list[str]] = None,
         model: Optional[str] = None,
         system: Optional[str] = None,
         expert_name: str = "Виктория",
@@ -348,17 +373,43 @@ A: {"thought": "Выполню ls для текущей директории", "
         # Ensure monitor is running
         self._start_monitor()
 
+        req_model = model or self.model
+        req_base = self.base_url
+        # World practice (brain on specialized accelerator): wisdom → MLX when healthy.
+        if (
+            _wisdom_mlx_primary_enabled()
+            and self._use_mlx_fallback
+            and _is_victoria_wisdom(req_model)
+            and req_base.rstrip("/") != self._mlx_url.rstrip("/")
+        ):
+            try:
+                timeout = aiohttp.ClientTimeout(total=2.0, connect=1.0)
+                async with aiohttp.ClientSession(timeout=timeout) as _sess:
+                    async with _sess.get(f"{self._mlx_url.rstrip('/')}/health") as _resp:
+                        if _resp.status == 200:
+                            req_base = self._mlx_url
+                            req_model = _normalize_model_for_backend(
+                                req_model, req_base, self._mlx_url
+                            )
+                            logger.info(
+                                "[LLM_ROUTE] wisdom MLX-primary model=%s url=%s",
+                                req_model,
+                                req_base,
+                            )
+            except Exception as _route_err:
+                logger.debug("[LLM_ROUTE] MLX primary probe skipped: %s", _route_err)
+
         async with self._semaphore:
             logger.info(
                 f"[ADAPTIVE] Slot acquired. Active requests: {self._semaphore.active_slots}/{self._semaphore.limit}"
             )
             try:
-                return await self._ask_with_fallback(
+                response = await self._ask_with_fallback(
                     prompt=prompt,
                     history=history,
                     raw_response=raw_response,
-                    model=model or self.model,
-                    base_url=self.base_url,
+                    model=req_model,
+                    base_url=req_base,
                     is_retry=False,
                     phase=phase,
                     blocked_tools=blocked_tools,
@@ -479,7 +530,7 @@ A: {"thought": "Выполню ls для текущей директории", "
                         new_limit = 1
                     elif health_score < 0.6:
                         new_limit = min(new_limit, 3)
-                except:
+                except Exception:
                     pass
 
                 self._semaphore.set_limit(new_limit)
@@ -492,16 +543,17 @@ A: {"thought": "Выполню ls для текущей директории", "
     async def _ask_with_fallback(
         self,
         prompt: str,
-        history: Optional[List[Dict[str, str]]],
+        history: Optional[list[dict[str, str]]],
         raw_response: bool,
         model: str,
         base_url: str,
         is_retry: bool = False,
         phase: Optional[str] = None,
-        blocked_tools: Optional[List[str]] = None,
+        blocked_tools: Optional[list[str]] = None,
         system_override: Optional[str] = None,
     ) -> Any:
         """Internal method with fallback support"""
+        model = _normalize_model_for_backend(model, base_url, self._mlx_url)
         url = f"{base_url}/api/chat"
         system_content = system_override or self.system_prompt
         if blocked_tools:
@@ -531,7 +583,7 @@ A: {"thought": "Выполню ls для текущей директории", "
             if raw:
                 try:
                     return int(raw) if str(raw).strip().lstrip("-").isdigit() else raw
-                except:
+                except Exception:
                     return raw
 
             key = (m_name or "").lower()
@@ -616,6 +668,36 @@ A: {"thought": "Выполню ls для текущей директории", "
                             "Metal error",
                         ]
 
+                        is_busy = response.status in (429, 503) or any(
+                            x in (error_body or "").lower()
+                            for x in ("server busy", "maximum pending", "queue is full")
+                        )
+                        if is_busy:
+                            logger.warning(
+                                "[LLM_BUSY] model=%s backend=%s http=%s — transient overload; fallback...",
+                                model,
+                                "mlx"
+                                if base_url.rstrip("/") == self._mlx_url.rstrip("/")
+                                else "ollama",
+                                response.status,
+                            )
+                            self._failed_models.add(model)
+                            self._fallback_attempts += 1
+                            if self._use_mlx_fallback and base_url != self._mlx_url:
+                                fallback_model, fallback_url = await self._get_fallback_model()
+                                if fallback_model and fallback_url:
+                                    return await self._ask_with_fallback(
+                                        prompt=prompt,
+                                        history=history,
+                                        raw_response=raw_response,
+                                        model=fallback_model,
+                                        base_url=fallback_url,
+                                        is_retry=True,
+                                        phase=phase,
+                                        blocked_tools=blocked_tools,
+                                        system_override=system_override,
+                                    )
+
                         is_crash = any(
                             ind.lower() in error_body.lower() for ind in crash_indicators
                         )
@@ -657,9 +739,13 @@ A: {"thought": "Выполню ls для текущей директории", "
                     phase_info,
                 )
 
-                # Timeout on any model - try MLX fallback immediately
+                # Client timeout ≠ confirmed 503 busy (SRE taxonomy).
                 logger.warning(
-                    f"[LLM_TIMEOUT] Model {model} timed out (Ollama busy?), trying MLX fallback..."
+                    "[LLM_TIMEOUT] model=%s backend=%s elapsed=%.1fs reason=client_timeout "
+                    "(not confirmed busy); trying fallback...",
+                    model,
+                    "mlx" if base_url.rstrip("/") == self._mlx_url.rstrip("/") else "ollama",
+                    elapsed,
                 )
                 self._failed_models.add(model)
                 self._fallback_attempts += 1
@@ -727,7 +813,7 @@ A: {"thought": "Выполню ls для текущей директории", "
                 logger.error(f"[LLM_ERROR] Traceback: {traceback.format_exc()}")
                 return {"error": str(e)}
 
-    def _parse_response(self, content: str, blocked_tools: Optional[List[str]] = None) -> Any:
+    def _parse_response(self, content: str, blocked_tools: Optional[list[str]] = None) -> Any:
         logger.info(f"[LLM_PARSE] Parsing response ({len(content)} chars)...")
 
         # Убираем лишние пробелы и возможные теги <think>
@@ -744,7 +830,7 @@ A: {"thought": "Выполню ls для текущей директории", "
                 knowledge_update = json.loads(k_part)
                 # Это будет обработано в базовом классе (нужна связь)
                 logger.debug(f"🧠 Найдено обновление знаний: {knowledge_update}")
-            except:
+            except Exception:
                 pass
 
         # Пробуем распарсить как JSON

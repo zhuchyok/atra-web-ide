@@ -32,8 +32,29 @@
 
 **Дата последнего обновления:** 2026-07-31
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; tip-top + omni-rag unblocked (v134)
+**Состояние:** Стабильное; tip-top + wisdom MLX-primary (v135)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-08-02 v135) — Wisdom MLX-primary + SRE error taxonomy ✅
+
+### Диагноз (Five Whys)
+
+Логи `LLM_TIMEOUT … (Ollama busy?)` → fallback на MLX. Почему timeout? Wisdom шёл в Ollama (загружен руками). Почему в Ollama? Executor default = Ollama base. Почему fallback «спасал»? MLX имел `victoria-wisdom-v3.5` без `:latest`, а Ollama-тег `:latest` на MLX не матчился / путь был медленный. Root cause: brain на wrong accelerator + false busy taxonomy (client timeout ≠ 503).
+
+### Решение (world practice)
+
+1. `executor.ask`: wisdom → probe MLX `/health` → MLX-primary; strip `:latest` for MLX ids.
+2. Taxonomy: `reason=client_timeout`; explicit `[LLM_BUSY]` only on 429/503/busy body.
+3. Compose: `VICTORIA_MLX_BRAIN`, `VICTORIA_WISDOM_MLX_PRIMARY`, `USE_MLX_FOR_PLANNER` default true; `local_router` + planner defaults aligned.
+4. Opt-out: `VICTORIA_WISDOM_MLX_PRIMARY=false`.
+
+### Evidence
+
+- `pytest knowledge_os/tests/test_executor_wisdom_route.py` → 3 passed.
+- In-container `OllamaExecutor.ask`: `[LLM_ROUTE] wisdom MLX-primary model=victoria-wisdom-v3.5 url=…:11435`, HTTP 200 ~9.4s.
+- Env on victoria-agent: `VICTORIA_MLX_BRAIN=true`, `VICTORIA_WISDOM_MLX_PRIMARY=true`, `USE_MLX_FOR_PLANNER=true`.
 
 ---
 

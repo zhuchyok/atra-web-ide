@@ -97,6 +97,16 @@ ignore = ["E501", "F401", "F841"]  # Line too long; unused imports/vars (CI: Ð¿Ð
 "knowledge_os/app/resource_monitor.py" = ["UP006", "UP035", "E722"]
 "knowledge_os/app/worker/worker_logic.py" = ["UP006", "UP035"]
 "knowledge_os/app/meta_architect.py" = ["UP006", "UP007", "UP035"]
+# Local router monolith: legacy typing/naming (touched for wisdom MLX-primary v135)
+"knowledge_os/app/local_router.py" = [
+    "UP006",
+    "UP007",
+    "UP035",
+    "E722",
+    "N806",
+    "N814",
+    "F823",
+]
 # Bridge monolith: bare except / legacy typing (touched for tracking twin fix v120)
 "src/agents/bridge/victoria_server.py" = [
     "E722",

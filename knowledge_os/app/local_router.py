@@ -1292,8 +1292,23 @@ class LocalAIRouter:
         mlx_healthy = health_score >= 0.6 and bool(mlx_nodes)
         victoria_mlx_brain = os.environ.get("VICTORIA_MLX_BRAIN", "false").lower() == "true"
 
-        if is_victoria_hands and ollama_nodes:
-            # Руки — executor/steps → всегда Ollama, не перегружаем MLX
+        # v135: wisdom MLX-primary (Google/SRE: right backend first). Opt-out via env.
+        wisdom_mlx_primary = (
+            os.environ.get("VICTORIA_WISDOM_MLX_PRIMARY", "true").lower() == "true"
+            or victoria_mlx_brain
+        )
+        if is_victoria and wisdom_mlx_primary and mlx_healthy:
+            preferred_source = "mlx"
+            # MLX registry is untagged; strip :latest for brain/hands wisdom
+            if model and model.lower().endswith(":latest"):
+                model = model[: -len(":latest")]
+            logger.info(
+                "🧠 [WISDOM-MLX] victoria-wisdom → MLX primary (health=%.2f, model=%s)",
+                health_score,
+                model,
+            )
+        elif is_victoria_hands and ollama_nodes:
+            # Legacy hands path when MLX-primary disabled or MLX unhealthy
             preferred_source = "ollama"
             logger.info("🤲 [HANDS] Victoria:latest → Ollama (executor path)")
         elif is_victoria_brain:
