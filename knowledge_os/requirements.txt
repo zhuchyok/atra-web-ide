@@ -12,7 +12,7 @@ starlette>=0.27.0
 pandas>=2.3.3
 duckdb>=1.1.0
 pyarrow>=14.0.0
-numpy>=2.0.2
+numpy>=2.4.4
 
 # HTTP запросы
 requests>=2.31.0
