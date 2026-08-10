@@ -75,7 +75,7 @@ jobs:
             --cov-fail-under=${COVERAGE_FAIL_UNDER:-5}
 
       - name: Upload coverage (no DB)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-no-db
           path: coverage.xml
@@ -155,7 +155,7 @@ jobs:
             --cov-fail-under=${COVERAGE_FAIL_UNDER:-5}
 
       - name: Upload coverage (with DB)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-with-db
           path: coverage.xml
