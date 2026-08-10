@@ -1,6 +1,6 @@
 # Dev dependencies (tests, load testing)
 -r requirements.txt
-pytest>=7.0.0
+pytest>=9.0.3
 pytest-asyncio>=0.21.0
 pytest-cov>=4.1.0
 pytest-codspeed>=5.0.0
