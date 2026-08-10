@@ -68,7 +68,7 @@ watchdog>=3.0.0
 
 # Vision: moondream — Python-клиент для Moondream Station; moondream-station — сервер (порт 2020); Pillow
 moondream>=0.1.0
-moondream-station>=0.1.0
+moondream-station>=0.1.9
 Pillow>=10.0.0
 
 # Веб-поиск: Veronica, researcher, scout (duckduckgo_search — без API-ключа)
