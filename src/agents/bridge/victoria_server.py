@@ -540,16 +540,22 @@ async def _cleanup_stale_tasks():
                     pool = await agent._get_db_pool()
                     if pool:
                         async with pool.acquire() as conn:
+                            timeout_note = (
+                                f"\n[Auto-cleanup: task timed out after "
+                                f"{STALE_THRESHOLD_SEC // 60}m]"
+                            )
+                            # asyncpg uses $1/$2. Do not mark pending (retry_after / queue).
                             updated = await conn.execute(
-                                f"""
+                                """
                                 UPDATE tasks
                                 SET status = 'failed',
-                                    result = result || E'\\n[Auto-cleanup: task timed out after {STALE_THRESHOLD_SEC // 60}m]',
+                                    result = COALESCE(result, '') || $2,
                                     updated_at = NOW()
-                                WHERE status IN ('pending', 'in_progress', 'processing', 'running')
-                                AND updated_at < NOW() - INTERVAL '%s seconds'
+                                WHERE status IN ('in_progress', 'processing', 'running')
+                                  AND updated_at < NOW() - make_interval(secs => $1::int)
                                 """,
-                                (STALE_THRESHOLD_SEC,),
+                                STALE_THRESHOLD_SEC,
+                                timeout_note,
                             )
                             if updated and updated != "UPDATE 0":
                                 logger.warning(
@@ -8256,10 +8262,27 @@ async def get_status():
         experts_stats["unique_roles"] = len(unique_roles)
         experts_stats["departments"] = len(unique_departments)
 
+    knowledge_size = len(agent.project_knowledge)
+    knowledge_nodes_total = None
+    if USE_KNOWLEDGE_OS and KNOWLEDGE_OS_AVAILABLE and agent:
+        try:
+            pool = await agent._get_db_pool()
+            if pool:
+                async with pool.acquire() as conn:
+                    knowledge_nodes_total = await conn.fetchval(
+                        "SELECT count(*) FROM knowledge_nodes"
+                    )
+                    if knowledge_nodes_total is not None:
+                        knowledge_size = int(knowledge_nodes_total)
+        except Exception:
+            pass
+
     status = {
         "status": "online",
         "agent": agent.name,
-        "knowledge_size": len(agent.project_knowledge),
+        "knowledge_size": knowledge_size,
+        "project_knowledge_size": len(agent.project_knowledge),
+        "knowledge_nodes_total": knowledge_nodes_total,
         "knowledge_os_enabled": USE_KNOWLEDGE_OS and KNOWLEDGE_OS_AVAILABLE,
         "experts_loaded": agent._expert_team_loaded,
         "experts_count": len(agent.expert_team),

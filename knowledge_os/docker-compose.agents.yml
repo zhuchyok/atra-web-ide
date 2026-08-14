@@ -600,8 +600,24 @@ services:
       EMBED_OLLAMA_CONCURRENCY: ${EMBED_OLLAMA_CONCURRENCY:-8}
       OLLAMA_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text:latest}
       USE_CUBE_SANDBOX: "false"
+      MLX_API_URL: ${MLX_API_URL:-http://host.docker.internal:11435}
+      HOST_PROJECT_ROOT: ${HOST_PROJECT_ROOT:-}
+      HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-}
+      # v137: curated AI Research feed («Последние находки») every 6h
+      NIGHTLY_RESEARCH_REFRESH_ENABLED: ${NIGHTLY_RESEARCH_REFRESH_ENABLED:-true}
+      NIGHTLY_RESEARCH_INTERVAL_SEC: ${NIGHTLY_RESEARCH_INTERVAL_SEC:-21600}
+      NIGHTLY_RESEARCH_SCOUT_ENABLED: ${NIGHTLY_RESEARCH_SCOUT_ENABLED:-true}
+      NIGHTLY_RESEARCH_SCOUT_MAX_TOPICS: ${NIGHTLY_RESEARCH_SCOUT_MAX_TOPICS:-1}
+      NIGHTLY_RESEARCH_SCOUT_TIMEOUT_SEC: ${NIGHTLY_RESEARCH_SCOUT_TIMEOUT_SEC:-180}
+      NIGHTLY_RESEARCH_EXTRA_DOCS: ${NIGHTLY_RESEARCH_EXTRA_DOCS:-true}
+      CURATED_DOCS_DIR: ${CURATED_DOCS_DIR:-/app/docs}
+      VISUAL_SEARCH_URL: ${VISUAL_SEARCH_URL:-http://victoria-visual-search:8005}
+      NIGHTLY_VISUAL_INDEX_ENABLED: ${NIGHTLY_VISUAL_INDEX_ENABLED:-true}
+      NIGHTLY_VISUAL_INDEX_MAX_FILES: ${NIGHTLY_VISUAL_INDEX_MAX_FILES:-15}
     volumes:
       - ../knowledge_os:/app/knowledge_os
+      - ../docs:/app/docs:ro
+      - ../docs/SOP:/app/docs/SOP
       - redis_data:/data/redis
       - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /app/knowledge_os/app
@@ -770,10 +786,18 @@ services:
     networks:
       - atra-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      # Image has no curl; python/urllib is in the slim runtime.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8005/health', timeout=5).read()",
+        ]
       interval: 60s
       timeout: 10s
       retries: 3
+      start_period: 20s
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os:/app
@@ -784,6 +808,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ../knowledge_os/models:/app/models
+      - ../docs:/app/docs:ro
       - ../docs:/app/corpus/docs:ro
       - ../knowledge_os/app:/app/corpus/knowledge_os:ro
 

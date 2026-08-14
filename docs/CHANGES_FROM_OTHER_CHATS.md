@@ -20,6 +20,42 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-08-14 v141) — IDE frontend + VeronicaScout class + workspace ✅
+
+- Поднят `atra-web-ide-frontend` `:3000` (образа не было).
+- Восстановлен `class VeronicaScout` (был мёртвым кодом после `return True`); live scout insights=1.
+- Gateway mount `.:/workspace` — `list_v2` больше не Directory not found.
+- Backend/frontend docker healthchecks.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v141.
+
+## § Последние изменения (2026-08-14 v140) — Gateway HTTP + VisualRAG bootstrap ✅
+
+- Local gateway HTTP: do **not** set empty CERT/KEY env (old image treats `""` as TLS). Live: `HTTP mode`, `/health` OK, RestartCount=0.
+- VisualRAG bootstrap: 5 docs indexed, FAISS persisted under `knowledge_os/models/`, reload after recreate `vectors=5`.
+- Nightly still bounded ≤15 md via `text_content`; visual-search now also mounts `/app/docs`.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v140.
+
+## § Последние изменения (2026-08-14 v139) — P1 curiosity / OK-twins / knowledge_size ✅
+
+- Curiosity cooldown: cancelled + Circuit Breaker, per title.
+- File-check `ОК` больше не cancelled timeout-cap.
+- `/status` knowledge_size = PG COUNT; Veronica/evolution nonempty errors.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v139.
+
+## § Последние изменения (2026-08-14 v138) — P0: Инна / SOP overlay / stale SQL ✅
+
+- dynamic-1 recreate after SIGKILL 137.
+- Nightly: `docs:ro` + rw overlay `docs/SOP`.
+- Victoria cleanup: asyncpg `$1`/`make_interval`, skip `pending`.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v138.
+
+## § Последние изменения (2026-08-14 v137) — Auto curated AI Research feed ✅
+
+- Nightly 6h: cognitive docs re-index + 1 scout topic into AI Research with `file_path`.
+- Scout metadata fix: was Global Intelligence / `veronica_scout` / missing `add_node`.
+- Compose: `../docs:/app/docs:ro` on `knowledge_nightly`.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v137.
+
 ## § Последние изменения (2026-08-14 v136) — Ops tip-top: FK / queued / file-check / LanceDB ✅
 
 - FK: knowledge_nodes delete SET NULL on expert_discussions + tasks.

@@ -1079,6 +1079,30 @@ async def phase_5_curiosity(
     max_active_curiosity = int(os.getenv("ORCHESTRATOR_MAX_ACTIVE_CURIOSITY_TASKS", "1"))
 
     curiosity_assigned = 0
+    curiosity_cooldown_min = int(os.getenv("ORCHESTRATOR_CURIOSITY_RETRY_COOLDOWN_MIN", "30"))
+    global_curiosity_cb = await conn.fetchval(
+        """
+        SELECT 1
+        FROM tasks
+        WHERE COALESCE(metadata->>'reason', '') = 'curiosity_engine_starvation'
+          AND status IN ('failed', 'cancelled')
+          AND updated_at > NOW() - ($1::text || ' minutes')::interval
+          AND (
+              COALESCE(metadata->>'auto_fallback_reason', '') = 'circuit_breaker_loop_exhausted'
+              OR COALESCE(metadata->>'last_error', '') ILIKE '%Circuit Breaker%'
+              OR COALESCE(result, '') ILIKE '%Circuit Breaker%'
+          )
+        LIMIT 1
+        """,
+        str(curiosity_cooldown_min),
+    )
+    if global_curiosity_cb:
+        logger.info(
+            "  ⏭️ Curiosity global cooldown: recent Circuit Breaker on starvation tasks within %s min",
+            curiosity_cooldown_min,
+        )
+        deserts = []
+
     for desert in deserts:
         active_curiosity = await conn.fetchval(
             """
@@ -1137,16 +1161,23 @@ async def phase_5_curiosity(
                 )
                 continue
         curiosity_cooldown_min = int(os.getenv("ORCHESTRATOR_CURIOSITY_RETRY_COOLDOWN_MIN", "30"))
+        # Cooldown is per title (any expert): CB timeout used to cancel, not fail,
+        # and a new assignee (Инна vs Роман) bypassed same_task_for_expert.
         recent_curiosity_failure = await conn.fetchval(
             """
             SELECT 1
             FROM tasks
             WHERE title = $1
-              AND status = 'failed'
+              AND status IN ('failed', 'cancelled')
               AND updated_at > NOW() - ($2::text || ' minutes')::interval
-              AND COALESCE(metadata->>'auto_fallback_reason', '') IN (
-                  'curiosity_no_llm_progress_timeout',
-                  'pending_curiosity_starvation_timeout'
+              AND (
+                  COALESCE(metadata->>'auto_fallback_reason', '') IN (
+                      'curiosity_no_llm_progress_timeout',
+                      'pending_curiosity_starvation_timeout',
+                      'circuit_breaker_loop_exhausted'
+                  )
+                  OR COALESCE(metadata->>'last_error', '') ILIKE '%Circuit Breaker%'
+                  OR COALESCE(result, '') ILIKE '%Circuit Breaker%'
               )
             LIMIT 1
             """,

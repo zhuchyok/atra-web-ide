@@ -195,7 +195,8 @@ class MentorshipEngine:
                 parsed["audit_mode"] = "ai_core"
                 return parsed
         except Exception as exc:
-            logger.warning("ai_core audit failed/timeout: %s", exc)
+            detail = str(exc).strip() or repr(exc) or type(exc).__name__
+            logger.warning("ai_core audit failed/timeout: %s", detail)
 
         return _heuristic_audit(title or "", expert_name)
 

@@ -34,7 +34,7 @@ services:
       - "8081:8081"
     environment:
       - TZ=Europe/Moscow
-      - DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      - DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       - VICTORIA_URL=http://victoria-agent:8000
       - OLLAMA_URL=http://host.docker.internal:11434
       - USE_VICTORIA_AGENT=true
@@ -43,12 +43,12 @@ services:
       - RUST_LOG=info
       # Retry при инициализации KnowledgeEngine (exponential backoff, max 63s)
       - GATEWAY_DB_MAX_RETRIES=6
-      # mTLS — межкластерная безопасность (Singularity 21.24)
-      - GATEWAY_CERT_PATH=/certs/mac-studio.crt
-      - GATEWAY_KEY_PATH=/certs/mac-studio.key
-      - GATEWAY_CLIENT_CA_PATH=/certs/ca.crt
+      # Local: HTTP. Do not set CERT/KEY (empty string still enables TLS in current image).
+      # Cluster: GATEWAY_TLS_ENABLED=true GATEWAY_CERT_PATH=/certs/mac-studio.crt GATEWAY_KEY_PATH=/certs/mac-studio.key
+      - GATEWAY_TLS_ENABLED=${GATEWAY_TLS_ENABLED:-false}
     volumes:
       - ./certs:/certs:ro
+      - .:/workspace
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -65,6 +65,12 @@ services:
     mem_limit: 1g
     ports:
       - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     depends_on:
       - backend
     networks:
@@ -80,6 +86,18 @@ services:
     container_name: atra-web-ide-backend
     restart: unless-stopped
     mem_limit: 4g
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read()",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     tty: true # нужен для PTY терминала в Web IDE
     env_file: .env # TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID — те же что у Victoria, для алертов
     ports:
@@ -107,7 +125,7 @@ services:
       - EXPERT_DIALOGUE_ENGINE_TIMEOUT_SEC=${EXPERT_DIALOGUE_ENGINE_TIMEOUT_SEC:-90}
       - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-300}
       - MLX_API_URL=http://host.docker.internal:11435 # MLX API Server на хосте (из контейнера — через host.docker.internal)
-      - DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      - DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       - REDIS_URL=redis://knowledge_os_redis:6379 # Redis из knowledge_os (контейнер knowledge_os_redis; atra — отдельный проект)
       - KNOWLEDGE_OS_API_URL=http://knowledge_rest:8002 # Логирование чата в interaction_logs (Singularity 10.0)
       - API_KEY=${API_KEY:-your-secret-api-key}

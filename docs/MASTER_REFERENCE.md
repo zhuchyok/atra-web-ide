@@ -30,10 +30,108 @@
 
 ## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
-**Дата последнего обновления:** 2026-07-31
+**Дата последнего обновления:** 2026-08-14
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; tip-top ops closure (v136)
+**Состояние:** Стабильное; IDE :3000 + gateway files + scout class (v141)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-08-14 v141) — IDE frontend + scout class + workspace mount ✅
+
+### Диагноз
+
+`:3000` не существовал (нет контейнера/образа). Nightly scout: `cannot import name 'VeronicaScout'` — класс срезан при вставке `is_usable_scout_analysis`. Gateway `list_v2` 404: `WORKSPACE_ROOT=/workspace` без volume.
+
+### Evidence (live 2026-08-14 23:00 MSK)
+
+- Frontend `:3000` 200 healthy; backend `:8080/health` healthy + docker healthcheck.
+- Gateway HTTP + `.:/workspace` → `list_v2` count=175, `docs` 396 entries.
+- VisualRAG `vectors=10`; scout_research node `scout/2026-08-14-openai-anthropic-google-leaks-and-updates.md`.
+- pending=0 in_progress=0 stale=0; no unhealthy; Victoria knowledge_size=83753.
+- `pytest knowledge_os/tests/test_curated_research_refresh.py` → 8 passed.
+
+---
+
+## § Последние изменения (2026-08-14 v140) — Gateway HTTP + VisualRAG bootstrap ✅
+
+### Диагноз
+
+Gateway 8081 отдавал TLS, потому что compose всегда ставил `GATEWAY_CERT_PATH`; frontend ходит `http://…:8081`. VisualRAG `vectors=0`: FAISS в `/app/models` не существовал, indexer не на cron.
+
+### Решение
+
+1. TLS opt-in: `GATEWAY_TLS_ENABLED=false` locally; empty cert path → HTTP (existing binary).
+2. Nightly bounded visual index (≤15 md из `docs/`) + persist `knowledge_os/models`.
+
+### Evidence (live 2026-08-14 22:43 MSK)
+
+- Gateway log: `listening on 0.0.0.0:8081 (HTTP mode)`; `GET http://127.0.0.1:8081/health` → `OK`; RestartCount=0, Health=healthy.
+- Empty `GATEWAY_CERT_PATH=` must **not** be set (old binary treats empty string as TLS). Cert/key env omitted; `GATEWAY_TLS_ENABLED=false`.
+- VisualRAG: `GET :8005/health` → `vectors=5`; FAISS reload after recreate; Docker healthcheck was false-unhealthy (`curl` missing in image) — probe switched to Python urllib, now `healthy`.
+- Visual-search volumes: `docs` at `/app/docs` and `/app/corpus/docs`; index POST uses `text_content` (nightly does not depend on path inside visual container).
+- Queue: pending=0, in_progress=0 (cancelled=80, completed=2303). Victoria `/status` knowledge_size≈83744.
+
+---
+
+## § Последние изменения (2026-08-14 v139) — P1: curiosity cooldown, OK-twins, status count ✅
+
+### Диагноз
+
+R&D спавнился снова: cooldown смотрел только `failed` + два reason, а CB пишет `cancelled`/`circuit_breaker_loop_exhausted`; смена эксперта (Роман→Инна) обходила per-expert dedup. File-check с result `ОК` watchdog отменял как work_item_timeout. `/status` knowledge_size = RAM project_knowledge (4), не PG.
+
+### Решение
+
+1. Cooldown: cancelled+failed, CB reasons, title-level.
+2. Timeout-cap: OK → completed; cancel только пустой result.
+3. `/status` knowledge_size = COUNT(knowledge_nodes).
+4. Veronica/evolution: непустой `repr(e)`; nightly HOST\_\*.
+
+### Evidence
+
+- `pytest knowledge_os/tests/test_p1_curiosity_and_timeout_cap.py`
+- pending curiosity R&D cancelled with cooldown reason; `/status` knowledge_size ≈ PG count
+
+---
+
+## § Последние изменения (2026-08-14 v138) — P0: dynamic-1, SOP mount, stale SQL ✅
+
+### Диагноз
+
+Инна Exited 137 без автоподъёма. Nightly SOP → Errno 30 после v137 `docs:ro`. Victoria stale-cleanup каждые 5 мин: `INTERVAL '%s seconds'` (psycopg-плейсхолдер в asyncpg) — UPDATE никогда не исполнялся.
+
+### Решение
+
+1. Recreate `expert-worker-dynamic-1`.
+2. Overlay `../docs/SOP:/app/docs/SOP` (rw) поверх `docs:ro`.
+3. asyncpg `$1` + `make_interval`; **не** трогать `pending`.
+
+### Evidence
+
+- `pytest knowledge_os/tests/test_stale_task_cleanup_sql.py`
+- dynamic-1 healthy; postgres log без `"%s seconds"` после recreate Victoria
+- nightly: `/app/docs/SOP` writable
+
+---
+
+## § Последние изменения (2026-08-14 v137) — Auto curated AI Research («Последние находки») ✅
+
+### Диагноз (Five Whys)
+
+Дашборд `localhost:8501` «Последние находки» застыл на **9 авг**. Фильтр живой (AI Research + `file_path` + source ∈ indexer/scout). Почему пусто свежее? Indexer/scout не на cron. Почему scout не помогал? `VeronicaScout` писал domain `Global Intelligence`, `source=veronica_scout`, без `file_path` — и звал несуществующий `knowledge_service.add_node`. Root cause: **jobs that feed the tab were never scheduled**, plus scout metadata missed the curated contract.
+
+### Решение (KISS / Occam)
+
+1. `knowledge_nightly` background: `run_continuous_research_refresh` каждые 6ч (`NIGHTLY_RESEARCH_INTERVAL_SEC=21600`).
+2. Re-index `docs/COGNITIVE_CODE.md` (+ extra) — volume `../docs:/app/docs:ro`.
+3. Scout: 1 topic/cycle, domain **AI Research**, `source=scout_research`, `file_path=scout/YYYY-MM-DD-*.md`.
+4. Не клонировать `system_prompts_leaks` каждую ночь.
+
+### Evidence
+
+- `pytest knowledge_os/tests/test_curated_research_refresh.py`
+- `knowledge_nightly` log: `📚 [NIGHTLY] Curated research refresh`
+- SQL: curated `MAX(updated_at)` после цикла > 2026-08-09
 
 ---
 

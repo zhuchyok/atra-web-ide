@@ -479,8 +479,16 @@ async def main_loop() -> None:
     distill_task = asyncio.create_task(run_continuous_distillation())
     embed_task = asyncio.create_task(run_continuous_embedding_backfill())
     redistill_task = asyncio.create_task(run_continuous_priority_redistill())
-    logger.info("🌙 [NIGHTLY] Distillation + embedding backfill + priority re-distill running")
-    _ = (distill_task, embed_task, redistill_task)
+    try:
+        from curated_research_refresh import run_continuous_research_refresh
+    except ImportError:
+        from app.curated_research_refresh import run_continuous_research_refresh
+
+    research_task = asyncio.create_task(run_continuous_research_refresh())
+    logger.info(
+        "🌙 [NIGHTLY] Distillation + embedding backfill + priority re-distill + research refresh running"
+    )
+    _ = (distill_task, embed_task, redistill_task, research_task)
 
     while True:
         await run_nightly_cycle()

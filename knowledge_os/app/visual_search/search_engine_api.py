@@ -1,14 +1,15 @@
-import os
-import logging
-import json
 import asyncio
+import json
+import logging
+import os
 import time
-from typing import List, Dict, Any, Optional
+from typing import Optional
+
+import faiss
+import httpx
+import numpy as np
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import faiss
-import numpy as np
-import httpx
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ METADATA_PATH = "/app/models/visual_metadata.json"
 EMBED_DIM = int(os.getenv("EMBED_DIM", "768"))
 
 index = None
-metadata: List[Dict] = []
+metadata: list[dict] = []
 
 
 class IndexRequest(BaseModel):
@@ -33,7 +34,7 @@ class IndexRequest(BaseModel):
 
 
 class SearchRequest(BaseModel):
-    queries: List[str]
+    queries: list[str]
     top_k: int = 3
 
 
@@ -47,12 +48,14 @@ async def get_embedding(text: str) -> np.ndarray:
                     json={"model": EMBEDDING_MODEL, "input": text},
                 )
                 if response.status_code == 503:
-                    wait = 2 ** attempt + 1
+                    wait = 2**attempt + 1
                     logger.warning("Ollama busy (503), retry %d/5 in %ds", attempt + 1, wait)
                     await asyncio.sleep(wait)
                     continue
                 if response.status_code != 200:
-                    raise RuntimeError(f"Ollama embed failed: {response.status_code} {response.text[:200]}")
+                    raise RuntimeError(
+                        f"Ollama embed failed: {response.status_code} {response.text[:200]}"
+                    )
 
                 data = response.json()
                 embeddings = data.get("embeddings") or data.get("embedding")
@@ -63,28 +66,30 @@ async def get_embedding(text: str) -> np.ndarray:
                 arr = np.array(vec, dtype="float32").reshape(1, -1)
 
                 if arr.shape[1] != EMBED_DIM:
-                    logger.warning("Embedding dim %d != expected %d, rebuilding index", arr.shape[1], EMBED_DIM)
+                    logger.warning(
+                        "Embedding dim %d != expected %d, rebuilding index", arr.shape[1], EMBED_DIM
+                    )
 
                 return arr
         except httpx.TimeoutException:
-            wait = 2 ** attempt + 1
+            wait = 2**attempt + 1
             logger.warning("Ollama timeout, retry %d/5 in %ds", attempt + 1, wait)
             await asyncio.sleep(wait)
 
     raise RuntimeError("Ollama embed failed after 5 retries")
 
 
-def _load_metadata() -> List[Dict]:
+def _load_metadata() -> list[dict]:
     if os.path.exists(METADATA_PATH):
         try:
-            with open(METADATA_PATH, "r") as f:
+            with open(METADATA_PATH) as f:
                 return json.load(f)
         except Exception:
             pass
     return []
 
 
-def _save_metadata(meta: List[Dict]) -> None:
+def _save_metadata(meta: list[dict]) -> None:
     os.makedirs(os.path.dirname(METADATA_PATH), exist_ok=True)
     with open(METADATA_PATH, "w") as f:
         json.dump(meta, f)
@@ -116,10 +121,10 @@ async def index_file(request: IndexRequest):
         text = request.text_content[:4000]
     elif request.file_path and os.path.exists(request.file_path):
         ext = os.path.splitext(request.file_path)[1].lower()
-        if ext in ('.md', '.txt'):
-            with open(request.file_path, 'r', encoding='utf-8', errors='ignore') as f:
+        if ext in (".md", ".txt"):
+            with open(request.file_path, encoding="utf-8", errors="ignore") as f:
                 text = f.read()[:4000]
-        elif ext in ('.png', '.jpg', '.jpeg'):
+        elif ext in (".png", ".jpg", ".jpeg"):
             # For images: use filename + path as description (no vision model required)
             text = f"Image: {os.path.basename(request.file_path)} from {request.file_path}"
         else:
@@ -142,12 +147,15 @@ async def index_file(request: IndexRequest):
         index.add(embedding)
         embedding_id = str(index.ntotal - 1)
 
-        metadata.append({
-            "id": embedding_id,
-            "file_path": request.file_path,
-            "description": text[:200],
-        })
+        metadata.append(
+            {
+                "id": embedding_id,
+                "file_path": request.file_path,
+                "description": text[:200],
+            }
+        )
 
+        os.makedirs(os.path.dirname(INDEX_PATH), exist_ok=True)
         faiss.write_index(index, INDEX_PATH)
         _save_metadata(metadata)
 
@@ -186,7 +194,9 @@ async def search(request: SearchRequest):
             fp = r["file_path"]
             if fp not in seen or r["similarity"] > seen[fp]["similarity"]:
                 seen[fp] = r
-        results = sorted(seen.values(), key=lambda x: x["similarity"], reverse=True)[:request.top_k]
+        results = sorted(seen.values(), key=lambda x: x["similarity"], reverse=True)[
+            : request.top_k
+        ]
 
         return {"results": results}
 
@@ -207,4 +217,5 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8005)

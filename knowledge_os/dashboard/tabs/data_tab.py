@@ -740,11 +740,13 @@ def render_ai_research_kb():
             if age_days >= 14:
                 st.warning(
                     "Curated AI Research не обновлялся более 14 дней. "
-                    "Запустите `index_external_docs.py` / scout."
+                    "Проверьте `knowledge_nightly` (NIGHTLY_RESEARCH_REFRESH_ENABLED) "
+                    "и логи `📚 [NIGHTLY] Curated research refresh`."
                 )
         st.caption(
-            "Лента = только indexed docs (`external_docs_indexer` / `cognitive_code_indexer` / scout). "
-            "Ошибки парсинга и long_term_memory сюда не попадают. Раскройте строку — полный текст."
+            "Лента = indexed docs (`cognitive_code_indexer` / `external_docs_indexer` / scout). "
+            "Автообновление: `knowledge_nightly` каждые 6ч (локальные доки + 1 scout-тема). "
+            "Ошибки парсинга и long_term_memory сюда не попадают."
         )
         latest = fetch_data(f"""
             SELECT content,

@@ -2143,6 +2143,30 @@ async def main():
                         f"[{datetime.now()}] 🧭 [HARD CAP] Delegation moved to manual triage (cancelled): {n}"
                     )
 
+            # File-check already wrote OK — complete, do not cancel as timeout KPI.
+            timeout_ok_result = await conn.execute(
+                """
+                UPDATE tasks
+                SET status = 'completed',
+                    updated_at = NOW(),
+                    retry_after = NULL,
+                    completed_at = COALESCE(completed_at, NOW())
+                WHERE status IN ('pending', 'in_progress', 'cancelled')
+                  AND COALESCE(metadata->>'source', '') = 'victoria_monster_delegation'
+                  AND (
+                    COALESCE(result, '') ~* '^(ОК|OK)\\b'
+                    OR COALESCE(metadata->>'completion_reason', '') = 'worker_success'
+                  )
+                  AND COALESCE(metadata->>'reset_reason', '') = 'work_item_timeout'
+                """
+            )
+            if timeout_ok_result and timeout_ok_result.startswith("UPDATE"):
+                n = timeout_ok_result.split()[-1]
+                if n != "0":
+                    print(
+                        f"[{datetime.now()}] ✅ [TIMEOUT CAP] Delegation with OK result → completed: {n}"
+                    )
+
             # Kill zombie delegation tasks stuck in work_item_timeout retry storms.
             timeout_cap_result = await conn.execute(
                 """
@@ -2164,6 +2188,8 @@ async def main():
                   AND COALESCE(metadata->>'reset_reason', '') = 'work_item_timeout'
                   AND COALESCE((metadata->>'attempt_count')::int, 0) >= $1::int
                   AND COALESCE((metadata->>'failed_requires_intervention')::boolean, false) = false
+                  AND COALESCE(result, '') !~* '^(ОК|OK)\\b'
+                  AND completed_at IS NULL
                 """,
                 WORK_ITEM_TIMEOUT_MAX_ATTEMPTS,
             )

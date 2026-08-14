@@ -59,7 +59,10 @@ class PerpetualEvolution:
                 if "connection" in msg.lower() or "All connection attempts failed" in msg:
                     logger.warning("⚠️ [EVOLUTION] Recursive cycle skipped (MLX unreachable): %s", e)
                 else:
-                    logger.error(f"⚠️ [EVOLUTION] Ошибка рекурсивного цикла: {e}")
+                    detail = str(e).strip() or repr(e) or type(e).__name__
+                    logger.error(
+                        "⚠️ [EVOLUTION] Ошибка рекурсивного цикла: %s", detail, exc_info=True
+                    )
 
             # 2. Дистилляция знаний (Self-Distillation)
             try:
