@@ -4799,15 +4799,14 @@ async def _run_task_background(
             except Exception:
                 pass
 
-    # Сразу переводим в processing, иначе клиент при polling видит только queued до завершения
+    # Always update in-memory store (UVICORN_WORKERS>1 still needs Redis for other workers).
+    store["status"] = "processing"
+    store["stage"] = "strategy"
+    store["updated_at"] = datetime.now(timezone.utc).isoformat()
     if redis_manager:
         await redis_manager.update_task_status(
             task_id, "processing", metadata={"stage": "strategy"}
         )
-    else:
-        store["status"] = "processing"
-        store["stage"] = "strategy"
-        store["updated_at"] = datetime.now(timezone.utc).isoformat()
     logger.info("✅ [STATUS] Task %s → processing (stage=strategy)", task_id[:8])
 
     if max_steps is None:
@@ -5773,33 +5772,21 @@ async def get_run_status(task_id: str):
     """Статус фоновой задачи. status: queued|processing|completed|failed."""
     rec = None
 
-    # [SINGULARITY 26.10] Check worker results directly
-    try:
-        import redis
-
-        r = redis.Redis(host="redis", port=6379, decode_responses=True)
-        task_data = r.get(f"task:{task_id}")
-        if task_data:
-            import json
-
-            rec = json.loads(task_data)
-    except:
-        pass
-
-    if rec is None and redis_manager:
+    # Status lives in Redis HASH (unix socket via redis_manager), not GET on TCP :6379.
+    if redis_manager:
         rec = await redis_manager.get_task_status(task_id)
 
     if rec is None:
-        if task_id not in _run_task_store:
-            raise HTTPException(status_code=404, detail="task_id not found")
-        rec = _run_task_store[task_id]
+        rec = _run_task_store.get(task_id)
+    if rec is None:
+        raise HTTPException(status_code=404, detail="task_id not found")
 
-    # Разворачиваем метаданные из Redis если нужно
+    rec = dict(rec)
+    # Flatten nested snapshot without clobbering a newer top-level status.
     if "metadata" in rec and isinstance(rec["metadata"], dict):
-        # Объединяем корневые поля со вложенными метаданными
         meta = rec.pop("metadata")
         for k, v in meta.items():
-            if k not in rec or rec[k] is None:
+            if rec.get(k) in (None, ""):
                 rec[k] = v
 
     knowledge = rec.get("knowledge") or {}

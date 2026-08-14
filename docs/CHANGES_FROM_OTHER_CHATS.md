@@ -20,6 +20,14 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-08-14 v136) — Ops tip-top: FK / queued / file-check / LanceDB ✅
+
+- FK: knowledge_nodes delete SET NULL on expert_discussions + tasks.
+- `/run/status`: Redis HASH via redis_manager (no TCP GET string).
+- File-check fast path reads parent_goal, not only «Делегировано» title.
+- LanceDB: quarantine+recreate on corrupt manifest; sandbox HOST_* on victoria/watchdog; evolution MLX URL.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v136.
+
 ## § Последние изменения (2026-08-02 v135) — Wisdom MLX-primary + SRE taxonomy ✅
 
 - Brain on MLX: `executor` routes `victoria-wisdom*` to healthy MLX first; strip `:latest` for MLX registry.

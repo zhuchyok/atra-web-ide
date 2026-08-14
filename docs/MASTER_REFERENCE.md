@@ -32,8 +32,30 @@
 
 **Дата последнего обновления:** 2026-07-31
 **Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; tip-top + wisdom MLX-primary (v135)
+**Состояние:** Стабильное; tip-top ops closure (v136)
 **Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+
+---
+
+## § Последние изменения (2026-08-14 v136) — Ops tip-top: FK, queued status, file-check, LanceDB ✅
+
+### Диагноз (Five Whys)
+
+Неделя 7–14 авг: ядро healthy, но ops шумел. FK 668× — DELETE knowledge*nodes без ON DELETE. `/run` poll queued — GET читал TCP Redis STRING, статус жил в HASH. Cancel ~50% — tracking twins + monster timeout: `_fast_file_check` смотрел только title «Делегировано», не parent_goal. LanceDB protobuf corrupt. Sandbox без HOST*\* на victoria/watchdog. Evolution без MLX_BASE_URL.
+
+### Решение
+
+1. Migration: `expert_discussions`/`tasks.knowledge_node_id` → ON DELETE SET NULL.
+2. `/run/status`: только redis_manager HASH + local store; store всегда `processing`.
+3. `_fast_file_check_from_task`: title + description + parent_goal.
+4. LanceDB: quarantine corrupt dir, recreate table (PG = SoT).
+5. Compose: HOST_PROJECT_ROOT on victoria/watchdog/**evolution**; MLX_BASE_URL on evolution.
+
+### Evidence
+
+- `pytest knowledge_os/tests/test_fast_file_check.py`
+- FK `pg_get_constraintdef` contains ON DELETE SET NULL
+- Recreate victoria-agent / knowledge_os_worker / knowledge_evolution / performance-watchdog
 
 ---
 

@@ -395,6 +395,29 @@ def _fast_file_check(task_title: str) -> str | None:
     return None
 
 
+def _fast_file_check_from_task(task: dict) -> str | None:
+    """Delegation twins title as 'Делегировано: …' — scan description/parent_goal too."""
+    meta = task.get("metadata") or {}
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except Exception:
+            meta = {}
+    if not isinstance(meta, dict):
+        meta = {}
+    for blob in (
+        task.get("title"),
+        task.get("description"),
+        task.get("goal"),
+        meta.get("parent_goal"),
+    ):
+        if blob:
+            hit = _fast_file_check(str(blob))
+            if hit is not None:
+                return hit
+    return None
+
+
 async def process_task(pool, task):
     global _last_success_ts
     task_id = task["id"]
@@ -408,7 +431,7 @@ async def process_task(pool, task):
         _smart_worker_active.inc()
 
     # ─── FAST PATH: тривиальные file_check задачи — без LLM, за <1ms ───────────
-    fast_result = _fast_file_check(task_title)
+    fast_result = _fast_file_check_from_task(task)
     if fast_result is not None:
         # [SINGULARITY 29.0] Guaranteed DB persistence
         try:

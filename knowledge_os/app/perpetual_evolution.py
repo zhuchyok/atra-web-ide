@@ -55,7 +55,11 @@ class PerpetualEvolution:
                 else:
                     await evolve_coro
             except Exception as e:
-                logger.error(f"⚠️ [EVOLUTION] Ошибка рекурсивного цикла: {e}")
+                msg = str(e)
+                if "connection" in msg.lower() or "All connection attempts failed" in msg:
+                    logger.warning("⚠️ [EVOLUTION] Recursive cycle skipped (MLX unreachable): %s", e)
+                else:
+                    logger.error(f"⚠️ [EVOLUTION] Ошибка рекурсивного цикла: {e}")
 
             # 2. Дистилляция знаний (Self-Distillation)
             try:

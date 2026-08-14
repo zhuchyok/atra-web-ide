@@ -7,7 +7,7 @@ Provides zero-latency RAG and knowledge retrieval.
 import logging
 import os
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Optional
 
 import lancedb
 import pyarrow as pa
@@ -26,7 +26,7 @@ class LanceDBService:
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(LanceDBService, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self):
@@ -35,31 +35,53 @@ class LanceDBService:
             self._db = lancedb.connect(LANCE_DB_PATH)
             self._init_table()
 
+    def _schema(self):
+        return pa.schema(
+            [
+                pa.field("id", pa.string()),
+                pa.field("vector", pa.list_(pa.float32(), EMBEDDING_DIM)),
+                pa.field("content", pa.string()),
+                pa.field("metadata", pa.string()),
+                pa.field("confidence_score", pa.float32()),
+                pa.field("created_at", pa.string()),
+            ]
+        )
+
     def _init_table(self):
         """Initializes the table if it doesn't exist."""
         try:
             if TABLE_NAME in self._db.table_names():
                 self._table = self._db.open_table(TABLE_NAME)
             else:
-                # Define schema
-                schema = pa.schema(
-                    [
-                        pa.field("id", pa.string()),
-                        pa.field("vector", pa.list_(pa.float32(), EMBEDDING_DIM)),
-                        pa.field("content", pa.string()),
-                        pa.field("metadata", pa.string()),  # JSON string
-                        pa.field("confidence_score", pa.float32()),
-                        pa.field("created_at", pa.string()),
-                    ]
-                )
-                self._table = self._db.create_table(TABLE_NAME, schema=schema)
+                self._table = self._db.create_table(TABLE_NAME, schema=self._schema())
                 logger.info(f"✅ [LANCEDB] Table '{TABLE_NAME}' created.")
         except Exception as e:
             logger.error(f"❌ [LANCEDB] Initialization error: {e}")
+            self._recover_corrupt_db()
+
+    def _recover_corrupt_db(self) -> None:
+        """Corrupt Lance manifest → quarantine dir and recreate empty table (PG remains SoT)."""
+        import shutil
+        import time
+
+        broken = f"{LANCE_DB_PATH}.corrupt.{int(time.time())}"
+        try:
+            shutil.move(LANCE_DB_PATH, broken)
+            logger.warning("⚠️ [LANCEDB] Quarantined corrupt store at %s", broken)
+        except Exception:
+            shutil.rmtree(LANCE_DB_PATH, ignore_errors=True)
+        os.makedirs(LANCE_DB_PATH, exist_ok=True)
+        try:
+            self._db = lancedb.connect(LANCE_DB_PATH)
+            self._table = self._db.create_table(TABLE_NAME, schema=self._schema())
+            logger.info("✅ [LANCEDB] Recreated empty table after corrupt manifest")
+        except Exception as e:
+            logger.error("❌ [LANCEDB] Recovery failed: %s", e)
+            self._table = None
 
     async def search(
-        self, embedding: List[float], limit: int = 5, filter: Optional[str] = None
-    ) -> List[Dict]:
+        self, embedding: list[float], limit: int = 5, filter: Optional[str] = None
+    ) -> list[dict]:
         """Performs vector search."""
         if not self._table:
             return []
@@ -78,7 +100,7 @@ class LanceDBService:
 
                 try:
                     meta = json.loads(r["metadata"])
-                except:
+                except Exception:
                     meta = {}
 
                 formatted.append(
@@ -97,7 +119,7 @@ class LanceDBService:
             logger.error(f"❌ [LANCEDB] Search error: {e}")
             return []
 
-    async def upsert_batch(self, nodes: List[Dict]):
+    async def upsert_batch(self, nodes: list[dict]):
         """Upserts a batch of nodes."""
         if not self._table:
             return
