@@ -31,9 +31,9 @@ def test_fallback_brain_mlx_alive_v35_not_minus_one():
         # Убрать env чтобы не переопределяло
         for key in ("VICTORIA_OLLAMA_KEEP_ALIVE", "OLLAMA_KEEP_ALIVE"):
             os.environ.pop(key, None)
-    result = get_keep_alive("victoria-wisdom-v3.5", category=None, mlx_alive=True)
-    assert result != -1
-    assert result in (60, 300, 600, 3600) or isinstance(result, int)
+        result = get_keep_alive("victoria-wisdom-v3.5", category=None, mlx_alive=True)
+        assert result != -1
+        assert result in (60, 300, 600, 3600) or isinstance(result, int)
 
 
 def test_immortal_models_return_minus_one():
@@ -50,13 +50,19 @@ def test_immortal_models_return_minus_one():
 
 
 def test_embedding_category_returns_zero():
-    """Категория embedding для НЕ-бессмертных моделей → 0."""
-    # nomic теперь бессмертный, поэтому он даст -1 даже с category="embedding"
-    # Проверим другую модель с category
+    """Категория embedding при критичной RAM выгружает модель сразу (0)."""
     with patch.dict(os.environ, {}, clear=False):
         os.environ.pop("VICTORIA_OLLAMA_KEEP_ALIVE", None)
         os.environ.pop("OLLAMA_KEEP_ALIVE", None)
-    assert get_keep_alive("some-other-embed-model", category="embedding", mlx_alive=True) == 0
+        assert (
+            get_keep_alive(
+                "some-other-embed-model",
+                category="embedding",
+                mlx_alive=True,
+                ram_percent=90.0,
+            )
+            == 0
+        )
 
 
 def test_env_override():

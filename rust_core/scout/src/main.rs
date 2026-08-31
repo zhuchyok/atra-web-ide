@@ -51,6 +51,7 @@ async fn distill_content(text: &str) -> String {
 }
 
 #[tokio::main]
+#[allow(clippy::collapsible_if)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv::dotenv().ok();
     let db_url = env::var("DATABASE_URL")

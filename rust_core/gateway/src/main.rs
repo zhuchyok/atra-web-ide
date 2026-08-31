@@ -63,11 +63,13 @@ struct SearchQuery {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct FilePathQuery {
     path: String,
 }
 
 #[derive(Serialize)]
+#[allow(dead_code)]
 struct FileInfo {
     name: String,
     path: String,
@@ -78,6 +80,7 @@ struct FileInfo {
 }
 
 #[derive(Serialize)]
+#[allow(dead_code)]
 struct FileContent {
     path: String,
     content: String,
@@ -85,6 +88,7 @@ struct FileContent {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct WriteFileRequest {
     path: String,
     content: String,
@@ -97,6 +101,7 @@ fn default_encoding() -> String {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct CreateRequest {
     #[serde(rename = "type")]
     item_type: String,
@@ -112,6 +117,7 @@ struct KnowledgeSearchRequest {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct QuantumOptimizeRequest {
     candidates: Vec<serde_json::Value>,
     goal: String,
@@ -119,6 +125,7 @@ struct QuantumOptimizeRequest {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct SecurityAnalyzeRequest {
     prompt: String,
     request_id: String,
@@ -389,6 +396,7 @@ struct AutocompleteRequest {
 }
 
 #[derive(Serialize)]
+#[allow(dead_code)]
 struct AutocompleteResponse {
     completions: Vec<serde_json::Value>,
 }
@@ -401,6 +409,7 @@ struct LintRequest {
 }
 
 #[derive(Serialize)]
+#[allow(dead_code)]
 struct LintResponse {
     errors: Vec<serde_json::Value>,
 }
@@ -850,7 +859,6 @@ async fn list_files_handler(
 
 use glob::glob;
 use regex::Regex;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Deserialize)]
 struct BatchReadRequest {
@@ -1070,7 +1078,7 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
     let (tx, mut rx) = mpsc::channel::<Vec<u8>>(100);
 
     // Task to read from PTY and send to WebSocket
-    let mut tx_pty = tx.clone();
+    let tx_pty = tx.clone();
     std::thread::spawn(move || {
         let mut buffer = [0u8; 1024];
         while let Ok(n) = pty_reader.read(&mut buffer) {
@@ -1147,7 +1155,7 @@ async fn terminal_execute_handler(
 
 // --- Git API ---
 
-fn is_git_repo(workspace: &PathBuf) -> bool {
+fn is_git_repo(workspace: &std::path::Path) -> bool {
     workspace.join(".git").exists()
 }
 
@@ -1268,7 +1276,7 @@ async fn git_log_handler(
                 .map(|line| {
                     let parts: Vec<&str> = line.splitn(4, '|').collect();
                     json!({
-                        "hash": parts.get(0).unwrap_or(&""),
+                        "hash": parts.first().unwrap_or(&""),
                         "author": parts.get(1).unwrap_or(&""),
                         "date": parts.get(2).unwrap_or(&""),
                         "subject": parts.get(3).unwrap_or(&""),
@@ -1373,10 +1381,7 @@ async fn git_commit_handler(
         }
         cmd.output().await
     };
-    let add_ok = match add_ok {
-        Ok(out) if out.status.success() => true,
-        _ => false,
-    };
+    let add_ok = matches!(add_ok, Ok(out) if out.status.success());
     if !add_ok {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1673,17 +1678,28 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8081));
 
-    // [SINGULARITY 21.24] mTLS Support for inter-cluster security
-    let cert_path = env::var("GATEWAY_CERT_PATH").ok();
-    let key_path = env::var("GATEWAY_KEY_PATH").ok();
+    // [SINGULARITY 21.24] TLS opt-in. Local frontend uses HTTP :8081.
+    // Cluster/prod: GATEWAY_TLS_ENABLED=true + cert/key paths.
+    let tls_enabled = env::var("GATEWAY_TLS_ENABLED")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true") || v.eq_ignore_ascii_case("yes"))
+        .unwrap_or(false);
+    let cert_path = env::var("GATEWAY_CERT_PATH").ok().filter(|s| !s.is_empty());
+    let key_path = env::var("GATEWAY_KEY_PATH").ok().filter(|s| !s.is_empty());
 
-    if let (Some(cert), Some(key)) = (cert_path, key_path) {
-        info!("🔐 Starting Rust API Gateway with TLS (mTLS if CA provided)");
-        let config = RustlsConfig::from_pem_file(cert, key).await?;
+    if tls_enabled {
+        if let (Some(cert), Some(key)) = (cert_path, key_path) {
+            info!("🔐 Starting Rust API Gateway with TLS (mTLS if CA provided)");
+            let config = RustlsConfig::from_pem_file(cert, key).await?;
 
-        axum_server::bind_rustls(addr, config)
-            .serve(app.into_make_service())
-            .await?;
+            axum_server::bind_rustls(addr, config)
+                .serve(app.into_make_service())
+                .await?;
+        } else {
+            warn!("GATEWAY_TLS_ENABLED=true but cert/key paths are empty — falling back to HTTP");
+            info!("🚀 Rust API Gateway listening on {} (HTTP mode)", addr);
+            let listener = tokio::net::TcpListener::bind(addr).await?;
+            axum::serve(listener, app).await?;
+        }
     } else {
         info!("🚀 Rust API Gateway listening on {} (HTTP mode)", addr);
         let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -1699,6 +1715,7 @@ async fn health_check() -> &'static str {
 
 // --- File Operations Helpers ---
 
+#[allow(clippy::collapsible_else_if)]
 async fn get_safe_path(
     workspace_root: &PathBuf,
     path_str: &str,
@@ -1730,21 +1747,19 @@ async fn get_safe_path(
                 Json(json!({ "error": "Access denied: path outside workspace" })),
             ));
         }
-    } else {
-        if let Some(parent) = full_path.parent() {
-            if parent.exists() {
-                let canonical_parent = parent.canonicalize().map_err(|e| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(json!({ "error": format!("Parent canonicalization error: {}", e) })),
-                    )
-                })?;
-                if !canonical_parent.starts_with(&canonical_root) {
-                    return Err((
-                        StatusCode::FORBIDDEN,
-                        Json(json!({ "error": "Access denied: path outside workspace" })),
-                    ));
-                }
+    } else if let Some(parent) = full_path.parent() {
+        if parent.exists() {
+            let canonical_parent = parent.canonicalize().map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": format!("Parent canonicalization error: {}", e) })),
+                )
+            })?;
+            if !canonical_parent.starts_with(&canonical_root) {
+                return Err((
+                    StatusCode::FORBIDDEN,
+                    Json(json!({ "error": "Access denied: path outside workspace" })),
+                ));
             }
         }
     }
@@ -1754,6 +1769,7 @@ async fn get_safe_path(
 
 // --- Route Handlers ---
 
+#[allow(dead_code)]
 async fn list_files(
     State(state): State<Arc<AppState>>,
     Query(params): Query<FilePathQuery>,
@@ -1808,6 +1824,7 @@ async fn list_files(
     (StatusCode::OK, Json(files)).into_response()
 }
 
+#[allow(dead_code)]
 async fn read_file(
     State(state): State<Arc<AppState>>,
     Query(params): Query<FilePathQuery>,
@@ -1851,6 +1868,7 @@ async fn read_file(
     }
 }
 
+#[allow(dead_code)]
 async fn write_file(
     State(state): State<Arc<AppState>>,
     Query(params): Query<FilePathQuery>,
@@ -1883,6 +1901,7 @@ async fn write_file(
     }
 }
 
+#[allow(dead_code)]
 async fn create_item(
     State(state): State<Arc<AppState>>,
     Query(params): Query<FilePathQuery>,
@@ -1933,6 +1952,7 @@ async fn create_item(
     }
 }
 
+#[allow(dead_code)]
 async fn delete_item(
     State(state): State<Arc<AppState>>,
     Query(params): Query<FilePathQuery>,
@@ -1978,6 +1998,7 @@ async fn delete_item(
     }
 }
 
+#[allow(dead_code)]
 async fn list_experts(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let ke = require_ke!(state);
     match sqlx::query_as::<_, Expert>(
@@ -1998,6 +2019,7 @@ async fn list_experts(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     }
 }
 
+#[allow(dead_code)]
 async fn get_expert(State(state): State<Arc<AppState>>, Path(id): Path<Uuid>) -> impl IntoResponse {
     let ke = require_ke!(state);
     match sqlx::query_as::<_, Expert>(
@@ -2317,6 +2339,7 @@ async fn get_expert_handler(
     }
 }
 
+#[allow(dead_code)]
 async fn preview_file(
     State(state): State<Arc<AppState>>,
     Query(params): Query<FilePathQuery>,
@@ -2342,6 +2365,7 @@ async fn preview_file(
     }
 }
 
+#[allow(dead_code)]
 async fn render_html(Query(params): Query<serde_json::Value>) -> impl IntoResponse {
     let content = params["content"].as_str().unwrap_or("");
     Html(content.to_string()).into_response()
@@ -2801,7 +2825,7 @@ async fn proxy_chat(
             }
         );
         let injection = if context.is_empty() {
-            format!("\n\nIMPORTANT: Answer in Russian only. Be professional and concise.")
+            "\n\nIMPORTANT: Answer in Russian only. Be professional and concise.".to_string()
         } else {
             format!(
                 "\n\nCONTEXT:\n{}\n\nIMPORTANT: Answer in Russian language only. Be professional and concise.",
@@ -2893,7 +2917,7 @@ async fn handle_response(response: reqwest::Response) -> Response {
     }
     let stream = response
         .bytes_stream()
-        .map(|result| result.map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err)));
+        .map(|result| result.map_err(std::io::Error::other));
     response_builder
         .body(Body::from_stream(stream))
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())

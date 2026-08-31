@@ -11,7 +11,7 @@ import re
 import uuid
 from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -451,7 +451,7 @@ class AskVictoriaRequest(BaseModel):
 @router.post("/send", response_model=ChatResponse)
 async def send_message(
     message: ChatMessage, victoria: VictoriaClient = Depends(get_victoria_client)
-) -> ChatResponse:
+) -> ChatResponse | JSONResponse:
     """Отправить сообщение (не-стриминг) — прокси к Victoria /run"""
     try:
         acquired = await acquire_victoria_slot()
@@ -483,7 +483,8 @@ async def send_message(
         if result.get("status") == "error":
             raise HTTPException(status_code=500, detail=result.get("error"))
 
-        content = result.get("result", "") or result.get("response", "")
+        content_raw = result.get("result", "") or result.get("response", "")
+        content = content_raw if isinstance(content_raw, str) else str(content_raw)
 
         # Сохраняем контекст
         if session_id:
@@ -493,9 +494,9 @@ async def send_message(
 
         CHAT_EXPERT_ANSWER_TOTAL.labels(source="victoria_unified").inc()
 
-        return ChatResponse(
-            content=content, expert_name=message.expert_name, model=result.get("model")
-        )
+        model_raw = result.get("model")
+        model = model_raw if isinstance(model_raw, str) else None
+        return ChatResponse(content=content, expert_name=message.expert_name, model=model)
     except HTTPException:
         raise
     except Exception as e:
@@ -733,17 +734,6 @@ async def ask_victoria(
         content = result.get("result", "") or result.get("response", "") or ""
         if not isinstance(content, str):
             content = str(content)
-        from app.utils.victoria_response_guard import is_victoria_stub
-
-        if is_victoria_stub(content, status=str(result.get("status") or "")):
-            ASK_VICTORIA_TOTAL.labels(status="error").inc()
-            msg = (
-                "Rejected Victoria stub/queue/rule-fallback response. "
-                "Retry the request; do not invent an answer from this stub."
-            )
-            if format == "json":
-                return JSONResponse(status_code=503, content={"status": "error", "result": msg})
-            return PlainTextResponse(msg, status_code=503)
         clarification = result.get("clarification_questions")
         if clarification:
             bible_fallback = _deterministic_bible_fastpath(goal_stripped)
@@ -767,7 +757,19 @@ async def ask_victoria(
                 content = "\n".join(lines) + ("\n\n" + content if content else "")
             else:
                 content = str(clarification) + ("\n\n" + content if content else "")
-        elif _BIBLE_KB_RE.search(goal_stripped) and "нужно уточнение" in content.lower():
+        else:
+            from app.utils.victoria_response_guard import is_victoria_stub
+
+            if is_victoria_stub(content, status=str(result.get("status") or "")):
+                ASK_VICTORIA_TOTAL.labels(status="error").inc()
+                msg = (
+                    "Rejected Victoria stub/queue/rule-fallback response. "
+                    "Retry the request; do not invent an answer from this stub."
+                )
+                if format == "json":
+                    return JSONResponse(status_code=503, content={"status": "error", "result": msg})
+                return PlainTextResponse(msg, status_code=503)
+        if _BIBLE_KB_RE.search(goal_stripped) and "нужно уточнение" in content.lower():
             bible_fallback = _deterministic_bible_fastpath(goal_stripped)
             if bible_fallback is not None:
                 ASK_VICTORIA_TOTAL.labels(status="success").inc()
@@ -812,6 +814,7 @@ async def ask_victoria_status(
         status_url = f"{victoria.base_url}/run/status/{task_id.strip()}"
         async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=5.0)) as client:
             r = await client.get(status_url)
+            payload: dict[str, Any]
             if r.status_code == 404:
                 payload = {
                     "status": "error",
@@ -862,15 +865,17 @@ async def ask_victoria_status(
 
 
 @router.get("/status")
-async def chat_status(victoria: VictoriaClient = Depends(get_victoria_client)) -> dict:
+async def chat_status(victoria: VictoriaClient = Depends(get_victoria_client)) -> dict[str, Any]:
     """Статус Victoria"""
-    return await victoria.health()
+    result = await victoria.health()
+    return cast(dict[str, Any], result)
 
 
 @router.get("/models")
-async def list_models(victoria: VictoriaClient = Depends(get_victoria_client)) -> dict:
+async def list_models(victoria: VictoriaClient = Depends(get_victoria_client)) -> dict[str, Any]:
     """Список моделей через Victoria"""
-    return await victoria.status()
+    result = await victoria.status()
+    return cast(dict[str, Any], result)
 
 
 @router.get("/hidden-thoughts/{session_id}")

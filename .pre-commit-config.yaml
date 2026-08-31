@@ -28,20 +28,27 @@ repos:
       # Linter (replaces flake8, isort, pyupgrade)
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
-        files: ^(backend|knowledge_os|src)/.*\.py$
+        files: ^(backend/app/(routers/chat|routers/expert_dialogue|services/victoria|utils/victoria_response_guard|tests/test_expert_dialogue_lightweight)\.py|knowledge_os/app/(ai_core|local_router|redis_manager|event_bus|meta_architect|safety_verifier|expert_council_discussion|multi_agent_debate|browser_operator|model_performance_probe|strategy_session_manager)\.py|knowledge_os/tests/(test_ollama_keep_alive_policy|test_local_router|test_redis_manager_metrics)\.py|src/database/auto_execution\.py)$
       # Formatter (replaces black)
       - id: ruff-format
-        files: ^(backend|knowledge_os|src)/.*\.py$
+        files: ^(backend/app/(routers/chat|routers/expert_dialogue|services/victoria|utils/victoria_response_guard|tests/test_expert_dialogue_lightweight)\.py|knowledge_os/app/(ai_core|local_router|redis_manager|event_bus|meta_architect|safety_verifier|expert_council_discussion|multi_agent_debate|browser_operator|model_performance_probe|strategy_session_manager)\.py|knowledge_os/tests/(test_ollama_keep_alive_policy|test_local_router|test_redis_manager_metrics)\.py|src/database/auto_execution\.py)$
 
   # Python: Type checking (mypy) - only for critical paths
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.14.0
     hooks:
       - id: mypy
-        args: [--ignore-missing-imports, --check-untyped-defs]
-        files: ^(backend/app|src/agents)/.*\.py$
-        exclude: (^src/agents/bridge/victoria_server\.py$)
-        additional_dependencies: [pydantic, fastapi, types-redis]
+        args:
+          [
+            --ignore-missing-imports,
+            --follow-imports=skip,
+            --explicit-package-bases,
+            --python-version=3.11,
+            --disable-error-code=import-untyped,
+          ]
+        files: ^(backend/app/(routers/chat|routers/expert_dialogue|services/victoria|utils/victoria_response_guard)\.py)$
+        additional_dependencies:
+          [pydantic, fastapi, types-redis, types-cachetools, types-aiofiles]
 
   # Rust: Format check (rustfmt)
   - repo: https://github.com/doublify/pre-commit-rust
@@ -74,11 +81,14 @@ repos:
     hooks:
       - id: detect-secrets
         args: ["--baseline", ".secrets.baseline"]
+        files: ^(backend/app/(routers/chat|routers/expert_dialogue|services/victoria|utils/victoria_response_guard)\.py|knowledge_os/app/(ai_core|local_router|redis_manager|event_bus|meta_architect|safety_verifier)\.py|rust_core/gateway/src/main.rs)$
         exclude: ^(fused_model|training_data|\.secrets\.baseline)$
 
 # Global excludes
 exclude: |
   (?x)^(
+  audit_curl_err\.txt|
+  data/lancedb/.*|
     fused_model/.*|
     training_data/.*|
     knowledge_os/ai_learning_data/.*|

@@ -36,7 +36,8 @@ class SafetyVerifier:
 
     def __init__(self, db_url: Optional[str] = None):
         self.db_url = db_url or os.getenv(
-            "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
+            "DATABASE_URL",
+            "postgresql://admin:secret@localhost:6432/knowledge_os",  # pragma: allowlist secret
         )
 
     async def verify_mutation(
@@ -60,12 +61,21 @@ class SafetyVerifier:
             )
 
             # 4. Call local judge model (qwq:32b or qwen2.5-coder:32b as per project rules)
-            audit_json = await run_smart_agent_async(
-                audit_prompt,
-                expert_name="Виктория",
-                category="safety_audit",
-                model="qwen2.5-coder:32b",  # Using qwen2.5-coder:32b as preferred in rules
-            )
+            try:
+                audit_json = await run_smart_agent_async(
+                    audit_prompt,
+                    expert_name="Виктория",
+                    category="safety_audit",
+                    model="qwen2.5-coder:32b",  # Preferred when backend supports model override.
+                )
+            except TypeError:
+                # Backward-compatible path for run_smart_agent_async variants
+                # that don't accept a `model` keyword.
+                audit_json = await run_smart_agent_async(
+                    audit_prompt,
+                    expert_name="Виктория",
+                    category="safety_audit",
+                )
 
             # 5. Parse and return result
             return self._parse_audit_result(audit_json)

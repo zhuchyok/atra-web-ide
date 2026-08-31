@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use uuid::Uuid;
 use walkdir::WalkDir;
 
@@ -128,7 +128,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                  VALUES ($1, $2, $3, $4, $5, $6, $7)"
             )
             .bind(node_id)
-            .bind(&format!("PROJECT_FILE: {:?}\n\n{}", path.strip_prefix(project_root).unwrap_or(path), distilled))
+            .bind(format!(
+                "PROJECT_FILE: {:?}\n\n{}",
+                path.strip_prefix(project_root).unwrap_or(path),
+                distilled
+            ))
             .bind(domain_id)
             .bind(0.95f64)
             .bind(true)

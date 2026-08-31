@@ -12,7 +12,7 @@ import random
 import uuid
 from collections.abc import AsyncGenerator
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional, cast
 
 import httpx
 
@@ -325,6 +325,7 @@ class VictoriaClient:
                     "output": output,
                     "result": output,
                     "response": output,
+                    "clarification_questions": data.get("clarification_questions"),
                 }
             )
             if stub_reason:
@@ -412,7 +413,7 @@ class VictoriaClient:
                 return response.json()
 
         try:
-            return await self._retry_request(_make_request)
+            return cast(dict[str, Any], await self._retry_request(_make_request))
         except httpx.HTTPError as e:
             logger.error(f"Victoria status error: {e}")
             return {"status": "offline", "error": str(e)}
@@ -444,7 +445,7 @@ class VictoriaClient:
                 return response.json()
 
         try:
-            return await self._retry_request(_make_request)
+            return cast(dict[str, Any], await self._retry_request(_make_request))
         except httpx.HTTPError as e:
             logger.error(f"Victoria hidden thoughts error: {e}")
             return {"status": "error", "error": str(e)}

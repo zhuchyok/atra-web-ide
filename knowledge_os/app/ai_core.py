@@ -66,6 +66,15 @@ except ImportError:
     audit_efficiency = lambda x: x
     get_session_context_manager = lambda: None
 
+
+def _build_error_response(message: str) -> str:
+    return message
+
+
+def record_llm_request(**_kwargs) -> None:
+    return None
+
+
 # [SINGULARITY 22.1] Real-time Multi-Agent Debate
 try:
     from consensus_agent import ConsensusAgent
@@ -1280,10 +1289,10 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                 try:
                     import httpx
 
-                    # Внутри Docker сети используем имя сервиса и HTTPS
+                    # Gateway is HTTP in local Docker profile unless mTLS is explicitly configured.
                     rust_url = os.getenv(
                         "RUST_GATEWAY_URL",
-                        "https://atra-web-ide-gateway:8081/api/knowledge/search_v2",
+                        "http://atra-web-ide-gateway:8081/api/knowledge/search_v2",
                     )
                     # [SINGULARITY 29.6] Context Limit Adaptation for R&D
                     # R&D tasks often have huge context, we limit nodes to prevent memory overflow
@@ -1315,7 +1324,19 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                         client_kwargs["verify"] = False  # Insecure fallback
 
                     async with httpx.AsyncClient(**client_kwargs) as client:
-                        response = await client.post(rust_url, json=payload)
+                        try:
+                            response = await client.post(rust_url, json=payload)
+                        except Exception as first_err:
+                            err_txt = str(first_err)
+                            if "WRONG_VERSION_NUMBER" in err_txt and rust_url.startswith(
+                                "https://"
+                            ):
+                                # Compatibility retry for mixed HTTP/TLS deployments.
+                                fallback_url = "http://" + rust_url[len("https://") :]
+                                logger.info("🔁 [RUST RAG] TLS mismatch, retrying over HTTP.")
+                                response = await client.post(fallback_url, json=payload)
+                            else:
+                                raise
                         if response.status_code == 200:
                             nodes = response.json()
                             if not nodes:
@@ -1836,7 +1857,7 @@ Use HANDOFF only if delegation genuinely improves the result.
             logger.info("🧠 [BRAINSTORMING] Triggering Collective Brainstorming session...")
             from collective_brainstorming import run_brainstorming
 
-            result = await run_brainstorming(user_part, knowledge_context)
+            result = await run_brainstorming(user_part, "")
             return f"✅ Коллективное обсуждение завершено.\n\n### 🏛 Финальный дизайн\n{result['design']}\n\n### 📋 План реализации\n{result['plan']}\n\nПолный лог обсуждения сохранен в docs/plans/."
 
         # [SINGULARITY 10.0+] Multi-Agent Debate for critical tasks
@@ -2365,7 +2386,9 @@ Use HANDOFF only if delegation genuinely improves the result.
         token = _RECURSION_CONTEXT.set(new_ctx)
 
         try:
-            consensus = ConsensusAgent(model_name=strategist_model)
+            consensus = ConsensusAgent(
+                model_name=os.getenv("VICTORIA_STRATEGIST_MODEL", "victoria-wisdom-v3.5:latest")
+            )
             # Выбираем экспертов для дебатов на основе задачи
             debate_experts = ["Виктория", "Игорь", "Анна"]  # Базовая тройка
             if is_coding_task:
@@ -2391,9 +2414,7 @@ Use HANDOFF only if delegation genuinely improves the result.
     # [SINGULARITY 20.0] Load hybrid models from .env
     # Strategist = Victoria wisdom (plan); Executor = coder only when coding path needs it.
     # Both defaulting to qwen2.5-coder:14b kept a 14B model resident and starved board/MLX.
-    strategist_model = os.getenv(
-        "VICTORIA_STRATEGIST_MODEL", "victoria-wisdom-v3.5:latest"
-    )
+    strategist_model = os.getenv("VICTORIA_STRATEGIST_MODEL", "victoria-wisdom-v3.5:latest")
     executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "qwen2.5-coder:14b")
 
     # [SINGULARITY 30.6] Local-First Orchestration: Force local strategist if ice_mode is off
@@ -3054,6 +3075,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                     from constitutional_rewards import get_constitutional_rewards
 
                     rewards = get_constitutional_rewards()
+                    response_time_seconds = float(metadata_dict.get("response_time_seconds", 0.0))
                     await rewards.evaluate_and_score(
                         interaction_log_id or "unknown",
                         expert_name,
@@ -4314,7 +4336,17 @@ async def _canary_daemon_loop():
 
 
 try:
-    asyncio.create_task(_canary_daemon_loop())
-    logger.info("[CANARY_DAEMON] Started (hourly cycle)")
-except Exception:
-    pass
+    # Avoid creating coroutine object when no running event loop is present.
+    _loop = asyncio.get_running_loop()
+except RuntimeError:
+    _loop = None
+
+if _loop and not _loop.is_closed():
+    if not getattr(_loop, "_atra_canary_daemon_started", False):
+        _loop.create_task(_canary_daemon_loop())
+        setattr(_loop, "_atra_canary_daemon_started", True)
+        logger.info("[CANARY_DAEMON] Started (hourly cycle)")
+    else:
+        logger.info("[CANARY_DAEMON] Already running for this event loop")
+else:
+    logger.info("[CANARY_DAEMON] Deferred start: no running loop at import time")
