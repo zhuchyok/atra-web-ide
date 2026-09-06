@@ -48,7 +48,7 @@ class QueryCache:
     def _make_cache_key(self, query: str, params: tuple = ()) -> str:
         """Создание ключа кэша из запроса и параметров"""
         key_data = f"{query}:{json.dumps(params, sort_keys=True)}"
-        key_hash = hashlib.md5(key_data.encode()).hexdigest()
+        key_hash = hashlib.md5(key_data.encode('utf-8')).hexdigest()
         return f"{CACHE_PREFIX}{key_hash}"
 
     async def get(self, query: str, params: tuple = ()) -> Optional[Any]:
@@ -66,6 +66,7 @@ class QueryCache:
                 return json.loads(cached)
             return None
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Cache get error: {e}")
             return local_entry.get("value") if local_entry else None
 
@@ -78,9 +79,10 @@ class QueryCache:
         }
         try:
             rd = await self.get_redis()
-            await rd.setex(cache_key, ttl, json.dumps(result, default=str))
+            await rd.set(cache_key, json.dumps(result, default=str), ex=ttl)
             return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Cache set error: {e}")
             return True
 
@@ -99,6 +101,7 @@ class QueryCache:
                 return int(deleted or 0) + local_deleted
             return local_deleted
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Cache invalidate error: {e}")
             return local_deleted
 
@@ -112,6 +115,7 @@ class QueryCache:
                 await rd.delete(*keys)
             return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Cache clear error: {e}")
             return False
 
@@ -130,6 +134,7 @@ def cached_query(ttl: int = CACHE_TTL):
             # Пытаемся получить из кэша
             cached = await cache.get(cache_key)
             if cached is not None:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Cache hit: {func.__name__}")
                 return cached
 
@@ -138,6 +143,7 @@ def cached_query(ttl: int = CACHE_TTL):
 
             # Сохраняем в кэш
             await cache.set(cache_key, (), result, ttl)
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Cache miss: {func.__name__}")
 
             return result
@@ -159,16 +165,19 @@ class AsyncTaskQueue:
         """Выполнение задачи асинхронно с ограничением параллелизма"""
         async with self.semaphore:
             try:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"Starting async task: {task_name}")
                 start_time = datetime.now()
 
                 result = await task_func(*args, **kwargs)
 
                 duration = (datetime.now() - start_time).total_seconds()
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"Completed async task: {task_name} (took {duration:.2f}s)")
 
                 return result
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Async task error: {task_name}: {e}")
                 raise
 
@@ -202,6 +211,7 @@ class PerformanceMonitor:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error getting slow queries: {e}")
             return []
 
@@ -228,6 +238,7 @@ class PerformanceMonitor:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error getting query stats: {e}")
             return {}
 
@@ -242,6 +253,7 @@ class PerformanceMonitor:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error refreshing cache: {e}")
             return False
 
@@ -259,6 +271,7 @@ async def run_performance_optimization():
     # 2. Анализируем медленные запросы
     slow_queries = await monitor.get_slow_queries()
     if slow_queries:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"Found {len(slow_queries)} slow queries")
         for query in slow_queries[:5]:
             logger.warning(
@@ -267,6 +280,7 @@ async def run_performance_optimization():
 
     # 3. Получаем статистику
     stats = await monitor.get_query_stats()
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"Query stats: {stats}")
 
     logger.info("✅ Performance optimization completed")

@@ -1,7 +1,7 @@
 import asyncio
 import json
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -37,32 +37,57 @@ async def test_meta_architect_graphrag_integration():
     mock_mutated_code = "def test_function():\n    # Mutated with caching\n    return 'mutated'"
 
     # 2. Mock Dependencies
-    mock_profiler = AsyncMock()
-    mock_profiler.get_hot_spots.return_value = [mock_hot_spot]
+    class ProfilerStub:
+        async def get_hot_spots(self, limit=3):
+            return [mock_hot_spot]
 
-    mock_graphrag = AsyncMock()
-    mock_graphrag.retrieve_graph_context.return_value = mock_graph_context
+    class GraphRagStub:
+        def __init__(self):
+            self.queries = []
 
-    mock_conn = AsyncMock()
-    mock_conn.execute = AsyncMock()
-    mock_conn.close = AsyncMock()
+        async def retrieve_graph_context(self, query):
+            self.queries.append(query)
+            return mock_graph_context
+
+    class ConnStub:
+        def __init__(self):
+            self.execute_calls = []
+
+        async def execute(self, *args, **kwargs):
+            self.execute_calls.append((args, kwargs))
+
+        async def close(self):
+            return None
+
+    mock_profiler = ProfilerStub()
+    mock_graphrag = GraphRagStub()
+    mock_conn = ConnStub()
 
     # 3. Patch and Run
+    agent_prompts = []
+    agent_outputs = [
+        mock_hypothesis_json,  # First call: hypothesis
+        f"```python\n{mock_mutated_code}\n```",  # Second call: mutation
+    ]
+
+    async def _mock_agent(prompt, **kwargs):
+        agent_prompts.append(prompt)
+        if agent_outputs:
+            return agent_outputs.pop(0)
+        return "ok"
+
+    async def _noop_optimization_cycle():
+        return None
+
     with (
         patch("knowledge_os.app.meta_architect.get_profiler", return_value=mock_profiler),
         patch("knowledge_os.app.meta_architect.get_graphrag_service", return_value=mock_graphrag),
-        patch("knowledge_os.app.meta_architect.run_smart_agent_async") as mock_agent,
-        patch("knowledge_os.app.meta_architect.run_optimization_cycle", new_callable=AsyncMock),
+        patch("knowledge_os.app.meta_architect.run_smart_agent_async", new=_mock_agent),
+        patch("knowledge_os.app.meta_architect.run_optimization_cycle", new=_noop_optimization_cycle),
         patch("asyncpg.connect", return_value=mock_conn),
         patch("os.path.exists", return_value=True),
-        patch("builtins.open", patch("builtins.open", MagicMock())),
+        patch("builtins.open", new=MagicMock()),
     ):
-        # Setup mock agent responses for hypothesis and mutation
-        mock_agent.side_effect = [
-            mock_hypothesis_json,  # First call: hypothesis
-            f"```python\n{mock_mutated_code}\n```",  # Second call: mutation
-        ]
-
         # Mock file reading
         with patch("knowledge_os.app.meta_architect.open", MagicMock()) as mock_open:
             mock_file = MagicMock()
@@ -75,20 +100,16 @@ async def test_meta_architect_graphrag_integration():
             # 4. Verifications
 
             # Verify GraphRAG was called with correct query
-            mock_graphrag.retrieve_graph_context.assert_called_once_with(
-                "module test_module function test_function"
-            )
+            assert mock_graphrag.queries == ["module test_module function test_function"]
 
             # Verify hypothesis prompt contained GraphRAG context
-            hypothesis_call_args = mock_agent.call_args_list[0]
-            hypothesis_prompt = hypothesis_call_args[0][0]
+            hypothesis_prompt = agent_prompts[0]
             assert mock_graph_context in hypothesis_prompt
             assert "Используя данные GraphRAG выше" in hypothesis_prompt
             assert "dependency_impact" in hypothesis_prompt
 
             # Verify mutation prompt contained GraphRAG context
-            mutation_call_args = mock_agent.call_args_list[1]
-            mutation_prompt = mutation_call_args[0][0]
+            mutation_prompt = agent_prompts[1]
             assert mock_graph_context in mutation_prompt
             assert (
                 "Учитывайте зависимости и логические связи, указанные в контексте GraphRAG"
@@ -96,10 +117,13 @@ async def test_meta_architect_graphrag_integration():
             )
 
             # Verify DB logging
-            assert mock_conn.execute.call_count >= 1
-            db_call_args = mock_conn.execute.call_args[0]
-            assert "INSERT INTO knowledge_nodes" in db_call_args[0]
-            assert "test_module.test_function" in db_call_args[1]
+            assert len(mock_conn.execute_calls) >= 1
+            insert_calls = [
+                call for call in mock_conn.execute_calls if "INSERT INTO knowledge_nodes" in str(call[0][0])
+            ]
+            assert insert_calls, "Expected INSERT INTO knowledge_nodes to be executed"
+            first_insert_args = insert_calls[0][0]
+            assert "test_module.test_function" in first_insert_args[1]
 
 
 if __name__ == "__main__":

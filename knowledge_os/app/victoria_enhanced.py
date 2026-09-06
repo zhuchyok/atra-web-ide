@@ -42,59 +42,19 @@ except ImportError:
         run_smart_agent_async = None
 
 
-class ReActAgent:
-    def __init__(self, agent_name, model_name):
-        pass
-
-
-class ExtendedThinkingEngine:
-    def __init__(self, model_name):
-        pass
-
-
-class SwarmIntelligence:
-    def __init__(self, swarm_size, model_name):
-        pass
-
-
-class ConsensusAgent:
-    def __init__(self, model_name):
-        pass
-
-
-class CollectiveMemorySystem:
-    def __init__(self):
-        pass
-
-
-class HierarchicalOrchestrator:
-    def __init__(self, root_agent):
-        pass
-
-
-class ReCAPFramework:
-    def __init__(self, model_name):
-        pass
-
-
-class TreeOfThoughts:
-    def __init__(self, model_name):
-        pass
-
-
-class MetacognitiveLearner:
-    def __init__(self, agent_name):
-        pass
-
-
-class AgentLifecycleManager:
-    def __init__(self):
-        pass
-
-
-class AgentEvolver:
-    def __init__(self, agent_name):
-        pass
+# Lazy imports for optional components - no stubs, real implementations only
+# These are imported on demand in _safe_init_status_components() and _init_extended_thinking()
+ReActAgent = None
+ExtendedThinkingEngine = None
+SwarmIntelligence = None
+ConsensusAgent = None
+CollectiveMemorySystem = None
+HierarchicalOrchestrator = None
+ReCAPFramework = None
+TreeOfThoughts = None
+MetacognitiveLearner = None
+AgentLifecycleManager = None
+AgentEvolver = None
 
 
 class EventType(Enum):
@@ -154,7 +114,7 @@ def _run_fast_security_audit(goal: str) -> Optional[str]:
         return None
 
     try:
-        with open(resolved_path, "r", encoding="utf-8", errors="ignore") as handle:
+        with open(resolved_path, encoding="utf-8", errors="ignore") as handle:
             lines = list(handle.readlines())
     except Exception as err:
         return f"ПРОБЛЕМА\nФайл: {resolved_path}\nНе удалось прочитать файл: {err}"
@@ -163,11 +123,15 @@ def _run_fast_security_audit(goal: str) -> Optional[str]:
         findings = []
         for idx, line in enumerate(lines, 1):
             lowered = line.lower()
-            if "pip" in lowered and "install" in lowered and (
-                "subprocess." in lowered
-                or "os.system(" in lowered
-                or "python -m pip install" in lowered
-                or "python3 -m pip install" in lowered
+            if (
+                "pip" in lowered
+                and "install" in lowered
+                and (
+                    "subprocess." in lowered
+                    or "os.system(" in lowered
+                    or "python -m pip install" in lowered
+                    or "python3 -m pip install" in lowered
+                )
             ):
                 findings.append(f"L{idx}: {line.strip()[:220]}")
         if findings:
@@ -275,7 +239,7 @@ class VictoriaEnhanced:
         self.monitoring_started = False
 
         # [SINGULARITY 24.7] Auto-start Event Bus and Sentinel
-        if os.getenv("ENABLE_EVENT_MONITORING", "false").lower() == "true":
+        if os.getenv("ENABLE_EVENT_MONITORING", "true").lower() == "true":
             try:
                 from app.autonomous_sentinel import get_autonomous_sentinel
                 from app.event_bus import EventType as BusEventType
@@ -313,60 +277,129 @@ class VictoriaEnhanced:
                 )
 
                 # Запуск шины и стража
-                asyncio.create_task(self.event_bus.start())
+                scheduled = False
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(self.event_bus.start())
+                    sentinel = get_autonomous_sentinel()
+                    loop.create_task(sentinel.start())
+                    scheduled = True
+                except RuntimeError:
+                    logger.warning("⚠️ [AUTO-START] No running event loop; defer Event Bus/Sentinel startup")
+                except Exception:
+                    # Keep startup robust in mixed runtime/test contexts.
+                    logger.warning("⚠️ [AUTO-START] Failed to schedule Event Bus/Sentinel startup", exc_info=True)
 
-                sentinel = get_autonomous_sentinel()
-                asyncio.create_task(sentinel.start())
-
-                self.monitoring_started = True
-                logger.info("🚀 [AUTO-START] Event Bus and Autonomous Sentinel started")
+                self.monitoring_started = scheduled
+                if scheduled:
+                    logger.info("🚀 [AUTO-START] Event Bus and Autonomous Sentinel started")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [AUTO-START] Failed to start Event Bus/Sentinel: {e}")
 
         self._initialize_components()
 
+    def _safe_init_status_components(self):
+        """Ленивая инициализация lightweight-компонентов только для честного /status."""
+        if self.skill_registry is None:
+            try:
+                from app.skill_registry import get_skill_registry
+            except ImportError:
+                from skill_registry import get_skill_registry
+            try:
+                self.skill_registry = get_skill_registry()
+            except Exception:
+                self.skill_registry = None
+        if self.event_bus is None:
+            try:
+                from app.event_bus import get_event_bus
+            except ImportError:
+                try:
+                    from event_bus import get_event_bus
+                except ImportError:
+                    get_event_bus = None
+            try:
+                if get_event_bus is not None:
+                    self.event_bus = get_event_bus()
+            except Exception:
+                self.event_bus = None
+
     def _initialize_components(self):
-        """Инициализировать доступные компоненты"""
+        """Инициализировать доступные компоненты через lazy imports"""
         if self.use_react:
             try:
+                from agents.react_agent import ReActAgent
                 self.react_agent = ReActAgent(agent_name="Виктория", model_name=self.model_name)
                 logger.info("✅ ReActAgent инициализирован")
+            except ImportError:
+                logger.debug("ℹ️ ReActAgent недоступен (модуль не найден)")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка инициализации ReActAgent: {e}")
 
         if self.use_extended_thinking:
             try:
-                self.extended_thinking = ExtendedThinkingEngine(model_name=self.model_name)
+                from extended_thinking import ExtendedThinkingEngine
+                self.extended_thinking = ExtendedThinkingEngine(
+                    model_name=self.model_name,
+                    thinking_budget=15000,
+                    max_steps=12,
+                    use_intelligent_routing=True,
+                    dual_channel=True,
+                )
                 logger.info("✅ ExtendedThinkingEngine инициализирован")
+            except ImportError:
+                logger.debug("ℹ️ ExtendedThinkingEngine недоступен (модуль не найден)")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка инициализации ExtendedThinkingEngine: {e}")
 
         if self.use_swarm:
             try:
+                from swarm_intelligence import SwarmIntelligence
                 self.swarm = SwarmIntelligence(swarm_size=16, model_name=self.model_name)
                 logger.info("✅ SwarmIntelligence инициализирован")
+            except ImportError:
+                logger.debug("ℹ️ SwarmIntelligence недоступен (модуль не найден)")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка инициализации SwarmIntelligence: {e}")
 
         if self.use_consensus:
             try:
+                from consensus_agent import ConsensusAgent
                 self.consensus = ConsensusAgent(model_name=self.model_name)
                 logger.info("✅ ConsensusAgent инициализирован")
+            except ImportError:
+                logger.debug("ℹ️ ConsensusAgent недоступен (модуль не найден)")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка инициализации ConsensusAgent: {e}")
 
         if self.use_collective_memory:
             try:
+                from collective_memory import CollectiveMemorySystem
                 self.collective_memory = CollectiveMemorySystem()
                 logger.info("✅ CollectiveMemorySystem инициализирован")
+            except ImportError:
+                logger.debug("ℹ️ CollectiveMemorySystem недоступен (модуль не найден)")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"ℹ️ Ошибка инициализации CollectiveMemorySystem: {e}")
 
     async def start(self):
         """Запуск фоновых компонентов мониторинга (вызывается при lifespan startup)."""
+        self._safe_init_status_components()
         logger.info(
             "✅ [VictoriaEnhanced] start() вызван — мониторинг уже инициализирован в __init__"
         )
+
+    async def stop(self):
+        """Graceful stop hook for lifespan shutdown."""
+        try:
+            self.monitoring_started = False
+        except Exception:
+            pass
 
     async def _init_extended_thinking(self):
         """Ленивая инициализация Extended Thinking Engine."""
@@ -383,6 +416,7 @@ class VictoriaEnhanced:
                 )
                 logger.info("✅ [VICTORIA] ExtendedThinkingEngine инициализирован")
             except ImportError as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ ExtendedThinkingEngine недоступен: {e}")
                 self.extended_thinking = None
 
@@ -415,8 +449,10 @@ class VictoriaEnhanced:
                 ltm_context = "\n📜 [LONG-TERM MEMORY]:\n"
                 for m in memories:
                     ltm_context += f"- {m['content'][:500]}\n"
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🧠 [VICTORIA] Recalled {len(memories)} memories for goal.")
         except Exception as ltm_err:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"LTM recall failed: {ltm_err}")
 
         # Inject LTM into context
@@ -445,6 +481,7 @@ class VictoriaEnhanced:
                     goal, category=category
                 )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Department heads pre-check failed: {e}")
                 should_use_department_heads, dept_info = False, {}
 
@@ -459,6 +496,7 @@ class VictoriaEnhanced:
                 if dept_result and dept_result.get("result"):
                     return dept_result
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Department heads flow failed, fallback to default solve: {e}")
 
         if method == "extended_thinking" and self.use_extended_thinking:
@@ -484,6 +522,7 @@ class VictoriaEnhanced:
                         "thinking_time": result.thinking_time_seconds,
                     }
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ Extended Thinking failed: {e}")
                     method = "auto"
 
@@ -536,6 +575,7 @@ class VictoriaEnhanced:
                 result = llm_task.result()
                 return {"result": result}
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [VICTORIA] LLM call failed: {e}")
                 return {"result": f"Ошибка вызова LLM: {e}"}
 
@@ -715,11 +755,29 @@ class VictoriaEnhanced:
         except Exception:
             stats = {}
 
+        self._safe_init_status_components()
+        skills_count = 0
+        if self.skill_registry is not None:
+            try:
+                skills_count = len(getattr(self.skill_registry, "skills", {}) or {})
+            except Exception:
+                skills_count = 0
+
+        service_monitor_available = self.service_monitor is not None
+        if not service_monitor_available:
+            try:
+                from app.service_monitor import ServiceMonitor as _ServiceMonitor  # noqa: F401
+
+                service_monitor_available = True
+            except Exception:
+                service_monitor_available = False
+
         return {
             "monitoring_started": self.monitoring_started,
             "event_bus_available": self.event_bus is not None,
             "skill_registry_available": self.skill_registry is not None,
+            "skills_count": skills_count,
             "file_watcher_available": self.file_watcher is not None,
-            "service_monitor_available": self.service_monitor is not None,
+            "service_monitor_available": service_monitor_available,
             "system_stats": stats,
         }
