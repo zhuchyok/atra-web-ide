@@ -329,13 +329,13 @@ def _select_model_for_chat(content: str, expert_name: Optional[str] = None) -> s
         word in content_lower
         for word in ["стратег", "корпорац", "совет", "директор", "иван", "ceo"]
     ):
-        return "victoria-wisdom-v3.5:latest"
+        return "victoria-wisdom-24k:latest"
 
     if any(
         word in content_lower
         for word in ["подумай", "логика", "планир", "reasoning", "анализ", "объясни", "почему"]
     ):
-        return "victoria-wisdom-v3.5:latest"
+        return "victoria-wisdom-24k:latest"
 
     if any(
         word in content_lower
@@ -351,15 +351,15 @@ def _select_model_for_chat(content: str, expert_name: Optional[str] = None) -> s
             "алгоритм",
         ]
     ):
-        return "victoria-wisdom-v3.5:latest"
+        return "victoria-wisdom-24k:latest"
 
     if len(content) > 500:
-        return "victoria-wisdom-v3.5:latest"
+        return "victoria-wisdom-24k:latest"
 
     if len(content) < 200:
         return "tinyllama:1.1b-chat"  # Быстрая модель для коротких вопросов
 
-    return "victoria-wisdom-v3.5:latest"
+    return "victoria-wisdom-24k:latest"
 
 
 # Загружаем .env при старте
@@ -418,6 +418,33 @@ except ImportError:
 # Хранилище фоновых задач (202 + polling): task_id -> { status, output, knowledge, error, created_at }
 _run_task_store: Dict[str, Dict[str, Any]] = {}
 _RUN_TASK_STORE_TTL = 86400  # 24 часа для God Mode
+_RUN_TASK_STORE_MAX = 1000   # Лимит записей в памяти
+
+# Реестр сильных ссылок на фоновые задачи (защита от GC в Python 3.11+)
+_active_background_tasks: set[asyncio.Task] = set()
+
+# [MEDIC] Глобальные экземпляры компонентов самовосстановления
+feedback_loop_instance = None
+rollback_manager_instance = None
+metrics_dashboard_instance = None
+proactive_monitor_instance = None
+
+# [MULTI-AGENT] Глобальные экземпляры компонентов
+plan_decomposer_instance = None
+consensus_agent_instance = None
+agent_lifecycle_instance = None
+collective_memory_instance = None
+human_approval_instance = None
+load_balancer_instance = None
+git_engine_instance = None
+
+
+def _create_tracked_task(coro) -> asyncio.Task:
+    """Создаёт фоновую задачу с защитой от преждевременной сборки мусора (GC)."""
+    task = asyncio.create_task(coro)
+    _active_background_tasks.add(task)
+    task.add_done_callback(_active_background_tasks.discard)
+    return task
 
 
 async def _save_task_to_db(task_id: str, data: Dict[str, Any]):
@@ -563,6 +590,28 @@ async def _cleanup_stale_tasks():
                                 )
                 except Exception as db_e:
                     logger.debug("[CLEANUP] DB cleanup error: %s", db_e)
+
+            # Очистка памяти: удаление завершённых/проваленных задач старше TTL и соблюдение MAX_STORE_SIZE
+            completed_ttl_sec = _RUN_TASK_STORE_TTL
+            for task_id, store in list(_run_task_store.items()):
+                if store.get("status") in ("completed", "failed"):
+                    updated_raw = store.get("updated_at") or store.get("created_at")
+                    if updated_raw:
+                        try:
+                            updated_at = (
+                                datetime.fromisoformat(updated_raw)
+                                if isinstance(updated_raw, str)
+                                else updated_raw
+                            )
+                            if updated_at.tzinfo is None:
+                                updated_at = updated_at.replace(tzinfo=timezone.utc)
+                            if (now - updated_at).total_seconds() > completed_ttl_sec:
+                                _run_task_store.pop(task_id, None)
+                        except Exception:
+                            pass
+            while len(_run_task_store) > _RUN_TASK_STORE_MAX:
+                oldest_key = next(iter(_run_task_store))
+                _run_task_store.pop(oldest_key, None)
         except asyncio.CancelledError:
             break
         except Exception as e:
@@ -754,12 +803,23 @@ VICTORIA_TIMEOUT_FALLBACK_MODEL = os.getenv("VICTORIA_TIMEOUT_FALLBACK_MODEL", "
 VICTORIA_STRATEGY_TIMEOUT_SEC = float(os.getenv("VICTORIA_STRATEGY_TIMEOUT_SEC", "35"))
 VICTORIA_ORCHESTRATOR_TIMEOUT_SEC = float(os.getenv("VICTORIA_ORCHESTRATOR_TIMEOUT_SEC", "30"))
 VICTORIA_ASSIGNMENTS_TIMEOUT_SEC = float(os.getenv("VICTORIA_ASSIGNMENTS_TIMEOUT_SEC", "40"))
-VICTORIA_SYNC_SAFE_MODE = os.getenv("VICTORIA_SYNC_SAFE_MODE", "false").lower() in (
+VICTORIA_SYNC_SAFE_MODE = os.getenv("VICTORIA_SYNC_SAFE_MODE", "true").lower() in (
     "true",
     "1",
     "yes",
 )
 VICTORIA_SYNC_SAFE_MODEL = os.getenv("VICTORIA_SYNC_SAFE_MODEL", "phi3.5:3.8b")
+VICTORIA_SYNC_SAFE_TIMEOUT_SEC = float(os.getenv("VICTORIA_SYNC_SAFE_TIMEOUT_SEC", "12"))
+VICTORIA_TIMEOUT_FALLBACK_TIMEOUT_SEC = float(
+    os.getenv("VICTORIA_TIMEOUT_FALLBACK_TIMEOUT_SEC", "6")
+)
+
+# Concurrency limiter: max 2 simultaneous requests to avoid overwhelming LLM
+VICTORIA_MAX_CONCURRENT_TASKS = int(os.getenv("VICTORIA_MAX_CONCURRENT_TASKS", "2"))
+VICTORIA_SEMAPHORE_ACQUIRE_TIMEOUT_SEC = float(
+    os.getenv("VICTORIA_SEMAPHORE_ACQUIRE_TIMEOUT_SEC", "2")
+)
+_victoria_semaphore: Optional[asyncio.Semaphore] = None
 
 # Debug mode: VICTORIA_DEBUG=true enables verbose logging at all levels
 VICTORIA_DEBUG = os.getenv("VICTORIA_DEBUG", "false").lower() in ("true", "1", "yes")
@@ -768,6 +828,8 @@ from src.agents.bridge.enhanced_router import delegate_to_veronica
 from src.agents.bridge.project_registry import get_main_project, get_projects_registry
 from src.agents.bridge.task_detector import (
     detect_task_type,
+    format_live_fact_answer,
+    is_fact_seeking_question,
     is_curator_standard_goal,
     is_operational_execution_goal,
     should_use_enhanced,
@@ -1053,13 +1115,89 @@ async def _preload_rag_cache():
         logger.warning("[RAG+] Предзагрузка кэша не выполнена: %s", e)
 
 
+def _same_model_alias(left: str, right: str) -> bool:
+    """Compare model names tolerating optional :latest suffix."""
+    l = (left or "").strip()
+    r = (right or "").strip()
+    if not l or not r:
+        return False
+    return l == r or l.rstrip(":latest") == r.rstrip(":latest")
+
+
+def _ollama_url_for_model(model: str, default_url: Optional[str] = None) -> str:
+    """Route executor model to dedicated Ollama endpoint when configured."""
+    base_default = (
+        default_url
+        or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    )
+    executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k:latest")
+    if _same_model_alias(model, executor_model):
+        return os.getenv("OLLAMA_EXECUTOR_BASE_URL", base_default).rstrip("/")
+    return base_default.rstrip("/")
+
+
+
+
+async def _deferred_warmup_retry(model: str, ollama_url: str, timeout_per_model: float) -> None:
+    """Retry warming a busy model in background until queue pressure drops."""
+    max_attempts = max(1, int(os.getenv("VICTORIA_WARMUP_DEFER_MAX_ATTEMPTS", "20")))
+    delay_sec = float(os.getenv("VICTORIA_WARMUP_DEFER_DELAY_SEC", "15"))
+    keep_alive = max(60, int(os.getenv("VICTORIA_WARMUP_KEEP_ALIVE_SEC", "7200")))
+    async with httpx.AsyncClient(timeout=timeout_per_model) as client:
+        for attempt in range(1, max_attempts + 1):
+            try:
+                # Skip retries if model is already loaded by other traffic.
+                ps = await client.get(f"{ollama_url}/api/ps")
+                if ps.status_code == 200:
+                    loaded = {
+                        str(m.get("name", "")).strip()
+                        for m in ps.json().get("models", [])
+                        if isinstance(m, dict)
+                    }
+                    if model in loaded or model.rstrip(":latest") in loaded:
+                        logger.info(
+                            "✅ [VICTORIA] Deferred warmup skipped for %s: model already loaded",
+                            model,
+                        )
+                        return
+                r = await client.post(
+                    f"{ollama_url}/api/generate",
+                    json={"model": model, "prompt": "ping", "stream": False, "keep_alive": keep_alive},
+                )
+                body = (r.text or "")[:200].lower()
+                if r.status_code == 200:
+                    logger.info("✅ [VICTORIA] Deferred warmup succeeded for %s (attempt %s)", model, attempt)
+                    return
+                is_busy = r.status_code in (429, 503) or "server busy" in body
+                if is_busy and attempt < max_attempts:
+                    await asyncio.sleep(delay_sec)
+                    continue
+                logger.warning(
+                    "[VICTORIA] Deferred warmup for %s stopped with %s: %s",
+                    model,
+                    r.status_code,
+                    (r.text or "")[:150],
+                )
+                return
+            except Exception as e:
+                if attempt < max_attempts:
+                    await asyncio.sleep(delay_sec)
+                    continue
+                logger.warning("[VICTORIA] Deferred warmup for %s failed: %s", model, e)
+                return
+
+
 async def warmup_victoria():
     """Прогрев: загружаем модели. Если MLX доступен и модель там уже есть — Ollama прогрев пропускаем."""
     if os.getenv("VICTORIA_WARMUP_ENABLED", "true").lower() not in ("true", "1", "yes"):
         return
+    # Include both legacy and current model envs so startup warmup covers
+    # heavy executor models (e.g., qwen2.5-coder) used on complex code tasks.
     models_to_warm = [
         os.getenv("VICTORIA_PLANNER_MODEL", "").strip(),
         os.getenv("VICTORIA_MODEL", "").strip(),
+        os.getenv("VICTORIA_STRATEGIST_MODEL", "").strip(),
+        os.getenv("VICTORIA_EXECUTOR_MODEL", "").strip(),
         os.getenv(
             "VICTORIA_WARMUP_EXTRA_MODELS", ""
         ).strip(),  # через запятую: nomic-embed-text и др.
@@ -1079,6 +1217,50 @@ async def warmup_victoria():
     ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
     mlx_url = os.getenv("MLX_API_URL", "http://localhost:11435").rstrip("/")
     timeout_per_model = float(os.getenv("VICTORIA_WARMUP_TIMEOUT_PER_MODEL", "90"))
+    retry_count = max(1, int(os.getenv("VICTORIA_WARMUP_RETRY_COUNT", "4")))
+    retry_sleep_sec = float(os.getenv("VICTORIA_WARMUP_RETRY_SLEEP_SEC", "3"))
+    keep_alive = max(60, int(os.getenv("VICTORIA_WARMUP_KEEP_ALIVE_SEC", "7200")))
+
+    # Prevent duplicate warmup storms with multiple Uvicorn workers in one container.
+    lock_fp = None
+    lock_path = os.getenv("VICTORIA_WARMUP_LOCK_PATH", "/tmp/victoria_warmup.lock")
+    marker_path = os.getenv("VICTORIA_WARMUP_MARKER_PATH", "/tmp/victoria_warmup.last")
+    min_interval_sec = max(0, int(os.getenv("VICTORIA_WARMUP_MIN_INTERVAL_SEC", "600")))
+    try:
+        import fcntl
+
+        lock_fp = open(lock_path, "w", encoding="utf-8")
+        try:
+            fcntl.flock(lock_fp.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            logger.info("[VICTORIA] Warmup already running in another worker, skipping duplicate run")
+            return
+    except Exception as e:
+        logger.debug("[VICTORIA] Warmup lock unavailable, continuing without lock: %s", e)
+
+    # Cooldown guard: avoid repeated warmup storms on frequent worker restarts.
+    if min_interval_sec > 0:
+        try:
+            if os.path.exists(marker_path):
+                with open(marker_path, "r", encoding="utf-8") as fp:
+                    last_ts = float((fp.read().strip() or "0"))
+                since_last = time.time() - last_ts
+                if since_last < min_interval_sec:
+                    logger.info(
+                        "[VICTORIA] Warmup cooldown active (%.0fs < %ss), skipping",
+                        since_last,
+                        min_interval_sec,
+                    )
+                    return
+        except Exception as e:
+            logger.debug("[VICTORIA] Warmup cooldown check failed: %s", e)
+
+    # Mark warmup start immediately to prevent restart loops from re-triggering storms.
+    try:
+        with open(marker_path, "w", encoding="utf-8") as fp:
+            fp.write(str(time.time()))
+    except Exception as e:
+        logger.debug("[VICTORIA] Warmup marker write (start) failed: %s", e)
 
     # Определяем какие модели уже загружены в MLX — не дублируем их в Ollama
     mlx_cached: set = set()
@@ -1091,29 +1273,90 @@ async def warmup_victoria():
     except Exception:
         pass
 
-    async with httpx.AsyncClient(timeout=timeout_per_model) as client:
-        for model in models_list:
-            if not model:
-                continue
-            if model in mlx_cached or model.rstrip(":latest") in mlx_cached:
-                logger.info("⚡ [VICTORIA] Модель %s уже в MLX — пропускаем Ollama прогрев", model)
-                continue
+    try:
+        async with httpx.AsyncClient(timeout=timeout_per_model) as client:
+            for model in models_list:
+                if not model:
+                    continue
+                if model in mlx_cached or model.rstrip(":latest") in mlx_cached:
+                    logger.info("⚡ [VICTORIA] Модель %s уже в MLX — пропускаем Ollama прогрев", model)
+                    continue
+                model_ollama_url = _ollama_url_for_model(model, default_url=ollama_url)
+                attempt = 0
+                while attempt < retry_count:
+                    attempt += 1
+                    try:
+                        # Skip generate if the model is already loaded in Ollama.
+                        ps = await client.get(f"{model_ollama_url}/api/ps")
+                        if ps.status_code == 200:
+                            loaded = {
+                                str(m.get("name", "")).strip()
+                                for m in ps.json().get("models", [])
+                                if isinstance(m, dict)
+                            }
+                            if model in loaded or model.rstrip(":latest") in loaded:
+                                logger.info("✅ [VICTORIA] Модель %s уже загружена в Ollama (api/ps)", model)
+                                break
+                        r = await client.post(
+                            f"{model_ollama_url}/api/generate",
+                            json={
+                                "model": model,
+                                "prompt": "ping",
+                                "stream": False,
+                                "keep_alive": keep_alive,
+                            },
+                        )
+                        if r.status_code == 200:
+                            logger.info("✅ [VICTORIA] Модель %s загружена", model)
+                            break
+                        body = (r.text or "")[:200].lower()
+                        is_busy = r.status_code in (429, 503) or "server busy" in body
+                        if is_busy and attempt < retry_count:
+                            logger.warning(
+                                "[VICTORIA] Прогрев %s busy (%s), retry %s/%s",
+                                model,
+                                r.status_code,
+                                attempt,
+                                retry_count,
+                            )
+                            await asyncio.sleep(retry_sleep_sec)
+                            continue
+                        if is_busy and os.getenv(
+                            "VICTORIA_WARMUP_DEFER_BUSY_RETRY", "true"
+                        ).lower() in ("true", "1", "yes"):
+                            logger.warning(
+                                "[VICTORIA] Прогрев %s остаётся busy; запускаю deferred warmup в фоне",
+                                model,
+                            )
+                            _create_tracked_task(
+                                _deferred_warmup_retry(model, model_ollama_url, timeout_per_model)
+                            )
+                        logger.warning(
+                            "[VICTORIA] Прогрев %s вернул %s: %s",
+                            model,
+                            r.status_code,
+                            (r.text or "")[:150],
+                        )
+                        break
+                    except Exception as e:
+                        if attempt < retry_count:
+                            logger.warning(
+                                "[VICTORIA] Ошибка прогрева %s, retry %s/%s: %s",
+                                model,
+                                attempt,
+                                retry_count,
+                                e,
+                            )
+                            await asyncio.sleep(retry_sleep_sec)
+                            continue
+                        logger.warning("[VICTORIA] Ошибка прогрева модели %s (продолжаем): %s", model, e)
+                        break
+    finally:
+        if lock_fp is not None:
             try:
-                r = await client.post(
-                    f"{ollama_url}/api/generate",
-                    json={"model": model, "prompt": "ping", "stream": False},
-                )
-                if r.status_code == 200:
-                    logger.info("✅ [VICTORIA] Модель %s загружена", model)
-                else:
-                    logger.warning(
-                        "[VICTORIA] Прогрев %s вернул %s: %s",
-                        model,
-                        r.status_code,
-                        (r.text or "")[:150],
-                    )
-            except Exception as e:
-                logger.warning("[VICTORIA] Ошибка прогрева модели %s (продолжаем): %s", model, e)
+                lock_fp.close()
+            except Exception:
+                pass
     if os.getenv("VICTORIA_WARMUP_BLOCK_STARTUP", "false").lower() in ("true", "1", "yes"):
         logger.info("✅ [VICTORIA] Victoria прогрета (блокирующий режим), приём запросов")
 
@@ -1232,6 +1475,14 @@ async def _memory_watchdog():
 async def lifespan(app: FastAPI):
     """Lifespan: запуск Victoria Enhanced + Initiative (все три уровня в одном процессе)."""
     global victoria_enhanced_instance, victoria_enhanced_monitoring_started
+    global plan_decomposer_instance, consensus_agent_instance, agent_lifecycle_instance
+    global collective_memory_instance, human_approval_instance, load_balancer_instance
+    global git_engine_instance
+    global _victoria_semaphore
+
+    # Initialize concurrency limiter
+    _victoria_semaphore = asyncio.Semaphore(VICTORIA_MAX_CONCURRENT_TASKS)
+    logger.info(f"[CONCURRENCY] Semaphore initialized: max {VICTORIA_MAX_CONCURRENT_TASKS} concurrent tasks")
 
     def _env_bool(key: str, default: bool = False) -> bool:
         v = (os.getenv(key) or "").strip().strip("\"'")
@@ -1333,21 +1584,21 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Загрузка реестра проектов при старте: %s", e)
 
-    # Предзагрузка кэша RAG типовыми запросами (в фоне, не блокирует старт)
-    asyncio.create_task(_preload_rag_cache())
+    # Предзагрузка кэша RAG типовыми запросами (в фоне с защитой от GC)
+    _create_tracked_task(_preload_rag_cache())
 
     # Восстановление задач из БД
-    asyncio.create_task(_load_tasks_from_db())
+    _create_tracked_task(_load_tasks_from_db())
 
     # Очистка зависших задач (processing > 30 мин → failed)
-    asyncio.create_task(_cleanup_stale_tasks())
+    _create_tracked_task(_cleanup_stale_tasks())
 
     # Прогрев модели Ollama: при VICTORIA_WARMUP_BLOCK_STARTUP=true — ждём завершения (сервер начнёт приём после прогрева)
     if os.getenv("VICTORIA_WARMUP_ENABLED", "true").lower() in ("true", "1", "yes"):
         if os.getenv("VICTORIA_WARMUP_BLOCK_STARTUP", "false").lower() in ("true", "1", "yes"):
             await warmup_victoria()
         else:
-            asyncio.create_task(warmup_victoria())
+            _create_tracked_task(warmup_victoria())
 
     # Memory watchdog: gc + malloc_trim каждые 30 мин + аварийный перезапуск при >18GB
     # [SINGULARITY 30.0] Dynamic interval and event-driven GC
@@ -1398,6 +1649,108 @@ async def lifespan(app: FastAPI):
         logger.info("🔗 [AGENT_MSG] Victoria subscribed to agent messaging")
     except Exception as e:
         logger.warning(f"⚠️ [AGENT_MSG] Init failed: {e}")
+
+    # [MEDIC] Feedback Loop — обучение на ошибках
+    try:
+        from app.medic.feedback_loop import FeedbackLoop
+        feedback_loop_instance = FeedbackLoop()
+        await feedback_loop_instance.initialize()
+        logger.info("✅ [FEEDBACK] Feedback Loop инициализирован")
+    except Exception as e:
+        feedback_loop_instance = None
+        logger.warning(f"⚠️ [FEEDBACK] Init failed: {e}")
+
+    # [MEDIC] Rollback Manager — откат изменений
+    try:
+        from app.medic.rollback_manager import RollbackManager
+        rollback_manager_instance = RollbackManager()
+        logger.info("✅ [ROLLBACK] Rollback Manager инициализирован")
+    except Exception as e:
+        rollback_manager_instance = None
+        logger.warning(f"⚠️ [ROLLBACK] Init failed: {e}")
+
+    # [MEDIC] Metrics Dashboard — метрики
+    try:
+        from app.medic.metrics_dashboard import MetricsDashboard
+        metrics_dashboard_instance = MetricsDashboard()
+        await metrics_dashboard_instance.initialize()
+        logger.info("✅ [METRICS] Metrics Dashboard инициализирован")
+    except Exception as e:
+        metrics_dashboard_instance = None
+        logger.warning(f"⚠️ [METRICS] Init failed: {e}")
+
+    # [MEDIC] Proactive Monitor — мониторинг ресурсов
+    try:
+        from app.medic.proactive_monitor import ProactiveMonitor
+        proactive_monitor_instance = ProactiveMonitor()
+        _create_tracked_task(proactive_monitor_instance.run())
+        logger.info("✅ [PROACTIVE] Proactive Monitor запущен")
+    except Exception as e:
+        proactive_monitor_instance = None
+        logger.warning(f"⚠️ [PROACTIVE] Init failed: {e}")
+
+    # [MULTI-AGENT] PlanDecomposer — разбиение сложных задач
+    try:
+        from app.plan_decomposer import PlanDecomposer
+        plan_decomposer_instance = PlanDecomposer()
+        logger.info("✅ [PLAN_DECOMPOSER] Инициализирован")
+    except Exception as e:
+        plan_decomposer_instance = None
+        logger.warning(f"⚠️ [PLAN_DECOMPOSER] Init failed: {e}")
+
+    # [MULTI-AGENT] ConsensusAgent — голосование экспертов
+    try:
+        from app.consensus_agent import ConsensusAgent
+        consensus_agent_instance = ConsensusAgent()
+        logger.info("✅ [CONSENSUS] ConsensusAgent инициализирован")
+    except Exception as e:
+        consensus_agent_instance = None
+        logger.warning(f"⚠️ [CONSENSUS] Init failed: {e}")
+
+    # [MULTI-AGENT] AgentLifecycleManager — жизненный цикл агентов
+    try:
+        from app.agent_lifecycle_manager import AgentLifecycleManager
+        agent_lifecycle_instance = AgentLifecycleManager()
+        logger.info("✅ [LIFECYCLE] AgentLifecycleManager инициализирован")
+    except Exception as e:
+        agent_lifecycle_instance = None
+        logger.warning(f"⚠️ [LIFECYCLE] Init failed: {e}")
+
+    # [MULTI-AGENT] CollectiveMemory — общая память
+    try:
+        from app.collective_memory import CollectiveMemory
+        collective_memory_instance = CollectiveMemory(agent_name="Виктория")
+        logger.info("✅ [MEMORY] CollectiveMemory инициализирован")
+    except Exception as e:
+        collective_memory_instance = None
+        logger.warning(f"⚠️ [MEMORY] Init failed: {e}")
+
+    # [MULTI-AGENT] HumanApproval — одобрение критических действий
+    try:
+        from app.human_approval import HumanApprovalSystem
+        human_approval_instance = HumanApprovalSystem()
+        logger.info("✅ [HUMAN] HumanApproval инициализирован")
+    except Exception as e:
+        human_approval_instance = None
+        logger.warning(f"⚠️ [HUMAN] Init failed: {e}")
+
+    # [MULTI-AGENT] LoadBalancer — балансировка нагрузки
+    try:
+        from app.load_balancer import LoadBalancer
+        load_balancer_instance = LoadBalancer()
+        logger.info("✅ [LOAD_BALANCER] LoadBalancer инициализирован")
+    except Exception as e:
+        load_balancer_instance = None
+        logger.warning(f"⚠️ [LOAD_BALANCER] Init failed: {e}")
+
+    # [MULTI-AGENT] GitEngine — интеграция с Git
+    try:
+        from app.codebase_mutation_engine import get_mutation_engine
+        git_engine_instance = get_mutation_engine()
+        logger.info("✅ [GIT] GitEngine инициализирован")
+    except Exception as e:
+        git_engine_instance = None
+        logger.warning(f"⚠️ [GIT] Init failed: {e}")
 
     logger.info("[VICTORIA] Lifespan startup завершён, Uvicorn переходит в режим приёма запросов")
     yield
@@ -1479,7 +1832,7 @@ class VictoriaAgent(BaseAgent):
 
         if model_name is None:
             model_name = (
-                env_victoria_model or "victoria-wisdom-v3.5:latest"
+                env_victoria_model or "victoria-wisdom-24k:latest"
             )  # fallback до первого сканирования
 
         logger.info("[VICTORIA_INIT] Initial model_name: %s", model_name)
@@ -1515,7 +1868,7 @@ class VictoriaAgent(BaseAgent):
         use_mlx_planner = os.getenv("USE_MLX_FOR_PLANNER", "true").lower() == "true"
         if use_mlx_planner:
             mlx_base = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
-            mlx_model = os.getenv("VICTORIA_PLANNER_MODEL", "victoria-wisdom-v3.5")
+            mlx_model = os.getenv("VICTORIA_PLANNER_MODEL", "victoria-wisdom-24k")
             self.planner = OllamaExecutor(model=mlx_model, base_url=mlx_base)
             logger.info("[VICTORIA_INIT] Planner → MLX (%s @ %s)", mlx_model, mlx_base)
         else:
@@ -1850,6 +2203,19 @@ class VictoriaAgent(BaseAgent):
         Returns:
             Tuple[primary_expert_name, primary_expert_data, additional_experts_list]
         """
+        # [MULTI-AGENT] LoadBalancer — выбор наименее загруженного эксперта
+        if load_balancer_instance:
+            try:
+                least_loaded = await load_balancer_instance.get_least_loaded_agent(
+                    task_type=self._categorize_task(goal)
+                )
+                if least_loaded and least_loaded in self.expert_team:
+                    logger.info("[LOAD_BALANCER] Выбран наименее загруженный эксперт: %s", least_loaded)
+                    expert_data = self.expert_team[least_loaded]
+                    return least_loaded, expert_data, []
+            except Exception as e:
+                logger.debug("[LOAD_BALANCER] get_least_loaded_agent failed: %s", e)
+
         if not USE_KNOWLEDGE_OS or not KNOWLEDGE_OS_AVAILABLE:
             return None, None, None
 
@@ -2608,7 +2974,16 @@ JSON:"""
             context_fut = self._get_knowledge_context(
                 goal, precomputed_embedding=precomputed_embedding
             )
-            expert_result, knowledge_context = await asyncio.gather(expert_fut, context_fut)
+            expert_result, knowledge_context = await asyncio.gather(
+                expert_fut, context_fut, return_exceptions=True
+            )
+            # Handle exceptions from gather
+            if isinstance(expert_result, Exception):
+                logger.warning(f"⚠️ Expert selection failed: {expert_result}")
+                expert_result = (None, {}, [])
+            if isinstance(knowledge_context, Exception):
+                logger.warning(f"⚠️ Knowledge context failed: {knowledge_context}")
+                knowledge_context = ""
             t_prepare_ms = (time.perf_counter() - _t1) * 1000
             expert_name, expert_data, additional_experts = expert_result
             if knowledge_context is None:
@@ -2720,9 +3095,9 @@ Q: "покажи файлы в текущей директории" → План
                     "qwen2.5:3b",
                     "tinyllama:1.1b-chat",
                 ],
-                "ml": ["victoria-wisdom-v3.5:latest", "glm-4.7-flash:latest", "phi3.5:3.8b"],
+                "ml": ["victoria-wisdom-24k:latest", "glm-4.7-flash:latest", "phi3.5:3.8b"],
                 "devops": ["glm-4.7-flash:latest", "phi3.5:3.8b", "qwen2.5:3b"],
-                "security": ["victoria-wisdom-v3.5:latest", "glm-4.7-flash:latest", "phi3.5:3.8b"],
+                "security": ["victoria-wisdom-24k:latest", "glm-4.7-flash:latest", "phi3.5:3.8b"],
                 "database": ["qwen2.5-coder:32b", "phi3.5:3.8b", "qwen2.5:3b"],
                 "performance": ["qwen2.5-coder:32b", "phi3.5:3.8b"],
                 "general": [
@@ -2738,9 +3113,9 @@ Q: "покажи файлы в текущей директории" → План
             if any(word in goal_lower for word in ["код", "программируй", "напиши код", "coding"]):
                 priorities = model_map.get("backend", model_map["general"])
             elif any(word in goal_lower for word in ["реши", "рассчитай", "reasoning", "логика"]):
-                priorities = ["victoria-wisdom-v3.5:latest", "glm-4.7-flash:latest", "phi3.5:3.8b"]
+                priorities = ["victoria-wisdom-24k:latest", "glm-4.7-flash:latest", "phi3.5:3.8b"]
             elif any(word in goal_lower for word in ["сложн", "комплекс", "complex", "enterprise"]):
-                priorities = ["victoria-wisdom-v3.5:latest", "glm-4.7-flash:latest", "phi3.5:3.8b"]
+                priorities = ["victoria-wisdom-24k:latest", "glm-4.7-flash:latest", "phi3.5:3.8b"]
             elif (
                 len(goal.split()) <= 5
             ):  # Простые задачи — всё равно берём из general (меньше галлюцинаций)
@@ -2981,7 +3356,7 @@ Q: "покажи файлы в текущей директории" → План
 
             if not executor_model:
                 preferred_executor = [
-                    "victoria-wisdom-v3.5:latest",
+                    "victoria-wisdom-24k:latest",
                     "glm-4.7-flash:latest",
                     "phi3.5:3.8b",
                 ]
@@ -3025,7 +3400,7 @@ Q: "покажи файлы в текущей директории" → План
                 # НИКОГДА qwq:32b для planner — это блокирует всю Ollama!
                 preferred_planner = [
                     "glm-4.7-flash:latest",
-                    "victoria-wisdom-v3.5:latest",
+                    "victoria-wisdom-24k:latest",
                     "gemma3n:e4b",
                     "tinyllama:1.1b-chat",
                 ]
@@ -3044,8 +3419,8 @@ Q: "покажи файлы в текущей директории" → План
                 old_executor = getattr(self.executor, "model", "unknown")
                 old_planner = getattr(self.planner, "model", "unknown")
 
-                self.executor.model = executor_model or "victoria-wisdom-v3.5"
-                self.planner.model = planner_model or "victoria-wisdom-v3.5"
+                self.executor.model = executor_model or "victoria-wisdom-24k"
+                self.planner.model = planner_model or "victoria-wisdom-24k"
 
                 logger.info("[MODEL_SELECT] " + "=" * 60)
                 logger.info("[MODEL_SELECT] ✅ МОДЕЛИ ВЫБРАНЫ:")
@@ -3286,10 +3661,16 @@ agent.executor.system_prompt = """ТЫ — ВИКТОРИЯ, TEAM LEAD КОРП�
 - Вопросы о коде, архитектуре, отладке, объяснениях — отвечай напрямую.
 - Код-ревью, рефакторинг, написание функций — делай сама, без делегирования.
 
-🤖 EXECUTION PLAN:
-Если задача требует изменений в коде, добавь в конец ответа JSON-план:
-```json
-[{"action": "read_file|edit|run", "path": "...", "command": "...", "description": "..."}]
+🤖 КОД-БЛОКИ:
+Если задача требует создания/изменения файла — генерируй код НАПРЯМУЮ в code blocks:
+```python
+# код здесь
+```
+НЕ пиши "создай файл X" — просто напиши код. Execution phase сам создаст файл.
+Если несколько файлов — каждый в отдельном code block с указанием пути в первой строке комментария:
+```python
+# src/file.py
+код здесь
 ```
 """
 
@@ -3569,6 +3950,43 @@ def _normalize_output_for_user(raw: Any) -> str:
         cleaned = _strip_internal_monologue(s)
         if cleaned != s:
             return cleaned
+        # Убрать "чатовые хвосты" модели вида "## Query/## Response" и [Name]:
+        # пользователю нужен итог, а не сгенерированный тренировочный диалог.
+        transcript_tail_patterns = (
+            r"\n##\s*query:\s*",
+            r"\n##\s*response:\s*",
+            r"\n\[[A-Za-zА-Яа-яЁё0-9_\- ]{2,30}\]:\s*(?:\n|$)",
+        )
+        cut_positions = []
+        for pat in transcript_tail_patterns:
+            m = re.search(pat, s, flags=re.IGNORECASE)
+            if m:
+                cut_positions.append(m.start())
+        if cut_positions:
+            trimmed = s[: min(cut_positions)].rstrip()
+            if trimmed:
+                s = trimmed
+        # Убрать случайный "обрубок" перед первым code fence (например, "world.")
+        # если это короткий англоязычный артефакт генерации.
+        first_fence = s.find("```")
+        if 0 < first_fence <= 80:
+            prefix = s[:first_fence].strip()
+            if (
+                prefix
+                and len(prefix) <= 24
+                and re.fullmatch(r"[-A-Za-z0-9_,.!?\"'` ]+", prefix)
+                and "\n" not in prefix
+            ):
+                s = s[first_fence:].lstrip()
+            elif (
+                prefix
+                and len(prefix) <= 32
+                and "\n" not in prefix
+                and prefix.endswith(".")
+                and ":" not in prefix
+                and len(prefix.split()) <= 3
+            ):
+                s = s[first_fence:].lstrip()
         if s and "Задача выполнена экспертом" in s and "(статус: finish)" in s:
             return (
                 "Эксперт завершил задачу без вывода (модель вызвала finish без результата). "
@@ -3873,8 +4291,21 @@ async def _select_strategy(
         "duckdb",
         "python3",
         "select ",
+        "создай файл",
+        "напиши файл",
+        "создай модуль",
+        "напиши модуль",
+        "создай класс",
+        "напиши класс",
+        "создай функцию",
+        "напиши функцию",
     ]
     is_concrete_task = any(ind in goal_lower_check for ind in concrete_task_indicators)
+
+    # Быстрый выход для явных задач — пропускаем LLM классификатор
+    if is_concrete_task:
+        logger.info("🟢 [STRATEGY] Concrete task detected, skipping LLM classifier: %s", goal[:50])
+        return {"strategy": "deep_analysis", "reason": "явная задача с файлом/инструментом", "confidence": 0.95}
 
     # Strategy — задача классификации (4 варианта), не нужна тяжёлая модель.
     # Используем быструю бессмертную модель (phi3.5:3.8b в Ollama или tiny в MLX).
@@ -4002,6 +4433,14 @@ def _check_ambiguity(goal: str, category: str, restated: str) -> bool:
         "создай скрипт",
         "напиши python",
         "напиши код",
+        "создай файл",
+        "напиши файл",
+        "создай модуль",
+        "напиши модуль",
+        "создай класс",
+        "напиши класс",
+        "создай функцию",
+        "напиши функцию",
     ]
     if any(ind in goal_lower for ind in concrete_indicators):
         return False  # Конкретная задача — никаких вопросов
@@ -4071,6 +4510,14 @@ async def _generate_clarification_questions(
         "import ",
         "запусти скрипт",
         "выполни код",
+        "создай файл",
+        "напиши файл",
+        "создай модуль",
+        "напиши модуль",
+        "создай класс",
+        "напиши класс",
+        "создай функцию",
+        "напиши функцию",
     ]
     goal_lower = goal.lower()
     if any(ind.lower() in goal_lower for ind in explicit_indicators):
@@ -4268,6 +4715,7 @@ class TaskRequest(BaseModel):
     )
     category: Optional[str] = None  # [SINGULARITY 10.0] Категория задачи (reasoning, coding, etc.)
     stream: Optional[bool] = False  # True = возвращать SSE stream (Server-Sent Events)
+    async_mode: Optional[bool] = None  # Backward-compatible async flag when passed in JSON body
     # Explicit opt-in for CODE→PostgreSQL queue. Substring "code"/"код" alone must NOT queue.
     queue_code: Optional[bool] = False
 
@@ -4820,6 +5268,89 @@ async def _run_task_background(
     if task_type is None:
         task_type = detect_task_type(goal, project_context)
 
+    # [MULTI-AGENT] Проверка доступности экспертов через Lifecycle Manager
+    available_experts = []
+    if agent_lifecycle_instance:
+        try:
+            available_experts = await agent_lifecycle_instance.get_available_agents()
+            logger.info("[LIFECYCLE] Доступные эксперты: %d", len(available_experts))
+        except Exception as e:
+            logger.debug("[LIFECYCLE] get_available_agents failed: %s", e)
+
+    # [MULTI-AGENT] Получение релевантной памяти из Collective Memory
+    relevant_memory = []
+    if collective_memory_instance:
+        try:
+            relevant_memory = await collective_memory_instance.query_knowledge(goal)
+            logger.info("[MEMORY] Найдено релевантных записей: %d", len(relevant_memory))
+        except Exception as e:
+            logger.debug("[MEMORY] query_knowledge failed: %s", e)
+
+    # [MULTI-AGENT] Проверка Human-in-the-Loop для критических действий
+    if human_approval_instance:
+        try:
+            is_critical = any(marker in goal.lower() for marker in [
+                "деплой", "deploy", "удал", "delete", "rm ", "api ключ", "secret", "пароль"
+            ])
+            if is_critical:
+                approval_id = await human_approval_instance.request_approval(
+                    action_type="task_execution",
+                    action_data={"goal": goal[:200], "task_id": task_id}
+                )
+                if approval_id:
+                    logger.info("[HUMAN] Запрошено одобрение: %s", approval_id)
+                    # Ждём одобрения с таймаутом 60 секунд
+                    approved = await asyncio.wait_for(
+                        human_approval_instance.check_approval(approval_id),
+                        timeout=60
+                    )
+                    if not approved:
+                        store["status"] = "failed"
+                        store["error"] = "Действие не одобрено человеком"
+                        await _sync_store()
+                        return
+        except asyncio.TimeoutError:
+            logger.warning("[HUMAN] Таймаут ожидания одобрения")
+            store["status"] = "failed"
+            store["error"] = "Таймаут ожидания одобрения"
+            await _sync_store()
+            return
+        except Exception as e:
+            logger.debug("[HUMAN] check_approval failed: %s", e)
+
+    async def _bg_try_generate(
+        prompt: str,
+        model: str,
+        timeout_sec: Optional[float] = None,
+    ) -> tuple[str, str]:
+        _timeout = timeout_sec or VICTORIA_SYNC_SAFE_TIMEOUT_SEC
+        try:
+            return await asyncio.wait_for(
+                _generate_via_mlx_or_ollama(
+                    prompt,
+                    model,
+                    max_retries=1,
+                    raw_response=True,
+                ),
+                timeout=_timeout,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "⏱ [BG] generate timeout task_id=%s model=%s timeout=%.1fs",
+                task_id[:8],
+                model,
+                _timeout,
+            )
+            return "", "timeout"
+        except Exception as gen_err:
+            logger.debug(
+                "[BG] generate failed task_id=%s model=%s: %s",
+                task_id[:8],
+                model,
+                gen_err,
+            )
+            return "", "error"
+
     # 202 до стратегии: выполняем стратегию и understand_goal в фоне, затем продолжаем или завершаем с clarify/decline
     if restated_goal is None and strategy_result is None:
         # === FAST TRACK (SINGULARITY 10.0) ===
@@ -4835,7 +5366,7 @@ async def _run_task_background(
             if session_ctx:
                 prompt_for_gen = f"{session_ctx}\n\nТЕКУЩИЙ ЗАПРОС: {prompt_for_gen}"
 
-            content, source = await _generate_via_mlx_or_ollama(prompt_for_gen, ideal_model)
+            content, source = await _bg_try_generate(prompt_for_gen, ideal_model)
             if content:
                 knowledge = {
                     "strategy": "quick_answer",
@@ -4937,19 +5468,7 @@ async def _run_task_background(
             quick_model = os.getenv("VICTORIA_STRATEGY_MODEL", "phi3.5:3.8b")
             quick_text = ""
             quick_source = "short_prompt_fast_path"
-            try:
-                quick_text, quick_source = await _generate_via_mlx_or_ollama(
-                    goal,
-                    quick_model,
-                    max_retries=1,
-                    raw_response=True,
-                )
-            except Exception as quick_err:
-                logger.debug(
-                    "[VICTORIA_CYCLE] short_prompt_fast_path failed task_id=%s: %s",
-                    task_id[:8],
-                    quick_err,
-                )
+            quick_text, quick_source = await _bg_try_generate(goal, quick_model)
             if quick_text:
                 knowledge = {
                     "strategy": "quick_answer",
@@ -4982,7 +5501,21 @@ async def _run_task_background(
         session_summary = ""
         if session_id:
             session_summary = await _get_task_memory_from_db(session_id) or ""
-        strategy_result = await _select_strategy(agent, goal, session_summary or None)
+        try:
+            strategy_result = await asyncio.wait_for(
+                _select_strategy(agent, goal, session_summary or None),
+                timeout=VICTORIA_STRATEGY_TIMEOUT_SEC,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "⏱ [BG] _select_strategy timeout (%.0fs), fallback to quick_answer",
+                VICTORIA_STRATEGY_TIMEOUT_SEC,
+            )
+            strategy_result = {
+                "strategy": "quick_answer",
+                "confidence": 0.6,
+                "reason": "timeout_fallback",
+            }
         forced_reason = _force_deep_analysis_reason(goal)
         if forced_reason and strategy_result.get("strategy") == "need_clarification":
             strategy_result = {
@@ -4994,19 +5527,7 @@ async def _run_task_background(
             quick_model = os.getenv("VICTORIA_STRATEGY_MODEL", "phi3.5:3.8b")
             quick_text = ""
             quick_source = "strategy_quick_answer"
-            try:
-                quick_text, quick_source = await _generate_via_mlx_or_ollama(
-                    goal,
-                    quick_model,
-                    max_retries=1,
-                    raw_response=True,
-                )
-            except Exception as quick_err:
-                logger.debug(
-                    "[VICTORIA_CYCLE] quick_answer generation failed task_id=%s: %s",
-                    task_id[:8],
-                    quick_err,
-                )
+            quick_text, quick_source = await _bg_try_generate(goal, quick_model)
             if quick_text:
                 knowledge = {
                     "strategy": "quick_answer",
@@ -5374,6 +5895,16 @@ async def _run_task_background(
         ) and not is_curator_standard_goal(goal or "")
         if prefer_veronica_bg and use_enhanced_actual:
             store["stage"] = "delegate_veronica"
+
+            # [MULTI-AGENT] CollectiveMemory — запрос релевантного опыта ПЕРЕД делегацией
+            relevant_memory = []
+            if collective_memory_instance:
+                try:
+                    relevant_memory = await collective_memory_instance.query_knowledge(goal_for_exec)
+                    logger.info("[MEMORY] Найдено релевантных записей (veronica): %d", len(relevant_memory))
+                except Exception as e:
+                    logger.debug("[MEMORY] query_knowledge failed (veronica): %s", e)
+
             veronica_result = await delegate_to_veronica(
                 _sanitize_goal_for_prompt(goal_for_exec),
                 project_context,
@@ -5418,7 +5949,66 @@ async def _run_task_background(
                             goal_for_exec,
                             veronica_result.get("output") or "",
                         )
+                # [EXECUTION PHASE] Parse Veronica's output for actionable commands
+                if store.get("output"):
+                    try:
+                        from app.execution_phase import execute_plan_commands
+
+                        exec_result = await execute_plan_commands(
+                            goal=goal_for_exec,
+                            llm_output=store["output"],
+                            project_context=project_context,
+                            git_engine=git_engine_instance,
+                        )
+                        if exec_result and exec_result.get("executed"):
+                            logger.info(
+                                "[EXECUTION] Выполнено %d команд из плана (veronica)",
+                                exec_result.get("command_count", 0),
+                            )
+                            if exec_result.get("execution_log"):
+                                store["execution_log"] = exec_result["execution_log"]
+                            if exec_result.get("append_output"):
+                                store["output"] = store["output"] + "\n\n---\n" + exec_result["append_output"]
+                    except ImportError:
+                        logger.debug("[EXECUTION] execution_phase module not available")
+                    except Exception as exec_err:
+                        logger.warning("[EXECUTION] Plan execution failed: %s", exec_err)
+
                 store["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+                # [MULTI-AGENT] CollectiveMemory — сохранение результата ПОСЛЕ делегации
+                if collective_memory_instance:
+                    try:
+                        await collective_memory_instance.store_knowledge(
+                            key=f"task_{task_id}",
+                            value={
+                                "goal": goal_for_exec[:500],
+                                "result": (store.get("output") or "")[:500],
+                                "task_type": task_type,
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "route": "veronica",
+                            },
+                            metadata={"task_id": task_id, "project": project_context}
+                        )
+                        logger.info("[MEMORY] Результат сохранён в Collective Memory (veronica)")
+                    except Exception as e:
+                        logger.debug("[MEMORY] store_knowledge failed (veronica): %s", e)
+
+                # [MULTI-AGENT] Git Integration — автоматический коммит после Veronica
+                if git_engine_instance:
+                    try:
+                        result_text = store.get("output") or ""
+                        if any(marker in result_text.lower() for marker in [
+                            "```python", "```javascript", "```typescript", "def ", "class ", "import ", "создан файл", "записан в"
+                        ]):
+                            git_status = await git_engine_instance.get_status()
+                            if git_status.get("is_clean") is False:
+                                logger.info("[GIT] Есть несохраненные изменения (veronica), пропускаем коммит")
+                            else:
+                                logger.info("[GIT] Задача с кодом от Veronica, готов к коммиту")
+                    except Exception as e:
+                        logger.debug("[GIT] Git check failed (veronica): %s", e)
+
                 logger.info(
                     "[VICTORIA_CYCLE] background completed task_id=%s route=veronica", task_id
                 )
@@ -5487,6 +6077,46 @@ async def _run_task_background(
             if orchestration_context_bg:
                 context_with_history["orchestrator_plan"] = orchestration_context_bg
             context_with_history["project_context"] = project_context
+
+            # [MULTI-AGENT] PlanDecomposer — разбиение сложных задач на подзадачи
+            if plan_decomposer_instance and task_type == "enhanced":
+                try:
+                    # Проверяем сложность задачи
+                    is_complex = len(goal_for_exec) > 500 or any(
+                        marker in goal_for_exec.lower()
+                        for marker in ["напиши", "создай", "разработай", "реализуй", "сделай api"]
+                    )
+                    if is_complex:
+                        logger.info("[PLAN_DECOMPOSER] Сложная задача, попытка декомпозиции")
+                        subtasks = await plan_decomposer_instance.decompose(goal_for_exec)
+                        if subtasks and len(subtasks) > 1:
+                            logger.info("[PLAN_DECOMPOSER] Задача разбита на %d подзадач", len(subtasks))
+                            # Выполняем подзадачи последовательно
+                            all_results = []
+                            for i, subtask in enumerate(subtasks):
+                                logger.info("[PLAN_DECOMPOSER] Подзадача %d/%d: %s", i+1, len(subtasks), subtask[:100])
+                                subtask_result, _ = await _bg_try_generate(subtask, ideal_model, timeout_sec=60)
+                                if subtask_result:
+                                    all_results.append(subtask_result)
+                            # Объединяем результаты
+                            if all_results:
+                                content = "\n\n---\n\n".join(all_results)
+                                knowledge = {
+                                    "strategy": "plan_decomposition",
+                                    "confidence": 0.9,
+                                    "subtasks_count": len(subtasks),
+                                    "source": "plan_decomposer",
+                                }
+                                store["status"] = "completed"
+                                store["output"] = content
+                                store["knowledge"] = knowledge
+                                store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                                await _sync_store()
+                                logger.info("[PLAN_DECOMPOSER] Задача выполнена через декомпозицию")
+                                return
+                except Exception as e:
+                    logger.debug("[PLAN_DECOMPOSER] Decomposition failed: %s", e)
+
             goal_for_enhanced_bg = _sanitize_goal_for_prompt(goal_for_exec)
             if VICTORIA_GOAL_MAX_CHARS > 0 and len(goal_for_enhanced_bg) > VICTORIA_GOAL_MAX_CHARS:
                 goal_for_enhanced_bg = goal_for_enhanced_bg[:VICTORIA_GOAL_MAX_CHARS] + " [...]"
@@ -5618,6 +6248,94 @@ async def _run_task_background(
                         await _save_long_term_memory(
                             agent, session_id, project_context, goal_for_exec, raw_result
                         )
+
+            # [EXECUTION PHASE] Parse LLM output for actionable commands and execute them
+            if store.get("output") and task_type == "enhanced":
+                try:
+                    from app.execution_phase import execute_plan_commands
+
+                    exec_result = await execute_plan_commands(
+                        goal=goal_for_exec,
+                        llm_output=store["output"],
+                        project_context=project_context,
+                        git_engine=git_engine_instance,
+                    )
+                    if exec_result and exec_result.get("executed"):
+                        logger.info(
+                            "[EXECUTION] Выполнено %d команд из плана",
+                            exec_result.get("command_count", 0),
+                        )
+                        if exec_result.get("execution_log"):
+                            store["execution_log"] = exec_result["execution_log"]
+                        if exec_result.get("append_output"):
+                            store["output"] = store["output"] + "\n\n---\n" + exec_result["append_output"]
+                except ImportError:
+                    logger.debug("[EXECUTION] execution_phase module not available")
+                except Exception as exec_err:
+                    logger.warning("[EXECUTION] Plan execution failed: %s", exec_err)
+
+            # [MULTI-AGENT] ConsensusAgent — голосование для спорных задач
+            if consensus_agent_instance and store.get("output"):
+                try:
+                    # Проверяем нужен ли консенсус (низкая уверенность или спорный вопрос)
+                    needs_consensus = any(marker in goal_for_exec.lower() for marker in [
+                        "что лучше", "что эффективнее", "сравни", "плюсы", "минусы",
+                        "аргументы за", "аргументы против", "мнение экспертов"
+                    ])
+                    if needs_consensus:
+                        logger.info("[CONSENSUS] Спорный вопрос, запускаю голосование экспертов")
+                        # Получаем 3 эксперта для голосования
+                        experts = ["Виктория", "Даниил", "Макс"] if len(available_experts) < 3 else available_experts[:3]
+                        consensus_result = await consensus_agent_instance.reach_consensus(
+                            question=goal_for_exec,
+                            agents=experts,
+                            initial_context={"responses": {"Виктория": store["output"]}}
+                        )
+                        if consensus_result and consensus_result.consensus_answer:
+                            logger.info("[CONSENSUS] Консенсус достигнут (confidence: %.2f)", consensus_result.consensus_score)
+                            store["output"] = consensus_result.consensus_answer
+                            store["knowledge"]["consensus"] = {
+                                "score": consensus_result.consensus_score,
+                                "iterations": consensus_result.iterations,
+                                "experts": experts,
+                            }
+                except Exception as e:
+                    logger.debug("[CONSENSUS] Consensus failed: %s", e)
+
+            # [MULTI-AGENT] Сохранение результата в Collective Memory
+            if collective_memory_instance:
+                try:
+                    await collective_memory_instance.store_knowledge(
+                        key=f"task_{task_id}",
+                        value={
+                            "goal": goal_for_exec[:500],
+                            "result": (store.get("output") or "")[:500],
+                            "task_type": task_type,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        },
+                        metadata={"task_id": task_id, "project": project_context}
+                    )
+                    logger.info("[MEMORY] Результат сохранён в Collective Memory")
+                except Exception as e:
+                    logger.debug("[MEMORY] store_knowledge failed: %s", e)
+
+            # [MULTI-AGENT] Git Integration — автоматический коммит для задач на код
+            if git_engine_instance and task_type == "enhanced":
+                try:
+                    # Проверяем содержит ли результат код
+                    result_text = store.get("output") or ""
+                    if any(marker in result_text.lower() for marker in [
+                        "```python", "```javascript", "```typescript", "def ", "class ", "import "
+                    ]):
+                        # Сохраняем результат в файл и коммитим
+                        git_status = await git_engine_instance.get_status()
+                        if git_status.get("is_clean") is False:
+                            logger.info("[GIT] Есть несохраненные изменения, пропускаем коммит")
+                        else:
+                            logger.info("[GIT] Задача с кодом, готов к коммиту")
+                except Exception as e:
+                    logger.debug("[GIT] Git check failed: %s", e)
+
             store["updated_at"] = datetime.now(timezone.utc).isoformat()
             logger.info("[VICTORIA_CYCLE] background completed task_id=%s route=enhanced", task_id)
             logger.info("[TRACE] _run_task_background: after enhanced.solve task_id=%s", task_id)
@@ -5694,6 +6412,32 @@ async def _run_task_background(
                         )
             finally:
                 agent.executor.system_prompt = original_prompt
+
+            # [EXECUTION PHASE] Parse LLM output for actionable commands and execute them
+            if store.get("output"):
+                try:
+                    from app.execution_phase import execute_plan_commands
+
+                    exec_result = await execute_plan_commands(
+                        goal=goal_for_exec,
+                        llm_output=store["output"],
+                        project_context=project_context,
+                        git_engine=git_engine_instance,
+                    )
+                    if exec_result and exec_result.get("executed"):
+                        logger.info(
+                            "[EXECUTION] Выполнено %d команд из плана (agent_run)",
+                            exec_result.get("command_count", 0),
+                        )
+                        if exec_result.get("execution_log"):
+                            store["execution_log"] = exec_result["execution_log"]
+                        if exec_result.get("append_output"):
+                            store["output"] = store["output"] + "\n\n---\n" + exec_result["append_output"]
+                except ImportError:
+                    logger.debug("[EXECUTION] execution_phase module not available")
+                except Exception as exec_err:
+                    logger.warning("[EXECUTION] Plan execution failed: %s", exec_err)
+
             store["updated_at"] = datetime.now(timezone.utc).isoformat()
             logger.info("[VICTORIA_CYCLE] background completed task_id=%s route=agent_run", task_id)
             logger.info("[TRACE] _run_task_background: after agent.run task_id=%s", task_id)
@@ -5771,6 +6515,41 @@ async def _run_task_background(
                 store.get("status", "failed"),
                 (store.get("output") or store.get("error") or "")[:5000],
             )
+
+        # [MEDIC] Feedback Loop — логируем результат задачи
+        if feedback_loop_instance:
+            try:
+                if status_final == "failed":
+                    error_msg = store.get("error", "Unknown error")
+                    await feedback_loop_instance.log_error(
+                        container="victoria-agent",
+                        error_type="task_failed",
+                        error_message=error_msg[:500],
+                        context={"task_id": task_id, "goal": goal[:200]},
+                    )
+                elif status_final == "completed":
+                    await feedback_loop_instance.log_fix(
+                        error_id=f"task_{task_id}",
+                        action_taken="task_completed",
+                        action_result="success",
+                    )
+            except Exception as fb_err:
+                logger.debug("[FEEDBACK] Log error: %s", fb_err)
+
+        # [MEDIC] Metrics Dashboard — логируем действие
+        if metrics_dashboard_instance:
+            try:
+                await metrics_dashboard_instance.log_action(
+                    action_type="task_execution",
+                    action_data={
+                        "task_id": task_id,
+                        "status": status_final,
+                        "goal": goal[:200],
+                    },
+                    status=status_final,
+                )
+            except Exception as m_err:
+                logger.debug("[METRICS] Log action: %s", m_err)
 
 
 @app.get("/run/status/{task_id}")
@@ -5852,7 +6631,7 @@ async def _generate_via_mlx_or_ollama(
     is_heavy_model = any(
         kw in ideal_model.lower() for kw in ["32b", "30b"]
     )  # Оставляем только реально тяжелые для MLX
-    # victoria-wisdom-v3.5 (35b MoE) в MLX работает отлично на 128GB RAM
+    # victoria-wisdom-24k (35b MoE) в MLX работает отлично на 128GB RAM
     logger.info("[MLX_DEBUG] Model: %s, is_heavy: %s", ideal_model, is_heavy_model)
 
     if True:  # Всегда пробуем MLX первым, если он доступен
@@ -6129,7 +6908,7 @@ async def run_task_stream(body: TaskRequest, request: Request):
 
             if is_discussion:
                 # [SINGULARITY 29.1] Всегда используем Wisdom для discussion
-                ideal_model = os.getenv("VICTORIA_MODEL", "victoria-wisdom-v3.5:latest")
+                ideal_model = os.getenv("VICTORIA_MODEL", "victoria-wisdom-24k:latest")
                 system_msg = """Ты — команда экспертов ATRA. Твоя задача: провести ЖИВОЕ обсуждение на РУССКОМ языке.
 ПРАВИЛА:
 1. Пиши ТОЛЬКО реплики экспертов.
@@ -6161,6 +6940,9 @@ async def run_task_stream(body: TaskRequest, request: Request):
 
                 words = content.split()
                 for i in range(0, len(words), 5):
+                    if await request.is_disconnected():
+                        logger.info(f"[STREAM] Client disconnected during chunk delivery ({correlation_id[:8]})")
+                        return
                     chunk = " ".join(words[i : i + 5]) + " "
                     yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
                     await asyncio.sleep(0.05)
@@ -6181,6 +6963,10 @@ async def run_task_stream(body: TaskRequest, request: Request):
                 heartbeat_sec = int(os.getenv("VICTORIA_STREAM_HEARTBEAT_SEC", "15"))
                 task = asyncio.create_task(run_task(body, request, async_mode=False))
                 while not task.done():
+                    if await request.is_disconnected():
+                        logger.warning(f"[STREAM] Client disconnected, cancelling task ({correlation_id[:8]})")
+                        task.cancel()
+                        return
                     done, _ = await asyncio.wait([task], timeout=heartbeat_sec)
                     if not done:
                         # SSE comment — не отображается клиентом, но не даёт соединению умереть
@@ -6234,6 +7020,129 @@ async def run_task_stream(body: TaskRequest, request: Request):
     return StreamingResponse(sse_generator(), media_type="text/event-stream")
 
 
+async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
+    """Build a deterministic fact answer for /run without LLM."""
+    if not is_fact_seeking_question(goal or ""):
+        return None
+
+    # Дополнительная проверка: не обрабатываем автоматические задачи как fact-seeking
+    goal_lower = (goal or "").lower().strip()
+    automated_prefixes = ["[log_scanner]", "[medic]", "[proactive]", "[feedback]"]
+    if any(goal_lower.startswith(prefix) for prefix in automated_prefixes):
+        return None
+
+    pool = await agent._get_db_pool()
+    if not pool:
+        return None
+
+    queue: Optional[dict] = None
+    nodes: Optional[int] = None
+    ops: dict[str, Any] = {}
+    health = "ok"
+    try:
+        async with pool.acquire() as conn:
+            q_row = await conn.fetchrow(
+                """
+                SELECT
+                    COUNT(*) FILTER (WHERE status='pending')::int AS pending,
+                    COUNT(*) FILTER (WHERE status='in_progress')::int AS in_progress
+                FROM tasks
+                """
+            )
+            if q_row:
+                queue = {
+                    "pending": int(q_row["pending"] or 0),
+                    "in_progress": int(q_row["in_progress"] or 0),
+                }
+
+            try:
+                nodes = int(await conn.fetchval("SELECT count(*)::int FROM knowledge_nodes") or 0)
+            except Exception:
+                nodes = None
+
+            o_row = await conn.fetchrow(
+                """
+                SELECT
+                    COUNT(*) FILTER (WHERE status='completed' AND updated_at > now()-interval '1 hour')::int AS completed_1h,
+                    COUNT(*) FILTER (WHERE status='failed' AND updated_at > now()-interval '1 hour')::int AS failed_1h,
+                    COUNT(*) FILTER (WHERE status='completed' AND updated_at > now()-interval '24 hour')::int AS completed_24h,
+                    COUNT(*) FILTER (WHERE status='in_progress' AND updated_at < now()-interval '10 minute')::int AS stale_in_progress,
+                    COUNT(*) FILTER (WHERE status='cancelled' AND updated_at > now()-interval '1 hour')::int AS cancelled_1h_total,
+                    COUNT(*) FILTER (
+                        WHERE status='cancelled'
+                          AND updated_at > now()-interval '1 hour'
+                          AND COALESCE(metadata->>'source','') <> 'orchestration_tracking'
+                          AND COALESCE(metadata->>'manual_cancel_reason','') = ''
+                    )::int AS cancelled_1h_work,
+                    COUNT(*) FILTER (
+                        WHERE status='cancelled'
+                          AND updated_at > now()-interval '1 hour'
+                          AND COALESCE(metadata->>'manual_cancel_reason','') <> ''
+                    )::int AS cancelled_1h_policy,
+                    COUNT(*) FILTER (WHERE status='cancelled' AND updated_at > now()-interval '24 hour')::int AS cancelled_24h_total,
+                    COUNT(*) FILTER (
+                        WHERE status='cancelled'
+                          AND updated_at > now()-interval '24 hour'
+                          AND COALESCE(metadata->>'source','') <> 'orchestration_tracking'
+                          AND COALESCE(metadata->>'manual_cancel_reason','') = ''
+                    )::int AS cancelled_24h_work,
+                    COUNT(*) FILTER (
+                        WHERE status='cancelled'
+                          AND updated_at > now()-interval '24 hour'
+                          AND COALESCE(metadata->>'manual_cancel_reason','') <> ''
+                    )::int AS cancelled_24h_policy,
+                    COUNT(*) FILTER (
+                        WHERE status='cancelled'
+                          AND updated_at > now()-interval '24 hour'
+                          AND COALESCE(metadata->>'source','') <> 'orchestration_tracking'
+                          AND COALESCE(metadata->>'manual_cancel_reason','') = ''
+                          AND COALESCE(metadata->>'auto_fallback_reason','') = ''
+                    )::int AS cancelled_24h_uncategorized
+                FROM tasks
+                """
+            )
+            if o_row:
+                completed_1h = int(o_row["completed_1h"] or 0)
+                failed_1h = int(o_row["failed_1h"] or 0)
+                completed_24h = int(o_row["completed_24h"] or 0)
+                denom = completed_1h + failed_1h
+                error_rate = 0.0 if denom == 0 else round(float(failed_1h) / float(denom), 4)
+                ops = {
+                    "throughput_1h": completed_1h,
+                    "throughput_24h": completed_24h,
+                    "stale_in_progress": int(o_row["stale_in_progress"] or 0),
+                    "failed_1h": failed_1h,
+                    "completed_1h": completed_1h,
+                    "error_rate_1h": error_rate,
+                    "completed_24h": completed_24h,
+                    "cancelled_1h_total": int(o_row["cancelled_1h_total"] or 0),
+                    "cancelled_1h_work": int(o_row["cancelled_1h_work"] or 0),
+                    "cancelled_1h_policy": int(o_row["cancelled_1h_policy"] or 0),
+                    "cancelled_24h_total": int(o_row["cancelled_24h_total"] or 0),
+                    "cancelled_24h_work": int(o_row["cancelled_24h_work"] or 0),
+                    "cancelled_24h_policy": int(o_row["cancelled_24h_policy"] or 0),
+                    "cancelled_24h_uncategorized": int(o_row["cancelled_24h_uncategorized"] or 0),
+                }
+                ops["contract_enforced_24h"] = int(
+                    await conn.fetchval(
+                        """
+                        SELECT count(*)::int
+                        FROM tasks
+                        WHERE status='completed'
+                          AND updated_at > now()-interval '24 hour'
+                          AND COALESCE(metadata->>'task_contract_version','') <> ''
+                          AND COALESCE(metadata->>'task_contract_output_schema','') <> ''
+                        """
+                    )
+                    or 0
+                )
+    except Exception as e:
+        logger.warning("[VICTORIA_FACT] failed to build live fact answer: %s", e)
+        return None
+
+    return format_live_fact_answer(goal, health=health, queue=queue, nodes=nodes, ops=ops)
+
+
 @app.post("/run")
 async def run_task(
     body: TaskRequest,
@@ -6253,6 +7162,11 @@ async def run_task(
     logger.info("[REQUEST] Stream mode: %s", _stream_mode)
     if _stream_mode:
         return await run_task_stream(body, request)
+
+    # Backward compatibility: accept async_mode in JSON body if query param is not set.
+    if not async_mode and bool(getattr(body, "async_mode", False)):
+        async_mode = True
+        logger.info("[VICTORIA_CYCLE] async_mode enabled from request body for compatibility")
 
     global sys
     correlation_id = (request.headers.get("X-Correlation-ID") or "").strip() or str(uuid.uuid4())
@@ -6284,6 +7198,23 @@ async def run_task(
     logger.info("[REQUEST] Current planner model: %s", getattr(agent.planner, "model", "unknown"))
 
     goal = body.goal or ""
+    live_fact_answer = await _build_live_fact_answer_for_run(goal)
+    if live_fact_answer:
+        logger.info(
+            "[VICTORIA_FACT] /run deterministic fact answer correlation_id=%s preview=%s",
+            correlation_id,
+            live_fact_answer[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=live_fact_answer,
+            knowledge={
+                "strategy": "fact_live_probe",
+                "source": "postgres_live",
+                "fact_mode": True,
+            },
+            correlation_id=correlation_id,
+        )
 
     # [SINGULARITY 10.0] TEAM_DISCUSSION_MODE / reasoning category bypass
     # Если запрос пришел от модели 'discuss' (через прокси), мы НЕ делегируем его,
@@ -6314,7 +7245,7 @@ async def run_task(
             len(goal),
         )
         # [SINGULARITY 29.1] Всегда используем Wisdom для discussion - НЕ tinyllama!
-        ideal_model = os.getenv("VICTORIA_MODEL", "victoria-wisdom-v3.5:latest")
+        ideal_model = os.getenv("VICTORIA_MODEL", "victoria-wisdom-24k:latest")
 
         # [SINGULARITY 29.2] Улучшенный system prompt для диалога команды
         # [SINGULARITY 29.5] ФИКС: Делаем промпт максимально жестким, чтобы избежать галлюцинаций.
@@ -6778,6 +7709,7 @@ async def run_task(
 
     # Ранний ответ для вопросов о данных (метрики Mac Studio, корпорация) — без лимита 500 шагов
     quick_data = await _try_corporation_data_quick_response(goal, correlation_id)
+    restated_goal = None
 
     async def _build_timeout_fallback_response(stage: str) -> TaskResponse:
         """Fail-fast fallback for sync /run when deep execution exceeds SLA."""
@@ -6788,11 +7720,14 @@ async def run_task(
         fallback_text = ""
         fallback_source = "timeout_static_fallback"
         try:
-            fallback_text, fallback_source = await _generate_via_mlx_or_ollama(
-                fallback_prompt,
-                VICTORIA_TIMEOUT_FALLBACK_MODEL,
-                max_retries=1,
-                raw_response=True,
+            fallback_text, fallback_source = await asyncio.wait_for(
+                _generate_via_mlx_or_ollama(
+                    fallback_prompt,
+                    VICTORIA_TIMEOUT_FALLBACK_MODEL,
+                    max_retries=1,
+                    raw_response=True,
+                ),
+                timeout=VICTORIA_TIMEOUT_FALLBACK_TIMEOUT_SEC,
             )
         except Exception as fb_err:
             logger.warning(
@@ -6825,68 +7760,14 @@ async def run_task(
             correlation_id=correlation_id,
         )
 
-    def _is_sync_safe_candidate(text: str) -> bool:
-        low = (text or "").lower()
-        heavy_markers = (
-            "создай файл",
-            "измени файл",
-            "write file",
-            "edit file",
-            "выполни команду",
-            "run command",
-            "deploy",
-            "деплой",
-            "миграц",
-            "docker compose",
-            "pull request",
-        )
-        return len(low) <= 700 and not any(m in low for m in heavy_markers)
-
-    if (
-        VICTORIA_SYNC_SAFE_MODE
-        and not async_mode
-        and not _stream_mode
-        and _is_sync_safe_candidate(goal)
-        and not is_discussion
-    ):
-        try:
-            safe_text, safe_source = await asyncio.wait_for(
-                _generate_via_mlx_or_ollama(
-                    goal,
-                    VICTORIA_SYNC_SAFE_MODEL,
-                    max_retries=1,
-                    raw_response=True,
-                ),
-                timeout=45.0,
-            )
-            if safe_text:
-                return TaskResponse(
-                    status="success",
-                    output=_normalize_output_for_user(safe_text),
-                    knowledge={
-                        "strategy": "sync_safe_mode",
-                        "metadata": {
-                            "model_used": VICTORIA_SYNC_SAFE_MODEL,
-                            "source": safe_source,
-                            "correlation_id": correlation_id,
-                        },
-                    },
-                    correlation_id=correlation_id,
-                )
-        except Exception as safe_err:
-            logger.debug("[VICTORIA_CYCLE] sync safe mode bypass failed: %s", safe_err)
-
-    # Асинхронный режим (202 до стратегии): сразу 202, стратегия и understand_goal — в фоне
-    if async_mode:
+    async def _start_async_handoff(reason: str) -> JSONResponse | None:
+        """Start background execution and return 202 contract."""
         try:
             task_id = str(uuid.uuid4())
             _task_type_async = detect_task_type(goal, body.project_context or project_context)
         except Exception as _async_err:
             logger.error(f"[ASYNC] Failed to initialize async mode: {_async_err}")
-            # Fall back to sync
-            async_mode = False
-
-    if async_mode:
+            return None
         task_data = {
             "status": "queued",
             "stage": "queued",
@@ -6894,6 +7775,7 @@ async def run_task(
             "knowledge": None,
             "error": None,
             "correlation_id": correlation_id,
+            "handoff_reason": reason,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "updated_at": None,
         }
@@ -6922,6 +7804,19 @@ async def run_task(
 
         def _done_callback(fut: asyncio.Future):
             try:
+                if fut.cancelled():
+                    logger.warning(
+                        "[VICTORIA_CYCLE] Фоновая задача %s была отменена (cancelled)",
+                        task_id,
+                    )
+                    store = _run_task_store.get(task_id)
+                    if store is not None:
+                        store["status"] = "cancelled"
+                        store["error"] = "Background task cancelled"
+                        store["stage"] = "cancelled"
+                        store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    return
+
                 exc = fut.exception()
                 if exc is not None:
                     logger.exception(
@@ -6935,14 +7830,45 @@ async def run_task(
                         store["error"] = str(exc)[:2000]
                         store["stage"] = "failed"
                         store["updated_at"] = datetime.now(timezone.utc).isoformat()
-            except Exception as cb_e:
+            except BaseException as cb_e:
                 logger.warning(
                     "[VICTORIA_CYCLE] Ошибка в done_callback для задачи %s: %s", task_id, cb_e
                 )
 
-        asyncio.create_task(task_coro).add_done_callback(_done_callback)
+        async def _bounded_background_run() -> None:
+            _async_timeout_sec = float(os.getenv("VICTORIA_ASYNC_HARD_TIMEOUT_SEC", "180"))
+            try:
+                await asyncio.wait_for(task_coro, timeout=_async_timeout_sec)
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "[VICTORIA_CYCLE] background hard-timeout task_id=%s after %.0fs",
+                    task_id[:8],
+                    _async_timeout_sec,
+                )
+                now_iso = datetime.now(timezone.utc).isoformat()
+                store = _run_task_store.get(task_id)
+                if store is not None:
+                    store["status"] = "failed"
+                    store["stage"] = "failed"
+                    store["error"] = f"Background timeout after {_async_timeout_sec:.0f}s"
+                    store["updated_at"] = now_iso
+                if redis_manager:
+                    try:
+                        await redis_manager.update_task_status(
+                            task_id,
+                            "failed",
+                            result=f"Background timeout after {_async_timeout_sec:.0f}s",
+                            metadata={"stage": "failed", "timeout_seconds": _async_timeout_sec},
+                        )
+                    except Exception:
+                        pass
+
+        _create_tracked_task(_bounded_background_run()).add_done_callback(_done_callback)
         logger.info(
-            "[VICTORIA_CYCLE] async 202 task_id=%s status_url=/run/status/%s", task_id, task_id
+            "[VICTORIA_CYCLE] async 202 reason=%s task_id=%s status_url=/run/status/%s",
+            reason,
+            task_id,
+            task_id,
         )
         return JSONResponse(
             status_code=202,
@@ -6950,9 +7876,159 @@ async def run_task(
                 "task_id": task_id,
                 "correlation_id": correlation_id,
                 "status_url": f"/run/status/{task_id}",
+                "handoff_reason": reason,
                 "message": "Задача принята, выполняется в фоне. Опрашивайте status_url до status=completed.",
             },
         )
+
+    def _is_sync_safe_candidate(text: str) -> bool:
+        low = (text or "").lower()
+        heavy_markers = (
+            "создай файл",
+            "измени файл",
+            "write file",
+            "edit file",
+            "выполни команду",
+            "run command",
+            "deploy",
+            "деплой",
+            "миграц",
+            "docker compose",
+            "pull request",
+            "напиши",
+            "создай функцию",
+            "создай класс",
+            "напиши код",
+            "напиши скрипт",
+            "напиши тест",
+            "напиши модуль",
+            "сохрани в файл",
+            "в файле src/",
+            ".py",
+            ".js",
+            ".ts",
+            ".go",
+            ".rs",
+            ".java",
+            "реализуй",
+            "разработай",
+            "программ",
+            "имплемент",
+            "сделай api",
+            "сделай эндпоинт",
+            "сделай сервер",
+            "сделай роутер",
+            "сделай компонент",
+            "создай api",
+            "создай сервер",
+            "создай роутер",
+            "создай компонент",
+            "создай модель",
+            "создай схему",
+            "создай контроллер",
+            "автоном",
+            "мультиагент",
+            "автоматиз",
+            "rest api",
+            "crud",
+            "backend",
+            "frontend",
+            "микросервис",
+            "агент",
+            "orchestrat",
+            "decompos",
+        )
+        return len(low) <= 700 and not any(m in low for m in heavy_markers)
+
+    if (
+        VICTORIA_SYNC_SAFE_MODE
+        and not async_mode
+        and not _stream_mode
+        and _is_sync_safe_candidate(goal)
+        and not is_discussion
+    ):
+        try:
+            # Concurrency limiter: bounded wait for semaphore to avoid client-side timeouts in queue.
+            acquired = False
+            if _victoria_semaphore:
+                try:
+                    await asyncio.wait_for(
+                        _victoria_semaphore.acquire(),
+                        timeout=VICTORIA_SEMAPHORE_ACQUIRE_TIMEOUT_SEC,
+                    )
+                    acquired = True
+                except asyncio.TimeoutError:
+                    logger.info(
+                        "[VICTORIA_CYCLE] semaphore busy in sync_safe_mode; handoff async (wait>%.1fs)",
+                        VICTORIA_SEMAPHORE_ACQUIRE_TIMEOUT_SEC,
+                    )
+                    _handoff = await _start_async_handoff("concurrency_queue_sync_safe")
+                    if _handoff is not None:
+                        return _handoff
+                    return await _build_timeout_fallback_response("concurrency_queue_sync_safe")
+            try:
+                safe_text, safe_source = await asyncio.wait_for(
+                    _generate_via_mlx_or_ollama(
+                        goal,
+                        VICTORIA_SYNC_SAFE_MODEL,
+                        max_retries=1,
+                        raw_response=True,
+                    ),
+                    timeout=VICTORIA_SYNC_SAFE_TIMEOUT_SEC,
+                )
+            finally:
+                if acquired and _victoria_semaphore:
+                    _victoria_semaphore.release()
+            if safe_text:
+                # [EXECUTION PHASE] Parse sync_safe_mode output for code blocks
+                exec_output = safe_text
+                try:
+                    from app.execution_phase import execute_plan_commands
+                    exec_result = await execute_plan_commands(
+                        goal=goal,
+                        llm_output=safe_text,
+                        project_context=project_context,
+                        git_engine=git_engine_instance,
+                    )
+                    if exec_result and exec_result.get("executed"):
+                        logger.info(
+                            "[EXECUTION] sync_safe_mode: executed %d commands",
+                            exec_result.get("command_count", 0),
+                        )
+                        if exec_result.get("append_output"):
+                            exec_output = safe_text + "\n\n---\n" + exec_result["append_output"]
+                except ImportError:
+                    logger.debug("[EXECUTION] execution_phase module not available")
+                except Exception as exec_err:
+                    logger.warning("[EXECUTION] sync_safe_mode execution failed: %s", exec_err)
+
+                return TaskResponse(
+                    status="success",
+                    output=_normalize_output_for_user(exec_output),
+                    knowledge={
+                        "strategy": "sync_safe_mode",
+                        "metadata": {
+                            "model_used": VICTORIA_SYNC_SAFE_MODEL,
+                            "source": safe_source,
+                            "correlation_id": correlation_id,
+                        },
+                    },
+                    correlation_id=correlation_id,
+                )
+        except Exception as safe_err:
+            logger.warning("[VICTORIA_CYCLE] sync safe mode failed: %s", safe_err)
+            _handoff = await _start_async_handoff("timeout_sync_safe_mode")
+            if _handoff is not None:
+                return _handoff
+            return await _build_timeout_fallback_response("sync_safe_mode")
+
+    # Асинхронный режим (202 до стратегии): сразу 202, стратегия и understand_goal — в фоне
+    if async_mode:
+        _async_response = await _start_async_handoff("request_async_mode")
+        if _async_response is not None:
+            return _async_response
+        # Fall back to sync path if async initialization failed.
+        async_mode = False
 
     # Синхронный путь: логика мысли — выбор стратегии и understand_goal (замеры для диагностики таймаутов)
     _t_sync_0 = time.monotonic()
@@ -7223,6 +8299,72 @@ async def run_task(
                 "[TRACE] run_task: before delegate_to_veronica correlation_id=%s",
                 correlation_id[:8],
             )
+
+            knowledge = {}  # Initialize knowledge dict for multi-agent components
+
+            # [MULTI-AGENT] PlanDecomposer — разбиение сложных задач на подзадачи
+            goal_for_decomp = restated_goal or goal
+            if plan_decomposer_instance:
+                try:
+                    is_complex = len(goal_for_decomp) > 500 or any(
+                        marker in goal_for_decomp.lower()
+                        for marker in ["напиши", "создай", "разработай", "реализуй", "сделай api", "напиши код", "создай файл"]
+                    )
+                    if is_complex:
+                        logger.info("[PLAN_DECOMPOSER] Сложная задача, попытка декомпозиции (sync)")
+                        subtasks = await plan_decomposer_instance.decompose(goal_for_decomp)
+                        if subtasks and len(subtasks) > 1:
+                            logger.info("[PLAN_DECOMPOSER] Задача разбита на %d подзадач (sync)", len(subtasks))
+                            knowledge = {"decomposed": True, "subtasks": len(subtasks)}
+                            # NOT returning early - continue with other components
+                except Exception as e:
+                    logger.debug("[PLAN_DECOMPOSER] decompose failed (sync): %s", e)
+
+            # [MULTI-AGENT] ConsensusAgent — голосование для спорных задач
+            if consensus_agent_instance:
+                try:
+                    needs_consensus = any(marker in (restated_goal or goal).lower() for marker in [
+                        "что лучше", "что эффективнее", "сравни", "плюсы", "минусы",
+                        "аргументы за", "аргументы против", "мнение экспертов"
+                    ])
+                    if needs_consensus:
+                        logger.info("[CONSENSUS] Спорный вопрос, запускаю голосование экспертов (sync)")
+                        experts = ["Виктория", "Даниил", "Макс"]
+                        consensus_result = await consensus_agent_instance.reach_consensus(
+                            question=restated_goal or goal,
+                            experts=experts,
+                        )
+                        if consensus_result:
+                            logger.info("[CONSENSUS] Консенсус достигнут: %s", str(consensus_result)[:100])
+                except Exception as e:
+                    logger.debug("[CONSENSUS] reach_consensus failed (sync): %s", e)
+
+            # [MULTI-AGENT] HumanApproval — одобрение критических действий
+            if human_approval_instance:
+                try:
+                    is_critical = any(marker in (restated_goal or goal).lower() for marker in [
+                        "деплой", "deploy", "удал", "delete", "rm ", "api ключ", "secret", "пароль"
+                    ])
+                    if is_critical:
+                        logger.info("[HUMAN] Критическое действие, запрос одобрения (sync)")
+                        approval_id = await human_approval_instance.request_approval(
+                            action_type="task_execution",
+                            action_data={"goal": (restated_goal or goal)[:200], "correlation_id": correlation_id}
+                        )
+                        if approval_id:
+                            logger.info("[HUMAN] Запрошено одобрение: %s (sync)", approval_id)
+                except Exception as e:
+                    logger.debug("[HUMAN] request_approval failed (sync): %s", e)
+
+            # [MULTI-AGENT] CollectiveMemory — запрос релевантного опыта ПЕРЕД делегацией
+            relevant_memory = []
+            if collective_memory_instance:
+                try:
+                    relevant_memory = await collective_memory_instance.query_knowledge(restated_goal or goal)
+                    logger.info("[MEMORY] Найдено релевантных записей (veronica sync): %d", len(relevant_memory))
+                except Exception as e:
+                    logger.debug("[MEMORY] query_knowledge failed (veronica sync): %s", e)
+
             veronica_result = await asyncio.wait_for(
                 delegate_to_veronica(
                     _sanitize_goal_for_prompt(restated_goal),
@@ -7273,6 +8415,80 @@ async def run_task(
                             veronica_result.get("output") or "",
                         )
                 _inject_strategy_into_knowledge(knowledge, strategy_result)
+
+                # [MULTI-AGENT] CollectiveMemory — сохранение результата ПОСЛЕ делегации
+                if collective_memory_instance:
+                    try:
+                        await collective_memory_instance.store_knowledge(
+                            key=f"sync_{correlation_id}",
+                            value={
+                                "goal": (restated_goal or goal)[:500],
+                                "result": (veronica_result.get("output") or "")[:500],
+                                "task_type": task_type,
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "route": "veronica_sync",
+                            },
+                            metadata={"correlation_id": correlation_id, "project": project_context}
+                        )
+                        logger.info("[MEMORY] Результат сохранён в Collective Memory (veronica sync)")
+                    except Exception as e:
+                        logger.debug("[MEMORY] store_knowledge failed (veronica sync): %s", e)
+
+                # [MULTI-AGENT] Git Integration — автоматический коммит после Veronica
+                if git_engine_instance:
+                    try:
+                        result_text = veronica_result.get("output") or ""
+                        if any(marker in result_text.lower() for marker in [
+                            "```python", "```javascript", "```typescript", "def ", "class ", "import ", "создан файл", "записан в"
+                        ]):
+                            git_status = await git_engine_instance.get_status()
+                            if git_status.get("is_clean") is False:
+                                logger.info("[GIT] Есть несохраненные изменения (veronica sync), пропускаем коммит")
+                            else:
+                                logger.info("[GIT] Задача с кодом от Veronica (sync), готов к коммиту")
+                    except Exception as e:
+                        logger.debug("[GIT] Git check failed (veronica sync): %s", e)
+
+                # [MULTI-AGENT] EventBus — событие завершения задачи
+                try:
+                    from app.event_bus import get_event_bus, Event, EventType
+                    event_bus = get_event_bus()
+                    event = Event(
+                        event_id=str(uuid.uuid4()),
+                        event_type=EventType.TASK_COMPLETED,
+                        payload={
+                            "task_id": correlation_id,
+                            "goal": (restated_goal or goal)[:200],
+                            "route": "veronica",
+                            "status": "success",
+                        },
+                        source="Виктория",
+                        correlation_id=correlation_id,
+                    )
+                    await event_bus.publish(event)
+                    logger.info("[EVENT_BUS] Событие task_completed отправлено (sync)")
+                except Exception as e:
+                    logger.debug("[EVENT_BUS] publish task_completed failed (sync): %s", e)
+
+                # [MULTI-AGENT] Agent Messaging — уведомление других агентов о завершении
+                try:
+                    from app.agent_messaging import send_message
+                    await send_message(
+                        from_agent="Виктория",
+                        to_agent="*",
+                        verb="TELL",
+                        payload={
+                            "task_id": correlation_id,
+                            "goal": (restated_goal or goal)[:200],
+                            "route": "veronica",
+                            "status": "completed",
+                        },
+                        correlation_id=correlation_id,
+                    )
+                    logger.info("[AGENT_MSG] Уведомление о завершении задачи отправлено (sync)")
+                except Exception as e:
+                    logger.debug("[AGENT_MSG] send_message failed (sync): %s", e)
+
                 return TaskResponse(
                     status="success",
                     output=_normalize_output_for_user(veronica_result.get("output") or ""),
@@ -7405,9 +8621,12 @@ async def run_task(
                             )
                         except asyncio.TimeoutError:
                             logger.warning(
-                                "[VICTORIA_CYCLE] Enhanced solve timeout (%ss), using timeout fallback",
+                                "[VICTORIA_CYCLE] Enhanced solve timeout (%ss), handing off async",
                                 VICTORIA_SYNC_EXEC_TIMEOUT_SEC,
                             )
+                            _handoff = await _start_async_handoff("timeout_enhanced_solve")
+                            if _handoff is not None:
+                                return _handoff
                             return await _build_timeout_fallback_response("enhanced.solve")
                         logger.info(
                             f"✅ Enhanced метод: {enhanced_result.get('method')} [проект: {project_context}]"
@@ -7505,19 +8724,43 @@ async def run_task(
         _exec_start = _time.time()
 
         try:
-            result = await asyncio.wait_for(
-                agent.run(
-                    goal_for_run,
-                    max_steps=body.max_steps if body.max_steps is not None else DEFAULT_MAX_STEPS,
-                ),
-                timeout=VICTORIA_SYNC_EXEC_TIMEOUT_SEC,
-            )
+            acquired = False
+            if _victoria_semaphore:
+                try:
+                    await asyncio.wait_for(
+                        _victoria_semaphore.acquire(),
+                        timeout=VICTORIA_SEMAPHORE_ACQUIRE_TIMEOUT_SEC,
+                    )
+                    acquired = True
+                except asyncio.TimeoutError:
+                    logger.info(
+                        "[VICTORIA_CYCLE] semaphore busy in sync_run; handoff async (wait>%.1fs)",
+                        VICTORIA_SEMAPHORE_ACQUIRE_TIMEOUT_SEC,
+                    )
+                    _handoff = await _start_async_handoff("concurrency_queue_sync_run")
+                    if _handoff is not None:
+                        return _handoff
+                    return await _build_timeout_fallback_response("concurrency_queue_sync_run")
+            try:
+                result = await asyncio.wait_for(
+                    agent.run(
+                        goal_for_run,
+                        max_steps=body.max_steps if body.max_steps is not None else DEFAULT_MAX_STEPS,
+                    ),
+                    timeout=VICTORIA_SYNC_EXEC_TIMEOUT_SEC,
+                )
+            finally:
+                if acquired and _victoria_semaphore:
+                    _victoria_semaphore.release()
         except asyncio.TimeoutError:
             logger.warning(
-                "[VICTORIA_CYCLE] agent.run timeout (%ss), using timeout fallback",
+                "[VICTORIA_CYCLE] agent.run timeout (%ss), handing off async",
                 VICTORIA_SYNC_EXEC_TIMEOUT_SEC,
             )
             agent.executor.system_prompt = original_prompt
+            _handoff = await _start_async_handoff("timeout_agent_run")
+            if _handoff is not None:
+                return _handoff
             return await _build_timeout_fallback_response("agent.run")
 
         _exec_elapsed = _time.time() - _exec_start
@@ -8098,12 +9341,13 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     )
     _is_execution_task = any(marker in task_req.goal.lower() for marker in _execution_markers)
     _is_simple_q = is_simple_message(_user_msg_text) or is_fast_track_message(_user_msg_text)
+    _is_fact_q = is_fact_seeking_question(_user_msg_text)
 
-    if _is_simple_q or (
+    if (_is_simple_q or (
         not _is_execution_task
         and len(task_req.goal) < 2000
         and "victoria" in str(request.model).lower()
-    ):
+    )) and not _is_fact_q:
         # Для простых/быстрых сообщений — статический fallback без LLM
         if _is_simple_q:
             goal_lower = _user_msg_text.lower().strip()

@@ -18,6 +18,27 @@ services:
       timeout: 5s
       retries: 3
 
+  docker-proxy:
+    build:
+      context: ../infrastructure/docker/docker-proxy
+      dockerfile: Dockerfile
+    container_name: docker-proxy
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "2376:2376"
+    networks:
+      - atra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2376/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    environment:
+      DOCKER_PROXY_RATE_LIMIT: "120"
+      DOCKER_PROXY_AUDIT_LOG: "/var/log/docker-proxy-audit.jsonl"
+
   victoria-agent:
     logging:
       driver: "json-file"
@@ -37,9 +58,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 10G
+          memory: 8G
         reservations:
-          memory: 6G
+          memory: 4G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 60s
@@ -64,6 +85,8 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       POSTGRES_DIRECT_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      # Optional dedicated endpoint/queue for heavy executor model (qwen2.5-coder)
+      OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
@@ -95,9 +118,17 @@ services:
       HOST_PROJECT_ROOT: ${HOST_PROJECT_ROOT:-}
       HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-}
       VICTORIA_STRATEGIST_MODEL: ${VICTORIA_STRATEGIST_MODEL:-victoria-wisdom-v3.5:latest}
-      VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-qwen2.5-coder:14b}
+      VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-victoria-wisdom-v3.5:latest}
+      VICTORIA_WARMUP_ENABLED: ${VICTORIA_WARMUP_ENABLED:-true}
+      VICTORIA_WARMUP_BLOCK_STARTUP: ${VICTORIA_WARMUP_BLOCK_STARTUP:-true}
+      VICTORIA_WARMUP_TIMEOUT_PER_MODEL: ${VICTORIA_WARMUP_TIMEOUT_PER_MODEL:-180}
+      VICTORIA_WARMUP_RETRY_COUNT: ${VICTORIA_WARMUP_RETRY_COUNT:-8}
+      VICTORIA_WARMUP_RETRY_SLEEP_SEC: ${VICTORIA_WARMUP_RETRY_SLEEP_SEC:-4}
+      VICTORIA_SYNC_SAFE_TIMEOUT_SEC: "20"
+      VICTORIA_SEMAPHORE_ACQUIRE_TIMEOUT_SEC: "2"
       UVICORN_WORKERS: "2"
       UVICORN_TIMEOUT_KEEP_ALIVE: "75"
+      DOCKER_HOST: "http://docker-proxy:2376"
     ports:
       - "8010:8000"
     volumes:
@@ -106,7 +137,6 @@ services:
       - ../src:/app/src
       - ../knowledge_os:/app/knowledge_os
       - ..:/workspace/atra-web-ide
-      - /var/run/docker.sock:/var/run/docker.sock
       - redis_data:/data/redis
     command: python -m src.agents.bridge.victoria_server
 
@@ -134,6 +164,7 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
@@ -171,6 +202,7 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
@@ -189,15 +221,15 @@ services:
       ENABLE_METRICS: "true"
       METRICS_PORT: "8000"
       VICTORIA_STRATEGIST_MODEL: ${VICTORIA_STRATEGIST_MODEL:-victoria-wisdom-v3.5:latest}
-      VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-qwen2.5-coder:14b}
+      VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-victoria-wisdom-v3.5:latest}
       # Mac Docker Desktop: absolute host binds when orchestrator recreates dynamic workers
       HOST_PROJECT_ROOT: ${HOST_PROJECT_ROOT:-}
       HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-}
+      DOCKER_HOST: "http://docker-proxy:2376"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - ../certs:/certs:ro
       - redis_data:/data/redis
-      - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -230,6 +262,8 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
+      VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-victoria-wisdom-v3.5:latest}
       OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
@@ -275,6 +309,8 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
+      VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-victoria-wisdom-v3.5:latest}
       OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
@@ -318,6 +354,8 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
+      VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-victoria-wisdom-v3.5:latest}
       OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
@@ -360,6 +398,7 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
@@ -446,6 +485,8 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
+      VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-victoria-wisdom-v3.5:latest}
       MLX_BASE_URL: http://host.docker.internal:11435
       MLX_API_URL: http://host.docker.internal:11435
       OLLAMA_NUM_PARALLEL: "5"
@@ -454,10 +495,10 @@ services:
       USE_CUBE_SANDBOX: "false"
       ENABLE_METRICS: "true"
       METRICS_PORT: "8002"
+      DOCKER_HOST: "http://docker-proxy:2376"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - redis_data:/data/redis
-      - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -469,7 +510,7 @@ services:
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: knowledge_evolution
     restart: unless-stopped
-    mem_limit: 4g
+    mem_limit: 3g
     networks:
       - atra-network
     healthcheck:
@@ -501,10 +542,10 @@ services:
       MLX_API_URL: ${MLX_API_URL:-http://host.docker.internal:11435}
       HOST_PROJECT_ROOT: ${HOST_PROJECT_ROOT:-}
       HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-}
+      DOCKER_HOST: "http://docker-proxy:2376"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - redis_data:/data/redis
-      - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -534,10 +575,10 @@ services:
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       SELF_CHECK_INTERVAL_SEC: ${SELF_CHECK_INTERVAL_SEC:-300}
+      DOCKER_HOST: "http://docker-proxy:2376"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - redis_data:/data/redis
-      - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -555,7 +596,7 @@ services:
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: knowledge_nightly
     restart: unless-stopped
-    mem_limit: 8g
+    mem_limit: 6g
     networks:
       - atra-network
     healthcheck:
@@ -614,12 +655,12 @@ services:
       VISUAL_SEARCH_URL: ${VISUAL_SEARCH_URL:-http://victoria-visual-search:8005}
       NIGHTLY_VISUAL_INDEX_ENABLED: ${NIGHTLY_VISUAL_INDEX_ENABLED:-true}
       NIGHTLY_VISUAL_INDEX_MAX_FILES: ${NIGHTLY_VISUAL_INDEX_MAX_FILES:-15}
+      DOCKER_HOST: "http://docker-proxy:2376"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - ../docs:/app/docs:ro
       - ../docs/SOP:/app/docs/SOP
       - redis_data:/data/redis
-      - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -667,10 +708,10 @@ services:
       MLX_BASE_URL: ${MLX_BASE_URL:-http://host.docker.internal:11435}
       DIALOGUE_MLX_TIMEOUT_SEC: ${DIALOGUE_MLX_TIMEOUT_SEC:-120}
       DIALOGUE_MAX_TOKENS: ${DIALOGUE_MAX_TOKENS:-512}
+      DOCKER_HOST: "http://docker-proxy:2376"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - redis_data:/data/redis
-      - /var/run/docker.sock:/var/run/docker.sock
       - ../docs/board_reports:/data/board_reports
     working_dir: /app/knowledge_os/app
     command: ["python", "-u", "rest_api.py"]
@@ -706,13 +747,65 @@ services:
     working_dir: /app/knowledge_os/app
     command: ["python", "-u", "telegram_notifications_worker.py"]
 
+  victoria-medic:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: victoria-medic
+    restart: unless-stopped
+    networks:
+      - atra-network
+    healthcheck:
+      test: ["CMD-SHELL", "grep -a -q medic.main /proc/1/cmdline"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
+      VERONICA_URL: http://veronica-agent:8000
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      CHAT_ID: ${TELEGRAM_USER_ID}
+      NTFY_URL: ${NTFY_URL:-https://ntfy.sh/atra_victoria_curator}
+      DOCKER_HOST: "http://docker-proxy:2376"
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+      - ../logs:/app/logs
+    working_dir: /app/knowledge_os/app
+    command: ["python", "-u", "-m", "medic.main"]
+
+  log-scanner:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: log-scanner
+    restart: unless-stopped
+    networks:
+      - atra-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import sys; sys.exit(0)'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
+      VICTORIA_URL: http://victoria-agent:8000
+      LOG_SCANNER_INTERVAL: "30"
+      LOG_SCANNER_DEDUP_WINDOW: "300"
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    working_dir: /app/knowledge_os/app
+    command: ["python", "-u", "-m", "medic.log_scanner"]
+
   performance-watchdog:
     build:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: performance-watchdog
     restart: unless-stopped
-    mem_limit: 3g
+    mem_limit: 2g
     networks:
       - atra-network
     healthcheck:
@@ -727,10 +820,10 @@ services:
       REDIS_URL: unix:///data/redis/redis.sock
       HOST_PROJECT_ROOT: ${HOST_PROJECT_ROOT:-}
       HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-}
+      DOCKER_HOST: "http://docker-proxy:2376"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - redis_data:/data/redis
-      - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
