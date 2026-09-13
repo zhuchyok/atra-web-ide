@@ -3870,7 +3870,8 @@ async def _run_quick_tools_for_goal(goal: str) -> list:
         arg: Any = goal
         if tool_name == "db_query":
             m = re.search(r"(SELECT|WITH|EXPLAIN)[^;]{0,600}", goal, re.IGNORECASE)
-            arg = m.group(0) if m else ""
+            # Срезаем синтаксический хвост («FROM tasks.» → «FROM tasks»)
+            arg = m.group(0).rstrip(" .;,«»()").rstrip(" .;") if m else ""
         elif tool_name == "git_log":
             m = re.search(r"(\d+)\s*(?:коммит|commit)", g_lower)
             arg = int(m.group(1)) if m else 5
