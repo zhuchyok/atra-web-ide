@@ -55,5 +55,5 @@ Multi-agent AI system with Victoria as team lead, 88 experts, PostgreSQL, Redis,
 
 ## Остаток (низкий приоритет)
 
-- Тулы (web_search/db_query/git) доступны в deep-пути; в quick-пути пока «подсказки команд» вместо автозапуска
-- MLX сервер запускается вручную (nohup uvicorn app.mlx_api_server) — нужен launchd/LaunchAgent
+- ~~Тулы (web_search/db_query/git) доступны в deep-пути; в quick-пути пока «подсказки команд»~~ ✅ DONE (00.14.09.2026: quick-route исполняет тулы до LLM через `_run_quick_tools_for_goal`)
+- ~~MLX сервер запускается вручную~~ ✅ DONE (launchd `com.atra.mlx-api-server`, preload wisdom-24k + phi3.5)
