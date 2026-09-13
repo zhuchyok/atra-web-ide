@@ -129,3 +129,4 @@ docs/recovery/*.jsonl
 # Added by code-review-graph
 .code-review-graph/
 src/generated_file*.py
+src/generated_*

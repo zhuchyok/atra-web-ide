@@ -1,6 +1,47 @@
 # Agents and Workers Stack for Singularity 31.2
 # Usage: docker-compose -f docker-compose.yml -f docker-compose.agents.yml up -d
 
+x-dynamic-worker-env: &dynamic-worker-env
+  TZ: Europe/Moscow
+  EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
+  ENABLE_METRICS: "true"
+  METRICS_PORT: "8001"
+  DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+  REDIS_URL: unix:///data/redis/redis.sock
+  OLLAMA_BASE_URL: http://host.docker.internal:11434
+  OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
+  OLLAMA_NUM_PARALLEL: "5"
+  OLLAMA_GLOBAL_MAX_SLOTS: "4"
+  OLLAMA_MAX_QUEUE: "100"
+  USE_CUBE_SANDBOX: "false"
+  HITL_ENFORCE_HIGH_RISK_TASKS: "true"
+  HITL_HIGH_RISK_LEVELS: "critical"
+  HITL_APPROVAL_TIMEOUT_SEC: "180"
+  HOST_PROJECT_ROOT: ${HOST_PROJECT_ROOT:-}
+  HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-}
+
+# HOST_PROJECT_ROOT required when recreate runs via docker.sock from orchestrator
+x-dynamic-worker-volumes: &dynamic-worker-volumes
+  - ${HOST_PROJECT_ROOT:-..}/data:/app/data
+  - ${HOST_PROJECT_ROOT:-..}/knowledge_os:/app/knowledge_os
+  - redis_data:/data/redis
+
+x-dynamic-worker-defaults: &dynamic-worker-defaults
+  build:
+    context: ..
+    dockerfile: infrastructure/docker/agents/Dockerfile
+  restart: unless-stopped
+  networks:
+    - atra-network
+  healthcheck:
+    test: ["CMD-SHELL", "grep -a -q expert_worker.py /proc/1/cmdline"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  command: python3 knowledge_os/app/expert_worker.py
+
 services:
   quality-service:
     build:
@@ -380,44 +421,11 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
-    build:
-      context: ..
-      dockerfile: infrastructure/docker/agents/Dockerfile
-    restart: unless-stopped
-    networks:
-      - atra-network
-    healthcheck:
-      test: ["CMD-SHELL", "grep -a -q expert_worker.py /proc/1/cmdline"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    <<: *dynamic-worker-defaults
     environment:
-      TZ: Europe/Moscow
+      <<: *dynamic-worker-env
       EXPERT_NAME: ${DYNAMIC_EXPERT_NAME_SLOT1:-Инна}
-      EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
-      ENABLE_METRICS: "true"
-      METRICS_PORT: "8001"
-      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
-      REDIS_URL: unix:///data/redis/redis.sock
-      OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
-      OLLAMA_NUM_PARALLEL: "5"
-      OLLAMA_GLOBAL_MAX_SLOTS: "4"
-      OLLAMA_MAX_QUEUE: "100"
-      USE_CUBE_SANDBOX: "false"
-      HITL_ENFORCE_HIGH_RISK_TASKS: "true"
-      HITL_HIGH_RISK_LEVELS: "critical"
-      HITL_APPROVAL_TIMEOUT_SEC: "180"
-      HOST_PROJECT_ROOT: ${HOST_PROJECT_ROOT:-}
-      HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-}
-    volumes:
-      # HOST_PROJECT_ROOT required when recreate runs via docker.sock from orchestrator
-      - ${HOST_PROJECT_ROOT:-..}/data:/app/data
-      - ${HOST_PROJECT_ROOT:-..}/knowledge_os:/app/knowledge_os
-      - redis_data:/data/redis
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    command: python3 knowledge_os/app/expert_worker.py
+    volumes: *dynamic-worker-volumes
 
   expert-worker-dynamic-2:
     depends_on:
@@ -425,42 +433,49 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
-    build:
-      context: ..
-      dockerfile: infrastructure/docker/agents/Dockerfile
-    restart: unless-stopped
-    networks:
-      - atra-network
-    healthcheck:
-      test: ["CMD-SHELL", "grep -a -q expert_worker.py /proc/1/cmdline"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    <<: *dynamic-worker-defaults
     environment:
-      TZ: Europe/Moscow
+      <<: *dynamic-worker-env
       EXPERT_NAME: ${DYNAMIC_EXPERT_NAME_SLOT2:-Юлия}
-      EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
-      ENABLE_METRICS: "true"
-      METRICS_PORT: "8001"
-      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
-      REDIS_URL: unix:///data/redis/redis.sock
-      OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_NUM_PARALLEL: "5"
-      OLLAMA_GLOBAL_MAX_SLOTS: "4"
-      OLLAMA_MAX_QUEUE: "100"
-      USE_CUBE_SANDBOX: "false"
-      HITL_ENFORCE_HIGH_RISK_TASKS: "true"
-      HITL_HIGH_RISK_LEVELS: "critical"
-      HITL_APPROVAL_TIMEOUT_SEC: "180"
-      HOST_PROJECT_ROOT: ${HOST_PROJECT_ROOT:-}
-      HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-}
-    volumes:
-      - ${HOST_PROJECT_ROOT:-..}/data:/app/data
-      - ${HOST_PROJECT_ROOT:-..}/knowledge_os:/app/knowledge_os
-      - redis_data:/data/redis
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    command: python3 knowledge_os/app/expert_worker.py
+    volumes: *dynamic-worker-volumes
+
+  # [SCALE] Слоты 3-5: горизонтальное масштабирование overflow-пула.
+  # EXPERT_NAME из overflow (Инна/Юлия) — все приходят на stream:expert_tasks:overflow.
+  expert-worker-dynamic-3:
+    depends_on:
+      victoria-agent:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    <<: *dynamic-worker-defaults
+    environment:
+      <<: *dynamic-worker-env
+      EXPERT_NAME: ${DYNAMIC_EXPERT_NAME_SLOT3:-Инна}
+    volumes: *dynamic-worker-volumes
+
+  expert-worker-dynamic-4:
+    depends_on:
+      victoria-agent:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    <<: *dynamic-worker-defaults
+    environment:
+      <<: *dynamic-worker-env
+      EXPERT_NAME: ${DYNAMIC_EXPERT_NAME_SLOT4:-Юлия}
+    volumes: *dynamic-worker-volumes
+
+  expert-worker-dynamic-5:
+    depends_on:
+      victoria-agent:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    <<: *dynamic-worker-defaults
+    environment:
+      <<: *dynamic-worker-env
+      EXPERT_NAME: ${DYNAMIC_EXPERT_NAME_SLOT5:-Инна}
+    volumes: *dynamic-worker-volumes
 
   knowledge_os_worker:
     build:
