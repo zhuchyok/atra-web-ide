@@ -211,8 +211,10 @@ services:
       OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
-    ports:
-      - "8011:8000"
+      # [REGRESSION] wisdom (24k/32k) в ReAct-цикле уходит в CoT-rambling вместо JSON-акции.
+      # Coding-модель согласно developer_forced назначению оркестратора.
+      # 32b не установлен в Ollama (fallback на wisdom по сканеру) — используем 14b.
+      VERONICA_MODEL: ${VERONICA_MODEL:-qwen2.5-coder:14b}
     volumes:
       - ../data:/app/data
       - ../logs:/app/logs

@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 VICTORIA_DEBUG = os.getenv("VICTORIA_DEBUG", "false").lower() in ("true", "1", "yes")
 
 # Мировая практика: только эти инструменты существуют. Любой другой = отклоняем и просим повторить.
-ALLOWED_TOOLS = {"finish", "read_file", "list_directory", "run_terminal_cmd", "ssh_run"}
+ALLOWED_TOOLS = {"finish", "read_file", "list_directory", "run_terminal_cmd", "ssh_run", "write_file"}
 
 # === MODEL FALLBACK CONFIGURATION ===
 # Ordered list of fallback models from smallest to largest
@@ -28,7 +28,7 @@ FALLBACK_MODELS_OLLAMA = [
     "phi3.5:3.8b",  # Fast, stable
     "tinyllama:1.1b-chat",  # Very small, always works
     "glm-4.7-flash:q8_0",  # Medium, good quality
-    "victoria-wisdom-v3.5:latest",  # Large, may crash on limited RAM
+    "victoria-wisdom-24k:latest",  # Large, may crash on limited RAM
 ]
 
 
@@ -69,17 +69,17 @@ class DynamicSemaphore:
 
 
 FALLBACK_MODELS_MLX = [
-    "victoria-wisdom-v3.5",  # Основная модель Victoria в MLX (приоритет 1)
+    "victoria-wisdom-24k",  # Основная модель Victoria в MLX (приоритет 1)
     "phi3.5:3.8b",
     "qwen2.5:3b",
     "tinyllama:1.1b-chat",
     "phi3:mini-4k",
-    "victoria-wisdom-v3.5:latest",
+    "victoria-wisdom-24k:latest",
 ]
 
 # Models that are known to crash on resource-limited systems
 RESOURCE_HEAVY_MODELS = {
-    "victoria-wisdom-v3.5:latest",
+    "victoria-wisdom-24k:latest",
     "qwq:32b",
     "deepseek-r1-distill-llama:70b",
     "llama3.3:70b",
@@ -111,7 +111,7 @@ def _is_victoria_wisdom(model: Optional[str]) -> bool:
 def _normalize_model_for_backend(model: str, base_url: str, mlx_url: str) -> str:
     """
     World practice: one logical model, backend-specific ids.
-    MLX registry uses untagged victoria-wisdom-v3.5; Ollama often has :latest.
+    MLX registry uses untagged victoria-wisdom-24k; Ollama often has :latest.
     """
     if not model:
         return model
@@ -171,7 +171,7 @@ class OllamaExecutor:
 
         self.system_prompt = """ТЫ — ВИКТОРИЯ, TEAM LEAD ATRA. Отвечай на русском.
 
-СТРОГО: Ответ — ОДИН JSON, без текста до/после. Поле "tool" — ТОЛЬКО одно из: finish, read_file, list_directory, run_terminal_cmd, ssh_run. Других инструментов НЕТ (нет web_search, git_run, web_check, websocket и т.д.).
+СТРОГО: Ответ — ОДИН JSON, без текста до/после. Поле "tool" — ТОЛЬКО одно из: finish, read_file, list_directory, run_terminal_cmd, ssh_run, write_file. Других инструментов НЕТ (нет web_search, git_run, web_check, websocket и т.д.).
 
 ФОРМАТ: {"thought": "...", "tool": "...", "tool_input": {...}}
 
@@ -186,8 +186,12 @@ class OllamaExecutor:
    {"tool": "run_terminal_cmd", "tool_input": {"command": "ls -la"}}
 5. ssh_run - УДАЛЁННЫЙ сервер (только с реальным host!)
    {"tool": "ssh_run", "tool_input": {"host": "IP", "command": "команда"}}
+6. write_file - создать/перезаписать файл. Путь реальный относительно корня проекта!
+   {"tool": "write_file", "tool_input": {"file_path": "src/calc.py", "content": "def add(a, b):\n    return a + b"}}
 
-ЗАПРЕЩЕНО: web_search, web_edit, git_run, write_file, web_review — таких инструментов НЕТ! Не выдумывай пути /path/to/ — используй реальные: ., frontend, backend. Ответ — ОДИН JSON, без текста до/после.
+   ВАЖНО: content для write_file — это ГОТОВЫЙ КОД/ТЕКСТ файла, а НЕ план! Если просят "создай файл с функцией", content должен содержать готовый код функции.
+
+ЗАПРЕЩЕНО: web_search, web_edit, git_run, web_review — таких инструментов НЕТ! Не выдумывай пути /path/to/ — используй реальные: ., frontend, backend. Ответ — ОДИН JSON, без текста до/после.
 
 ПРАВИЛА ВЫПОЛНЕНИЯ:
 - Простые вопросы ("привет", "скажи привет") → СРАЗУ finish
@@ -209,6 +213,13 @@ A: {"thought": "Нужно выполнить ls", "tool": "run_terminal_cmd", "
 
 Q: "покажи файлы в текущей директории"
 A: {"thought": "Выполню ls для текущей директории", "tool": "run_terminal_cmd", "tool_input": {"command": "ls -la"}}
+
+Q: "Создай файл src/calc.py с функцией add(a, b) которая возвращает a + b"
+A: {"thought": "Создаю файл src/calc.py с функцией add", "tool": "write_file", "tool_input": {"file_path": "src/calc.py", "content": "def add(a, b):\n    return a + b"}}
+(ПРИМЕЧАНИЕ: content — это ГОТОВЫЙ КОД, а НЕ план! НЕ пиши "1. Создать файл..." — пиши сам код!)
+
+НЕПРАВИЛЬНО (так НЕ делай):
+A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"file_path": "src/calc.py", "content": "1. Создать файл\n2. Написать функцию\n3. Сохранить"}}
 """
 
     async def _check_model_available(self, base_url: str, model: str) -> bool:
@@ -454,9 +465,12 @@ A: {"thought": "Выполню ls для текущей директории", "
                 # Basic error filtering
                 error_keywords = ["ошибка", "error", "не могу", "не удалось", "failed"]
                 if not any(kw in content_to_cache.lower() for kw in error_keywords):
-                    # Save to L1
+                    # Save to L1 with FIFO/LRU memory bound (max 1000)
                     hash_key = hashlib.md5(cache_key.encode()).hexdigest()
                     self._local_hash_cache[hash_key] = content_to_cache
+                    while len(self._local_hash_cache) > 1000:
+                        oldest = next(iter(self._local_hash_cache))
+                        del self._local_hash_cache[oldest]
 
                     # Save to L2 (background task)
                     cache_mgr = await self._get_cache_manager()
@@ -650,6 +664,31 @@ A: {"thought": "Выполню ls для текущей директории", "
                         # Mark this model as successful
                         self._last_successful_model = model
 
+                        # === EMPTY CONTENT RETRY ===
+                        # MLX returns 200 with empty content when wisdom is busy with another request
+                        if not content or not content.strip():
+                            logger.warning(
+                                "[LLM_EMPTY] Model %s returned empty content (200 but 0 chars). "
+                                "Retrying with fallback...",
+                                model,
+                            )
+                            self._failed_models.add(model)
+                            self._fallback_attempts += 1
+                            fallback_model, fallback_url = await self._get_fallback_model()
+                            if fallback_model and fallback_url:
+                                return await self._ask_with_fallback(
+                                    prompt=prompt,
+                                    history=history,
+                                    raw_response=raw_response,
+                                    model=fallback_model,
+                                    base_url=fallback_url,
+                                    is_retry=True,
+                                    phase=phase,
+                                    blocked_tools=blocked_tools,
+                                    system_override=system_override,
+                                )
+                            return content  # No fallback available, return empty
+
                         if raw_response:
                             return content
                         return self._parse_response(content, blocked_tools=blocked_tools)
@@ -813,6 +852,76 @@ A: {"thought": "Выполню ls для текущей директории", "
                 logger.error(f"[LLM_ERROR] Traceback: {traceback.format_exc()}")
                 return {"error": str(e)}
 
+    def _extract_json_from_text(self, text: str) -> Optional[dict]:
+        """
+        Извлекает JSON объект из текста, начиная с ПОСЛЕДНЕГО { и ища вперёд.
+        Обычный find("{") берёт первый { (внутри thinking/плана), а нам нужен
+        ПОСЛЕДНИЙ — там обычно лежит реальный ответ модели.
+        """
+        if not text:
+            return None
+
+        # Стратегия 1: Ищем с конца — последний { +匹配ный }
+        import re
+        # Находим все позиции { в тексте
+        positions = [m.start() for m in re.finditer(r'\{', text)]
+
+        for start_pos in reversed(positions):
+            # Пытаемся найти匹配ный } после этого {
+            depth = 0
+            end_pos = -1
+            for i in range(start_pos, len(text)):
+                if text[i] == '{':
+                    depth += 1
+                elif text[i] == '}':
+                    depth -= 1
+                    if depth == 0:
+                        end_pos = i
+                        break
+
+            if end_pos == -1:
+                continue
+
+            candidate = text[start_pos:end_pos + 1]
+            if len(candidate) < 5 or len(candidate) > 10000:
+                continue
+
+            try:
+                data = json.loads(candidate)
+            except json.JSONDecodeError:
+                # Модель обычно вставляет «сырые» переводы строк внутри
+                # строковых значений (команды, код) — strict=False их допускает.
+                try:
+                    data = json.loads(candidate, strict=False)
+                except json.JSONDecodeError:
+                    continue
+            try:
+                if isinstance(data, dict) and ("tool" in data or "output" in data):
+                    logger.info(f"[LLM_PARSE] Extracted valid JSON from pos {start_pos}:{end_pos+1}, keys: {list(data.keys())}")
+                    return data
+            except json.JSONDecodeError:
+                continue
+
+        # Стратегия 2: Пробуем find("{") + rfind("}") как fallback
+        start_idx = text.find("{")
+        end_idx = text.rfind("}")
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            candidate = text[start_idx:end_idx + 1]
+            try:
+                data = json.loads(candidate)
+            except json.JSONDecodeError:
+                try:
+                    data = json.loads(candidate, strict=False)
+                except json.JSONDecodeError:
+                    logger.warning("[LLM_PARSE] No valid JSON found in text")
+                    return None
+            if isinstance(data, dict):
+                logger.info(f"[LLM_PARSE] Fallback JSON at [{start_idx}:{end_idx+1}], keys: {list(data.keys())}")
+                return data
+
+        logger.warning("[LLM_PARSE] No valid JSON found in text")
+        return None
+
     def _parse_response(self, content: str, blocked_tools: Optional[list[str]] = None) -> Any:
         logger.info(f"[LLM_PARSE] Parsing response ({len(content)} chars)...")
 
@@ -821,6 +930,14 @@ A: {"thought": "Выполню ls для текущей директории", "
         if "</think>" in clean_content:
             clean_content = clean_content.split("</think>")[-1].strip()
             logger.info(f"[LLM_PARSE] Removed <think> tags, now {len(clean_content)} chars")
+
+        # Также убираем незакрытые <think> блоки (модель иногда забывает закрыть)
+        if "<think>" in clean_content and "</think>" not in clean_content:
+            think_start = clean_content.rfind("<think>")
+            after_think = clean_content[think_start + len("<think>"):].strip()
+            if after_think:
+                clean_content = after_think
+                logger.info(f"[LLM_PARSE] Removed unclosed <think> block, now {len(clean_content)} chars")
 
         # Интеллектуальное обновление знаний (если Агент написал это в тексте)
         # Формат: KNOWLEDGE: {"key": "value"}
@@ -833,77 +950,54 @@ A: {"thought": "Выполню ls для текущей директории", "
             except Exception:
                 pass
 
-        # Пробуем распарсить как JSON
-        try:
-            start_idx = clean_content.find("{")
-            end_idx = clean_content.rfind("}")
+        # Пробуем распарсить как JSON — ищем от последнего { к концу
+        json_data = self._extract_json_from_text(clean_content)
+        if json_data is not None:
+            data = json_data
+            thought = data.get("thought", "Рассуждаю...")
+            tool_input = (
+                data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
+            )
 
-            if start_idx != -1 and end_idx != -1:
-                json_str = clean_content[start_idx : end_idx + 1]
-                logger.info(f"[LLM_PARSE] Found JSON block at [{start_idx}:{end_idx + 1}]")
-
-                # Пытаемся распарсить как стандартный JSON
-                try:
-                    data = json.loads(json_str)
-                    logger.info(f"[LLM_PARSE] JSON parsed successfully, keys: {list(data.keys())}")
-                except json.JSONDecodeError as je:
-                    logger.warning(f"[LLM_PARSE] JSON decode failed: {je}")
-                    # Если модель выдала одинарные кавычки (Python style), пробуем исправить
-                    import ast
-
-                    try:
-                        data = ast.literal_eval(json_str)
-                        logger.info("[LLM_PARSE] ast.literal_eval succeeded")
-                    except Exception as ae:
-                        # Если совсем всё плохо - возвращаем как текст для разбора Агентом
-                        logger.error(f"[LLM_PARSE] Failed to parse JSON: {ae}")
-                        logger.error(f"[LLM_PARSE] Raw JSON string: {json_str[:500]}")
-                        return AgentFinish(output=clean_content, thought="Failed to parse JSON")
-
-                thought = data.get("thought", "Рассуждаю...")
-                tool_input = (
-                    data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
+            # Чужой формат (tool_execution, final_output) — не наш API, завершаем с подсказкой
+            if "tool_execution" in data or "final_output" in data:
+                logger.warning(
+                    "[LLM_PARSE] Invalid format detected: tool_execution/final_output"
+                )
+                return AgentFinish(
+                    output='Используй только формат: {"thought": "...", "tool": "один из: finish, read_file, list_directory, run_terminal_cmd, ssh_run, write_file", "tool_input": {...}}. Других полей нет.',
+                    thought=thought,
                 )
 
-                # Чужой формат (tool_execution, final_output) — не наш API, завершаем с подсказкой
-                if "tool_execution" in data or "final_output" in data:
-                    logger.warning(
-                        "[LLM_PARSE] Invalid format detected: tool_execution/final_output"
+            # Если это наш формат
+            if "tool" in data and "tool_input" in data:
+                raw_tool = data.get("tool")
+                tool_name = (
+                    str(raw_tool).strip().lower()
+                    if raw_tool and not isinstance(raw_tool, list)
+                    else ""
+                )
+                # tool как массив или неизвестный инструмент — отклоняем (мировая практика: strict schema)
+                if isinstance(raw_tool, list):
+                    tool_name = (raw_tool[0] if raw_tool else "") or "unknown"
+
+                logger.info(
+                    f"[LLM_PARSE] Detected tool: '{tool_name}', thought: '{thought[:50]}...'"
+                )
+
+                if tool_name not in ALLOWED_TOOLS:
+                    bad = (
+                        raw_tool
+                        if isinstance(raw_tool, str)
+                        else (
+                            raw_tool[0] if isinstance(raw_tool, list) and raw_tool else raw_tool
+                        )
                     )
+                    logger.warning(f"[LLM_PARSE] Unknown tool '{bad}' rejected")
                     return AgentFinish(
-                        output='Используй только формат: {"thought": "...", "tool": "один из: finish, read_file, list_directory, run_terminal_cmd, ssh_run", "tool_input": {...}}. Других полей нет.',
+                        output=f'Доступны только: finish, read_file, list_directory, run_terminal_cmd, ssh_run, write_file. Ты указал: {bad}. Ответь одним JSON с tool: finish и tool_input: {{"output": "твой краткий ответ"}}.',
                         thought=thought,
                     )
-
-                # Если это наш формат
-                if "tool" in data and "tool_input" in data:
-                    raw_tool = data.get("tool")
-                    tool_name = (
-                        str(raw_tool).strip().lower()
-                        if raw_tool and not isinstance(raw_tool, list)
-                        else ""
-                    )
-                    # tool как массив или неизвестный инструмент — отклоняем (мировая практика: strict schema)
-                    if isinstance(raw_tool, list):
-                        tool_name = (raw_tool[0] if raw_tool else "") or "unknown"
-
-                    logger.info(
-                        f"[LLM_PARSE] Detected tool: '{tool_name}', thought: '{thought[:50]}...'"
-                    )
-
-                    if tool_name not in ALLOWED_TOOLS:
-                        bad = (
-                            raw_tool
-                            if isinstance(raw_tool, str)
-                            else (
-                                raw_tool[0] if isinstance(raw_tool, list) and raw_tool else raw_tool
-                            )
-                        )
-                        logger.warning(f"[LLM_PARSE] Unknown tool '{bad}' rejected")
-                        return AgentFinish(
-                            output=f'Доступны только: finish, read_file, list_directory, run_terminal_cmd, ssh_run. Ты указал: {bad}. Ответь одним JSON с tool: finish и tool_input: {{"output": "твой краткий ответ"}}.',
-                            thought=thought,
-                        )
                     if blocked_tools and tool_name in blocked_tools:
                         logger.warning(
                             f"[LLM_PARSE] Blocked tool '{tool_name}' rejected (cycle prevention)"
@@ -969,13 +1063,8 @@ A: {"thought": "Выполню ls для текущей директории", "
                 msg = data.get("response") or data.get("message") or data.get("output") or str(data)
                 logger.info(f"[LLM_PARSE] Returning generic JSON response: {str(msg)[:100]}")
                 return AgentFinish(output=msg, thought=thought)
-            else:
-                logger.warning("[LLM_PARSE] No JSON block found in content")
-
-        except Exception as e:
-            logger.error(f"[LLM_PARSE] ❌ Ошибка парсинга: {e}")
-            logger.error(f"[LLM_PARSE] Content was: {content[:500]}")
-            return AgentFinish(output=clean_content, thought=f"Parser Error: {str(e)}")
+        else:
+            logger.warning("[LLM_PARSE] No JSON block found in content")
 
         # Если не JSON или парсинг не удался - возвращаем как есть
         logger.info("[LLM_PARSE] Returning raw text response")
