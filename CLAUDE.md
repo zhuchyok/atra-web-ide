@@ -42,3 +42,18 @@ Multi-agent AI system with Victoria as team lead, 88 experts, PostgreSQL, Redis,
 - Prometheus scrapes knowledge_rest:8002 (deferred metrics)
 - Old monitoring stack (atra-grafana, atra-prometheus, atra-kibana, atra-elasticsearch) остановлен (restart=no, volumes сохранены)
 - Исторический бэклог 65 deferred задач помечен `deferred_review_done=true` (13.09.2026)
+
+## Super-Agent Roadmap (сент 2026) — ЗАВЕРШЕН
+
+1. **Latency**: concrete goal fast-path (skip strategy+understand LLM) — 58s → 1-2s
+2. **RAG NaN purge** (1,177 poisoned vectors) + CollectiveMemory.query_knowledge фоллбек на hybrid search по knowledge_nodes
+3. **web_search tool** (SearxNG primary, DDG fallback) + явные tool-директивы обходят clarification
+4. **db_query** (read-only SQL, SELECT/WITH/EXPLAIN + DDL guard) + git_status/git_diff/git_log
+5. **Overflow-пул 2→5 воркеров** (compose YAML anchors, слоты 3-5)
+6. **Discovery hijack fix**: classify_query на оригинальном запросе (до RAG-обогащения)
+7. **Deterministic-gen больше не пишит** src/generated_file\*.py для web-задач
+
+## Остаток (низкий приоритет)
+
+- Тулы (web_search/db_query/git) доступны в deep-пути; в quick-пути пока «подсказки команд» вместо автозапуска
+- MLX сервер запускается вручную (nohup uvicorn app.mlx_api_server) — нужен launchd/LaunchAgent
