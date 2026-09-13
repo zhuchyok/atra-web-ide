@@ -126,3 +126,6 @@ rust_core/gateway.log
 # Recovery replay dumps (high-entropy UUIDs trip detect-secrets)
 docs/recovery/replay_runs/
 docs/recovery/*.jsonl
+# Added by code-review-graph
+.code-review-graph/
+src/generated_file*.py

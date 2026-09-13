@@ -616,6 +616,7 @@ async def _deferred_metrics_prometheus() -> str:
                 """SELECT COUNT(*) FROM tasks
                    WHERE status = 'completed'
                      AND (metadata->>'deferred_to_human') = 'true'
+                     AND (metadata->>'deferred_review_done') IS NULL
                      AND updated_at > NOW() - INTERVAL '24 hours'"""
             )
             lines.append(f"knowledge_os_tasks_deferred_new_24h_total {int(recent_deferred or 0)}")
