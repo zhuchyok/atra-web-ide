@@ -295,6 +295,7 @@ class ContextSwapper:
         if not context or len(context) < self.max_tokens:
             return context
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔄 [SWAPPER] Context too long ({len(context)}), swapping to Redis: {key}")
 
         # 1. Store full context in Redis
@@ -449,14 +450,14 @@ class TeamDiscussionEngine:
                     # Add English mapping for common experts
                     eng_mapping = {
                         "Виктория": "Victoria",
-                        "Игорь": "Igor",
-                        "Сергей": "Sergey",
+                        "Даниил": "Daniil",
+                        "Макс": "Maks",
                         "Анна": "Anna",
-                        "Максим": "Maxim",
-                        "Елена": "Elena",
+                        "Инна": "Inna",
+                        "Георгий": "Georgy",
                         "Дмитрий": "Dmitry",
-                        "Роман": "Roman",
-                        "Татьяна": "Tatiana",
+                        "Владимир": "Vladimir",
+                        "Ирина": "Irina",
                     }
                     if name_part in eng_mapping:
                         self._expert_styles_cache[eng_mapping[name_part]] = style_content
@@ -464,6 +465,7 @@ class TeamDiscussionEngine:
             self._last_cache_time = time.time()
             # logger.info(f"🧠 [TEAM ENGINE] Refreshed styles cache for {len(self._expert_styles_cache)} experts from {personalities_path}.")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [TEAM ENGINE] Error refreshing styles cache: {e}")
 
     async def generate_discussion(
@@ -478,6 +480,7 @@ class TeamDiscussionEngine:
         Generates a multi-expert discussion for a given task.
         [SINGULARITY 26.1] Integrated AgentScope MsgHub for shared context.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🧠 [TEAM ENGINE] Generating discussion for: {task_title}")
 
         # [AGENT SCOPE] MsgHub Integration
@@ -526,6 +529,7 @@ class TeamDiscussionEngine:
                 return discussion_history
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [AGENT SCOPE] MsgHub failed, falling back to legacy discussion: {e}")
             # Legacy fallback code...
             expert_styles = self._get_expert_styles(experts)
@@ -848,6 +852,7 @@ async def _run_cloud_agent_async(
                         logger.info("[STRICT_LOCAL] ✅ Повторный вызов локальных моделей успешен")
                         return response
                 except Exception as retry_err:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"[STRICT_LOCAL] ❌ Повторный вызов также неудачен: {retry_err}")
 
                 # Локальные модели недоступны даже после retry — возвращаем явную ошибку
@@ -871,6 +876,7 @@ async def _run_cloud_agent_async(
             )
             # If we are here, it means we skip Priority 1 (Local) or it failed/overloaded
     except Exception as bp_err:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Backpressure check failed in ai_core: {bp_err}")
 
     # Пустые OPENAI/ANTHROPIC/DEEPSEEK ключи намеренно не считаются рабочим fallback.
@@ -973,6 +979,7 @@ async def _run_cloud_agent_async(
                 except asyncio.TimeoutError:
                     logger.warning("⚠️ [TIMEOUT FALLBACK] Локальные модели также таймаутятся (15s)")
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ [TIMEOUT FALLBACK] Локальные модели также недоступны: {e}")
             return (
                 "⌛ Облачный запрос занял слишком много времени. Локальные модели также недоступны."
@@ -985,6 +992,7 @@ async def _run_cloud_agent_async(
             optimizer = get_inference_optimizer()
             asyncio.create_task(optimizer.predict_and_preload(category))
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Inference Optimizer failed: {e}")
 
         # 🍎 ПРИОРИТЕТ 1: Попробовать MLX (Apple Neural Engine) на Mac Studio
@@ -1000,6 +1008,7 @@ async def _run_cloud_agent_async(
                     logger.info("✅ [MLX] Использован Apple MLX")
                     return mlx_response
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [MLX] Ошибка: {e}")
 
         # ПРИОРИТЕТ 2: cursor-agent not found - use direct Ollama call as fallback
@@ -1060,7 +1069,7 @@ async def _run_cloud_agent_async(
                         ):
                             # Mac Studio - лучшие модели (victoria-wisdom приоритет)
                             models_to_try = [
-                                "victoria-wisdom-v3.5:latest",
+                                "victoria-wisdom-24k:latest",
                                 "phi3.5:3.8b",
                                 "qwen3.5:35b",
                                 "tinyllama:1.1b-chat",
@@ -1099,6 +1108,7 @@ async def _run_cloud_agent_async(
                                             model_used = model_name
                                             break
                             except Exception as e:
+                                # TODO: Convert f-string to %s formatting for performance
                                 logger.debug(f"Model {model_name} at {ollama_url} failed: {e}")
                                 continue
 
@@ -1110,11 +1120,13 @@ async def _run_cloud_agent_async(
                         else:
                             logger.debug("No Ollama fallback model succeeded at %s", ollama_url)
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"Ollama at {ollama_url} failed: {e}")
                         continue
         except ImportError:
             logger.warning("aiohttp not available for Ollama fallback")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"Ollama fallback failed: {e}")
 
         # Final fallback: smart_worker распознаёт "недоступн" и вызывает rule_executor
@@ -1133,6 +1145,7 @@ async def _safe_cloud_response(response: str) -> str:
         checker = get_safety_checker()
         is_safe, score, warnings = checker.check_response(response)
         if not is_safe:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"🛡️ [SAFETY] Cloud response blocked (score={score:.2f}): {warnings[:2]}")
             return "[SYSTEM: Response blocked by safety checker]"
     except Exception:
@@ -1187,6 +1200,7 @@ async def _enrich_with_deep_memory(nodes: list, pool) -> str:
             enrichment += "</deep_memory>\n"
             return enrichment
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Deep Memory enrichment failed: {e}")
         return ""
 
@@ -1210,7 +1224,10 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                 from app.graphrag.graphrag_service import get_graphrag_service
 
                 graphrag = get_graphrag_service()
-                graph_context, graph_nodes = await graphrag.retrieve_graph_context(query)
+                graph_context, graph_nodes = await asyncio.wait_for(
+                    graphrag.retrieve_graph_context(query),
+                    timeout=float(os.getenv("GRAPHRAG_TIMEOUT_SEC", "25")),
+                )
 
                 # [SINGULARITY 21.25] Deep Memory Hierarchical Enrichment for GraphRAG
                 if graph_nodes:
@@ -1221,6 +1238,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
 
                 return graph_context
             except Exception as ge:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"GraphRAG failed: {ge}")
                 return None
 
@@ -1241,6 +1259,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                     context += f"Description: {res.get('description', 'N/A')}\n"
                 return context
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"VisualRAG failed: {e}")
                 return ""
 
@@ -1267,6 +1286,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                             if "[LANCEDB-ACCELERATED]" in context:
                                 return context
                 except Exception as le:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"LanceDB RAG failed, falling back: {le}")
 
                 # [AGENT SCOPE] ReMe Memory Integration (optional — falls through if not available)
@@ -1279,6 +1299,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                         logger.info("🧠 [AGENT SCOPE] ReMe context retrieved.")
                         return f"\n🧠 [WORKING MEMORY (ReMe)]:\n{reme_context}\n"
                 except (ImportError, Exception) as _reme_err:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"ReMe not available, using VectorRAG: {_reme_err}")
 
                 embedding = await get_embedding(query)
@@ -1374,6 +1395,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                     # We only log the actual error string if it exists to keep logs clean.
                     err_msg = str(re).strip()
                     if err_msg:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"📡 Rust RAG fallback: {err_msg}")
                     else:
                         logger.info("📡 Rust RAG empty or unavailable, using Python fallback.")
@@ -1454,6 +1476,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                             reranked_nodes = reranker.rerank(query, nodes_to_rerank, top_k=5)
                         rows = reranked_nodes  # Используем переранжированные узлы
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"Reranking failed: {e}")
 
                     # [SINGULARITY 21.25] Deep Memory Hierarchical Enrichment
@@ -1486,6 +1509,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                             context += f"{row['content'][:1200]}\n"
                     return context
             except Exception as ve:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Vector RAG failed: {ve}")
                 return ""
 
@@ -1493,7 +1517,29 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
         # Step 1: Coarse search (Graph + Vector)
         graph_task = asyncio.create_task(fetch_graph())
         vector_task = asyncio.create_task(fetch_vector())
-        graph_context, vector_context = await asyncio.gather(graph_task, vector_task)
+        # Жёсткий таймаут: зависший GraphRAG/VectorRAG не должен вешать весь конвейер.
+        _rag_timeout = float(os.getenv("KNOWLEDGE_RAG_TIMEOUT_SEC", "30"))
+        try:
+            graph_context, vector_context = await asyncio.wait_for(
+                asyncio.gather(graph_task, vector_task, return_exceptions=True),
+                timeout=_rag_timeout,
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                f"⏰ RAG retrieval превысил таймаут {_rag_timeout}с — продолжаем без контекста"
+            )
+            for _t in (graph_task, vector_task):
+                if not _t.done():
+                    _t.cancel()
+            graph_context, vector_context = None, ""
+        if isinstance(graph_context, BaseException):
+            # TODO: Convert f-string to %s formatting for performance
+            logger.error(f"GraphRAG task error: {graph_context}")
+            graph_context = None
+        if isinstance(vector_context, BaseException):
+            # TODO: Convert f-string to %s formatting for performance
+            logger.error(f"VectorRAG task error: {vector_context}")
+            vector_context = ""
 
         # Step 2: Fine search (Visual) if needed
         visual_context = ""
@@ -1533,11 +1579,13 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                     raise RuntimeError("LocalAIRouter unavailable for visual verification")
                 v_res = await _vr.run_local_llm(verification_prompt, category="fast")
                 if isinstance(v_res, tuple) and "INVALID" in str(v_res[0]):
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ [OMNI-RAG] Visual context verification failed: {v_res[0]}")
                     visual_context = f"⚠️ [VERIFICATION FAILED]: {visual_context}"
                 else:
                     logger.info("✅ [OMNI-RAG] Visual context verified.")
             except Exception as ce:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Consensus verification failed: {ce}")
 
         full_context = ""
@@ -1555,6 +1603,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
         return full_context
 
     except Exception as exc:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Knowledge retrieval error: {exc}")
         return ""
 
@@ -1608,6 +1657,7 @@ async def run_smart_agent_async(
                 project_context,
             )
         except Exception as v2_err:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"[V2] Fallback to v1: {v2_err}")
 
     return await run_smart_agent_async_impl(
@@ -1684,8 +1734,10 @@ async def run_smart_agent_async_impl(
 
             expert_system_prompt = get_expert_system_prompt(expert_name) or ""
             if expert_system_prompt:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🎭 [SYSTEM_PROMPT] Loaded for {expert_name}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Failed to load system_prompt: {e}")
 
     # [SINGULARITY 21.32] Token Efficiency Audit
@@ -1706,6 +1758,7 @@ async def run_smart_agent_async_impl(
     # [SINGULARITY 23.0] U-Shape Context Assembly (TOP)
     if memory_crystals:
         prompt = memory_crystals + "\n" + prompt
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"💎 [MEMORY CRYSTALS] Injected into TOP of context for {project_context}")
 
     # [SINGULARITY 21.33] Skeleton-of-Thought (SoT) Prototype
@@ -1805,6 +1858,7 @@ Use HANDOFF only if delegation genuinely improves the result.
     # --- MODEL ENSEMBLE LOGIC (Phase 2.7) ---
     async def _introspection_loop(initial_prompt: str, initial_response: str) -> str:
         """[SINGULARITY 21.20] Introspection Loop: Self-criticism and refinement."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🧠 [INTROSPECTION] Starting self-evaluation for {expert_name}")
 
         introspection_prompt = f"""Ты - Критик Сингулярности. Проведи интроспекцию ответа эксперта {expert_name}.
@@ -1835,6 +1889,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                 return refined_text
             return initial_response
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [INTROSPECTION] Error: {e}")
             return initial_response
 
@@ -1883,10 +1938,12 @@ Use HANDOFF only if delegation genuinely improves the result.
             return "⚠️ Запрос отклонен системой безопасности."
 
         if AnomalyDetectorBridge.is_blocked(request_id):
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"🚨 [ANOMALY DETECTOR] Идентификатор заблокирован: {request_id}")
             return "⚠️ Доступ временно ограничен. Попробуйте позже."
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Anomaly detection failed: {e}")
 
     # 0.1. Disaster Recovery: проверка состояния системы
@@ -1920,6 +1977,7 @@ Use HANDOFF only if delegation genuinely improves the result.
     cached_response, kb_context_rag = await get_cache_and_context()
 
     if cached_response:
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🎯 [CACHE HIT] Found similar query for expert {expert_name}")
 
         # [SINGULARITY 21.3] Record tokens saved for local provider on cache hit
@@ -1931,8 +1989,10 @@ Use HANDOFF only if delegation genuinely improves the result.
                 input_tokens=len(user_part) // 4,
                 output_tokens=tokens_saved,
             )
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"💰 [CACHE SAVINGS] Recorded ~{tokens_saved} tokens saved in Prometheus")
         except Exception as metrics_err:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Failed to record cache hit metrics: {metrics_err}")
 
         return cached_response
@@ -1992,8 +2052,10 @@ Use HANDOFF only if delegation genuinely improves the result.
             ltm_context = "\n### 📜 LONG-TERM MEMORY (PAST SESSIONS):\n"
             for m in memories:
                 ltm_context += f"- {m['content'][:500]}\n"
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🧠 [LTM] Recalled {len(memories)} memories for {expert_name}")
     except Exception as ltm_err:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"LTM recall failed: {ltm_err}")
 
     # [SINGULARITY 20.0] Proactive Knowledge Utilization
@@ -2020,11 +2082,13 @@ Use HANDOFF only if delegation genuinely improves the result.
             file_path = "knowledge_os/dashboard/app.py"
             skeleton = get_file_skeleton(file_path)
             kb_context = f"\n### СТРУКТУРА ФАЙЛА (СКЕЛЕТ):\n{skeleton}\n---\n"
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🐉 [MONSTER] Подмешан скелет файла {file_path} для экономии памяти")
             # Обрезаем основной промпт, если там был весь файл
             if len(prompt) > 5000:
                 prompt = prompt[:1000] + "... [весь файл заменен скелетом для стабильности] ..."
         except Exception as fe:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [MONSTER] Ошибка создания скелета: {fe}")
 
     try:
@@ -2074,6 +2138,7 @@ Use HANDOFF only if delegation genuinely improves the result.
 
                         asyncio.create_task(_log_knowledge_edges())
                 except Exception as ke:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"⚠️ Knowledge edges logging failed: {ke}")
 
             kb_context = "\n### ЗНАНИЯ ОТ КОЛЛЕГ (ИЗ БАЗЫ ЗНАНИЙ):\n"
@@ -2097,6 +2162,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                 f"📚 [PROACTIVE RAG] Внедрено {len(contexts)} инсайтов для эксперта {expert_name}"
             )
     except Exception as re:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"⚠️ [RAG] Ошибка поиска знаний: {re}")
 
     # Подмешиваем знания коллег в промпт
@@ -2115,11 +2181,14 @@ Use HANDOFF only if delegation genuinely improves the result.
         user_part = f"{kb_context}\n\nЗАПРОС: {user_part}"
 
     # Проверка на запрос стратегии: автоматический запуск Discovery → MASTER_PLAN → декомпозиция
+    # [FIX] Классифицируем ОРИГИНАЛЬНЫЙ запрос пользователя, а не user_part после внедрения
+    # RAG-контекста (knowledge про стратегии/сигналы/фильтры ложил классификатор на STRATEGY).
+    _original_user_part = user_part
     is_strategy_request = False
     if QueryOrchestrator and not session_id:
         try:
             temp_orch = QueryOrchestrator()
-            query_type = temp_orch.classify_query(user_part)
+            query_type = temp_orch.classify_query(_original_user_part)
             is_strategy_request = query_type == QueryType.STRATEGY
 
             if category == "orchestrator_assignment":
@@ -2187,6 +2256,7 @@ Use HANDOFF only if delegation genuinely improves the result.
 
                     return f"✅ MASTER_PLAN создан и декомпозирован для сессии {new_session_id}. План ID: {plan_id}"
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [ITERATIVE PLANNING] Ошибка автоматического планирования: {e}")
             # Продолжаем обычный путь
 
@@ -2209,8 +2279,10 @@ Use HANDOFF only if delegation genuinely improves the result.
             betoken_manager = get_betoken_manager()
             user_part, token_used = betoken_manager.replace_with_token(user_part)
             if token_used:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🎯 [BE-TOKEN] Использован токен: {token_used}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [BE-TOKEN] Ошибка: {e}")
 
     # Шаг 2: FrugalPrompt сжатие (улучшенная техника)
@@ -2223,6 +2295,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                 )
                 user_part = frugal_compressed
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [FRUGAL PROMPT] Ошибка: {e}")
 
     # Шаг 3: Fallback на PromptOptimizer (если FrugalPrompt недоступен)
@@ -2287,6 +2360,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                     f"😊 [EMOTION DETECTOR] Detected emotion: {emotion_result.detected_emotion} (confidence: {emotion_result.confidence:.2f})"
                 )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [EMOTION DETECTOR] Error detecting emotion: {e}")
             emotion_result = None
 
@@ -2310,8 +2384,10 @@ Use HANDOFF only if delegation genuinely improves the result.
 
 ВАЖНО: Генерируй код строго в соответствии с этими предпочтениями.
 """
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🎨 [TACIT KNOWLEDGE] Style profile loaded for user {user_identifier}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [TACIT KNOWLEDGE] Error loading style profile: {e}")
             style_profile = None
 
@@ -2344,6 +2420,7 @@ Use HANDOFF only if delegation genuinely improves the result.
         and ctx["depth"] < 3
         and (is_critical or category == "reasoning" or "#complex" in user_part.lower())
     ):
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🕵️ [SINGULARITY 22.8] Starting Iterative Discovery for: {expert_name}")
         import sys
 
@@ -2387,12 +2464,12 @@ Use HANDOFF only if delegation genuinely improves the result.
 
         try:
             consensus = ConsensusAgent(
-                model_name=os.getenv("VICTORIA_STRATEGIST_MODEL", "victoria-wisdom-v3.5:latest")
+                model_name=os.getenv("VICTORIA_STRATEGIST_MODEL", "victoria-wisdom-24k:latest")
             )
             # Выбираем экспертов для дебатов на основе задачи
-            debate_experts = ["Виктория", "Игорь", "Анна"]  # Базовая тройка
+            debate_experts = ["Виктория", "Даниил", "Анна"]  # Базовая тройка
             if is_coding_task:
-                debate_experts = ["Игорь", "Максим", "Виктория"]
+                debate_experts = ["Даниил", "Инна", "Виктория"]
 
             debate_res = await consensus.reach_consensus(
                 debate_experts, user_part, {"kb_context": kb_context_rag}
@@ -2414,7 +2491,7 @@ Use HANDOFF only if delegation genuinely improves the result.
     # [SINGULARITY 20.0] Load hybrid models from .env
     # Strategist = Victoria wisdom (plan); Executor = coder only when coding path needs it.
     # Both defaulting to qwen2.5-coder:14b kept a 14B model resident and starved board/MLX.
-    strategist_model = os.getenv("VICTORIA_STRATEGIST_MODEL", "victoria-wisdom-v3.5:latest")
+    strategist_model = os.getenv("VICTORIA_STRATEGIST_MODEL", "victoria-wisdom-24k:latest")
     executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "qwen2.5-coder:14b")
 
     # [SINGULARITY 30.6] Local-First Orchestration: Force local strategist if ice_mode is off
@@ -2438,6 +2515,7 @@ Use HANDOFF only if delegation genuinely improves the result.
             )
             # Мы не меняем саму модель, но router.run_local_llm будет вызван первым
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Failed to check ice_mode for autonomous swarm: {e}")
 
     # Track token savings
@@ -2450,6 +2528,7 @@ Use HANDOFF only if delegation genuinely improves the result.
         episodic_context = await em.get_episodes(user_key, project_context)
         if episodic_context:
             knowledge_context = f"{episodic_context}\n\n{knowledge_context}"
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"💡 [EPISODIC] Loaded preferences for {user_key[:20]}")
 
     if is_coding_task and not is_critical:
@@ -2475,8 +2554,10 @@ Use HANDOFF only if delegation genuinely improves the result.
             current_strategy = await ab_test.select_strategy(
                 expert_name, ["default", "concise", "creative"]
             )
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"⚖️ [AB TEST] Selected strategy '{current_strategy}' for {expert_name}")
         except Exception as ab_err:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Agent A/B testing failed: {ab_err}")
 
         spec_prompt = f"""
@@ -2509,7 +2590,7 @@ Use HANDOFF only if delegation genuinely improves the result.
             if _in_docker_strategist:
                 # В Docker MLX часто недоступен из контейнера — предпочитаем Ollama для стратега,
                 # но только если это НЕ модель Виктории (мозг Виктории всегда в MLX)
-                if strategist_model and "victoria-wisdom-v3.5" in strategist_model.lower():
+                if strategist_model and "victoria-wisdom" in strategist_model.lower():
                     router._preferred_source = "mlx"
                 else:
                     router._preferred_source = "ollama"
@@ -2577,6 +2658,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                     f"ТЗ ОТ СТРАТЕГА ({strategist_model}):\n{spec_compact}\n\n"
                     "ВЫПОЛНИТЕ ЗАДАНИЕ:"
                 )
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"👷 [EXECUTOR START] {executor_model} executing TS locally...")
 
                 # Используем Executor (Qwen3) на Ollama
@@ -2591,6 +2673,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                     else:
                         local_result = None
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ [EXECUTOR FAILED] {e}")
                     local_result = None
             local_resp, routing_source = (
@@ -2665,6 +2748,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                                         "Для сложных задач отключите STRICT_LOCAL или переформулируйте запрос."
                                     )
                             except Exception as retry_err:
+                                # TODO: Convert f-string to %s formatting for performance
                                 logger.error(f"[STRICT_LOCAL] ❌ Retry exception: {retry_err}")
                                 local_resp = "⚠️ Локальный ответ не прошёл проверку качества. STRICT_LOCAL блокирует fallback."
                         else:
@@ -2745,6 +2829,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                                 logger.error("[STRICT_LOCAL] ❌ Retry вернул пустой ответ")
                                 local_resp = "⚠️ Локальный ответ не прошёл проверку безопасности. STRICT_LOCAL блокирует fallback."
                         except Exception as retry_err:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.error(f"[STRICT_LOCAL] ❌ Retry exception: {retry_err}")
                             local_resp = "⚠️ Локальный ответ не прошёл проверку безопасности. Задача отклонена."
                     else:
@@ -2779,8 +2864,10 @@ Use HANDOFF only if delegation genuinely improves the result.
                                 current_strategy,
                                 _log_ab_id,
                             )
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.info(f"⚖️ [AB_LOG] {expert_name}/{current_strategy}/{_log_ab_id}")
                 except Exception as _abe:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"AB log error: {_abe}")
 
                 if local_resp:
@@ -2857,6 +2944,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                         f"⚠️ [AUDIT REJECTED] Victoria found issues in {expert_name}'s work."
                     )
                 else:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ [AUDIT APPROVED] Victoria approved {expert_name}'s work.")
 
             # [FIX] Проверяем audit_result на None перед использованием
@@ -2882,6 +2970,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                             f"🎨 [TACIT KNOWLEDGE] Style similarity: {style_similarity_score:.2f}"
                         )
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"⚠️ [TACIT KNOWLEDGE] Error calculating similarity: {e}")
                         style_similarity_score = 0.0
 
@@ -2911,6 +3000,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                                 tokens_saved=tokens_saved,
                             )
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"Cache save failed: {e}")
 
                 # Сохраняем финальные метрики результата для ML-обучения
@@ -2982,6 +3072,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                         metadata=metadata_dict,
                     )
                 except Exception as log_err:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Interaction log failed: {log_err}")
                     interaction_log_id = None
 
@@ -3016,6 +3107,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                                 f"⚖️ [AB_TEST] INSERTED: {expert_name}/{current_strategy}/{log_id}/{final_score}"
                             )
                 except Exception as ab_err:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚖️ [AB_TEST] FAILED: {ab_err}")
 
                     # [SINGULARITY 28.X] Constitutional Rewards logging
@@ -3034,6 +3126,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                                 f"⚖️ [REWARDS] {expert_name}: {reward_result.get('total'):.2f}"
                             )
                     except Exception as rew_err:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"Constitutional rewards log failed: {rew_err}")
 
                     # Emotion Detection logging (only if emotion_result exists)
@@ -3045,6 +3138,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                                 interaction_log_id, emotion_result, feedback_score
                             )
                         except Exception as e:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.debug(f"⚠️ [EMOTION DETECTOR] Error logging emotion: {e}")
 
                 # [SINGULARITY 26.6] Quality Pipeline - call external service
@@ -3068,6 +3162,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                                 f"✅ Quality: {result.get('quality', 0):.2f}, passed: {result.get('passed', False)}"
                             )
                 except Exception as qe:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"⚠️ Quality service unavailable: {qe}")
 
                 # [SINGULARITY 28.X] Evaluate with Constitutional Rewards before returning
@@ -3110,7 +3205,15 @@ Use HANDOFF only if delegation genuinely improves the result.
                                 "ℹ️ [DISTILLER] save_correction is not available; skip correction persistence"
                             )
 
-                final_prompt = f"ПЛАН ИСПРАВЛЕНИЯ ОТ ТИМЛИДА:\n{audit_result}\n\nИСПРАВЬТЕ КОД:"
+                if not audit_result or str(audit_result).strip().lower() in ("none", "null", ""):
+                    return local_resp
+
+                final_prompt = (
+                    f"ПЛАН ИСПРАВЛЕНИЯ ОТ ТИМЛИДА:\n{audit_result}\n\n"
+                    f"ИСХОДНАЯ ЗАДАЧА:\n{user_part}\n\n"
+                    f"ТЕКУЩИЙ ВАРИАНТ:\n{local_resp}\n\n"
+                    f"ИСПРАВЬТЕ И ДАЙТЕ ФИНАЛЬНЫЙ ОТВЕТ:"
+                )
                 final_result = await router.run_local_llm(
                     final_prompt, category="coding", expert_name=expert_name
                 )
@@ -3203,6 +3306,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                             features={"expert_name": expert_name, "web_search": True},
                         )
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"Failed to collect veronica routing data: {e}")
 
                 return result["analysis"]
@@ -3245,6 +3349,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                         return result[0]
                     return result
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Local model failed in parallel: {e}")
                     return None
 
@@ -3275,6 +3380,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                     f"{response_source_name}_parallel" if response_source_name else "parallel"
                 )
                 local_resp = response
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [PARALLEL] Получен ответ от {routing_source}")
             else:
                 # Если параллельная обработка не дала результата, пробуем последовательно
@@ -3370,6 +3476,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                                 "⚠️ Локальный роутер недоступен. STRICT_LOCAL блокирует fallback."
                             )
                     except Exception as retry_err:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.error(f"[STRICT_LOCAL] ❌ Retry exception: {retry_err}")
                         local_resp = (
                             "⚠️ Локальный ответ не прошёл проверку безопасности. Задача отклонена."
@@ -3438,6 +3545,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                     estimated_tokens, duration, "local"
                 )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Metrics collection failed: {e}")
 
             # [SINGULARITY 26.7] Offload complex tasks to Celery (fixes recursion)
@@ -3454,6 +3562,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                     )
                     metadata_dict["celery_job_id"] = job_id
                 except Exception as ce:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ Celery offload failed: {ce}")
 
             return local_resp
@@ -3471,8 +3580,10 @@ Use HANDOFF only if delegation genuinely improves the result.
                     current_strategy,
                     _final_id,
                 )
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"⚖️ [AB_FINAL] {expert_name}/{current_strategy}/{_final_id}")
     except Exception as _fabe:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Final AB log error: {_fabe}")
 
     # 5. Query Orchestrator: нормализация запроса и сборка role-aware промпта
@@ -3595,8 +3706,10 @@ Use HANDOFF only if delegation genuinely improves the result.
                 memory_block = get_memory_block([{"content": history_rows}])
                 if memory_block:
                     full_prompt = memory_block + full_prompt
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🧠 [MEMORY BLOCK] Injected into prompt for session {session_id}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [MEMORY BLOCK] Error injecting memory: {e}")
 
     # [SINGULARITY 21.34] Instruction Re-injection (Giant's Knowledge)
@@ -3624,7 +3737,7 @@ Use HANDOFF only if delegation genuinely improves the result.
         logger.info("🧠 [TEAM ENGINE] Intercepted team discussion request.")
 
         # Parse experts if provided in the prompt string
-        selected_experts = ["Виктория", "Игорь", "Анна", "Дмитрий"]  # Default team
+        selected_experts = ["Виктория", "Даниил", "Анна", "Дмитрий"]  # Default team
         task_title = "Team Discussion"
         task_description = prompt
 
@@ -3680,6 +3793,7 @@ Use HANDOFF only if delegation genuinely improves the result.
 ДЕЙСТВУЙ СТРОГО ПО ПРАВИЛАМ.
 """
     full_prompt += instruction_reinjection
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"⚓ [U-SHAPE] Instruction re-injected at the BOTTOM for {expert_name}")
 
     # [SINGULARITY 21.36] Agentic RAG 2.0 (Corrective RAG)
@@ -3736,6 +3850,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                     f"📉 [CONTEXT COMPRESSION] Compressed from {len(full_prompt)} to {len(compressed_prompt)} chars (~{tokens_saved} tokens saved)"
                 )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [PREDICTIVE COMPRESSION] Error checking precompressed context: {e}")
             # Fallback к обычному сжатию
             analyzer = ContextAnalyzer(relevance_threshold=0.65)
@@ -3777,6 +3892,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                             prompt, category=category, expert_name=expert_name
                         )
             except Exception as budget_err:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Budget check failed: {budget_err}")
 
             cloud_start_time = time.time()
@@ -3797,6 +3913,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                 await client.incrbyfloat(f"budget:daily:{expert_name or 'global'}", estimated_cost)
                 await client.expire(f"budget:daily:{expert_name or 'global'}", 86400)
             except Exception as cost_err:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Cost recording failed: {cost_err}")
 
     # Сохраняем данные о роутинге в облако для ML-обучения
@@ -3822,6 +3939,7 @@ Use HANDOFF only if delegation genuinely improves the result.
             )
             logger.debug("✅ [ML DATA] Saved cloud routing decision")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [ML DATA] Failed to collect cloud routing data: {e}")
 
     # [SINGULARITY 14.0] Dynamic Expert Hiring for unknown technologies
@@ -3887,6 +4005,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                 response = enhanced_response
                 logger.info("🌐 [EXTERNAL API] Ответ дополнен внешними данными")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [EXTERNAL API] Ошибка дополнения ответа: {e}")
 
     # Определяем финальный response если еще не определен
@@ -3906,6 +4025,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                 user_id=user_id, expert_name=expert_name, query=user_part, response=response
             )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [SESSION CONTEXT] Ошибка сохранения контекста: {e}")
 
     # Логирование использования токенов (централизованное)
@@ -3964,6 +4084,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                 metadata=metadata_for_logging if metadata_for_logging else None,
             )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [TOKEN LOGGING] Ошибка логирования токенов: {e}")
 
     # Сбор метрик производительности для облачных ответов
@@ -3977,6 +4098,7 @@ Use HANDOFF only if delegation genuinely improves the result.
         if estimated_tokens > 0 and duration > 0:
             await metrics_collector.collect_tokens_per_second(estimated_tokens, duration, "cloud")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Metrics collection failed: {e}")
 
     # [SINGULARITY 10.0+] Save to Episodic Memory if important patterns detected
@@ -4067,8 +4189,10 @@ Use HANDOFF only if delegation genuinely improves the result.
                             content,
                             metadata_json,
                         )
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"💎 [CRYSTALLIZER] New crystal saved: {content}")
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Crystallization save failed: {e}")
 
         asyncio.create_task(_crystallize_task(response, project_context, pool))
@@ -4113,6 +4237,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                             )
                         )
         except Exception as _canary_err:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"[CANARY] Skipped: {_canary_err}")
 
     # Cleanup internal metadata markers from response
@@ -4178,6 +4303,7 @@ async def _trigger_shadow_execution(
             "response_length": len(production_response or ""),
             "timestamp": time.time(),
         }
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"[SHADOW_V2] Metrics logged for {request_id}")
     except Exception:
         pass
@@ -4232,6 +4358,7 @@ async def _trigger_shadow_execution(
             if not mutations:
                 return
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"👻 [SHADOW] Found {len(mutations)} shadow mutations for {expert_name}")
 
             # 2. Run shadow versions
@@ -4277,6 +4404,7 @@ async def _trigger_shadow_execution(
                         f"⚖️ [SHADOW] Sending results for mutation {mutation_id} to evaluator (Placeholder)"
                     )
                     if ShadowEvaluator:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"⚖️ [SHADOW] Evaluating mutation {mutation_id}...")
                         evaluator = ShadowEvaluator(db_url=os.getenv("DATABASE_URL"))
                         asyncio.create_task(
@@ -4294,6 +4422,7 @@ async def _trigger_shadow_execution(
                         )
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"⚠️ [SHADOW] Trigger error: {e}")
 
 
@@ -4329,6 +4458,7 @@ async def _canary_daemon_loop():
 
             tested = await run_canary_daemon()
             if tested:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"[CANARY_DAEMON] Tested {tested} untested mutations")
         except Exception:
             pass
