@@ -612,6 +612,13 @@ async def _deferred_metrics_prometheus() -> str:
                 "true",
             )
             lines.append(f"knowledge_os_tasks_deferred_to_human_total {int(deferred_count or 0)}")
+            recent_deferred = await conn.fetchval(
+                """SELECT COUNT(*) FROM tasks
+                   WHERE status = 'completed'
+                     AND (metadata->>'deferred_to_human') = 'true'
+                     AND updated_at > NOW() - INTERVAL '24 hours'"""
+            )
+            lines.append(f"knowledge_os_tasks_deferred_new_24h_total {int(recent_deferred or 0)}")
             rows = await conn.fetch(
                 """SELECT metadata->>'last_error' as err FROM tasks
                    WHERE status = 'completed' AND (metadata->>'deferred_to_human') = 'true'

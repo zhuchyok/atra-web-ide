@@ -1,0 +1,21 @@
+# Telegram contact point для Grafana срабатывающих алертов.
+# Отправляет в чат пользователя черезExisting бот (TELEGRAM_BOT_TOKEN из .env).
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: telegram
+    receivers:
+      - uid: telegram-receiver
+        type: telegram
+        disableResolveMessage: false
+        settings:
+          bottoken: ${GRAFANA_TELEGRAM_BOT_TOKEN}
+          chatid: "556251171"
+
+policies:
+  - orgId: 1
+    receiver: telegram
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h

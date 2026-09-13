@@ -32,8 +32,15 @@ def dedicated_stream_for_expert(expert_name: Optional[str]) -> str:
 
 
 def dispatch_stream_for_expert(expert_name: Optional[str]) -> str:
+    # [FIX] Overflow experts (Инна, Юлия) listen on OVERFLOW stream, not dedicated.
+    if is_overflow_expert(expert_name):
+        return OVERFLOW_EXPERT_STREAM
+    # [FIX] Experts without dedicated workers go to overflow stream.
+    # Without this, tasks for 83 experts were orphaned in dedicated streams with 0 consumers.
     if is_dedicated_routing_enabled() and normalize_expert_name(expert_name):
-        return dedicated_stream_for_expert(expert_name)
+        if has_dedicated_worker(expert_name):
+            return dedicated_stream_for_expert(expert_name)
+        return OVERFLOW_EXPERT_STREAM
     return SHARED_EXPERT_STREAM
 
 
@@ -44,6 +51,15 @@ def is_overflow_expert(expert_name: Optional[str]) -> bool:
     overflow_names = {normalize_expert_name(n).lower() for n in
                      os.getenv("EXPERT_OVERFLOW_NAMES", "Инна,Юлия").split(",")}
     return name in overflow_names
+
+
+def has_dedicated_worker(expert_name: Optional[str]) -> bool:
+    """Check if expert has a dedicated worker container (anna-1, victoria-1, heavy-1).
+    Experts without dedicated workers should go to overflow stream, not orphaned dedicated streams."""
+    name = normalize_expert_name(expert_name)
+    dedicated_workers = {normalize_expert_name(n) for n in
+                        os.getenv("EXPERT_DEDICATED_WORKERS", "Анна,Виктория,heavy").split(",")}
+    return name in dedicated_workers
 
 
 def resolve_push_stream(stream_name: str, data: Dict[str, Any]) -> str:

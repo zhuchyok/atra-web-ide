@@ -44,6 +44,13 @@ scrape_configs:
     metrics_path: "/metrics"
     scrape_interval: 30s
 
+  # Knowledge REST API: deferred_to_human очередь (алерт deferred-to-human-high)
+  - job_name: "knowledge-rest"
+    static_configs:
+      - targets: ["knowledge_rest:8002"]
+    metrics_path: "/metrics"
+    scrape_interval: 30s
+
   - job_name: "prometheus"
     static_configs:
       - targets: ["localhost:9090"]

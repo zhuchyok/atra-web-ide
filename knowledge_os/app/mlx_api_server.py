@@ -98,6 +98,7 @@ logging.basicConfig(
     handlers=[logging.FileHandler(log_file, encoding="utf-8"), logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger(__name__)
+# TODO: Convert f-string to %s formatting for performance
 logger.info(f"📝 Логирование MLX API Server: {log_file}")
 
 # Импорт psutil с обработкой ошибок (после инициализации logger)
@@ -220,7 +221,7 @@ _cache_cleanup_interval_sec = int(os.getenv("MLX_CACHE_CLEANUP_INTERVAL_SEC", "6
 # Модели для предзагрузки при старте (можно изменить через MLX_PRELOAD_MODELS)
 # По умолчанию: victoria-wisdom-v3.5, phi3.5, qwen2.5
 _HEAVY_KEYS_NO_PRELOAD = set()  # Разрешаем предзагрузку всех указанных моделей
-_preload_models_env = os.getenv("MLX_PRELOAD_MODELS", "victoria-wisdom-v3.5,fast,qwen_3b")
+_preload_models_env = os.getenv("MLX_PRELOAD_MODELS", "victoria-wisdom-24k,fast,qwen_3b")
 _preload_models = [m.strip() for m in _preload_models_env.split(",") if m.strip()]
 
 # Конфигурация моделей (пути к MLX моделям)
@@ -236,6 +237,7 @@ MODEL_PATHS = {
     "phi3.5:3.8b": os.path.join(MLX_BASE, "phi3.5-mini-4k"),
     "phi3.5-mini-4k": os.path.join(MLX_BASE, "phi3.5-mini-4k"),
     "victoria-wisdom-v3.5": os.path.join(MLX_BASE, "qwen3.6-35b-a3b-text-qx64-mlx"),
+    "victoria-wisdom-24k": os.path.join(MLX_BASE, "qwen3.6-35b-a3b-text-qx64-mlx"),
 }
 
 # Можно также использовать переменную окружения
@@ -257,17 +259,17 @@ _MLX_ONLY_LIGHT = os.getenv("MLX_ONLY_LIGHT", "true").lower() == "true"
 _VICTORIA_MLX_BRAIN = os.getenv("VICTORIA_MLX_BRAIN", "false").lower() == "true"
 if _VICTORIA_MLX_BRAIN:
     CATEGORY_TO_MODEL = {
-        "reasoning": "victoria-wisdom-v3.5",
-        "coding": "victoria-wisdom-v3.5",
-        "code": "victoria-wisdom-v3.5",
+        "reasoning": "victoria-wisdom-24k",
+        "coding": "victoria-wisdom-24k",
+        "code": "victoria-wisdom-24k",
         "fast": "fast",
         "tiny": "tiny",
-        "default": "victoria-wisdom-v3.5",
+        "default": "victoria-wisdom-24k",
     }
     # Respect env override to keep memory profile controllable in production.
     _preload_models = [
         m.strip() for m in os.getenv("MLX_PRELOAD_MODELS", "").split(",") if m.strip()
-    ] or ["victoria-wisdom-v3.5", "fast"]
+    ] or ["victoria-wisdom-24k", "fast"]
 elif _MLX_ONLY_LIGHT:
     CATEGORY_TO_MODEL = {
         "reasoning": "fast",
@@ -289,6 +291,7 @@ PRELOAD_MODEL_MAP = {
     "fast": "phi3.5:3.8b",
     "coding": "phi3.5:3.8b",
     "victoria-wisdom-v3.5": "victoria-wisdom-v3.5",
+    "victoria-wisdom-24k": "victoria-wisdom-24k",
 }
 
 # Маппинг имён моделей (Ollama-формат) в MLX; 70B/104B и 32B убраны — только лёгкие
@@ -299,6 +302,8 @@ OLLAMA_TO_MLX_MAP = {
     "tinyllama:1.1b-chat": "tinyllama:1.1b-chat",
     "victoria-wisdom-v3.5:latest": "victoria-wisdom-v3.5",
     "victoria-wisdom-v3.5": "victoria-wisdom-v3.5",
+    "victoria-wisdom-24k:latest": "victoria-wisdom-24k",
+    "victoria-wisdom-24k": "victoria-wisdom-24k",
 }
 
 # Оценки времени по моделям (только лёгкие в MLX). Fallback по размеру в имени — в _get_estimates_for_model.
@@ -313,6 +318,7 @@ MODEL_TIME_ESTIMATES = {
     "tiny": {"load_sec": 10, "inference_sec_per_1k": 5, "margin_sec": 120},
     # Qwen3.5-35B-A3B mxfp4: 3B active params → fast inference, 17GB model load ~45s
     "victoria-wisdom-v3.5": {"load_sec": 45, "inference_sec_per_1k": 15, "margin_sec": 200},
+    "victoria-wisdom-24k": {"load_sec": 45, "inference_sec_per_1k": 15, "margin_sec": 200},
     "qwen3.5:35b": {"load_sec": 120, "inference_sec_per_1k": 60, "margin_sec": 300},
     "deepseek-r1:32b": {"load_sec": 120, "inference_sec_per_1k": 60, "margin_sec": 300},
 }
@@ -433,6 +439,7 @@ def check_memory() -> Dict[str, float]:
             "available_percent": memory.available / memory.total,
         }
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ Ошибка проверки памяти: {e}")
         return {"used_percent": 0.0, "available_percent": 1.0, "total_gb": 0.0, "available_gb": 0.0}
 
@@ -479,6 +486,7 @@ def evict_lru_to_limit(keep_max: int):
                 continue
         del _models_cache[key]
         evicted += 1
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🗑️ LRU выгрузка модели {key} (лимит кэша {keep_max})")
     if evicted:
         gc.collect()
@@ -502,6 +510,7 @@ def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
     keep_count = max(keep_count, target_keep)
 
     if memory_info["used_percent"] > _memory_critical_threshold or aggressive:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"🚨 Критическая нехватка памяти: {memory_info['used_percent'] * 100:.1f}%")
 
         # Проверяем, какие модели используются прямо сейчас
@@ -518,6 +527,7 @@ def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
         try:
             cache_keys = list(_models_cache.keys())
         except (RuntimeError, AttributeError) as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Ошибка при получении ключей кэша: {e}")
             cache_keys = []
 
@@ -532,6 +542,7 @@ def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
                     if time_since_use < 30:  # Защищаем модели, использованные в последние 30 секунд
                         protected_models.add(key)
             except (KeyError, AttributeError, TypeError) as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка при проверке модели {key}: {e}, пропускаем")
                 continue
 
@@ -565,8 +576,10 @@ def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
                     # КРИТИЧНО: Проверяем, что модель все еще в кэше перед удалением
                     if key in _models_cache:
                         del _models_cache[key]
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"🗑️ Модель {key} выгружена из памяти (экстренная очистка)")
                 except (KeyError, RuntimeError) as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ Ошибка при выгрузке модели {key}: {e}, пропускаем")
                     continue
         elif len(_models_cache) > keep_count:
@@ -576,6 +589,7 @@ def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
             try:
                 cache_items = list(_models_cache.items())
             except (RuntimeError, AttributeError) as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка при получении items кэша: {e}")
                 cache_items = []
 
@@ -619,8 +633,10 @@ def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
                         use_count = model_data.get("use_count", 0)
                         use_info = f" (использована {use_count} раз)" if use_count > 0 else ""
                         del _models_cache[key]
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"🗑️ Модель {key} выгружена из памяти{use_info}")
                 except (KeyError, RuntimeError) as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ Ошибка при выгрузке модели {key}: {e}, пропускаем")
                     continue
 
@@ -659,12 +675,14 @@ def get_model(model_key: str):
         if model_key in _models_cache:
             _models_cache[model_key]["last_used"] = datetime.now()
             _models_cache[model_key]["use_count"] = _models_cache[model_key].get("use_count", 0) + 1
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"📦 Модель {model_key} появилась в кэше пока ждали блокировку")
             return _models_cache[model_key]
 
         # Проверяем, не загружается ли модель уже другим запросом
         if model_key in _loading_models:
             # Модель уже загружается другим запросом - ждем
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⏳ Модель {model_key} уже загружается другим запросом, ожидание...")
             # Освобождаем блокировку и ждем
             max_wait = 60  # Максимум 60 секунд ожидания
@@ -727,6 +745,7 @@ def get_model(model_key: str):
                         _models_cache[model_key]["use_count"] = (
                             _models_cache[model_key].get("use_count", 0) + 1
                         )
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"✅ Модель {model_key} появилась в кэше пока ждали")
                         return _models_cache[model_key]
                     # Обновляем счетчик активных генераций других моделей
@@ -763,6 +782,7 @@ def get_model(model_key: str):
                 model_path = os.path.join(MLX_MODELS_DIR, model_key)
 
             if not model_path or not os.path.exists(model_path):
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Модель {model_key} не найдена по пути {model_path}")
                 raise ValueError(f"Model {model_key} not found at {model_path}")
 
@@ -813,9 +833,11 @@ def get_model(model_key: str):
                 "load_time_seconds": load_duration,
             }
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Модель загружена: {model_key} (загрузка заняла {load_duration:.2f}с)")
             return _models_cache[model_key]
         except MemoryError as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Нехватка памяти при загрузке модели {model_key}: {e}")
             # Экстренная очистка при MemoryError
             cleanup_unused_models(aggressive=True)
@@ -825,6 +847,7 @@ def get_model(model_key: str):
                 detail=f"Insufficient memory to load model: {str(e)}. Memory usage: {memory_info['used_percent'] * 100:.1f}%",
             )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка при получении модели {model_key}: {e}", exc_info=True)
             raise
         finally:
@@ -850,6 +873,7 @@ async def rate_limit_middleware(request: Request, call_next):
 
         # Проверка лимита
         if len(_request_times[client_ip]) >= _rate_limit_max:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Rate limit превышен для {client_ip}")
             return JSONResponse(
                 status_code=429,
@@ -885,6 +909,7 @@ async def rate_limit_middleware(request: Request, call_next):
 
     try:
         await asyncio.wait_for(target_semaphore.acquire(), timeout=queue_wait)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ [SEMAPHORE] {'VIP ' if is_vip else ''}slot acquired")
     except asyncio.TimeoutError:
         logger.warning(
@@ -903,10 +928,12 @@ async def rate_limit_middleware(request: Request, call_next):
         return response
     except RuntimeError as e:
         if "Unexpected message received: http.request" in str(e):
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"📡 [NETWORK] Сетевой обрыв во время запроса: {e}")
             return JSONResponse(status_code=499, content={"error": "Client closed connection"})
         raise
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ [MIDDLEWARE ERROR] {type(e).__name__}: {e}")
         raise
     finally:
@@ -963,6 +990,7 @@ async def list_models():
             ]
         }
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка получения списка моделей: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to list models: {str(e)}")
 
@@ -994,6 +1022,7 @@ async def list_running_models():
             )
         return {"models": running_models}
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка получения списка активных моделей: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to list running models: {str(e)}")
 
@@ -1079,6 +1108,7 @@ async def generate_text(request: GenerateRequest, http_request: Request):
                 detail=f"Request timeout while waiting in queue (limit {timeout_estimate:.0f}s for this model)",
             )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка выполнения запроса {request_id}: {e}")
             raise
 
@@ -1181,7 +1211,7 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
         # Using MODEL_TIME_ESTIMATES['default'] (margin=120) gives 151s timeout —
         # not enough for 35B generation. Must use actual model's estimates.
         if model_key == "default" and _VICTORIA_MLX_BRAIN:
-            model_key = CATEGORY_TO_MODEL.get("default", "victoria-wisdom-v3.5")
+            model_key = CATEGORY_TO_MODEL.get("default", "victoria-wisdom-24k")
 
         # [SINGULARITY 22.2] Speculative Decoding (35B + 1B)
         # Если используется тяжелая модель (например, Qwen-35B),
@@ -1196,6 +1226,7 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
             "reasoning",
             "coding",
             "qwen-35b",
+            "victoria-wisdom-24k",
             "victoria-wisdom-v3.5",
         ):
             try:
@@ -1205,6 +1236,7 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
                     f"🚀 [SINGULARITY 22.2] Speculative Decoding enabled for {model_key} using phi3.5:3.8b"
                 )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"⚠️ [SINGULARITY 22.2] Failed to load draft model: {e}")
 
         # Отмечаем, что модель используется (защита от выгрузки)
@@ -1218,6 +1250,7 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
                 model = model_data["model"]
                 tokenizer = model_data["tokenizer"]
             except (MemoryError, RuntimeError) as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка загрузки модели {model_key}: {e}")
                 raise HTTPException(status_code=503, detail=f"Model loading failed: {str(e)}")
 
@@ -1297,6 +1330,7 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
                         detail=f"Generation timeout (limit {gen_timeout:.0f}s for this model and max_tokens)",
                     )
                 except MemoryError as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ Нехватка памяти при генерации: {e}")
                     # Экстренная очистка при MemoryError
                     cleanup_unused_models(aggressive=True)
@@ -1308,11 +1342,13 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
         except HTTPException:
             raise
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка при работе с моделью {model_key}: {e}", exc_info=True)
             raise
     except HTTPException:
         raise
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка генерации: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
     finally:
@@ -1392,6 +1428,27 @@ async def get_model_info(model_name: str):
     }
 
 
+@app.get("/v1/models")
+async def list_models_v1():
+    """OpenAI-compatible /v1/models endpoint"""
+    models = []
+    for name, path in MODEL_PATHS.items():
+        exists = os.path.exists(path)
+        models.append({
+            "id": name,
+            "object": "model",
+            "created": 1686935002,
+            "owned_by": "local",
+            "permission": [],
+            "root": name,
+            "parent": None,
+        })
+    return {
+        "object": "list",
+        "data": models,
+    }
+
+
 @app.get("/queue/stats")
 async def queue_stats():
     """Статистика очереди запросов"""
@@ -1456,6 +1513,7 @@ async def anthropic_messages(request: AnthropicMessagesRequest):
                     yield f"data: {json.dumps({'type': 'message_delta', 'delta': {'stop_reason': 'end_turn'}})}\n\n"
                     yield f"data: {json.dumps({'type': 'message_stop'})}\n\n"
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ Ошибка streaming генерации: {e}", exc_info=True)
                     yield f"data: {json.dumps({'type': 'error', 'error': {'message': str(e)}})}\n\n"
 
@@ -1483,6 +1541,7 @@ async def anthropic_messages(request: AnthropicMessagesRequest):
     except HTTPException:
         raise
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка Anthropic API: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Anthropic API error: {str(e)}")
 
@@ -1503,7 +1562,7 @@ async def health_check():
 
         is_healthy = (
             memory_info["used_percent"] < _memory_critical_threshold
-            and _active_requests < _max_concurrent_requests
+            and _active_requests <= _max_concurrent_requests
         )
 
         # Определяем статус
@@ -1518,7 +1577,7 @@ async def health_check():
         warnings = []
         if memory_info["used_percent"] > _memory_warning_threshold:
             warnings.append(f"High memory usage: {memory_info['used_percent'] * 100:.1f}%")
-        if _active_requests >= _max_concurrent_requests:
+        if _active_requests > _max_concurrent_requests:
             warnings.append(
                 f"Too many concurrent requests: {_active_requests}/{_max_concurrent_requests}"
             )
@@ -1558,6 +1617,7 @@ async def health_check():
             "timestamp": datetime.now().isoformat(),
         }
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка health check: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
 
@@ -1573,6 +1633,7 @@ async def periodic_cache_cleanup():
         except asyncio.CancelledError:
             break
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Ошибка в периодической очистке кэша: {e}")
 
 
@@ -1585,6 +1646,7 @@ async def preload_models():
     # [SINGULARITY 21.3] Cold Boot Loader for God Mode
     is_cold_boot = os.getenv("MLX_COLD_BOOT", "false").lower() == "true"
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"🔄 Предзагрузка моделей: {_preload_models} (Cold Boot: {is_cold_boot})")
 
     # Проверяем память перед предзагрузкой
@@ -1604,11 +1666,13 @@ async def preload_models():
 
         # Пропускаем, если модель уже в кэше
         if actual_model in _models_cache:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Модель {actual_model} уже в кэше, пропускаем")
             preloaded.append(actual_model)
             continue
 
         try:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔄 Предзагрузка модели: {actual_model}...")
             start_time = time.time()
 
@@ -1616,6 +1680,7 @@ async def preload_models():
             model_data = get_model(actual_model)
 
             duration = time.time() - start_time
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Модель {actual_model} предзагружена за {duration:.2f}с")
             preloaded.append(actual_model)
 
@@ -1631,12 +1696,15 @@ async def preload_models():
                 break
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка предзагрузки модели {actual_model}: {e}")
             failed.append(actual_model)
 
     if preloaded:
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Предзагружено моделей: {len(preloaded)} ({', '.join(preloaded)})")
     if failed:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ Не удалось предзагрузить: {len(failed)} ({', '.join(failed)})")
 
     # Финальная проверка памяти
@@ -1668,6 +1736,7 @@ if __name__ == "__main__":
         PORT = int(os.getenv("MLX_API_PORT", 11435))
         WORKERS = int(os.getenv("MLX_API_WORKERS", 1))  # MLX не поддерживает multiprocessing
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 Запуск MLX API Server на порту {PORT} (workers: {WORKERS})")
         logger.info(
             f"📊 Лимиты: {_max_concurrent_requests} параллельных запросов, {_rate_limit_max} запросов/{_rate_limit_window}с"
@@ -1690,5 +1759,6 @@ if __name__ == "__main__":
         _models_cache.clear()
         sys.exit(0)
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Критическая ошибка запуска сервера: {e}", exc_info=True)
         sys.exit(1)
