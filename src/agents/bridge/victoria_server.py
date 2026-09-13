@@ -2886,7 +2886,7 @@ class VictoriaAgent(BaseAgent):
         prompt = f"""{context_block}Запрос пользователя: {raw_goal[:500]}
 
 Задача: переформулировать в одно ясное предложение для исполнителя и указать категорию.
-Доступные инструменты исполнителя: только finish, read_file, list_directory, run_terminal_cmd, ssh_run.
+Доступные инструменты исполнителя: finish, read_file, list_directory, run_terminal_cmd, ssh_run, web_search (актуальные данные из интернета), write_file.
 Ответь СТРОГО одним JSON (без текста до/после):
 {{"restated": "одно предложение: что сделать", "category": "simple|investigate|multi_step", "first_step": "конкретный первый шаг, например: list_directory в frontend, или пустая строка"}}
 
@@ -4253,6 +4253,23 @@ def _is_explicit_concrete_goal(goal: str) -> bool:
     return bool(g) and any(ind in g for ind in _EXPLICIT_CONCRETE_TASK_INDICATORS)
 
 
+_EXPLICIT_TOOL_DIRECTIVES = (
+    "web_search",
+    "поищи в интернете",
+    "найди в интернете",
+    "поиск в интернете",
+    "последние новости",
+    "гугли",
+    "гуглить",
+)
+
+
+def _has_explicit_tool_directive(goal: str) -> bool:
+    """Пользователь явно требует сетевой tool (web_search/'найди в интернете') — уточнения не нужны."""
+    g = (goal or "").lower()
+    return bool(g) and any(d in g for d in _EXPLICIT_TOOL_DIRECTIVES)
+
+
 async def _select_strategy(
     agent: "VictoriaAgent",
     goal: str,
@@ -4320,6 +4337,13 @@ async def _select_strategy(
     strategy_timeout = float(os.getenv("STRATEGY_CALL_TIMEOUT_SEC", "30"))
 
     # Быстрый fallback для задач с явными файлами/инструментами
+    if _has_explicit_tool_directive(goal):
+        logger.info("🟢 [STRATEGY] Explicit tool directive, skipping LLM classifier: %s", goal[:50])
+        return {
+            "strategy": "deep_analysis",
+            "reason": "явная задача с файлом/инструментом",
+            "confidence": 0.9,
+        }
     goal_lower_check = goal.lower()
     is_concrete_task = _is_explicit_concrete_goal(goal)
     if is_concrete_task:
