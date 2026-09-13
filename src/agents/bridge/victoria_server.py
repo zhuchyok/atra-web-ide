@@ -836,7 +836,7 @@ from src.agents.bridge.task_detector import (
 )
 from src.agents.core.base_agent import AtraBaseAgent as BaseAgent
 from src.agents.core.executor import OllamaExecutor, _ollama_base_url
-from src.agents.tools.system_tools import SystemTools, WebTools
+from src.agents.tools.system_tools import SystemTools, WebTools, DataTools, GitTools
 
 
 def _parse_pattern_list_env(name: str) -> Tuple[str, ...]:
@@ -1885,6 +1885,10 @@ class VictoriaAgent(BaseAgent):
         self.add_tool("ssh_run", SystemTools.run_ssh_command)
         self.add_tool("list_directory", SystemTools.list_directory)
         self.add_tool("web_search", WebTools.web_search)
+        self.add_tool("db_query", DataTools.db_query)
+        self.add_tool("git_status", GitTools.git_status)
+        self.add_tool("git_diff", GitTools.git_diff)
+        self.add_tool("git_log", GitTools.git_log)
 
         # Интеграция с Knowledge OS (опционально)
         self.db_pool = None
@@ -2886,7 +2890,7 @@ class VictoriaAgent(BaseAgent):
         prompt = f"""{context_block}Запрос пользователя: {raw_goal[:500]}
 
 Задача: переформулировать в одно ясное предложение для исполнителя и указать категорию.
-Доступные инструменты исполнителя: finish, read_file, list_directory, run_terminal_cmd, ssh_run, web_search (актуальные данные из интернета), write_file.
+Доступные инструменты исполнителя: finish, read_file, list_directory, run_terminal_cmd, ssh_run, web_search (актуальные данные из интернета), write_file, db_query (read-only SQL к базе знаний), git_status/git_diff/git_log (история репозитория).
 Ответь СТРОГО одним JSON (без текста до/после):
 {{"restated": "одно предложение: что сделать", "category": "simple|investigate|multi_step", "first_step": "конкретный первый шаг, например: list_directory в frontend, или пустая строка"}}
 

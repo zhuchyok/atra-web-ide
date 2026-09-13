@@ -36,8 +36,12 @@ class SystemTools:
         if os.path.exists(requested):
             return requested
 
-        host_workspace = os.getenv("ATRA_HOST_WORKSPACE", "/Users/bikos/Documents/atra-web-ide").rstrip("/")
-        container_workspace = os.getenv("ATRA_CONTAINER_WORKSPACE", "/workspace/atra-web-ide").rstrip("/")
+        host_workspace = os.getenv(
+            "ATRA_HOST_WORKSPACE", "/Users/bikos/Documents/atra-web-ide"
+        ).rstrip("/")
+        container_workspace = os.getenv(
+            "ATRA_CONTAINER_WORKSPACE", "/workspace/atra-web-ide"
+        ).rstrip("/")
 
         if host_workspace and requested.startswith(host_workspace):
             suffix = requested[len(host_workspace) :].lstrip("/")
@@ -115,6 +119,27 @@ class SystemTools:
             return "Error: Command timed out (30s)"
         except Exception as e:
             return f"Exception: {str(e)}"
+
+    @staticmethod
+    async def write_file(file_path: str, content: str) -> str:
+        """Создать/перезаписать файл. Путь реальный относительно корня проекта."""
+        if not file_path or not content:
+            return "Error: file_path and content are required"
+
+        resolved_path = SystemTools._resolve_workspace_path(file_path)
+
+        # Создаём директории если нужно
+        dir_name = os.path.dirname(resolved_path)
+        if dir_name:
+            os.makedirs(dir_name, exist_ok=True)
+
+        try:
+            with open(resolved_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            logger.info("📝 [WRITE_FILE] %s (%d chars)", resolved_path, len(content))
+            return f"OK: File written: {resolved_path} ({len(content)} chars)"
+        except Exception as e:
+            return f"Error writing {resolved_path}: {str(e)}"
 
     @staticmethod
     async def run_ssh_command(
@@ -379,3 +404,116 @@ class WebTools:
                 return f"❌ Browser Task Failed: {result.get('message', 'Unknown error')}"
         except Exception as e:
             return f"Browser Error: {str(e)}"
+
+
+class DataTools:
+    """Read-only инструменты данных: SQL и Git. Безопасность по умолчанию."""
+
+    _SQL_WRITE_PATTERNS = re.compile(
+        r"\b(insert|update|delete|drop|alter|truncate|vacuum|reindex|copy|create)\b",
+        re.IGNORECASE,
+    )
+
+    @staticmethod
+    def _validate_readonly_sql(sql: str) -> Optional[str]:
+        q = (sql or "").strip()
+        first = q.split()[0].lower() if q.split() else ""
+        if first not in ("select", "with", "explain", "show", "table"):
+            return f"❌ db_query: только SELECT/WITH/EXPLAIN. Запрещено: {sql[:80]}"
+        if DataTools._SQL_WRITE_PATTERNS.search(q.replace("--", "").replace("/*", "")):
+            return f"❌ db_query: DDL/DML запрещены в чтении. Запрос: {sql[:80]}"
+        for kw in ("pg_sleep", "pg_read_file", "lo_import", "dblink"):
+            if kw in q.lower():
+                return f"❌ db_query: функция {kw} запрещена"
+        return None
+
+    @staticmethod
+    async def db_query(sql: str = "", query: str = "") -> str:
+        """Read-only SQL к knowledge_os (DATABASE_URL). Только SELECT/WITH/EXPLAIN."""
+        import asyncpg
+
+        q = (sql or query or "").strip()
+        if not q:
+            return "Ошибка: пустой SQL"
+        err = DataTools._validate_readonly_sql(q)
+        if err:
+            return err
+        dsn = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_DIRECT_URL")
+        if not dsn:
+            return "Ошибка: DATABASE_URL не задан"
+        try:
+            conn = await asyncpg.connect(dsn, timeout=8)
+            try:
+                rows = await asyncio_wait_or(conn.fetch(q), timeout=10)
+            finally:
+                await conn.close()
+            if not rows:
+                return "OK: 0 строк"
+            if not isinstance(rows, list):
+                return str(rows)[:MAX_DB_CHARS]
+            cols = list(rows[0].keys()) if rows else []
+            head = " | ".join(cols)
+            lines = [head, "-" * min(len(head), 120)]
+            for r in rows[
+                : int(os.getenv("DB_QUERY_MAX_ROWS", "25"))
+            ]:
+                lines.append(
+                    " | ".join(
+                        (str(r[c])[:60]).replace("\n", " ")[:MAX_CELL_CHARS] for c in cols
+                    )
+                )
+            text = "\n".join(lines)
+            suffix = "" if len(rows) <= int(os.getenv("DB_QUERY_MAX_ROWS", "25")) else "\n… (обрезано)"
+            return text[:MAX_DB_CHARS] + suffix
+        except Exception as e:
+            return f"db_query error: {str(e)[:200]}"
+
+
+class GitTools:
+    """Базовые read-only git-инструменты (только чтение истории/статуса)."""
+
+    @staticmethod
+    def _resolve_repo() -> str:
+        return os.getenv("WORKSPACE_ROOT") or os.getenv("PROJECT_ROOT") or os.getcwd()
+
+    @staticmethod
+    async def git_status() -> str:
+        result = subprocess.run(
+            ["git", "-C", GitTools._resolve_repo(), "status", "--short"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        out = (result.stdout or result.stderr or "").strip()
+        return out[:MAX_DB_CHARS] or "(чисто)"
+
+    @staticmethod
+    async def git_diff(file_path: str = "") -> str:
+        cmd = ["git", "-C", GitTools._resolve_repo(), "diff", "--stat"]
+        if file_path:
+            cmd.append(file_path)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        out = (result.stdout or result.stderr or "").strip()
+        return out[:MAX_DB_CHARS] or "(нет изменений)"
+
+    @staticmethod
+    async def git_log(count: int = 10) -> str:
+        n = max(1, min(int(count or 10), 50))
+        result = subprocess.run(
+            ["git", "-C", GitTools._resolve_repo(), "log", "--oneline", f"-{n}"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        out = (result.stdout or result.stderr or "").strip()
+        return out[:MAX_DB_CHARS]
+
+
+MAX_DB_CHARS = int(os.getenv("DATA_TOOL_MAX_CHARS", "4000"))
+MAX_CELL_CHARS = int(os.getenv("DATA_TOOL_MAX_CELL_CHARS", "60"))
+
+
+async def asyncio_wait_or(coro, timeout: float = 10.0):
+    import asyncio
+
+    return await asyncio.wait_for(coro, timeout=timeout)
