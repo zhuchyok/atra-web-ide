@@ -3851,6 +3851,45 @@ def _strip_internal_monologue(text: str) -> str:
     return s
 
 
+async def _run_quick_tools_for_goal(goal: str) -> list:
+    """[QUICK-TOOLS] Исполняет тула по явным директивам (db_query/git/web_search) и возвращает блоки."""
+    blocks = []
+    directive_map = {
+        "db_query": (DataTools.db_query, r"db_query"),
+        "git_log": (GitTools.git_log, r"git_log"),
+        "git_status": (GitTools.git_status, r"git_status"),
+        "git_diff": (GitTools.git_diff, r"git_diff"),
+        "web_search": (WebTools.web_search, r"web_search|найди в интернете|поищи в интернете|последние новости"),
+    }
+    g_lower = (goal or "").lower()
+    if not _has_explicit_tool_directive(goal):
+        return blocks
+    for tool_name, (fn, pattern) in directive_map.items():
+        if not re.search(pattern, g_lower):
+            continue
+        arg: Any = goal
+        if tool_name == "db_query":
+            m = re.search(r"(SELECT|WITH|EXPLAIN)[^;]{0,600}", goal, re.IGNORECASE)
+            arg = m.group(0) if m else ""
+        elif tool_name == "git_log":
+            m = re.search(r"(\d+)\s*(?:коммит|commit)", g_lower)
+            arg = int(m.group(1)) if m else 5
+        elif tool_name == "git_diff":
+            m = re.search(r"([\w/.\-]+\.\w+)", goal)
+            arg = m.group(1) if m else ""
+        elif tool_name == "web_search":
+            m = re.search(
+                r"(?:web_search|интернет[ау]?|news)[:\s]+(.{5,200})", goal, re.IGNORECASE
+            )
+            arg = (m.group(1) if m else goal)[:200]
+        try:
+            res = await asyncio.wait_for(fn(arg), timeout=25)
+        except Exception as tool_err:
+            res = f"{tool_name} error: {tool_err}"
+        blocks.append(f"[{tool_name}]\n{str(res)[:1200]}")
+    return blocks
+
+
 async def _try_corporation_data_quick_response(
     goal: str, correlation_id: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
@@ -3894,6 +3933,19 @@ async def _try_corporation_data_quick_response(
             q = _extract_latest_user_message(goal) or goal
             if not is_data_question(goal) and not is_data_question(q):
                 return None
+
+            # [QUICK-TOOLS] Явные tool-директивы выполняем реальные тулы до
+            # corp-data ответа; результаты подставляем в запрос.
+            quick_tool_blocks = await _run_quick_tools_for_goal(goal)
+            if quick_tool_blocks:
+                q = (
+                    "Инструменты уже выполнены, используй эти результаты:\n"
+                    + "\n\n".join(quick_tool_blocks)
+                    + f"\n\nВопрос пользователя: {q}"
+                )
+                logger.info(
+                    "🛠 [QUICK-TOOLS] executed %s tool(s) for corp-data path", len(quick_tool_blocks)
+                )
             logger.info(
                 "[CORP_DATA] Ранний ответ через corporation_data_tool (goal=%s...)",
                 (goal or "")[:60],
@@ -4259,6 +4311,10 @@ def _is_explicit_concrete_goal(goal: str) -> bool:
 
 _EXPLICIT_TOOL_DIRECTIVES = (
     "web_search",
+    "db_query",
+    "git_log",
+    "git_status",
+    "git_diff",
     "поищи в интернете",
     "найди в интернете",
     "поиск в интернете",
@@ -8001,6 +8057,17 @@ async def run_task(
         and not is_discussion
     ):
         try:
+            # [QUICK-TOOLS] Явная tool-директива в quick-пути: результаты тулов
+            # собираются ДО LLM и подаются как контекст — LLM отвечает фактами,
+            # а не «подсказками команд».
+            tool_context_blocks = await _run_quick_tools_for_goal(goal)
+            _quick_goal = goal
+            if tool_context_blocks:
+                _quick_goal = (
+                    f"Инструменты уже выполнены. Используй только эти результаты для ответа:\n"
+                    + "\n\n".join(tool_context_blocks)
+                    + f"\n\nЗапрос пользователя: {goal}"
+                )
             # Concurrency limiter: bounded wait for semaphore to avoid client-side timeouts in queue.
             acquired = False
             if _victoria_semaphore:
@@ -8022,7 +8089,7 @@ async def run_task(
             try:
                 safe_text, safe_source = await asyncio.wait_for(
                     _generate_via_mlx_or_ollama(
-                        goal,
+                        _quick_goal,
                         VICTORIA_SYNC_SAFE_MODEL,
                         max_retries=1,
                         raw_response=True,
