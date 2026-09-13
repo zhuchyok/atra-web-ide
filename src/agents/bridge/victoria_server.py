@@ -2866,6 +2866,19 @@ class VictoriaAgent(BaseAgent):
         use_smart_for_goal = len(goal_lower) < 60 or any(m in goal_lower for m in ambiguous_markers)
         smart_model = (os.getenv("VICTORIA_UNDERSTAND_GOAL_SMART_MODEL") or "").strip()
 
+        # [_latency] Явная конкретная задача: формулировка уже точна, LLM-перефраз не нужен.
+        # Экономит 17-25s и работает из ЛЮБОГО пути (sync/async/handoff).
+        if (
+            os.getenv("VICTORIA_SKIP_UNDERSTAND_FOR_CONCRETE", "true").strip().lower()
+            in ("1", "true", "yes", "on")
+            and _is_explicit_concrete_goal(raw_goal)
+            and not any(m in goal_lower for m in ambiguous_markers)
+        ):
+            logger.info(
+                "🟢 [UNDERSTAND_GOAL] concrete task fast path (no LLM): %s", raw_goal[:50]
+            )
+            return {"restated": raw_goal.strip(), "category": "multi_step", "first_step": ""}
+
         context_block = ""
         if last_tasks_context and last_tasks_context.strip():
             context_block = f"{last_tasks_context.strip()}\n\n"
@@ -4214,6 +4227,32 @@ def _inject_strategy_into_knowledge(
             )
 
 
+_EXPLICIT_CONCRETE_TASK_INDICATORS = (
+    ".parquet",
+    ".csv",
+    ".json",
+    "/data/",
+    "/users/",
+    "duckdb",
+    "python3",
+    "select ",
+    "создай файл",
+    "напиши файл",
+    "создай модуль",
+    "напиши модуль",
+    "создай класс",
+    "напиши класс",
+    "создай функцию",
+    "напиши функцию",
+)
+
+
+def _is_explicit_concrete_goal(goal: str) -> bool:
+    """Явные конкретные задачи (файл/код/SQL/команда) — не требуют LLM-классификации."""
+    g = (goal or "").lower()
+    return bool(g) and any(ind in g for ind in _EXPLICIT_CONCRETE_TASK_INDICATORS)
+
+
 async def _select_strategy(
     agent: "VictoriaAgent",
     goal: str,
@@ -4282,30 +4321,16 @@ async def _select_strategy(
 
     # Быстрый fallback для задач с явными файлами/инструментами
     goal_lower_check = goal.lower()
-    concrete_task_indicators = [
-        ".parquet",
-        ".csv",
-        ".json",
-        "/data/",
-        "/users/",
-        "duckdb",
-        "python3",
-        "select ",
-        "создай файл",
-        "напиши файл",
-        "создай модуль",
-        "напиши модуль",
-        "создай класс",
-        "напиши класс",
-        "создай функцию",
-        "напиши функцию",
-    ]
-    is_concrete_task = any(ind in goal_lower_check for ind in concrete_task_indicators)
-
-    # Быстрый выход для явных задач — пропускаем LLM классификатор
+    is_concrete_task = _is_explicit_concrete_goal(goal)
     if is_concrete_task:
-        logger.info("🟢 [STRATEGY] Concrete task detected, skipping LLM classifier: %s", goal[:50])
-        return {"strategy": "deep_analysis", "reason": "явная задача с файлом/инструментом", "confidence": 0.95}
+        logger.info(
+            "🟢 [STRATEGY] Concrete task detected, skipping LLM classifier: %s", goal[:50]
+        )
+        return {
+            "strategy": "deep_analysis",
+            "reason": "явная задача с файлом/инструментом",
+            "confidence": 0.95,
+        }
 
     # Strategy — задача классификации (4 варианта), не нужна тяжёлая модель.
     # Используем быструю бессмертную модель (phi3.5:3.8b в Ollama или tiny в MLX).
@@ -8087,63 +8112,89 @@ async def run_task(
             correlation_id=correlation_id,
         )
 
-    # План «умнее быстрее» §2.1: при «как вчера»/«повтори» подставляем контекст последних завершённых задач перед understand_goal
-    last_tasks_context = ""
-    if _is_ambiguous_goal_reference(goal):
-        for _path in [
-            "/app/knowledge_os",
-            os.path.join(os.path.dirname(__file__), "../../knowledge_os"),
-            os.path.join(os.path.dirname(__file__), "../../../knowledge_os"),
-        ]:
-            if (_path not in sys.path) and (os.path.exists(_path) or _path.startswith("/app")):
-                sys.path.insert(0, _path)
-            _app = (
-                os.path.join(_path, "app")
-                if os.path.exists(_path) or _path.startswith("/app")
-                else None
-            )
-            if _app and _app not in sys.path:
-                sys.path.insert(0, _app)
-            try:
-                from app.recent_tasks_context import (
-                    get_recent_completed_tasks_context as _get_recent,
-                )
-
-                last_tasks_context = await _get_recent(body.project_context, limit=5) or ""
-                if last_tasks_context:
-                    logger.info(
-                        "[UNDERSTAND_GOAL] Контекст последних задач подставлен для «как тогда»"
-                    )
-                break
-            except ImportError:
-                continue
-            except Exception as _e:
-                logger.debug("get_recent_completed_tasks_context: %s", _e)
-                break
-    _t_understand_0 = time.monotonic()
-    understand_timeout = float(os.getenv("UNDERSTAND_GOAL_TIMEOUT_SEC", "90"))
-    try:
-        understanding = await asyncio.wait_for(
-            _understand_goal_with_clarification(
-                agent, goal, last_tasks_context=last_tasks_context or None
-            ),
-            timeout=understand_timeout,
-        )
-    except asyncio.TimeoutError:
-        logger.warning(
-            "🕒 [SYNC] _understand_goal_with_clarification timeout (%.0fs), используем goal как restated",
-            understand_timeout,
-        )
+    # Для явных конкретных задач expensive understand_goal не нужен: достаточно исходной формулировки.
+    # Это снижает pre-execution latency на десятки секунд без потери маршрутизации.
+    skip_understand_for_concrete = os.getenv(
+        "VICTORIA_SKIP_UNDERSTAND_FOR_CONCRETE", "true"
+    ).strip().lower() in ("1", "true", "yes", "on")
+    strategy_reason = str(strategy_result.get("reason") or "").lower()
+    is_concrete_strategy_reason = (
+        "файл/инструмент" in strategy_reason
+        or "явная задача" in strategy_reason
+        or "explicit file task" in strategy_reason
+    )
+    should_skip_understand = (
+        skip_understand_for_concrete
+        and strategy_result.get("strategy") == "deep_analysis"
+        and is_concrete_strategy_reason
+        and not _is_ambiguous_goal_reference(goal)
+    )
+    if should_skip_understand:
+        logger.info("🟢 [SYNC] skip understand_goal for explicit concrete task")
         understanding = {
             "needs_clarification": False,
             "restated": goal,
             "category": "multi_step",
             "first_step": "",
         }
-    logger.info(
-        "🕒 [SYNC] _understand_goal_with_clarification took %.2fs",
-        time.monotonic() - _t_understand_0,
-    )
+    else:
+        # План «умнее быстрее» §2.1: при «как вчера»/«повтори» подставляем контекст последних завершённых задач перед understand_goal
+        last_tasks_context = ""
+        if _is_ambiguous_goal_reference(goal):
+            for _path in [
+                "/app/knowledge_os",
+                os.path.join(os.path.dirname(__file__), "../../knowledge_os"),
+                os.path.join(os.path.dirname(__file__), "../../../knowledge_os"),
+            ]:
+                if (_path not in sys.path) and (os.path.exists(_path) or _path.startswith("/app")):
+                    sys.path.insert(0, _path)
+                _app = (
+                    os.path.join(_path, "app")
+                    if os.path.exists(_path) or _path.startswith("/app")
+                    else None
+                )
+                if _app and _app not in sys.path:
+                    sys.path.insert(0, _app)
+                try:
+                    from app.recent_tasks_context import (
+                        get_recent_completed_tasks_context as _get_recent,
+                    )
+
+                    last_tasks_context = await _get_recent(body.project_context, limit=5) or ""
+                    if last_tasks_context:
+                        logger.info(
+                            "[UNDERSTAND_GOAL] Контекст последних задач подставлен для «как тогда»"
+                        )
+                    break
+                except ImportError:
+                    continue
+                except Exception as _e:
+                    logger.debug("get_recent_completed_tasks_context: %s", _e)
+                    break
+        _t_understand_0 = time.monotonic()
+        understand_timeout = float(os.getenv("UNDERSTAND_GOAL_TIMEOUT_SEC", "90"))
+        try:
+            understanding = await asyncio.wait_for(
+                _understand_goal_with_clarification(
+                    agent, goal, last_tasks_context=last_tasks_context or None
+                ),
+                timeout=understand_timeout,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "🕒 [SYNC] _understand_goal_with_clarification timeout (%.0fs), используем goal как restated",
+                understand_timeout,
+            )
+            understanding = {
+                "needs_clarification": False,
+                "restated": goal,
+                "category": "multi_step",
+                "first_step": "",
+            }
+        logger.info(
+            "🕒 [SYNC] _understand_goal_with_clarification took %.2fs",
+            time.monotonic() - _t_understand_0,
+        )
     logger.info("🕒 [SYNC] strategy + understand_goal total %.2fs", time.monotonic() - _t_sync_0)
     if understanding.get("needs_clarification"):
         return JSONResponse(
