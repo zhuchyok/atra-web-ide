@@ -33,6 +33,7 @@ class EnvironmentalTrace:
 
 
 @dataclass
+@dataclass
 class CollectiveMemory:
     """Коллективная память агента"""
 
@@ -40,6 +41,106 @@ class CollectiveMemory:
     individual_memory: List[Dict] = field(default_factory=list)
     environmental_traces: List[EnvironmentalTrace] = field(default_factory=list)
     aggregated_knowledge: Dict = field(default_factory=dict)
+
+    async def store_knowledge(self, key: str, value: Any, metadata: Optional[Dict] = None):
+        """
+        Сохранить знание в коллективную память.
+
+        Args:
+            key: Ключ знания
+            value: Значение знания
+            metadata: Метаданные
+        """
+        experience = {
+            "key": key,
+            "value": value,
+            "metadata": metadata or {},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        self.individual_memory.append(experience)
+        # Ограничиваем размер памяти
+        if len(self.individual_memory) > 1000:
+            self.individual_memory = self.individual_memory[-500:]
+
+    async def query_knowledge(self, query: str, limit: int = 5) -> List[Dict]:
+        """
+        Запрос релевантных знаний из коллективной памяти.
+
+        Args:
+            query: Поисковый запрос
+            limit: Максимальное количество результатов
+
+        Returns:
+            Список релевантных знаний
+        """
+        if not self.individual_memory:
+            # [RAG-V2] In-session память пуста — фоллбек на базу знаний (91k записей).
+            # Раньше просто возвращали [] — Victoria всегда получала 0 записей задачи.
+            return await self.query_knowledge_base(query, limit)
+
+        query_lower = query.lower()
+        scored_results = []
+
+        for exp in self.individual_memory:
+            score = 0
+            value_str = str(exp.get("value", "")).lower()
+            key_str = str(exp.get("key", "")).lower()
+
+            # Простой scoring по совпадению слов
+            query_words = set(query_lower.split())
+            value_words = set(value_str.split())
+            key_words = set(key_str.split())
+
+            # Совпадения в value
+            score += len(query_words & value_words) * 2
+            # Совпадения в key
+            score += len(query_words & key_words) * 3
+
+            if score > 0:
+                scored_results.append((score, exp))
+
+        # Сортируем по score и возвращаем top-N
+        scored_results.sort(key=lambda x: x[0], reverse=True)
+        top = [exp for score, exp in scored_results[:limit]]
+        if not top:
+            top = await self.query_knowledge_base(query, limit)
+        return top
+
+    async def query_knowledge_base(self, query: str, limit: int = 5) -> List[Dict]:
+        """Фоллбек знаний: гибридный поиск по базе knowledge_nodes (RAG)."""
+        try:
+            from app.enhanced_search import enhanced_search_knowledge
+
+            results = await enhanced_search_knowledge(
+                query=query, domain=None, mode=None, limit=limit
+            )
+            # enhanced_search_knowledge возвращает dict: {"results": [...], ...}
+            if isinstance(results, dict):
+                results = results.get("results") or []
+            if not isinstance(results, list):
+                return []
+            out = []
+            for r in results[:limit]:
+                if not isinstance(r, dict):
+                    continue
+                content = str(r.get("content") or "")[:MAX_TRACE_RESULT_CHARS]
+                if not content:
+                    continue
+                out.append(
+                    {
+                        "key": "knowledge_base",
+                        "value": content,
+                        "metadata": {
+                            "source": "knowledge_nodes",
+                            "similarity": r.get("similarity"),
+                            "node_id": r.get("id"),
+                        },
+                    }
+                )
+            return out
+        except Exception as e:
+            logger.debug("query_knowledge_base failed: %s", e)
+            return []
 
 
 # Лимиты для предотвращения утечки памяти (56+ ГБ при долгой работе Victoria)
@@ -83,7 +184,7 @@ class CollectiveMemorySystem:
         self.traces: Dict[str, List[EnvironmentalTrace]] = {}  # location -> traces
         self.agent_memories: Dict[str, CollectiveMemory] = {}
         self.decay_rate = 0.1  # Скорость убывания силы следов
-        
+
         # [SINGULARITY 28.7] Start background cleanup
         try:
             loop = asyncio.get_running_loop()
@@ -121,8 +222,10 @@ class CollectiveMemorySystem:
                     DELETE FROM environmental_traces
                     WHERE strength < 0.1;
                 """)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [STIGMERGY] Cleanup finished. {deleted} traces evaporated.")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [STIGMERGY] Cleanup failed: {e}")
 
     async def record_action(
@@ -170,6 +273,7 @@ class CollectiveMemorySystem:
         # Сохраняем в БД полный result (без обрезки) — мысль не теряется; в памяти только обрезка
         await self._save_trace_to_db(trace, full_result=result)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"📝 Записан trace: {agent_name} → {location}")
 
     async def get_environmental_context(self, location: str, agent_name: str) -> Dict:
@@ -220,6 +324,7 @@ class CollectiveMemorySystem:
             "aggregated_patterns": await self._aggregate_patterns(relevant_traces),
         }
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"🔍 Контекст для {location}: {len(relevant_traces)} следов")
 
         return context
@@ -237,6 +342,7 @@ class CollectiveMemorySystem:
             if len(self.agent_memories) >= MAX_AGENT_MEMORIES:
                 oldest_agent = next(iter(self.agent_memories))
                 del self.agent_memories[oldest_agent]
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"🗑️ [MEMORY] Evicted agent {oldest_agent} (max {MAX_AGENT_MEMORIES})")
             self.agent_memories[agent_name] = CollectiveMemory(agent_name=agent_name)
 
@@ -250,6 +356,7 @@ class CollectiveMemorySystem:
         if len(memory.individual_memory) > 100:
             memory.individual_memory = memory.individual_memory[-100:]
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"💾 Обновлена индивидуальная память: {agent_name}")
 
     async def get_enhanced_context(
@@ -425,6 +532,7 @@ class CollectiveMemorySystem:
                     json.dumps(trace.metadata) if trace.metadata else None,
                 )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Ошибка сохранения trace: {e}")
 
     async def _create_traces_table(self, conn: asyncpg.Connection):
@@ -474,13 +582,16 @@ async def main():
 
     # Получаем контекст
     context = await system.get_enhanced_context(
-        agent_name="Игорь", location="database_optimization"
+        agent_name="Владимир", location="database_optimization"
     )
 
-    print("Улучшенный контекст:")
-    print(f"  Environmental traces: {context['environmental']['traces_count']}")
-    print(f"  Enhancement factor: {context['enhancement_factor']:.2f}x")
-    print(f"  Patterns: {len(context['environmental']['aggregated_patterns'])}")
+    logger.info("Улучшенный контекст:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Environmental traces: {context['environmental']['traces_count']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Enhancement factor: {context['enhancement_factor']:.2f}x")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Patterns: {len(context['environmental']['aggregated_patterns'])}")
 
 
 if __name__ == "__main__":

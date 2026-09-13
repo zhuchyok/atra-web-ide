@@ -102,7 +102,8 @@ async def get_embedding(text: str) -> list[float]:
         if emb:
             return emb
     except Exception as e:
-        print(f"⚠️ Ошибка получения эмбеддинга через semantic_cache: {e}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"⚠️ Ошибка получения эмбеддинга через semantic_cache: {e}")
 
     # Fallback на прямой запрос к Ollama если импорт не сработал
     async with httpx.AsyncClient() as client:
@@ -322,10 +323,14 @@ async def hybrid_search(
 
     # 2. Нормализуем веса (Reciprocal Rank Fusion или взвешенная сумма)
     # Используем взвешенную сумму: 0.7 Vector + 0.3 BM25
+    # [GUARD] NaN-векторы в БД ломают сортировку — pgvector считает NaN «большим»
+    # и эскалирует мусорные узлы наверх. Отфильтровываем.
 
     for result in semantic_results:
         node_id = str(result["id"])
-        similarity = float(result.get("similarity", 0))
+        similarity = float(result.get("similarity", 0) or 0)
+        if math.isnan(similarity) or math.isinf(similarity):
+            continue
         if node_id not in combined:
             combined[node_id] = result.copy()
             combined[node_id]["vector_score"] = similarity
@@ -335,7 +340,9 @@ async def hybrid_search(
 
     for result in keyword_results:
         node_id = str(result["id"])
-        similarity = float(result.get("similarity", 0))
+        similarity = float(result.get("similarity", 0) or 0)
+        if math.isnan(similarity) or math.isinf(similarity):
+            continue
         if node_id not in combined:
             combined[node_id] = result.copy()
             combined[node_id]["keyword_score"] = similarity
@@ -344,9 +351,11 @@ async def hybrid_search(
             combined[node_id]["keyword_score"] = similarity
 
     # 3. Финальный скоринг
+    if not combined:
+        return []
     for node_id in combined:
-        v = combined[node_id].get("vector_score", 0)
-        k = combined[node_id].get("keyword_score", 0)
+        v = combined[node_id].get("vector_score", 0) or 0
+        k = combined[node_id].get("keyword_score", 0) or 0
         # Нормализация BM25 (ts_rank может быть > 1)
         k_norm = min(1.0, k)
         combined[node_id]["similarity"] = (v * 0.7) + (k_norm * 0.3)
@@ -383,7 +392,7 @@ async def enhanced_search_knowledge(
             import hashlib
 
             query_hash = hashlib.md5(
-                f"{mode.value}:{query}:{domain or 'global'}".encode()
+                f"{mode.value}:{query}:{domain or 'global'}".encode('utf-8')
             ).hexdigest()
 
             # 1. In-memory cache (самый быстрый)
@@ -393,7 +402,8 @@ async def enhanced_search_knowledge(
             if query_hash in enhanced_search_knowledge._mem_cache:
                 cached_entry = enhanced_search_knowledge._mem_cache[query_hash]
                 if (datetime.now() - cached_entry["ts"]).total_seconds() < 300:  # 5 минут in-memory
-                    print(f"🚀 [MEM CACHE HIT] {mode.value} search: {query}")
+                    # TODO: Convert f-string to %s formatting for performance
+                    logger.info(f"🚀 [MEM CACHE HIT] {mode.value} search: {query}")
                     return cached_entry["data"]
 
             # 2. Redis cache
@@ -402,7 +412,8 @@ async def enhanced_search_knowledge(
             cached_data = await rd.get(cache_key)
             if cached_data:
                 data = json.loads(cached_data)
-                print(f"⚡ [REDIS CACHE HIT] {mode.value} search: {query}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"⚡ [REDIS CACHE HIT] {mode.value} search: {query}")
                 # Обновляем in-memory кэш
                 enhanced_search_knowledge._mem_cache[query_hash] = {
                     "data": data,
