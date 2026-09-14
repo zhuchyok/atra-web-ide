@@ -84,6 +84,7 @@ class MasterPlanGenerator:
             # Получаем сессию
             session = self.session_manager.get_session(session_id)
             if not session:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [MASTER PLAN] Сессия {session_id} не найдена")
                 return ""
 
@@ -99,6 +100,7 @@ class MasterPlanGenerator:
                         master_plan_prompt, expert_name="Виктория", category="architecture"
                     )
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ [MASTER PLAN] Ошибка генерации через LLM: {e}")
                     # Fallback: создаем базовый план
                     master_plan_markdown = self._generate_basic_master_plan(
@@ -120,10 +122,12 @@ class MasterPlanGenerator:
             # Обновляем статус сессии
             self.session_manager.update_session_status(session_id, "planning")
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📋 [MASTER PLAN] Создан MASTER_PLAN {plan_id} для сессии {session_id}")
 
             return plan_id
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [MASTER PLAN] Ошибка генерации MASTER_PLAN: {e}")
             return ""
 
@@ -147,10 +151,10 @@ class MasterPlanGenerator:
         except ImportError:
             expert_services_block = """
 Доступные эксперты по разделам плана:
-- индикаторы, фильтры, стратегия: Павел (Trading Strategy Developer)
-- риск-менеджмент: Мария (Risk Manager)
-- оптимизация, тесты, метрики: Максим (Data Analyst)
-- код, архитектура: Игорь (Backend), Виктория (Team Lead)
+- индикаторы, фильтры, стратегия: Виктор (Trading Strategy Developer)
+- риск-менеджмент: Леонид (Risk Manager)
+- оптимизация, тесты, метрики: Инна (Data Science Lead)
+- код, архитектура: Даниил (Backend), Виктория (Team Lead)
 """
 
         prompt = f"""Ты Виктория (Team Lead / Архитектор).
@@ -266,6 +270,7 @@ class MasterPlanGenerator:
             return False
         plan = self.session_manager.get_plan(plan_id)
         if not plan:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [MASTER PLAN] План {plan_id} не найден")
             return False
         current_md = (plan.get("markdown_body") or "").strip()
@@ -306,9 +311,12 @@ class MasterPlanGenerator:
                             self.session_manager.update_plan(plan_id, markdown=new_md.strip())
                             or updated
                         )
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"📝 [MASTER PLAN] План {plan_id} доработан по инструкции LLM")
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ [MASTER PLAN] Ошибка доработки плана через LLM: {e}")
         if updated:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📝 [MASTER PLAN] Обновление плана {plan_id} применено")
         return updated

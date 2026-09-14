@@ -30,7 +30,7 @@ class StreamingProcessor:
     async def stream_local_llm(
         self,
         prompt: str,
-        model: str = "qwen2.5-coder:32b",  # MLX модель (Mac Studio)
+        model: str = "qwen3-coder:30b",  # MLX модель (Mac Studio)
         system_prompt: str = "",
         node_url: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
@@ -74,6 +74,7 @@ class StreamingProcessor:
                     "POST", stream_url, json={"model": model, "prompt": full_prompt, "stream": True}
                 ) as response:
                     if response.status_code != 200:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.error(f"❌ [STREAMING] Error: {response.status_code}")
                         return
 
@@ -90,13 +91,14 @@ class StreamingProcessor:
                         except json.JSONDecodeError:
                             continue
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [STREAMING] Error: {e}")
             return
 
     async def stream_to_openai_format(
         self,
         prompt: str,
-        model: str = "qwen2.5-coder:32b",  # MLX модель (Mac Studio)
+        model: str = "qwen3-coder:30b",  # MLX модель (Mac Studio)
         response_id: str = "chatcmpl-default",
         created: int = None,
     ) -> AsyncGenerator[dict, None]:

@@ -81,6 +81,7 @@ class AgentSelfAssessment:
             conn = await asyncpg.connect(self.db_url)
             return conn
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SELF ASSESSMENT] Ошибка подключения к БД: {e}")
             return None
 
@@ -148,7 +149,7 @@ class AgentSelfAssessment:
             import hashlib
 
             assessment_key = f"{agent_id}:{task_id}:{datetime.now(timezone.utc).isoformat()}"
-            assessment_id = hashlib.md5(assessment_key.encode()).hexdigest()[:16]
+            assessment_id = hashlib.md5(assessment_key.encode('utf-8')).hexdigest()[:16]
 
             assessment = SelfAssessment(
                 assessment_id=assessment_id,
@@ -201,6 +202,7 @@ class AgentSelfAssessment:
             return assessment
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SELF ASSESSMENT] Ошибка оценки производительности: {e}")
             return None
 
@@ -225,7 +227,7 @@ class AgentSelfAssessment:
             plan_key = (
                 f"{agent_id}:{':'.join(improvements)}:{datetime.now(timezone.utc).isoformat()}"
             )
-            plan_id = hashlib.md5(plan_key.encode()).hexdigest()[:16]
+            plan_id = hashlib.md5(plan_key.encode('utf-8')).hexdigest()[:16]
 
             plan = ImprovementPlan(
                 plan_id=plan_id,
@@ -274,6 +276,7 @@ class AgentSelfAssessment:
             return plan
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SELF ASSESSMENT] Ошибка создания плана улучшений: {e}")
             return None
 
@@ -343,6 +346,7 @@ class AgentSelfAssessment:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SELF ASSESSMENT] Ошибка получения прогресса: {e}")
             return {}
 

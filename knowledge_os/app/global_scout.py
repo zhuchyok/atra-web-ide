@@ -48,7 +48,7 @@ except ImportError:
         """Fallback for SemanticAICache."""
 
         async def save_to_cache(self, *args, **kwargs):
-            pass
+            logger.debug("ℹ️ save_to_cache() not implemented yet")
 
 
 logger = logging.getLogger(__name__)

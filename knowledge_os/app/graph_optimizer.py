@@ -94,20 +94,22 @@ class GraphOptimizer:
         except ImportError:
             logger.warning("redis-py not installed, caching skipped")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [CACHING] Ошибка кэширования: {e}")
 
 
 async def run_optimization_cycle():
     optimizer = GraphOptimizer()
-    print("Starting Graph Optimization Cycle...")
+    logger.info("Starting Graph Optimization Cycle...")
 
     # 1. Pruning
     prune_res = await optimizer.semantic_pruning()
-    print(f"Pruning finished: {prune_res}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Pruning finished: {prune_res}")
 
     # 2. Caching
     await optimizer.cache_hot_paths()
-    print("Caching finished.")
+    logger.info("Caching finished.")
 
 
 if __name__ == "__main__":

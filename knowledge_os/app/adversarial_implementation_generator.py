@@ -104,6 +104,7 @@ class AdversarialImplementationGenerator:
         try:
             pool = await self.get_pool()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error getting pool: {e}")
             return None
 
@@ -121,6 +122,7 @@ class AdversarialImplementationGenerator:
                 )
 
                 if existing_task:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Task already exists for knowledge {knowledge['id']}")
                     await pool.release(conn)
                     return None
@@ -172,6 +174,7 @@ class AdversarialImplementationGenerator:
 
                 if not ai_response:
                     # Fallback: создаем простую задачу без AI анализа
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"📝 Creating fallback task for knowledge {knowledge['id']}")
                     fallback_title = f"Внедрить проверенное знание (survived adversarial, confidence: {knowledge['confidence_score']:.2f})"
                     fallback_description = f"""
@@ -323,6 +326,7 @@ class AdversarialImplementationGenerator:
                         knowledge["id"],
                     )
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Could not update metadata for knowledge {knowledge['id']}: {e}")
 
                 await pool.release(conn)
@@ -335,7 +339,7 @@ class AdversarialImplementationGenerator:
                 )
                 try:
                     await pool.release(conn)
-                except:
+                except Exception:
                     pass
                 return None
 
@@ -348,6 +352,7 @@ class AdversarialImplementationGenerator:
         Returns:
             Статистика обработки
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🛡️ Starting adversarial implementation generation cycle (limit: {limit})...")
 
         stats = {"analyzed": 0, "tasks_created": 0, "skipped": 0, "errors": 0}
@@ -357,6 +362,7 @@ class AdversarialImplementationGenerator:
             candidates = await self.find_survived_knowledge(limit)
             stats["analyzed"] = len(candidates)
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📊 Found {len(candidates)} survived knowledge candidates")
 
             for knowledge in candidates:
@@ -386,13 +392,15 @@ class AdversarialImplementationGenerator:
                                 knowledge["id"],
                             )
                             await pool.release(conn)
-                    except:
+                    except Exception:
                         pass
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Adversarial implementation generation cycle completed. Stats: {stats}")
             return stats
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Error in process_survived_knowledge: {e}", exc_info=True)
             stats["errors"] += 1
             return stats
@@ -409,8 +417,12 @@ async def run_adversarial_implementation_generation():
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     stats = asyncio.run(run_adversarial_implementation_generation())
-    print("\n📊 Статистика обработки выдержавших атаку знаний:")
-    print(f"   Проанализировано: {stats.get('analyzed', 0)}")
-    print(f"   Создано задач: {stats.get('tasks_created', 0)}")
-    print(f"   Пропущено: {stats.get('skipped', 0)}")
-    print(f"   Ошибок: {stats.get('errors', 0)}")
+    logger.info("\n📊 Статистика обработки выдержавших атаку знаний:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Проанализировано: {stats.get('analyzed', 0)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Создано задач: {stats.get('tasks_created', 0)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Пропущено: {stats.get('skipped', 0)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Ошибок: {stats.get('errors', 0)}")

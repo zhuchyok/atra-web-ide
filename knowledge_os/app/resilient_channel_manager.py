@@ -156,11 +156,13 @@ class ResilientChannelManager:
 
                     return is_healthy, response_time
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [RESILIENT] Канал {channel.name} не имеет health check")
             return True, (time.time() - start_time) * 1000
 
         except Exception as e:
             response_time = (time.time() - start_time) * 1000
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [RESILIENT] Health check для {channel.name} провалился: {e}")
             return False, response_time
 
@@ -210,6 +212,7 @@ class ResilientChannelManager:
             channel.last_success = datetime.now()
 
             if channel.status == ChannelStatus.UNHEALTHY:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [RESILIENT] Канал {channel.name} восстановлен!")
                 channel.status = ChannelStatus.HEALTHY
                 channel.failure_count = 0
@@ -247,6 +250,7 @@ class ResilientChannelManager:
                 self._stats[service_name]["successful_requests"] += 1
 
                 if self.active_channels.get(service_name) != channel:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🔄 [RESILIENT] Переключение {service_name} на {channel.name}")
                     self.active_channels[service_name] = channel
                     self._stats[service_name]["switches"] += 1
@@ -254,6 +258,7 @@ class ResilientChannelManager:
                 return result
 
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [RESILIENT] Канал {channel.name} провалился: {e}")
                 self._stats[service_name]["failed_requests"] += 1
                 channel.failure_count += 1
@@ -305,6 +310,7 @@ class ResilientChannelManager:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [RESILIENT] Ошибка в цикле мониторинга: {e}")
                 await asyncio.sleep(5)
 

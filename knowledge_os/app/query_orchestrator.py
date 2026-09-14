@@ -78,36 +78,36 @@ class QueryOrchestrator:
     # Матрица ролей для типов запросов
     ROLE_MATRIX: Dict[QueryType, List[str]] = {
         QueryType.STRATEGY: [
-            "Павел",
-            "Максим",
-            "Мария",
-        ],  # Trading Strategy Developer, Data Analyst, Risk Manager
+            "Виктор",
+            "Инна",
+            "Леонид",
+        ],  # Trading Strategy Developer, Data Science Lead, Risk Manager
         QueryType.RISK: [
-            "Мария",
-            "Павел",
-            "Екатерина",
-        ],  # Risk Manager, Trading Strategy, Financial Analyst
+            "Леонид",
+            "Виктор",
+            "Виктор_M&A",
+        ],  # Risk Manager, Trading Strategy, Finance Lead
         QueryType.ANALYSIS: [
-            "Максим",
-            "Павел",
+            "Инна",
+            "Виктор",
             "Дмитрий",
-        ],  # Data Analyst, Trading Strategy, ML Engineer
+        ],  # Data Science Lead, Trading Strategy, ML Engineer
         QueryType.OPTIMIZATION: [
-            "Павел",
-            "Максим",
-            "Ольга",
-        ],  # Trading Strategy, Data Analyst, Performance Engineer
+            "Виктор",
+            "Инна",
+            "Виталий",
+        ],  # Trading Strategy, Data Science Lead, Performance Engineer
         QueryType.CODE: [
-            "Игорь",
-            "Павел",
+            "Даниил",
+            "Виктор",
             "Анна",
-        ],  # Backend Developer, Trading Strategy, QA Engineer
+        ],  # Backend Lead, Trading Strategist, QA Lead
         QueryType.ARCHITECTURE: [
             "Виктория",
-            "Игорь",
-            "Павел",
-        ],  # Team Lead, Backend Developer, Trading Strategy
-        QueryType.GENERAL: ["Виктория", "Максим"],  # Team Lead, Data Analyst
+            "Даниил",
+            "Виктор",
+        ],  # Team Lead, Backend Lead, Trading Strategist
+        QueryType.GENERAL: ["Виктория", "Инна"],  # Team Lead, Data Science Lead
     }
 
     # Ключевые слова для классификации
@@ -421,8 +421,10 @@ class QueryOrchestrator:
             try:
                 # get_session_summary - синхронный метод
                 context.session_summary = self.session_manager.get_session_summary(session_id)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"📋 [QUERY ORCHESTRATOR] Восстановлен контекст сессии: {session_id}")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"⚠️ [QUERY ORCHESTRATOR] Ошибка восстановления контекста сессии: {e}")
 
         if context.relevant_knowledge is None:
@@ -530,6 +532,7 @@ class QueryOrchestrator:
             else "Нет",
         )
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"📝 [QUERY ORCHESTRATOR] Промпт собран: длина={len(prompt)}, роль={role}")
 
         return prompt

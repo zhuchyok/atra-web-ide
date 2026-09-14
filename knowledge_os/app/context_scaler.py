@@ -71,6 +71,7 @@ class ContextScaler:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Error analyzing request history: {e}")
             return {"avg_prompt_length": 500, "avg_response_length": 1000, "count": 0}
 

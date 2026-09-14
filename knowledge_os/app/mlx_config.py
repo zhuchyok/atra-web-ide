@@ -39,10 +39,10 @@ class QuantProfile(str, Enum):
 # Model registry by quantization profile (ключи из mlx_api_server.MODEL_PATHS / CATEGORY_TO_MODEL)
 # См. knowledge_os/app/mlx_api_server.py: fast=phi3.5-mini-4k, victoria-wisdom-v3.5=exported_model
 QUANT_PROFILE_MODELS = {
-    QuantProfile.REASONING: "victoria-wisdom-v3.5",
-    QuantProfile.CODING: "victoria-wisdom-v3.5",
+    QuantProfile.REASONING: "victoria-wisdom-24k",
+    QuantProfile.CODING: "victoria-wisdom-24k",
     QuantProfile.FAST: "fast",
-    QuantProfile.DEFAULT: "victoria-wisdom-v3.5",
+    QuantProfile.DEFAULT: "victoria-wisdom-24k",
 }
 
 # Memory thresholds (%)
@@ -68,6 +68,7 @@ def get_model_by_profile(profile: str = "default") -> str:
         profile_enum = QuantProfile(profile.lower())
         return QUANT_PROFILE_MODELS[profile_enum]
     except (ValueError, KeyError):
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"Unknown profile '{profile}', using default")
         return QUANT_PROFILE_MODELS[QuantProfile.DEFAULT]
 
@@ -114,6 +115,7 @@ def get_gpu_memory() -> GPUMemoryStats | None:
                 ),
             }
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Could not get GPU memory info: {e}")
 
     return None
@@ -147,6 +149,7 @@ def cleanup_if_critical() -> bool:
         try:
             mx.metal.clear_cache()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to clear Metal cache: {e}")
 
         # Run Python GC
@@ -178,12 +181,14 @@ def cleanup_if_warning() -> bool:
 
     percent = mem.get("percent", 0.0) if mem else 0.0
     if mem and percent > MEMORY_WARNING_THRESHOLD:
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"GPU memory warning: {percent:.1f}%. Performing light cleanup...")
 
         # Just clear cache, no GC
         try:
             mx.metal.clear_cache()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to clear Metal cache: {e}")
 
         return True

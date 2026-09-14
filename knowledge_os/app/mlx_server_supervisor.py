@@ -85,6 +85,7 @@ class MLXServerSupervisor:
         else:
             self.circuit_breaker = None
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ MLX Server Supervisor инициализирован (URL: {self.config.server_url})")
 
     def _should_restart(self) -> bool:
@@ -130,12 +131,15 @@ class MLXServerSupervisor:
                         self.last_health_check = datetime.now()
                         return True
                     else:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.warning(f"⚠️ [SUPERVISOR] Сервер отвечает, но статус: {status}")
                         return False
                 else:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ [SUPERVISOR] Health check вернул код {response.status_code}")
                     return False
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [SUPERVISOR] Health check failed: {e}")
             return False
 
@@ -175,6 +179,7 @@ class MLXServerSupervisor:
             )
 
             if not os.path.exists(script_path):
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [SUPERVISOR] Скрипт не найден: {script_path}")
                 self.state = ServerState.CRASHED
                 return False
@@ -191,6 +196,7 @@ class MLXServerSupervisor:
             stdout_file = open(stdout_log, "a", encoding="utf-8")
             stderr_file = open(stderr_log, "a", encoding="utf-8")
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📝 Логи MLX Server: stdout={stdout_log}, stderr={stderr_log}")
 
             # Запускаем процесс с логированием
@@ -208,6 +214,7 @@ class MLXServerSupervisor:
             if self.process.poll() is not None:
                 # Процесс уже завершился
                 stderr = self.process.stderr.read().decode() if self.process.stderr else ""
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [SUPERVISOR] Сервер упал сразу после запуска: {stderr}")
                 self.state = ServerState.CRASHED
                 return False
@@ -229,6 +236,7 @@ class MLXServerSupervisor:
             return True
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SUPERVISOR] Ошибка запуска сервера: {e}", exc_info=True)
             self.state = ServerState.CRASHED
             return False
@@ -238,6 +246,7 @@ class MLXServerSupervisor:
         if self.process is None:
             return True
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🛑 [SUPERVISOR] Остановка MLX API Server (graceful={graceful})...")
 
         try:
@@ -264,6 +273,7 @@ class MLXServerSupervisor:
             return True
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SUPERVISOR] Ошибка остановки сервера: {e}")
             return False
 
@@ -278,6 +288,7 @@ class MLXServerSupervisor:
                     return_code = self.process.poll()
                     if return_code is not None:
                         # Процесс завершился
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.error(f"❌ [SUPERVISOR] Сервер упал (код: {return_code})")
                         self.state = ServerState.CRASHED
                         self.process = None
@@ -327,6 +338,7 @@ class MLXServerSupervisor:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [SUPERVISOR] Ошибка в цикле мониторинга: {e}", exc_info=True)
                 await asyncio.sleep(5)
 

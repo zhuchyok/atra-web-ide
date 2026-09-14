@@ -32,11 +32,16 @@ RECOVERY_COOLDOWN_SECONDS = 300  # 5 minutes
 # Модели эмбеддингов — выгружать сразу после ответа
 EMBEDDING_MODELS = {"nomic-embed-text", "nomic-embed-text:latest"}
 
-# Fallback-мозг: имена моделей Victoria v3.5 в Ollama (при падении MLX не выгружать)
-FALLBACK_BRAIN_MODELS = ("victoria-wisdom-v3.5",)
+# Fallback-мозг: имена моделей Victoria в Ollama (при падении MLX не выгружать)
+FALLBACK_BRAIN_MODELS = ("victoria-wisdom-24k", "victoria-wisdom-v3.5")
 
 # Модели для явной выгрузки при восстановлении MLX
-OLLAMA_FALLBACK_UNLOAD_MODELS = ["victoria-wisdom-v3.5", "victoria-wisdom-v3.5:latest"]
+OLLAMA_FALLBACK_UNLOAD_MODELS = [
+    "victoria-wisdom-24k",
+    "victoria-wisdom-24k:latest",
+    "victoria-wisdom-v3.5",
+    "victoria-wisdom-v3.5:latest",
+]
 
 DEFAULT_KEEP_ALIVE = 300
 
@@ -126,9 +131,7 @@ def _is_heavy_model(model_name: Optional[str], size_gb: Optional[float]) -> bool
     return any(x in key for x in ("32b", "30b", "35b", "70b", "104b", "qwq", "deepseek-r1", "14b"))
 
 
-def _cap_heavy_keep_alive(
-    model_name: Optional[str], value: Union[int, str]
-) -> Union[int, str]:
+def _cap_heavy_keep_alive(model_name: Optional[str], value: Union[int, str]) -> Union[int, str]:
     """Never let burst-heavy models stay warmer than HEAVY_IDLE_KEEP_ALIVE (except unload=0)."""
     if not _is_named_burst_heavy(model_name):
         return value
@@ -213,7 +216,7 @@ def get_keep_alive(
                 return 0
             if effective_ram is not None and effective_ram < RAM_CRITICAL_PERCENT:
                 return 300
-        except:
+        except Exception:
             pass
         return 0
 
@@ -223,9 +226,7 @@ def get_keep_alive(
         if str(raw).strip() == "-1":
             return _cap_heavy_keep_alive(model_name, -1)
         try:
-            val: Union[int, str] = (
-                int(raw) if str(raw).strip().lstrip("-").isdigit() else raw
-            )
+            val: Union[int, str] = int(raw) if str(raw).strip().lstrip("-").isdigit() else raw
             return _cap_heavy_keep_alive(model_name, val)
         except (ValueError, AttributeError):
             pass

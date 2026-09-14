@@ -168,6 +168,37 @@ class LoadBalancer:
         else:
             return loop.run_until_complete(_get_stats())
 
+    async def get_least_loaded_agent(self, task_type: Optional[str] = None) -> Optional[str]:
+        """
+        Получает наименее загруженного агента.
+
+        Args:
+            task_type: Тип задачи для фильтрации агентов
+
+        Returns:
+            Имя наименее загруженного агента или None
+        """
+        async with self._lock:
+            if not self.node_loads:
+                return None
+
+            best_agent = None
+            best_score = float("inf")
+
+            for routing_key, load in self.node_loads.items():
+                # Пропускаем агентов с высокой загрузкой
+                if load.active_requests > 5:
+                    continue
+
+                # Вычисляем score (меньше = лучше)
+                score = load.active_requests * 2 + load.avg_latency * 0.1 + (1 - load.success_rate) * 10
+
+                if score < best_score:
+                    best_score = score
+                    best_agent = load.node_name
+
+            return best_agent
+
     def increment_load(self, employee_id: Any):
         """Увеличивает загрузку сотрудника (для совместимости с Task Distribution)"""
         # Используем employee_id как routing_key для отслеживания загрузки

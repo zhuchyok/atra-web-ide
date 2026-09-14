@@ -210,6 +210,7 @@ class SOPGenerator:
             )
             return
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📝 [SOP] Generating SOP for: {process_title}")
 
         # 2. Prepare the SOP prompt
@@ -238,6 +239,7 @@ class SOPGenerator:
         )
 
         if not sop_content:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to generate SOP content for task {task_id}")
             return
 
@@ -312,9 +314,11 @@ class SOPGenerator:
                 task_id,
             )
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ [SOP COMPLETE] SOP saved to {filepath} and registered in KB.")
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error saving SOP for task {task_id}: {e}")
 
 

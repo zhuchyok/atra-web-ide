@@ -42,7 +42,7 @@ class SessionContextManager:
         import hashlib
 
         session_key = f"{user_id}_{expert_name}"
-        return hashlib.md5(session_key.encode()).hexdigest()
+        return hashlib.md5(session_key.encode('utf-8')).hexdigest()
 
     async def get_session_context(self, user_id: str, expert_name: str, current_query: str) -> str:
         """
@@ -104,11 +104,13 @@ class SessionContextManager:
                 if len(context) > 2000:
                     context = context[-2000:]  # Берем последние 2000 символов
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"📝 [SESSION CONTEXT] Получен контекст из {len(rows)} запросов")
                 return f"\n\n[КОНТЕКСТ ПРЕДЫДУЩИХ ЗАПРОСОВ В ЭТОЙ СЕССИИ]:\n{context}\n\n"
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [SESSION CONTEXT] Ошибка получения контекста: {e}")
             return ""
 
@@ -229,10 +231,12 @@ class SessionContextManager:
                     self.max_context_queries,
                 )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"💾 [SESSION CONTEXT] Сохранен запрос в контекст сессии {session_id}")
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [SESSION CONTEXT] Ошибка сохранения контекста: {e}")
 
     async def clear_session(self, user_id: str, expert_name: str):
@@ -255,10 +259,12 @@ class SessionContextManager:
                 """,
                     session_id,
                 )
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"🗑️ [SESSION CONTEXT] Очищен контекст сессии {session_id}")
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [SESSION CONTEXT] Ошибка очистки контекста: {e}")
 
     async def cleanup_old_sessions(self):
@@ -276,10 +282,12 @@ class SessionContextManager:
 
                 deleted_count = int(deleted.split()[-1]) if deleted else 0
                 if deleted_count > 0:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🧹 [SESSION CONTEXT] Очищено {deleted_count} устаревших записей")
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [SESSION CONTEXT] Ошибка очистки старых сессий: {e}")
 
 

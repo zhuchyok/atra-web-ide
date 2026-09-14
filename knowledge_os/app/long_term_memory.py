@@ -64,6 +64,35 @@ class LongTermMemory:
                 return f"hard_reject:{marker[:40]}"
         return None
 
+    @staticmethod
+    def _normalize_memory_metadata(source: str, metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Normalize semantic memory metadata to stable trust-lane schema."""
+        raw = dict(metadata or {})
+        memory_type = str(raw.get("memory_type", "semantic")).strip().lower()
+        if memory_type not in {"authoritative", "semantic", "episodic", "transient", "noise"}:
+            memory_type = "semantic"
+        try:
+            confidence = float(raw.get("confidence", 0.8))
+        except Exception:
+            confidence = 0.8
+        confidence = max(0.0, min(1.0, confidence))
+        source_val = str(raw.get("source", source or "unknown")).strip() or "unknown"
+        policy_version = str(raw.get("policy_version", "v1")).strip() or "v1"
+        used_in_decision = bool(raw.get("used_in_decision", False))
+        expires_at = raw.get("expires_at")
+        if not expires_at:
+            expires_at = (datetime.now(timezone.utc)).isoformat()
+        return {
+            **raw,
+            "source": source_val,
+            "type": "long_term_memory",
+            "memory_type": memory_type,
+            "confidence": confidence,
+            "policy_version": policy_version,
+            "used_in_decision": used_in_decision,
+            "expires_at": expires_at,
+        }
+
     async def store_memory(self, content: str, source: str, metadata: Dict[str, Any] = None):
         """Store a memory node and generate its embedding."""
         hard_reason = self._is_unusable_memory(content)
@@ -78,6 +107,7 @@ class LongTermMemory:
                     gate_stage="long_term_memory_hard",
                     metadata={"decision": "reject", "enforce": "always"},
                 )
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⛔ [LTM] Hard-rejected from {source}: {hard_reason}")
             return None
 
@@ -95,6 +125,7 @@ class LongTermMemory:
                         "decision": decision.decision,
                     },
                 )
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⛔ [LTM] Rejected candidate from {source}: {decision.reason}")
             return None
 
@@ -105,6 +136,7 @@ class LongTermMemory:
         embedding_str = "[" + ",".join(map(str, embedding)) + "]"
         domain_name = self._default_domain or "AI Research"
 
+        normalized_meta = self._normalize_memory_metadata(source, metadata)
         async with pool.acquire() as conn:
             memory_id = await conn.fetchval(
                 """
@@ -121,9 +153,10 @@ class LongTermMemory:
                 """,
                 content,
                 embedding_str,
-                json.dumps({**(metadata or {}), "source": source, "type": "long_term_memory"}),
+                json.dumps(normalized_meta),
                 domain_name,
             )
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"💾 [LTM] Stored memory from {source}: {memory_id}")
             return memory_id
 
@@ -159,6 +192,7 @@ class LongTermMemory:
                 target_id,
                 relation,
             )
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔗 [LTM] Linked memories {source_id} -> {target_id} ({relation})")
 
     async def save_thread(

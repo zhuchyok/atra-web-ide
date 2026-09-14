@@ -99,11 +99,13 @@ class WebhookManager:
                     metadata=metadata or {},
                 )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Registered webhook: {webhook_type.value} -> {url}")
                 return str(webhook_id)
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error registering webhook: {e}")
             return None
 
@@ -167,6 +169,7 @@ class WebhookManager:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error sending webhook: {e}")
             return []
 
@@ -184,6 +187,7 @@ class WebhookManager:
             else:
                 return await self._send_to_custom(config.url, event_type, payload)
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error sending to {config.webhook_type.value}: {e}")
             return False
 
@@ -197,6 +201,7 @@ class WebhookManager:
                 response = await client.post(webhook_url, json=message, timeout=10.0)
                 return response.status_code == 200
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Slack webhook error: {e}")
             return False
 
@@ -210,6 +215,7 @@ class WebhookManager:
                 response = await client.post(webhook_url, json=message, timeout=10.0)
                 return response.status_code in [200, 204]
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Discord webhook error: {e}")
             return False
 
@@ -235,6 +241,7 @@ class WebhookManager:
                 )
                 return response.status_code == 200
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Telegram webhook error: {e}")
             return False
 
@@ -253,6 +260,7 @@ class WebhookManager:
                 )
                 return response.status_code in [200, 201, 204]
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Custom webhook error: {e}")
             return False
 
@@ -343,6 +351,7 @@ class AutoReporter:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error sending daily report: {e}")
             return False
 
@@ -390,6 +399,7 @@ class AutoReporter:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error sending weekly report: {e}")
             return False
 

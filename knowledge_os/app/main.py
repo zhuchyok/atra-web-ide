@@ -2,6 +2,8 @@ import asyncio
 import json
 import os
 
+logger = logging.getLogger(__name__)
+
 import asyncpg
 
 try:
@@ -33,7 +35,9 @@ async def get_embedding(text: str) -> list:
 async def get_pool():
     global pool
     if pool is None:
-        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os")
+        db_url = os.getenv(
+            "DATABASE_URL", "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os"
+        )
         pool = await asyncpg.create_pool(
             db_url,
             min_size=2,
@@ -63,7 +67,8 @@ async def search_knowledge(query: str, domain: str = None) -> str:
         try:
             data = json_fast_loads(cached_data) if json_fast_loads else json.loads(cached_data)
             if data and isinstance(data, dict) and "result_text" in data and "node_ids" in data:
-                print(f"⚡ [CACHE HIT] for query: {query}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"⚡ [CACHE HIT] for query: {query}")
                 async with db_pool.acquire() as conn:
                     await conn.execute(
                         "UPDATE knowledge_nodes SET usage_count = usage_count + 1 WHERE id = ANY($1)",
@@ -218,5 +223,5 @@ if __name__ == "__main__":
     import logging
 
     logging.basicConfig(level=logging.INFO)
-    print("🚀 Knowledge OS MCP Server starting with REDIS CACHE & VectorCore...")
+    logger.info("🚀 Knowledge OS MCP Server starting with REDIS CACHE & VectorCore...")
     mcp.run(transport="sse")

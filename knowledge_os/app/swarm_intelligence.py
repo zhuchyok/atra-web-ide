@@ -113,6 +113,7 @@ class SwarmIntelligence:
         """
         [SINGULARITY 28.2] Solve using Island Model Swarm.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🐝 Swarm Intelligence (Level 8 100%): {self.swarm_size} agents on Islands")
 
         # 1. Формируем рой и группы (Islands)
@@ -121,6 +122,7 @@ class SwarmIntelligence:
 
         # 2. Итерации
         for iteration in range(self.max_iterations):
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔄 Iteration {iteration + 1}/{self.max_iterations}")
 
             # 2.1. Локальное исследование внутри островов
@@ -139,6 +141,7 @@ class SwarmIntelligence:
 
             # 2.5. Проверка конвергенции (Consensus)
             if self._check_consensus():
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Consensus reached on iteration {iteration + 1}")
                 break
 
@@ -234,13 +237,18 @@ class SwarmIntelligence:
                 self.global_best_score = agent.local_best_score
 
     def _build_island_prompt(self, agent: SwarmAgent, problem: str, iteration: int) -> str:
+        try:
+            from cursor_method import CURSOR_METHOD_PROMPT
+        except ImportError:
+            from app.cursor_method import CURSOR_METHOD_PROMPT
+
         role_desc = (
             "Ты - КРИТИК. Твоя задача - найти слабые места в текущих решениях и предложить контр-аргументы."
             if agent.role == "skeptic"
             else "Ты - ИССЛЕДОВАТЕЛЬ. Твоя задача - найти инновационное решение."
         )
 
-        prompt = f"""{role_desc}
+        prompt = f"""{CURSOR_METHOD_PROMPT}{role_desc}
 ПРОБЛЕМА: {problem}
 ОСТРОВ: {agent.group_id}
 ИТЕРАЦИЯ: {iteration + 1}
@@ -311,6 +319,7 @@ class SwarmIntelligence:
         skeptics = [a for a in self.agents if a.role == "skeptic"]
         for s in skeptics:
             if s.current_score > 0.8 and "критическая" in str(s.current_solution).lower():
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"🚫 [CONSENSUS] Critical Veto from Skeptic: {s.agent_name}")
                 return False  # Veto blocks consensus
 
@@ -338,7 +347,8 @@ class SwarmIntelligence:
 async def main():
     swarm = SwarmIntelligence(swarm_size=32)
     result = await swarm.solve("Оптимизация высоконагруженных систем на Python")
-    print(f"Result: {result.global_best_score}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Result: {result.global_best_score}")
 
 
 if __name__ == "__main__":

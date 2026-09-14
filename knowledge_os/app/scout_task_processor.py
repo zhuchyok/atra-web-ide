@@ -61,9 +61,11 @@ async def process_scout_task(task_metadata: Dict[str, Any], task_description: st
             )
             return f"✅ Enhanced разведка завершена. Найдено {result.get('total_sources', 0)} источников, {len(result.get('competitors', {}))} конкурентов. Детальный отчет с SWOT, Porter's Five Forces, PEST анализом сохранен в БД."
         except ImportError as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"Enhanced разведка недоступна: {e}, используем базовую")
             use_enhanced = False
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка Enhanced разведки: {e}")
             use_enhanced = False
 
@@ -76,5 +78,6 @@ async def process_scout_task(task_metadata: Dict[str, Any], task_description: st
             await perform_scout_research(business, location)
             return f"✅ Базовая разведка завершена для '{business}' в {location}"
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка базовой разведки: {e}")
             return f"❌ Ошибка разведки: {e}"

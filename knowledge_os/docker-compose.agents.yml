@@ -126,7 +126,7 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       POSTGRES_DIRECT_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      # Optional dedicated endpoint/queue for heavy executor model (qwen2.5-coder)
+      # Optional dedicated endpoint/queue for heavy executor model (qwen3-coder)
       OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
@@ -214,7 +214,7 @@ services:
       # [REGRESSION] wisdom (24k/32k) в ReAct-цикле уходит в CoT-rambling вместо JSON-акции.
       # Coding-модель согласно developer_forced назначению оркестратора.
       # 32b не установлен в Ollama (fallback на wisdom по сканеру) — используем 14b.
-      VERONICA_MODEL: ${VERONICA_MODEL:-qwen2.5-coder:14b}
+      VERONICA_MODEL: ${VERONICA_MODEL:-qwen3-coder:30b}
     volumes:
       - ../data:/app/data
       - ../logs:/app/logs

@@ -105,12 +105,14 @@ class ModelFineTuner:
                         }
                     )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Собрано {len(style_patterns)} паттернов СТИЛЯ (не фактов!)")
                 return style_patterns
 
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка сбора паттернов стиля: {e}")
             return []
 
@@ -196,12 +198,14 @@ class ModelFineTuner:
                         }
                     )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Собрано {len(training_data)} примеров для обучения")
                 return training_data
 
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка сбора данных из базы знаний: {e}")
             return []
 
@@ -254,6 +258,7 @@ class ModelFineTuner:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка сбора данных против галлюцинаций: {e}")
             return []
 
@@ -269,6 +274,7 @@ class ModelFineTuner:
                 }
                 f.write(json.dumps(formatted, ensure_ascii=False) + "\n")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Датасет сохранен: {output_path} ({len(training_data)} примеров)")
         return output_path
 
@@ -302,7 +308,7 @@ class ModelFineTuner:
         try:
             # Проверяем наличие mlx-lm
             result = subprocess.run(
-                ["python3", "-c", "import mlx_lm; print(mlx_lm.__version__)"],
+                ["python3", "-c", "import mlx_lm; logger.info(mlx_lm.__version__)"],
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -339,7 +345,9 @@ class ModelFineTuner:
                 output_path,
             ]
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🚀 Запуск fine-tuning модели {base_model}...")
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"   Команда: {' '.join(cmd)}")
 
             # Запускаем обучение
@@ -361,6 +369,7 @@ class ModelFineTuner:
                     break
                 if output:
                     stdout_lines.append(output.strip())
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"   {output.strip()}")
 
             stderr = process.stderr.read()
@@ -368,11 +377,13 @@ class ModelFineTuner:
                 stderr_lines = stderr.split("\n")
                 for line in stderr_lines:
                     if line.strip():
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.warning(f"   {line.strip()}")
 
             return_code = process.poll()
 
             if return_code == 0:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Fine-tuning завершен успешно: {output_path}")
                 return True, f"Модель дообучена: {output_path}"
             else:
@@ -380,6 +391,7 @@ class ModelFineTuner:
                 return False, f"Ошибка fine-tuning: {error_msg}"
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка fine-tuning: {e}", exc_info=True)
             return False, f"Ошибка: {str(e)}"
 
@@ -399,6 +411,7 @@ class ModelFineTuner:
         try:
             # Используем llama.cpp для квантования (если доступен)
             # Или mlx-lm для конвертации
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"⚡ Оптимизация модели {model_path} для скорости...")
 
             # Для MLX моделей квантование обычно уже применено
@@ -406,6 +419,7 @@ class ModelFineTuner:
             return True, "Модель уже оптимизирована (MLX использует эффективную квантование)"
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка оптимизации: {e}")
             return False, f"Ошибка: {str(e)}"
 
@@ -547,7 +561,7 @@ async def main():
         include_knowledge_base=False,  # ❌ НЕ собираем факты (они в RAG!)
     )
 
-    print(json.dumps(results, indent=2, ensure_ascii=False))
+    logger.info(json.dumps(results, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":

@@ -20,10 +20,12 @@ async def run_simulation(simulation_id: int):
     async with pool.acquire() as conn:
         idea = await conn.fetchval("SELECT idea FROM simulations WHERE id = $1", simulation_id)
         if not idea:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Симуляция {simulation_id} не найдена")
             await pool.close()
             return
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 Simulating Idea: {idea}")
 
         # Шаг 1: Собираем контекст из базы знаний
@@ -306,12 +308,14 @@ async def run_simulation(simulation_id: int):
                     await conn.execute(
                         "UPDATE simulations SET result = $1 WHERE id = $2", analysis, simulation_id
                     )
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ Simulation {simulation_id} completed and saved.")
                 else:
                     error_msg = f"MLX API Error: {response.status_code} - {response.text}"
                     await conn.execute(
                         "UPDATE simulations SET result = $1 WHERE id = $2", error_msg, simulation_id
                     )
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ Simulation {simulation_id} failed: {error_msg}")
 
         except httpx.TimeoutException:
@@ -319,12 +323,14 @@ async def run_simulation(simulation_id: int):
             await conn.execute(
                 "UPDATE simulations SET result = $1 WHERE id = $2", error_msg, simulation_id
             )
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Simulation {simulation_id} timed out")
         except Exception as e:
             error_msg = f"Internal Error: {str(e)}"
             await conn.execute(
                 "UPDATE simulations SET result = $1 WHERE id = $2", error_msg, simulation_id
             )
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Simulation {simulation_id} failed: {e}")
 
     await pool.close()

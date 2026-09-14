@@ -65,6 +65,7 @@ class AutonomousOrchestrator:
                 # Цикл каждые 5 минут для оперативного реагирования
                 await asyncio.sleep(300)
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ AOI Cycle Error: {e}")
                 await asyncio.sleep(60)
 
@@ -86,6 +87,7 @@ class AutonomousOrchestrator:
             await self._record_aoi_insight(conn)
 
             self._last_cycle_time = time.time() - t0
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ AOI Cycle complete in {self._last_cycle_time:.2f}s")
 
         finally:
@@ -110,6 +112,7 @@ class AutonomousOrchestrator:
                 meta,
             )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"AOI insight failed: {e}")
 
     async def _balance_expert_workload(self, conn):

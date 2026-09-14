@@ -82,7 +82,7 @@ def _search_ollama(query: str, max_results: int, timeout: float) -> List[Dict[st
 
 
 def _cache_key(query: str, max_results: int) -> str:
-    return hashlib.sha256(f"{query.strip().lower()}:{max_results}".encode()).hexdigest()
+    return hashlib.sha256(f"{query.strip().lower()}:{max_results}".encode('utf-8')).hexdigest()
 
 
 def web_search_sync(query: str, max_results: int = 5) -> List[Dict[str, Any]]:

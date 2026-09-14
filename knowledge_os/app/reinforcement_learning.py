@@ -111,6 +111,7 @@ class ReinforcementLearning:
         if random.random() < policy.exploration_rate:
             # Exploration: случайное действие
             action = random.choice(available_actions)
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"🔍 Exploration: выбрано случайное действие {action}")
         else:
             # Exploitation: лучшее действие по Q-values
@@ -118,10 +119,12 @@ class ReinforcementLearning:
             if state_values:
                 # Выбираем действие с максимальным Q-value
                 action = max(available_actions, key=lambda a: state_values.get(a, 0.0))
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"🎯 Exploitation: выбрано лучшее действие {action}")
             else:
                 # Если нет данных - случайное
                 action = random.choice(available_actions)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"❓ Нет данных, случайное действие {action}")
 
         return action
@@ -171,6 +174,7 @@ class ReinforcementLearning:
         # Обновляем Q-values
         await self._update_q_values(action_id, reward_value)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🎁 Награда назначена: {reward_value:.2f} ({reward_type})")
 
         return reward
@@ -210,6 +214,7 @@ class ReinforcementLearning:
 
         policy.updated_at = datetime.now(timezone.utc)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"📈 Q-value обновлен: {state}:{action_type} = {new_q:.3f}")
 
     async def self_reward(

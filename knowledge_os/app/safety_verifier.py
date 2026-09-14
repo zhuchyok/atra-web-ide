@@ -46,6 +46,7 @@ class SafetyVerifier:
         """
         Takes a proposed mutation and returns a safety score and risk factors.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🛡️ [SAFETY] Starting impact analysis for {module_name}.{function_name}...")
 
         try:
@@ -60,13 +61,13 @@ class SafetyVerifier:
                 module_name, function_name, mutated_args, mutated_code, dependencies
             )
 
-            # 4. Call local judge model (qwq:32b or qwen2.5-coder:32b as per project rules)
+            # 4. Call local judge model (qwq:32b or qwen3-coder:30b as per project rules)
             try:
                 audit_json = await run_smart_agent_async(
                     audit_prompt,
                     expert_name="Виктория",
                     category="safety_audit",
-                    model="qwen2.5-coder:32b",  # Preferred when backend supports model override.
+                    model="qwen3-coder:30b",  # Preferred when backend supports model override.
                 )
             except TypeError:
                 # Backward-compatible path for run_smart_agent_async variants
@@ -81,6 +82,7 @@ class SafetyVerifier:
             return self._parse_audit_result(audit_json)
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Safety verification failed: {e}")
             return {
                 "safety_score": 0,
@@ -102,6 +104,7 @@ class SafetyVerifier:
                         return [arg.arg for arg in node.args.args]
             return []
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"Failed to parse AST for args extraction: {e}")
             return []
 
@@ -144,6 +147,7 @@ class SafetyVerifier:
 
             await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error fetching dependencies from DB: {e}")
 
         return callers
@@ -216,6 +220,7 @@ class SafetyVerifier:
                 "recommendation": result.get("recommendation", "abort"),
             }
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to parse safety audit JSON: {e}")
             return {
                 "safety_score": 0,

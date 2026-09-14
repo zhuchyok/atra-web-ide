@@ -61,16 +61,18 @@ class AntiHallucinationSystem:
         try:
             # [SINGULARITY 24.0] Используем локальный векторный кэш в RAM если доступен
             try:
-                from vector_cache import vector_cache
                 from semantic_cache import get_embedding
-                
+                from vector_cache import vector_cache
+
                 embedding = await get_embedding(query)
                 if embedding:
                     rows = await vector_cache.search(embedding, limit=limit)
                     if rows:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"⚡ [PARALLEL RAG] Found {len(rows)} nodes in RAM cache")
                         return rows
             except Exception as ve:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"RAM cache failed in parallel RAG: {ve}")
 
             conn = await asyncpg.connect(self.db_url)
@@ -110,12 +112,14 @@ class AntiHallucinationSystem:
                         }
                     )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Найдено {len(context)} релевантных контекстов")
                 return context
 
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка получения контекста: {e}")
             return []
 
@@ -139,12 +143,12 @@ class AntiHallucinationSystem:
             # Если модель говорит о технологиях, которых нет в контексте
             # (упрощенная логика для примера, можно расширить через NLP)
             context_text = " ".join([c["content"].lower() for c in context])
-            
+
             # Список критических терминов, которые часто галлюцинируют
             tech_keywords = ["database", "api", "function", "class", "module"]
             for kw in tech_keywords:
                 if kw in response.lower() and kw not in context_text:
-                    # Это может быть не галлюцинация, а общие знания, 
+                    # Это может быть не галлюцинация, а общие знания,
                     # но мы снижаем уверенность, если этого нет в SOP
                     confidence *= 0.9
 
@@ -216,8 +220,8 @@ async def main():
     # Создаем промпт
     prompt = system.create_anti_hallucination_prompt(query, [c["content"] for c in context])
 
-    print("Промпт с защитой от галлюцинаций:")
-    print(prompt)
+    logger.info("Промпт с защитой от галлюцинаций:")
+    logger.info(prompt)
 
 
 if __name__ == "__main__":

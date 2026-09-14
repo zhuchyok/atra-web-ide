@@ -63,6 +63,7 @@ async def check_model_available(model_name: str, mlx_url: str = None, timeout: f
                     else:
                         return False
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"MLX API Server недоступен для проверки {model_name}: {e}")
             # Если есть кэш, используем его
             if _models_cache["data"]:
@@ -74,6 +75,7 @@ async def check_model_available(model_name: str, mlx_url: str = None, timeout: f
     for model in models:
         model_name_in_list = model.get("name", "")
         if model_name_in_list == model_name and model.get("exists", False):
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"✅ Модель {model_name} найдена в MLX API Server (exists=True)")
             return True
     # Если модель есть в списке, но exists=False, все равно пробуем (может быть загружена)
@@ -104,6 +106,7 @@ async def select_available_model(
     """
     import os
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"🔍 Выбор модели для категории '{category}' из {len(priorities)} вариантов...")
 
     # Определяем правильный URL для MLX (в Docker используем host.docker.internal)
@@ -118,14 +121,18 @@ async def select_available_model(
             mlx_url = os.getenv("MLX_API_URL", "http://localhost:11435")
 
     for i, model in enumerate(priorities):
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"   Проверка модели {i + 1}/{len(priorities)}: {model}")
         # Проверяем ТОЛЬКО MLX API Server
         if await check_model_available(model, mlx_url):
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Выбрана модель: {model} (приоритет {i + 1})")
             return model
         else:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"   ⏭️  Модель {model} недоступна")
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.warning(f"⚠️  Ни одна модель из списка недоступна для категории '{category}'")
     return None
 
@@ -145,6 +152,7 @@ async def get_best_model_for_category(
         Имя лучшей доступной модели или None
     """
     if category not in model_priorities:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️  Неизвестная категория: {category}")
         return None
 

@@ -68,7 +68,7 @@ class EmbeddingOptimizer:
         if _USE_RUST_NORMALIZER:
             return _rust_normalize_and_hash(text)
         normalized = self._normalize_text(text)
-        return hashlib.md5(normalized.encode()).hexdigest()
+        return hashlib.md5(normalized.encode('utf-8')).hexdigest()
 
     def _get_text_hashes_batch(self, texts: List[str]) -> List[str]:
         """Батч хэшей: один вызов Rust при наличии, иначе N вызовов Python (меньше переходов Python↔Rust)."""
@@ -108,6 +108,7 @@ class EmbeddingOptimizer:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [EMBEDDING CACHE] DB lookup failed: {e}")
         return None
 
@@ -124,6 +125,7 @@ class EmbeddingOptimizer:
         text_hash = self._get_text_hash(text)
         cached = await self._get_cached_embedding_by_hash(text_hash)
         if cached:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"✅ [EMBEDDING CACHE] Hit for: {text[:50]}...")
         return cached
 
@@ -181,6 +183,7 @@ class EmbeddingOptimizer:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [EMBEDDING CACHE] Failed to save to DB: {e}")
 
     async def get_embeddings_batch(
@@ -212,6 +215,7 @@ class EmbeddingOptimizer:
 
         # Генерируем эмбеддинги для текстов, которых нет в кэше
         if texts_to_compute:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"📦 [EMBEDDING BATCH] Computing {len(texts_to_compute)} embeddings...")
             # Можно использовать параллельную обработку
             embeddings = await asyncio.gather(
@@ -221,6 +225,7 @@ class EmbeddingOptimizer:
             # Сохраняем в кэш и добавляем в результаты
             for idx, text, embedding in zip(indices_to_compute, texts_to_compute, embeddings):
                 if isinstance(embedding, Exception):
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ [EMBEDDING BATCH] Failed for text {idx}: {embedding}")
                     results.append((idx, None))
                 elif embedding:

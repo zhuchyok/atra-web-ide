@@ -58,6 +58,34 @@ NIGHTLY_DISTILL_TURBO_EXIT_WATERMARK = int(
 NIGHTLY_DISTILL_TURBO_ENTER_STREAK = int(os.getenv("NIGHTLY_DISTILL_TURBO_ENTER_STREAK", "2"))
 NIGHTLY_DISTILL_TURBO_EXIT_STREAK = int(os.getenv("NIGHTLY_DISTILL_TURBO_EXIT_STREAK", "2"))
 NIGHTLY_DISTILL_FORCE_MODE = os.getenv("NIGHTLY_DISTILL_FORCE_MODE", "auto").strip().lower()
+NIGHTLY_ROUTING_GUARD_ENABLED = os.getenv("NIGHTLY_ROUTING_GUARD_ENABLED", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+NIGHTLY_ROUTING_GUARD_INTERVAL_SEC = int(os.getenv("NIGHTLY_ROUTING_GUARD_INTERVAL_SEC", "21600"))
+NIGHTLY_ROUTING_GUARD_APPLY = os.getenv("NIGHTLY_ROUTING_GUARD_APPLY", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+NIGHTLY_ROUTING_GUARD_COUNT = int(os.getenv("NIGHTLY_ROUTING_GUARD_COUNT", "1000"))
+NIGHTLY_ROUTING_GUARD_WINDOW_HOURS = float(os.getenv("NIGHTLY_ROUTING_GUARD_WINDOW_HOURS", "24"))
+NIGHTLY_ROUTING_GUARD_MIN_EVENTS = int(os.getenv("NIGHTLY_ROUTING_GUARD_MIN_EVENTS", "20"))
+NIGHTLY_ROUTING_GUARD_TARGET_WIN_RATE = float(os.getenv("NIGHTLY_ROUTING_GUARD_TARGET_WIN_RATE", "0.90"))
+NIGHTLY_ROUTING_GUARD_MIN_WIN_RATE_ROLLBACK = float(
+    os.getenv("NIGHTLY_ROUTING_GUARD_MIN_WIN_RATE_ROLLBACK", "0.80")
+)
+NIGHTLY_ROUTING_GUARD_TARGET_REGRET_RATE = float(
+    os.getenv("NIGHTLY_ROUTING_GUARD_TARGET_REGRET_RATE", "0.15")
+)
+NIGHTLY_ROUTING_GUARD_MAX_REGRET_RATE_ROLLBACK = float(
+    os.getenv("NIGHTLY_ROUTING_GUARD_MAX_REGRET_RATE_ROLLBACK", "0.25")
+)
+NIGHTLY_ROUTING_GUARD_MAX_P95_MS = float(os.getenv("NIGHTLY_ROUTING_GUARD_MAX_P95_MS", "20000"))
+NIGHTLY_ROUTING_GUARD_MAX_P95_MS_ROLLBACK = float(
+    os.getenv("NIGHTLY_ROUTING_GUARD_MAX_P95_MS_ROLLBACK", "35000")
+)
 _DISTILLER_SINGLETON = None
 _DISTILL_MODE = "normal"
 _DISTILL_HIGH_STREAK = 0
@@ -474,6 +502,55 @@ async def run_continuous_priority_redistill() -> None:
         await asyncio.sleep(interval)
 
 
+async def run_continuous_routing_quality_guard() -> None:
+    """Run routing quality guard periodically in-process."""
+    interval = max(300, NIGHTLY_ROUTING_GUARD_INTERVAL_SEC)
+    enabled = NIGHTLY_ROUTING_GUARD_ENABLED
+    logger.info(
+        "🧭 [NIGHTLY] Routing guard loop started (enabled=%s interval=%ss apply=%s)",
+        enabled,
+        interval,
+        NIGHTLY_ROUTING_GUARD_APPLY,
+    )
+    while True:
+        if enabled:
+            try:
+                from app.redis_manager import redis_manager
+                from routing_quality_guard import GuardThresholds, run_routing_quality_guard_once
+
+                client = await redis_manager.get_client()
+                report = await run_routing_quality_guard_once(
+                    client,
+                    window_hours=max(1.0, NIGHTLY_ROUTING_GUARD_WINDOW_HOURS),
+                    count=max(100, NIGHTLY_ROUTING_GUARD_COUNT),
+                    apply_action=NIGHTLY_ROUTING_GUARD_APPLY,
+                    thresholds=GuardThresholds(
+                        min_events=max(1, NIGHTLY_ROUTING_GUARD_MIN_EVENTS),
+                        target_win_rate=max(0.0, min(1.0, NIGHTLY_ROUTING_GUARD_TARGET_WIN_RATE)),
+                        min_win_rate_rollback=max(
+                            0.0, min(1.0, NIGHTLY_ROUTING_GUARD_MIN_WIN_RATE_ROLLBACK)
+                        ),
+                        target_regret_rate=max(
+                            0.0, min(1.0, NIGHTLY_ROUTING_GUARD_TARGET_REGRET_RATE)
+                        ),
+                        max_regret_rate_rollback=max(
+                            0.0, min(1.0, NIGHTLY_ROUTING_GUARD_MAX_REGRET_RATE_ROLLBACK)
+                        ),
+                        max_p95_ms=max(10.0, NIGHTLY_ROUTING_GUARD_MAX_P95_MS),
+                        max_p95_ms_rollback=max(10.0, NIGHTLY_ROUTING_GUARD_MAX_P95_MS_ROLLBACK),
+                    ),
+                )
+                logger.info(
+                    "✅ [NIGHTLY] Routing guard done: action=%s reason=%s metrics=%s",
+                    report.get("decision", {}).get("action"),
+                    report.get("decision", {}).get("reason"),
+                    report.get("routing_metrics", {}),
+                )
+            except Exception as exc:
+                logger.warning("⚠️ [NIGHTLY] Routing guard exception: %s", exc)
+        await asyncio.sleep(interval)
+
+
 async def main_loop() -> None:
     """Run nightly cycle periodically with continuous distillation in background."""
     distill_task = asyncio.create_task(run_continuous_distillation())
@@ -485,10 +562,11 @@ async def main_loop() -> None:
         from app.curated_research_refresh import run_continuous_research_refresh
 
     research_task = asyncio.create_task(run_continuous_research_refresh())
+    routing_guard_task = asyncio.create_task(run_continuous_routing_quality_guard())
     logger.info(
-        "🌙 [NIGHTLY] Distillation + embedding backfill + priority re-distill + research refresh running"
+        "🌙 [NIGHTLY] Distillation + embedding backfill + priority re-distill + research refresh + routing guard running"
     )
-    _ = (distill_task, embed_task, redistill_task, research_task)
+    _ = (distill_task, embed_task, redistill_task, research_task, routing_guard_task)
 
     while True:
         await run_nightly_cycle()

@@ -4,6 +4,7 @@ Parallel Execution для Victoria Enhanced
 """
 
 import asyncio
+import inspect
 import logging
 import os
 import time
@@ -44,7 +45,7 @@ class ParallelExecutor:
         # Создаем корутины для всех задач
         coroutines = []
         for task in tasks:
-            if asyncio.iscoroutinefunction(task_func):
+            if inspect.iscoroutinefunction(task_func):
                 coro = task_func(**task)
             else:
                 # Если синхронная функция, оборачиваем в executor
@@ -62,6 +63,7 @@ class ParallelExecutor:
             else:
                 results = await asyncio.gather(*coroutines, return_exceptions=True)
         except asyncio.TimeoutError:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⏱️ Timeout при параллельном выполнении {len(tasks)} задач")
             results = [None] * len(tasks)
 
@@ -69,6 +71,7 @@ class ParallelExecutor:
         processed_results = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка в задаче {i}: {result}")
                 processed_results.append(None)
             else:
@@ -108,7 +111,7 @@ class ParallelExecutor:
             batch_results = await self.execute_parallel(
                 tasks,
                 lambda item: process_func(item)
-                if not asyncio.iscoroutinefunction(process_func)
+                if not inspect.iscoroutinefunction(process_func)
                 else process_func(item),
                 timeout=timeout,
             )

@@ -31,12 +31,14 @@ def run_cursor_agent(prompt: str):
         )
         return result.stdout
     except Exception as e:
-        print(f"Error running cursor-agent for adversarial attack: {e}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"Error running cursor-agent for adversarial attack: {e}")
         return None
 
 
 async def run_adversarial_cycle(limit: int = 5):
-    print(f"🛡️ Starting Adversarial Critic (Corporate Immunity) cycle for {limit} nodes...")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"🛡️ Starting Adversarial Critic (Corporate Immunity) cycle for {limit} nodes...")
     pool = await get_pool()
     conn = await pool.acquire()
 
@@ -54,7 +56,7 @@ async def run_adversarial_cycle(limit: int = 5):
     )
 
     if not nodes:
-        print("✅ No new nodes for adversarial testing.")
+        logger.info("✅ No new nodes for adversarial testing.")
         await pool.release(conn)
         return
 
@@ -67,7 +69,8 @@ async def run_adversarial_cycle(limit: int = 5):
                 metadata = {}
 
         is_sop = (metadata or {}).get("type") == "sop_document"
-        print(f"⚔️ Stress-testing {'SOP' if is_sop else 'node'} {node['id']}...")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"⚔️ Stress-testing {'SOP' if is_sop else 'node'} {node['id']}...")
 
         role_name = "БЕЗЖАЛОСТНЫЙ КРИТИК И АДВОКАТ ДЬЯВОЛА"
         if is_sop:
@@ -134,7 +137,8 @@ async def run_adversarial_cycle(limit: int = 5):
                 )
 
                 status = "SURVIVED" if result["survived"] else "DESTROYED"
-                print(f"🛡️ Node {node['id']} {status}. New Score: {result['new_confidence_score']}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"🛡️ Node {node['id']} {status}. New Score: {result['new_confidence_score']}")
 
                 # Если знание уничтожено - уведомляем через радар
                 if not result["survived"]:
@@ -147,7 +151,8 @@ async def run_adversarial_cycle(limit: int = 5):
                     )
 
             except Exception as e:
-                print(f"❌ Error parsing adversarial output: {e}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"❌ Error parsing adversarial output: {e}")
 
     await pool.release(conn)
 
@@ -167,7 +172,8 @@ async def verify_high_priority_task(task_id: str, content: str) -> Dict[str, Any
     """
     Mandatory adversarial verification for high-priority tasks.
     """
-    print(f"🛡️ [TRUST GATE] Mandatory verification for task {task_id}...")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"🛡️ [TRUST GATE] Mandatory verification for task {task_id}...")
 
     attack_prompt = f"""
     ТЫ - БЕЗЖАЛОСТНЫЙ КРИТИК И АДВОКАТ ДЬЯВОЛА.

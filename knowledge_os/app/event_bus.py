@@ -4,6 +4,7 @@ Event-Driven Architecture - Асинхронная обработка событ
 """
 
 import asyncio
+import inspect
 import logging
 import uuid
 from collections import defaultdict
@@ -58,7 +59,7 @@ class EventType(Enum):
     ACTION_REQUIRED = "action_required"
     RESOURCE_EXHAUSTED = "resource_exhausted"
     SECURITY_ANOMALY = "security_anomaly"
-    
+
     # [SINGULARITY 24.3] Системные события для Redis Bridge
     REDIS_BRIDGE_SYNC = "redis_bridge_sync"
 
@@ -107,13 +108,21 @@ class EventBus:
             self._handler_semaphore, asyncio.Semaphore
         ):
             limit = self._handler_semaphore._value
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 Event Bus запущен (limit: {limit})")
 
     async def stop(self):
         """Остановить обработчик событий"""
         self.running = False
         if self._processor_task:
-            await self._processor_task
+            self._processor_task.cancel()
+            try:
+                await self._processor_task
+            except asyncio.CancelledError:
+                # Normal shutdown path: processor exits via cancellation.
+                pass
+            finally:
+                self._processor_task = None
         logger.info("🛑 Event Bus остановлен")
 
     async def publish(self, event: Event):
@@ -124,6 +133,7 @@ class EventBus:
             event: Событие для публикации
         """
         await self.event_queue.put(event)
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"📢 Событие опубликовано: {event.event_type.value} от {event.source}")
 
     def subscribe(self, event_type: EventType, handler: Callable):
@@ -136,14 +146,19 @@ class EventBus:
         """
         # [SINGULARITY 24.3] DEBUG: Log subscription
         import os
-        logger.info(f"🔗 [EVENT_BUS] (PID: {os.getpid()}) Subscribing {handler.__name__} to {event_type.value} on EventBus ID: {id(self)}")
+
+        logger.info(
+            f"🔗 [EVENT_BUS] (PID: {os.getpid()}) Subscribing {handler.__name__} to {event_type.value} on EventBus ID: {id(self)}"
+        )
         self.subscribers[event_type].append(handler)
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"✅ Подписка на {event_type.value}: {handler.__name__}")
 
     def unsubscribe(self, event_type: EventType, handler: Callable):
         """Отписаться от событий"""
         if handler in self.subscribers[event_type]:
             self.subscribers[event_type].remove(handler)
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"❌ Отписка от {event_type.value}: {handler.__name__}")
 
     async def request_response(
@@ -185,6 +200,7 @@ class EventBus:
             response = await asyncio.wait_for(response_future, timeout=timeout)
             return response
         except asyncio.TimeoutError:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⏱️ Таймаут ожидания ответа на {event_type.value}")
             return None
         finally:
@@ -211,12 +227,15 @@ class EventBus:
                     async def wrapped_handler(h, e):
                         async with self._handler_semaphore:
                             try:
-                                logger.info(f"🏃 [EVENT_BUS] Calling handler {h.__name__} for {e.event_type.value}")
-                                if asyncio.iscoroutinefunction(h):
+                                logger.info(
+                                    f"🏃 [EVENT_BUS] Calling handler {h.__name__} for {e.event_type.value}"
+                                )
+                                if inspect.iscoroutinefunction(h):
                                     return await h(e)
                                 else:
                                     return h(e)
                             except Exception as ex:
+                                # TODO: Convert f-string to %s formatting for performance
                                 logger.error(f"❌ Ошибка в обработчике {h.__name__}: {ex}")
 
                     tasks = [wrapped_handler(handler, event) for handler in handlers]
@@ -231,16 +250,19 @@ class EventBus:
             except asyncio.TimeoutError:
                 continue
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка обработки события: {e}")
 
     async def _handle_request(self, event: Event):
         """Обработать запрос (для request/response)"""
         # В реальной системе здесь была бы маршрутизация к обработчику
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"📥 Обработка запроса: {event.event_id}")
 
     async def _handle_response(self, event: Event):
         """Обработать ответ (для request/response)"""
         # В реальной системе здесь был бы поиск соответствующего Future
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"📤 Обработка ответа: {event.event_id}")
 
     def get_event_history(
@@ -272,29 +294,31 @@ _global_event_bus: Optional[EventBus] = None
 def get_event_bus() -> EventBus:
     """Получить глобальный Event Bus"""
     global _global_event_bus
-    
+
     # [SINGULARITY 24.3] Fix singleton for Docker (absolute vs relative imports)
     import sys
-    if 'app.event_bus' in sys.modules and 'event_bus' in sys.modules:
-        app_eb = sys.modules['app.event_bus']
-        eb = sys.modules['event_bus']
+
+    if "app.event_bus" in sys.modules and "event_bus" in sys.modules:
+        app_eb = sys.modules["app.event_bus"]
+        eb = sys.modules["event_bus"]
         if app_eb is not eb:
             # Link them to ensure they share the same _global_event_bus
-            if hasattr(app_eb, '_global_event_bus') and app_eb._global_event_bus is not None:
+            if hasattr(app_eb, "_global_event_bus") and app_eb._global_event_bus is not None:
                 eb._global_event_bus = app_eb._global_event_bus
-            elif hasattr(eb, '_global_event_bus') and eb._global_event_bus is not None:
+            elif hasattr(eb, "_global_event_bus") and eb._global_event_bus is not None:
                 app_eb._global_event_bus = eb._global_event_bus
 
     if _global_event_bus is None:
         _global_event_bus = EventBus()
-    
+
     # [SINGULARITY 24.3] Link modules again to be sure
     import sys
-    if 'app.event_bus' in sys.modules:
-        sys.modules['app.event_bus']._global_event_bus = _global_event_bus
-    if 'event_bus' in sys.modules:
-        sys.modules['event_bus']._global_event_bus = _global_event_bus
-        
+
+    if "app.event_bus" in sys.modules:
+        sys.modules["app.event_bus"]._global_event_bus = _global_event_bus
+    if "event_bus" in sys.modules:
+        sys.modules["event_bus"]._global_event_bus = _global_event_bus
+
     return _global_event_bus
 
 
@@ -305,8 +329,10 @@ async def main():
 
     # Подписываемся на события
     async def handle_task_created(event: Event):
-        print(f"📥 Получено событие: {event.event_type.value} от {event.source}")
-        print(f"   Payload: {event.payload}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"📥 Получено событие: {event.event_type.value} от {event.source}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Payload: {event.payload}")
 
     bus.subscribe(EventType.TASK_CREATED, handle_task_created)
 
@@ -324,7 +350,8 @@ async def main():
     await asyncio.sleep(0.1)
 
     # Статистика
-    print(f"\nСтатистика: {bus.get_stats()}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\nСтатистика: {bus.get_stats()}")
 
     await bus.stop()
 

@@ -14,6 +14,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
 import httpx
+
 try:
     from app.event_bus import Event, EventType, get_event_bus
 except ImportError:
@@ -78,6 +79,7 @@ class ServiceMonitor:
         for service in all_services:
             self.add_service(service)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Service Monitor инициализирован: {len(self.services)} сервисов")
 
     def is_running(self) -> bool:
@@ -125,7 +127,9 @@ class ServiceMonitor:
             Service(
                 name="Victoria Agent",
                 service_type="http",
-                endpoint=f"http://victoria-agent:8000" if in_docker else f"http://127.0.0.1:{victoria_port}",
+                endpoint="http://victoria-agent:8000"
+                if in_docker
+                else f"http://127.0.0.1:{victoria_port}",
                 port=victoria_port,
                 health_check_path="/health",
             ),
@@ -141,7 +145,10 @@ class ServiceMonitor:
             Service(
                 name="Victoria Proxy",
                 service_type="http",
-                endpoint=os.getenv("PROXY_MONITOR_URL", "http://host.docker.internal:8040" if in_docker else "http://localhost:8040"),
+                endpoint=os.getenv(
+                    "PROXY_MONITOR_URL",
+                    "http://host.docker.internal:8040" if in_docker else "http://localhost:8040",
+                ),
                 port=8040,
                 health_check_path="/health",
                 check_interval=30,
@@ -179,6 +186,7 @@ class ServiceMonitor:
         """Добавить сервис для мониторинга"""
         self.services[service.name] = service
         self.service_statuses[service.name] = ServiceStatus.UNKNOWN
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"➕ Сервис добавлен: {service.name} ({service.service_type})")
 
     def remove_service(self, service_name: str):
@@ -187,6 +195,7 @@ class ServiceMonitor:
             del self.services[service_name]
             if service_name in self.service_statuses:
                 del self.service_statuses[service_name]
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"➖ Сервис удален: {service_name}")
 
     async def check_service(self, service: Service) -> ServiceStatus:
@@ -199,9 +208,11 @@ class ServiceMonitor:
             elif service.service_type == "process":
                 return await self._check_process_service(service)
             else:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Неизвестный тип сервиса: {service.service_type}")
                 return ServiceStatus.UNKNOWN
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка проверки сервиса {service.name}: {e}")
             return ServiceStatus.UNKNOWN
 
@@ -226,12 +237,15 @@ class ServiceMonitor:
                 else:
                     return ServiceStatus.DOWN
         except httpx.TimeoutException:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⏱️ Таймаут проверки {service.name} ({url})")
             return ServiceStatus.DOWN
         except httpx.ConnectError as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"🔌 {service.name} недоступен (ConnectError): {url} — {e!r}")
             return ServiceStatus.DOWN
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка проверки HTTP сервиса {service.name}: {e}")
             return ServiceStatus.UNKNOWN
 
@@ -260,12 +274,14 @@ class ServiceMonitor:
             else:
                 return ServiceStatus.DOWN
         except subprocess.TimeoutExpired:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⏱️ Таймаут проверки Docker контейнера {service.name}")
             return ServiceStatus.DOWN
         except FileNotFoundError:
             logger.warning("⚠️ Docker не найден в PATH")
             return ServiceStatus.UNKNOWN
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка проверки Docker сервиса {service.name}: {e}")
             return ServiceStatus.UNKNOWN
 
@@ -287,6 +303,7 @@ class ServiceMonitor:
         except subprocess.TimeoutExpired:
             return ServiceStatus.DOWN
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка проверки процесса {service.name}: {e}")
             return ServiceStatus.UNKNOWN
 
@@ -300,7 +317,9 @@ class ServiceMonitor:
         # [SINGULARITY 24.3] Avoid flooding the EventBus with UNKNOWN/DOWN transitions during startup
         # or when services are flapping.
         if old_status == ServiceStatus.UNKNOWN and new_status == ServiceStatus.DOWN:
-            logger.info(f"ℹ️ Service {service.name} is DOWN on first check (expected during startup)")
+            logger.info(
+                f"ℹ️ Service {service.name} is DOWN on first check (expected during startup)"
+            )
             return
 
         # Определяем тип события
@@ -326,12 +345,13 @@ class ServiceMonitor:
         )
 
         await self.event_bus.publish(event)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📢 Статус {service.name}: {old_status.value} → {new_status.value}")
 
         # Автоматический перезапуск для MLX API Server через Supervisor
         if service.name == "MLX API Server" and new_status == ServiceStatus.DOWN:
             await self._try_restart_mlx_server()
-            
+
         # [SINGULARITY 28.5] Self-healing for MicroVM nodes
         if "microvm" in service.name.lower() and new_status == ServiceStatus.DOWN:
             await self._self_heal_microvm(service.name)
@@ -341,12 +361,13 @@ class ServiceMonitor:
         [SINGULARITY 28.5] Self-healing logic for MicroVMs.
         Terminates the stuck node and notifies SandboxManager to recreate.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"🩹 [SELF-HEALING] MicroVM {vm_name} is DOWN. Attempting recovery...")
         try:
             # 1. Kill the stuck process (simulated)
             # In a real environment, we would use 'limactl stop' or 'firecracker-ctl'
             expert_name = vm_name.replace("microvm-", "")
-            
+
             # 2. Publish event to trigger task requeue
             event = Event(
                 event_id=f"self_heal_{vm_name}_{int(time.time())}",
@@ -355,8 +376,10 @@ class ServiceMonitor:
                 source="service_monitor",
             )
             await self.event_bus.publish(event)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ [SELF-HEALING] Recovery event published for {vm_name}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SELF-HEALING] Recovery failed for {vm_name}: {e}")
 
     async def _try_restart_mlx_server(self):
@@ -370,6 +393,7 @@ class ServiceMonitor:
         )
         backup_path = target_path + ".bak"
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 [HOT-SWAP] Promoting mutation for {module_name}...")
 
         try:
@@ -399,6 +423,7 @@ class ServiceMonitor:
             await self.event_bus.publish(event)
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [HOT-SWAP] Promotion failed for {module_name}: {e}")
             await self.rollback_mutation(module_name)
 
@@ -410,10 +435,13 @@ class ServiceMonitor:
         backup_path = target_path + ".bak"
 
         if os.path.exists(backup_path):
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"🔄 [ROLLBACK] Rolling back {module_name} to backup...")
             os.replace(backup_path, target_path)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ [ROLLBACK] Successfully rolled back {module_name}.")
         else:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [ROLLBACK] No backup found for {module_name}!")
         try:
             from app.mlx_server_supervisor import get_mlx_supervisor
@@ -462,38 +490,50 @@ class ServiceMonitor:
         pool = await get_pool()
         async with pool.acquire() as conn:
             # Находим задачи с таймаутами или ошибками связи
-            tasks = await conn.fetch("""
+            tasks = await conn.fetch(
+                """
                 SELECT id, title, goal, project_context, metadata
                 FROM tasks
                 WHERE status = 'failed'
                 AND (result ILIKE '%timeout%' OR result ILIKE '%Connect call failed%')
                 ORDER BY updated_at DESC
                 LIMIT $1
-            """, limit)
-            
+            """,
+                limit,
+            )
+
             for task in tasks:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🔄 [RETRY] Перезапуск задачи {task['id']}: {task['title']}")
                 # Сбрасываем статус в pending
-                await conn.execute("""
-                    UPDATE tasks 
+                await conn.execute(
+                    """
+                    UPDATE tasks
                     SET status = 'pending', result = NULL, updated_at = NOW()
                     WHERE id = $1
-                """, task['id'])
-            
+                """,
+                    task["id"],
+                )
+
             return len(tasks)
 
     async def _check_queue_depth(self):
         """Проверить количество PENDING задач и опубликовать событие при перегрузке"""
         try:
             from app.db_pool import get_pool
+
             pool = await get_pool()
             async with pool.acquire() as conn:
-                pending_count = await conn.fetchval("SELECT count(*) FROM tasks WHERE status = 'pending'")
-                
+                pending_count = await conn.fetchval(
+                    "SELECT count(*) FROM tasks WHERE status = 'pending'"
+                )
+
                 max_queue = int(os.getenv("MAX_PENDING_TASKS_THRESHOLD", "100"))
-                
+
                 if pending_count > max_queue:
-                    logger.warning(f"⚠️ Очередь перегружена: {pending_count} задач (лимит: {max_queue})")
+                    logger.warning(
+                        f"⚠️ Очередь перегружена: {pending_count} задач (лимит: {max_queue})"
+                    )
                     event = Event(
                         event_id=f"queue_overload_{int(datetime.now(timezone.utc).timestamp())}",
                         event_type=EventType.PERFORMANCE_DEGRADED,
@@ -501,12 +541,13 @@ class ServiceMonitor:
                             "metric": "queue_depth",
                             "value": pending_count,
                             "threshold": max_queue,
-                            "status": "overloaded"
+                            "status": "overloaded",
                         },
-                        source="service_monitor"
+                        source="service_monitor",
                     )
                     await self.event_bus.publish(event)
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка проверки глубины очереди: {e}")
 
     async def _monitoring_loop(self):
@@ -526,6 +567,7 @@ class ServiceMonitor:
                 await self.check_all_services()
                 await asyncio.sleep(self.check_interval)
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка в цикле мониторинга: {e}", exc_info=True)
                 await asyncio.sleep(self.check_interval)
 
@@ -593,10 +635,12 @@ async def main():
 
     # Подписываемся на события сервисов
     async def handle_service_down(event: Event):
-        print(f"🔴 Сервис упал: {event.payload.get('service_name')}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"🔴 Сервис упал: {event.payload.get('service_name')}")
 
     async def handle_service_up(event: Event):
-        print(f"🟢 Сервис запущен: {event.payload.get('service_name')}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"🟢 Сервис запущен: {event.payload.get('service_name')}")
 
     event_bus.subscribe(EventType.SERVICE_DOWN, handle_service_down)
     event_bus.subscribe(EventType.SERVICE_UP, handle_service_up)
@@ -607,13 +651,14 @@ async def main():
     await monitor.start()
 
     # Ждем события
-    print("⏳ Мониторинг сервисов (нажмите Ctrl+C для остановки)...")
+    logger.info("⏳ Мониторинг сервисов (нажмите Ctrl+C для остановки)...")
     try:
         await asyncio.sleep(60)
     except KeyboardInterrupt:
         pass
 
-    print(f"\n📊 Статистика: {monitor.get_stats()}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n📊 Статистика: {monitor.get_stats()}")
 
     await monitor.stop()
     await event_bus.stop()

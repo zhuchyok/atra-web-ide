@@ -36,6 +36,7 @@ def check_single_instance():
             with open(PID_FILE) as f:
                 old_pid = int(f.read().strip())
             os.kill(old_pid, 0)
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Шлюз уже запущен (PID: {old_pid}). Выход.")
             sys.exit(1)
         except (ProcessLookupError, ValueError, OSError):
@@ -64,10 +65,12 @@ async def run_cursor_agent_async(prompt: str, max_timeout: int = 45):
         if result and str(result).strip():  # Проверка на пустую строку
             return result if isinstance(result, str) else result.get("response", str(result))
         else:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ ai_core вернул пустой результат для промпта: {prompt[:100]}")
     except asyncio.TimeoutError:
         logger.warning("⏱️ ai_core timeout (30s), пробуем cursor-agent")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Failed to run ai_core directly: {e}", exc_info=True)
 
     # Попытка 2: Через бинарный файл (таймаут 30 сек вместо 120)
@@ -93,11 +96,13 @@ async def run_cursor_agent_async(prompt: str, max_timeout: int = 45):
                 return stdout.decode().strip()
             else:
                 error_msg = stderr.decode()[:200]
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"⚠️ Ошибка мозга (code {process.returncode}): {error_msg}")
         except asyncio.TimeoutExpired:
             process.kill()
             logger.warning("⏱️ Agent timeout expired (30s)")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Failed to run agent binary: {e}")
 
     # Попытка 3: Через внутренний оркестратор (таймаут 20 сек вместо 60)
@@ -121,6 +126,7 @@ async def run_cursor_agent_async(prompt: str, max_timeout: int = 45):
                 return stdout.decode().strip()
             else:
                 error_msg = stderr.decode()[:200]
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"⚠️ Ошибка оркестратора (code {process.returncode}): {error_msg}")
         except (asyncio.TimeoutError, TimeoutError):
             # asyncio.wait_for бросает asyncio.TimeoutError (не TimeoutExpired!)
@@ -131,6 +137,7 @@ async def run_cursor_agent_async(prompt: str, max_timeout: int = 45):
                 pass
             logger.warning("⏱️ Orchestrator timeout expired (20s)")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Failed to run orchestrator: {e}")
 
     return "⌛ Извините, я сейчас не могу связаться с ядром системы (Викторияией). Проверьте статус процессов на сервере."
@@ -158,6 +165,7 @@ async def send_telegram_msg(chat_id, text, reply_markup=None):
                 data.pop("parse_mode", None)
                 await client.post(url, data=data, timeout=15)
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка отправки TG: {e}")
 
 
@@ -172,6 +180,7 @@ async def get_expert_config(name):
         await conn.close()
         return row
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"БД ошибка при поиске эксперта {name}: {e}")
     return None
 
@@ -179,6 +188,7 @@ async def get_expert_config(name):
 async def handle_message(target_name, user_text, chat_id, user_id):
     """Обработка входящего сообщения"""
     if user_id != ALLOWED_USER_ID:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"Игнорирую сообщение от неизвестного пользователя: {user_id}")
         return
 
@@ -190,12 +200,14 @@ async def handle_message(target_name, user_text, chat_id, user_id):
         allowed, error_message = await rate_limiter.check_rate_limit(str(user_id))
 
         if not allowed:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"🚨 [RATE LIMITER] Запрос от {user_id} заблокирован: {error_message}")
             await send_telegram_msg(
                 chat_id, error_message or "⚠️ Превышен лимит запросов. Подождите немного."
             )
             return
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"⚠️ [RATE LIMITER] Ошибка проверки rate limit: {e}")
         # Продолжаем обработку при ошибке (fail-open)
 
@@ -204,6 +216,7 @@ async def handle_message(target_name, user_text, chat_id, user_id):
 
     expert = await get_expert_config(target_name)
     if not expert:
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"Эксперт {target_name} не найден в БД, использую Викторияию")
         expert = await get_expert_config("Виктория")
         if not expert:
@@ -215,6 +228,7 @@ async def handle_message(target_name, user_text, chat_id, user_id):
                 "id": 0,
             }
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"📨 Запрос от Ильи к {expert['name']}: {user_text}")
 
     # Получаем контекст сессии (Singularity 8.0)
@@ -229,6 +243,7 @@ async def handle_message(target_name, user_text, chat_id, user_id):
         if session_context:
             logger.debug("📝 [SESSION CONTEXT] Получен контекст из предыдущих запросов")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"⚠️ [SESSION CONTEXT] Ошибка получения контекста: {e}")
 
     # Формируем полный контекст для ИИ
@@ -246,12 +261,15 @@ async def handle_message(target_name, user_text, chat_id, user_id):
 
         # Проверка на пустой ответ
         if not response_text or not str(response_text).strip():
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Пустой ответ от ядра ИИ для запроса: {user_text[:100]}")
             response_text = "⌛ Извините, я сейчас не могу обработать ваш запрос. Попробуйте переформулировать вопрос или подождите несколько секунд."
     except asyncio.TimeoutError:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⏱️ Общий таймаут обработки запроса (45s): {user_text[:100]}")
         response_text = "⌛ Запрос обрабатывается слишком долго. Попробуйте переформулировать вопрос или подождите несколько секунд."
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка при получении ответа от ядра ИИ: {e}", exc_info=True)
         response_text = f"⌛ Ошибка обработки запроса: {str(e)[:100]}. Попробуйте позже."
 
@@ -270,10 +288,12 @@ async def handle_message(target_name, user_text, chat_id, user_id):
             response=response_text,
         )
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"⚠️ [SESSION CONTEXT] Ошибка сохранения контекста: {e}")
 
     # Формируем сообщение
     message_text = f"{icon} *{expert['name']}:*\n\n{response_text}"
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"📨 Отправляю сообщение (длина: {len(message_text)}): {message_text[:150]}...")
 
     # Создаем inline кнопки для feedback (Singularity 8.0)
@@ -282,7 +302,7 @@ async def handle_message(target_name, user_text, chat_id, user_id):
     import time
 
     feedback_id = hashlib.md5(
-        f"{user_id}_{expert['name']}_{user_text}_{int(time.time())}".encode()
+        f"{user_id}_{expert['name']}_{user_text}_{int(time.time())}".encode('utf-8')
     ).hexdigest()[:16]
 
     reply_markup = {
@@ -315,6 +335,7 @@ async def handle_message(target_name, user_text, chat_id, user_id):
             "timestamp": time.time(),
         }
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"⚠️ [FEEDBACK] Ошибка сохранения feedback_id: {e}")
         reply_markup = None  # Отправляем без кнопок при ошибке
 
@@ -330,6 +351,7 @@ async def telegram_bridge():
         )
         while True:
             await asyncio.sleep(3600)
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"🚀 Telegram шлюз v5.0 (Restored) запущен для пользователя {ALLOWED_USER_ID}...")
     offset = 0
 
@@ -385,6 +407,7 @@ async def telegram_bridge():
                                                 )
                                             os.unlink(downloaded_file)
                                     except Exception as e:
+                                        # TODO: Convert f-string to %s formatting for performance
                                         logger.error(f"❌ [VOICE PROCESSOR] Ошибка: {e}")
 
                                 # Обработка файлов/документов (Singularity 8.0)
@@ -431,6 +454,7 @@ async def telegram_bridge():
                                                             )
                                                         os.unlink(tmp_path)
                                     except Exception as e:
+                                        # TODO: Convert f-string to %s formatting for performance
                                         logger.error(f"❌ [FILE PROCESSOR] Ошибка: {e}")
 
                                 if not user_text:
@@ -464,11 +488,11 @@ async def telegram_bridge():
                                         .strip(", ")
                                         .strip()
                                     )
-                                elif any(x in lower_text for x in ["мария", "маша"]):
-                                    target_name = "Мария"
+                                elif any(x in lower_text for x in ["леонид", "лёня"]):
+                                    target_name = "Леонид"
                                     user_text = (
-                                        user_text.replace("Мария", "")
-                                        .replace("Маша", "")
+                                        user_text.replace("Леонид", "")
+                                        .replace("Лёня", "")
                                         .strip(", ")
                                         .strip()
                                     )
@@ -483,6 +507,7 @@ async def telegram_bridge():
                                 )
 
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Ошибка в цикле шлюза: {e}")
                 await asyncio.sleep(5)
 

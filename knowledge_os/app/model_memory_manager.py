@@ -65,6 +65,7 @@ class ModelMemoryManager:
             memory = psutil.virtual_memory()
             return memory.available // (1024 * 1024)
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка получения информации о памяти: {e}")
             return 0
 
@@ -77,12 +78,14 @@ class ModelMemoryManager:
                     data = response.json()
                     return [model["name"] for model in data.get("models", [])]
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"Ошибка получения списка моделей: {e}")
         return []
 
     async def unload_model(self, model_name: str) -> bool:
         """[SINGULARITY 25.0] Реальная выгрузка модели из Ollama через keep_alive: 0"""
         try:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔄 [MEMORY] Принудительная выгрузка модели {model_name} из Ollama...")
             async with httpx.AsyncClient(timeout=10.0) as client:
                 # В Ollama выгрузка делается через /api/generate с keep_alive: 0
@@ -98,6 +101,7 @@ class ModelMemoryManager:
                     if model_name in self.model_memory_usage:
                         del self.model_memory_usage[model_name]
 
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ [MEMORY] Модель {model_name} успешно выгружена из VRAM")
                     return True
                 else:
@@ -106,6 +110,7 @@ class ModelMemoryManager:
                     )
                     return False
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [MEMORY] Критическая ошибка выгрузки модели {model_name}: {e}")
             return False
 
@@ -146,6 +151,7 @@ class ModelMemoryManager:
                 if any(m in model_name for m in IMMORTAL_MODELS):
                     continue
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🧹 [PREDICTIVE-GC] Proactive unloading of {model_name}")
                 await self.unload_model(model_name)
 
@@ -181,6 +187,7 @@ class ModelMemoryManager:
                     # Skip Tier 1 (Active R&D) if we have more than 2GB
                     # For now, we treat all non-immortal as Tier 2 unless we add active task tracking
 
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"🚨 Экстренная выгрузка модели {model_name} (Tier 2)")
                     await self.unload_model(model_name)
 
@@ -188,6 +195,7 @@ class ModelMemoryManager:
                         break
 
             final_available = await self.get_available_memory_mb()
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ После очистки: {final_available}MB свободно")
             return final_available >= MIN_FREE_MEMORY_MB
 
@@ -223,6 +231,7 @@ class ModelMemoryManager:
                 self._running = False
                 break
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Ошибка в мониторинге памяти: {e}")
                 await asyncio.sleep(MEMORY_CHECK_INTERVAL)
 
@@ -260,6 +269,7 @@ class ModelMemoryManager:
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка получения реального использования памяти: {e}")
 
         return model_memory

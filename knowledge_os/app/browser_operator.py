@@ -8,7 +8,7 @@ import base64
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 # Optional: browser-use imports
 try:
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 def _make_browser_config(headless: bool, user_data_dir: Optional[str] = None) -> "BrowserConfig":
     """Build BrowserConfig, optionally with persistent profile (cookies/session survive restarts)."""
-    kwargs: Dict[str, Any] = {
+    kwargs: dict[str, Any] = {
         "headless": headless,
         "disable_security": True,  # Allow local testing
     }
@@ -72,7 +72,7 @@ class BrowserOperator:
         )
         self.controller = Controller() if BROWSER_USE_AVAILABLE else None
 
-    async def execute_task(self, goal: str, project_context: str = "general") -> Dict[str, Any]:
+    async def execute_task(self, goal: str, project_context: str = "general") -> dict[str, Any]:
         """
         Executes a browser task autonomously.
         Falls back to playwright-only mode if browser-use unavailable.
@@ -88,14 +88,17 @@ class BrowserOperator:
 
             # For now, we use a generic ChatOpenAI config pointing to our local brain
             llm = ChatOpenAI(
-                model=os.getenv("VICTORIA_MODEL", "victoria-wisdom-v3.5"),
+                model=os.getenv("VICTORIA_MODEL", "victoria-wisdom-24k"),
                 base_url=f"{llm_url}/v1",
-                api_key="not-needed",
+                api_key=os.getenv(
+                    "BROWSER_OPERATOR_API_KEY", "not-needed"
+                ),  # pragma: allowlist secret
             )
 
             browser = Browser(config=self.browser_config)
             agent = Agent(task=goal, llm=llm, browser=browser, controller=self.controller)
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🌐 [BROWSER OPERATOR] Starting task: {goal}")
             history = await agent.run()
 
@@ -117,17 +120,18 @@ class BrowserOperator:
             }
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [BROWSER OPERATOR] Task failed: {e}")
             return {"status": "error", "message": str(e)}
         finally:
             # Ensure browser is closed if needed (Agent usually handles this)
             pass
 
-async def verify_ui(self, url: str, requirements: str) -> Dict[str, Any]:
+    async def verify_ui(self, url: str, requirements: str) -> dict[str, Any]:
         goal = f"Go to {url} and verify if it matches these requirements: {requirements}. Provide a detailed report and a screenshot."
         return await self.execute_task(goal)
 
-    async def _playwright_fallback(self, goal: str) -> Dict[str, Any]:
+    async def _playwright_fallback(self, goal: str) -> dict[str, Any]:
         """
         Playwright-only fallback when browser-use unavailable.
         Uses basic playwright for simple tasks.
@@ -140,25 +144,25 @@ async def verify_ui(self, url: str, requirements: str) -> Dict[str, Any]:
                 "message": "Neither browser-use nor playwright available",
                 "output": "Please install: pip install playwright browser-use",
             }
-        
+
         try:
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True)
                 page = await browser.new_page()
-                
+
                 url_match = None
                 if "http" in goal.lower():
                     for word in goal.split():
                         if word.startswith(("http://", "https://")):
                             url_match = word
                             break
-                
+
                 if url_match:
                     await page.goto(url_match)
                     await page.wait_for_load_state("networkidle")
                     content = await page.content()
                     await browser.close()
-                    
+
                     return {
                         "status": "completed",
                         "message": f"Loaded {url_match}",
@@ -168,7 +172,7 @@ async def verify_ui(self, url: str, requirements: str) -> Dict[str, Any]:
                 else:
                     await browser.close()
                     return {
-                        "status": "error", 
+                        "status": "error",
                         "message": "No URL found in task",
                         "output": goal,
                     }

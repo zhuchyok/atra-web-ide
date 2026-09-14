@@ -446,6 +446,7 @@ class DebateProcessor:
                 notification_message,
             )
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📢 Sent notification for important consensus from debate {debate_id}")
             return True
 
@@ -501,6 +502,7 @@ class DebateProcessor:
                     LIMIT 100
                 """)
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📊 Found {len(debates)} new debates to process")
 
             for debate in debates:
@@ -548,12 +550,14 @@ class DebateProcessor:
                         )
 
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ Error processing debate {debate['id']}: {e}")
                     stats["errors"] += 1
                     import traceback
 
                     traceback.print_exc()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Critical error in process_new_debates: {e}")
             stats["errors"] += 1
 
@@ -566,12 +570,17 @@ async def process_all_debates():
     processor = DebateProcessor()
     stats = await processor.process_new_debates()
 
-    print("\n📊 Статистика обработки дебатов:")
-    print(f"   Обработано дебатов: {stats['processed']}")
-    print(f"   Создано задач: {stats['tasks_created']}")
-    print(f"   Приоритизировано знаний: {stats['knowledge_prioritized']}")
-    print(f"   Отправлено уведомлений: {stats['notifications_sent']}")
-    print(f"   Ошибок: {stats['errors']}")
+    logger.info("\n📊 Статистика обработки дебатов:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Обработано дебатов: {stats['processed']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Создано задач: {stats['tasks_created']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Приоритизировано знаний: {stats['knowledge_prioritized']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Отправлено уведомлений: {stats['notifications_sent']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Ошибок: {stats['errors']}")
 
     return stats
 

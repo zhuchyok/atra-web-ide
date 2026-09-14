@@ -147,6 +147,7 @@ class AdaptivePrompter:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Ошибка получения успешных паттернов: {e}")
             return []
 
@@ -176,6 +177,7 @@ class AdaptivePrompter:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Ошибка получения неудачных паттернов: {e}")
             return []
 
@@ -234,11 +236,13 @@ class AdaptivePrompter:
                     user_feedback,
                 )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Записана обратная связь: {performance_score:.2f}")
 
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Ошибка записи обратной связи: {e}")
 
     def _extract_template(self, prompt: str) -> str:
@@ -281,14 +285,14 @@ async def main():
 
     # Оптимизируем промпт
     optimized = await prompter.optimize_prompt(
-        "Напиши функцию для сортировки", "coding", "qwen2.5-coder:32b", use_feedback=True
+        "Напиши функцию для сортировки", "coding", "qwen3-coder:30b", use_feedback=True
     )
-    print("Оптимизированный промпт:")
-    print(optimized)
+    logger.info("Оптимизированный промпт:")
+    logger.info(optimized)
 
     # Записываем обратную связь
     await prompter.record_feedback(
-        optimized, "def sort_list(items): ...", "coding", "qwen2.5-coder:32b", performance_score=0.9
+        optimized, "def sort_list(items): ...", "coding", "qwen3-coder:30b", performance_score=0.9
     )
 
 

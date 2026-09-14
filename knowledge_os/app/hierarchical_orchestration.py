@@ -101,6 +101,7 @@ class HierarchicalOrchestrator:
         Returns:
             Состояние оркестрации
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🎯 Hierarchical Orchestration: {user_intent[:80]}")
 
         self.agents = agents
@@ -305,6 +306,7 @@ class HierarchicalOrchestrator:
                 if parent:
                     # Проверяем, что цель согласована с родителем
                     if not self._check_goal_alignment(goal, parent):
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.warning(f"⚠️ Цель {goal.goal_id} не выровнена с родителем")
                         # Корректируем
                         goal.description = f"{parent.description} → {goal.description}"
@@ -332,6 +334,7 @@ class HierarchicalOrchestrator:
 
             if goal.assigned_to:
                 goal.status = TaskStatus.ASSIGNED
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"✅ Задача {goal.goal_id} назначена {goal.assigned_to}")
 
         return goals
@@ -342,13 +345,13 @@ class HierarchicalOrchestrator:
         description_lower = goal.description.lower()
 
         if "backend" in description_lower or "api" in description_lower:
-            return "Игорь"
+            return "Даниил"
         elif "devops" in description_lower or "deploy" in description_lower:
-            return "Сергей"
+            return "Макс"
         elif "ml" in description_lower or "model" in description_lower:
             return "Дмитрий"
         elif "database" in description_lower or "db" in description_lower:
-            return "Роман"
+            return "Владимир"
 
         return "Виктория"  # Fallback
 
@@ -392,6 +395,7 @@ class HierarchicalOrchestrator:
                                 )
                             )
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📊 Найдено {len(dependencies)} зависимостей")
 
         return dependencies
@@ -442,6 +446,7 @@ class HierarchicalOrchestrator:
                 verification_results[goal.goal_id] = False
 
         verified_count = sum(1 for v in verification_results.values() if v)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Верифицировано: {verified_count}/{len(verification_results)}")
 
         return verification_results
@@ -558,8 +563,8 @@ async def main():
 
     agents = {
         "Виктория": {"role": "team_lead", "capabilities": ["planning", "coordination"]},
-        "Игорь": {"role": "backend", "capabilities": ["coding", "api"]},
-        "Сергей": {"role": "devops", "capabilities": ["deployment", "infrastructure"]},
+        "Даниил": {"role": "backend", "capabilities": ["coding", "api"]},
+        "Макс": {"role": "devops", "capabilities": ["deployment", "infrastructure"]},
         "Дмитрий": {"role": "ml", "capabilities": ["models", "training"]},
     }
 
@@ -567,10 +572,13 @@ async def main():
         user_intent="Оптимизировать производительность системы", agents=agents
     )
 
-    print("Результат оркестрации:")
-    print(f"  Целей: {len(state.goals)}")
-    print(f"  Зависимостей: {len(state.dependencies)}")
-    print(f"  Прогресс: {state.visualization_data['progress_summary']}")
+    logger.info("Результат оркестрации:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Целей: {len(state.goals)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Зависимостей: {len(state.dependencies)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Прогресс: {state.visualization_data['progress_summary']}")
 
 
 if __name__ == "__main__":

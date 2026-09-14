@@ -1,8 +1,9 @@
 """Minimal Victoria Router - bypasses complex recursion"""
 
 import asyncio
-import os
 import json
+import os
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 

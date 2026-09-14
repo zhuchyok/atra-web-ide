@@ -60,6 +60,7 @@ class ContainerAnomalyDetector:
                     reason = f"Network Aggressor: {m['net_tx_mb']}MB/s (Z={net_z:.2f})"
 
                 if severity:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"🚨 [ANOMALY] {name}: {reason}")
                     anomalies.append(
                         {

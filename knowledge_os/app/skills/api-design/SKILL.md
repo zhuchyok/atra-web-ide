@@ -6,6 +6,7 @@ description: Проектирование RESTful и GraphQL API. Best practices
 # API Design Skill
 
 ## Когда использовать
+
 - Проектирование новых API
 - Документация API
 - API review
@@ -14,6 +15,7 @@ description: Проектирование RESTful и GraphQL API. Best practices
 ## RESTful Best Practices
 
 ### URL Structure
+
 ```
 # Good
 GET    /users              # List users
@@ -28,15 +30,17 @@ POST   /users/{id}/posts
 ```
 
 ### HTTP Methods
-| Method | Usage | Idempotent |
-|--------|-------|-------------|
-| GET | Read | Yes |
-| POST | Create | No |
-| PUT | Update (full) | Yes |
-| PATCH | Update (partial) | No |
-| DELETE | Delete | Yes |
+
+| Method | Usage            | Idempotent |
+| ------ | ---------------- | ---------- |
+| GET    | Read             | Yes        |
+| POST   | Create           | No         |
+| PUT    | Update (full)    | Yes        |
+| PATCH  | Update (partial) | No         |
+| DELETE | Delete           | Yes        |
 
 ### Status Codes
+
 ```
 200 OK
 201 Created
@@ -52,6 +56,7 @@ POST   /users/{id}/posts
 ## Request/Response Format
 
 ### JSON API
+
 ```json
 // Request
 POST /users
@@ -80,14 +85,13 @@ POST /users
 ```
 
 ### Error Format
+
 ```json
 {
   "error": {
     "code": "VALIDATION_ERROR",
     "message": "Invalid email format",
-    "details": [
-      {"field": "email", "message": "Must be valid email"}
-    ]
+    "details": [{ "field": "email", "message": "Must be valid email" }]
   }
 }
 ```
@@ -95,6 +99,7 @@ POST /users
 ## Authentication
 
 ### API Keys
+
 ```python
 # Header
 X-API-Key: your-api-key
@@ -104,6 +109,7 @@ Authorization: Bearer <token>
 ```
 
 ### JWT
+
 ```python
 # Token payload
 {
@@ -114,6 +120,7 @@ Authorization: Bearer <token>
 ```
 
 ### OAuth 2.0
+
 ```
 Authorization URL: /oauth/authorize
 Token URL: /oauth/token
@@ -122,6 +129,7 @@ Token URL: /oauth/token
 ## Rate Limiting
 
 ### Headers
+
 ```
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 95
@@ -129,6 +137,7 @@ X-RateLimit-Reset: 1640000000
 ```
 
 ### Implementation
+
 ```python
 from fastapi import FastAPI
 from slowapi import Limiter
@@ -144,6 +153,7 @@ async def resource():
 ## Documentation (OpenAPI)
 
 ### Example
+
 ```yaml
 openapi: 3.0.0
 info:
@@ -159,19 +169,20 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: User list
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/User'
+                  $ref: "#/components/schemas/User"
 ```
 
 ## GraphQL
 
 ### Schema
+
 ```graphql
 type User {
   id: ID!
@@ -198,6 +209,7 @@ input CreateUserInput {
 ```
 
 ## Commands
+
 ```bash
 /api design <spec>      # Generate design
 /api docs              # Generate docs
@@ -207,6 +219,7 @@ input CreateUserInput {
 ```
 
 ## Security Checklist
+
 - [ ] HTTPS only
 - [ ] Rate limiting
 - [ ] Input validation

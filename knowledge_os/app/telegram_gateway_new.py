@@ -8,7 +8,7 @@ from datetime import datetime
 import asyncpg
 import httpx
 
-TG_TOKEN = "8422371257:AAEwgSCvSv637QqDsi-EAayVYj8dsENsLbU"
+TG_TOKEN = ""
 ALLOWED_USER_ID = 556251171
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 

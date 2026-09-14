@@ -57,6 +57,7 @@ class AutonomousDistiller:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Error detecting successful responses: {e}")
             return []
 
@@ -118,10 +119,12 @@ class AutonomousDistiller:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error saving distillation examples: {e}")
 
     async def run_autonomous_distillation(self, category: str = "general"):
         """Запустить автономную дистилляцию для категории"""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔬 [AUTONOMOUS DISTILLATION] Запуск для категории {category}")
 
         # Детектируем успешные ответы

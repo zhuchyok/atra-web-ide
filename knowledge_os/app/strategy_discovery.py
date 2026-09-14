@@ -111,6 +111,7 @@ class StrategyDiscovery:
 
             return question_ids
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [DISCOVERY] Ошибка запуска Discovery фазы: {e}")
             return []
 
@@ -258,6 +259,7 @@ class StrategyDiscovery:
             )
             return None
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [DISCOVERY] Ошибка обработки ответа: {e}")
             return None
 
@@ -298,6 +300,7 @@ class StrategyDiscovery:
 
             return is_ready
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [DISCOVERY] Ошибка проверки готовности: {e}")
             return True  # В случае ошибки считаем готовым
 
@@ -345,5 +348,6 @@ class StrategyDiscovery:
 
             return summary
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [DISCOVERY] Ошибка получения summary: {e}")
             return ""

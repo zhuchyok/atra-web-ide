@@ -83,6 +83,7 @@ class VictoriaEventHandlers:
                 self.state_machine = SkillStateMachine(config)
                 logger.info("✅ Skill State Machine инициализирован")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка инициализации State Machine: {e}")
                 self.use_state_machines = False
 
@@ -99,14 +100,16 @@ class VictoriaEventHandlers:
         }
         context.checkpoints.append(checkpoint)
         context.state = state
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"💾 Checkpoint создан: {state.value}")
 
     async def handle_performance_degraded(self, event: Event) -> Dict[str, Any]:
-        """Обработчик деградации производительности (Игорь/Дмитрий)"""
+        """Обработчик деградации производительности (Макс/Дмитрий)"""
         metric = event.payload.get("metric")
         value = event.payload.get("value")
         expert = event.payload.get("expert")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚨 [AUTONOMOUS] {expert} обнаружил проблему: {metric} = {value}")
 
         # Автоматическая постановка задачи на исправление
@@ -118,11 +121,12 @@ class VictoriaEventHandlers:
         return {"status": "task_created", "expert": expert, "metric": metric}
 
     async def handle_performance_degraded(self, event: Event) -> Dict[str, Any]:
-        """Обработчик деградации производительности (Игорь/Дмитрий)"""
+        """Обработчик деградации производительности (Макс/Дмитрий)"""
         metric = event.payload.get("metric")
         value = event.payload.get("value")
         expert = event.payload.get("expert")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚨 [AUTONOMOUS] {expert} обнаружил проблему: {metric} = {value}")
 
         # [Task Queue v2] Автоматическая постановка задачи напрямую в Redis Stream
@@ -141,10 +145,12 @@ class VictoriaEventHandlers:
             }
 
             await redis_manager.push_to_stream("expert_tasks", task_data)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ [AUTONOMOUS] Задача {task_id} поставлена в очередь для {expert}")
 
             return {"status": "task_queued", "task_id": task_id, "expert": expert}
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [AUTONOMOUS] Ошибка постановки задачи: {e}")
             return {"status": "error", "message": str(e)}
 
@@ -175,8 +181,10 @@ class VictoriaEventHandlers:
             from app.redis_manager import redis_manager
 
             await redis_manager.set_cache(f"dialogue_final:{dialogue_id}", final_answer, ttl=3600)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ [DIALOGUE] Final answer for {dialogue_id} saved to Redis")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [DIALOGUE] Error saving final answer: {e}")
 
         return {"status": "consensus_received", "dialogue_id": dialogue_id}
@@ -248,10 +256,12 @@ class VictoriaEventHandlers:
             }
 
             await redis_manager.push_to_stream("expert_tasks", task_data)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ [DIALOGUE] Task {task_id} queued for {expert_name}")
 
             return {"status": "task_queued", "task_id": task_id, "expert": expert_name}
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [DIALOGUE] Error queuing task: {e}")
             return {"status": "error", "message": str(e)}
 
@@ -393,11 +403,13 @@ class VictoriaEventHandlers:
                     datetime.now(timezone.utc),
                 )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [SELF-HEALING] Задача {task_id} создана (статус: {status})")
                 return {"status": "task_created", "task_id": task_id, "db_status": status}
             finally:
                 await conn.close()
         except Exception as db_err:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SELF-HEALING] Ошибка БД: {db_err}")
             return {"status": "db_error", "mutation": mutation_result}
 
@@ -437,6 +449,7 @@ class VictoriaEventHandlers:
                         }
                     )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Syntax auto-fix error: {e}")
 
         # [AUTONOMOUS] Shadow Execution для анализа файла
@@ -468,6 +481,7 @@ class VictoriaEventHandlers:
                     "checkpoints": len(machine_result.get("checkpoints", [])),
                 }
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка State Machine, используем простой handler: {e}")
 
         # Простой handler (fallback)
@@ -478,6 +492,7 @@ class VictoriaEventHandlers:
             file_path = event.payload.get("file_path")
             file_name = event.payload.get("file_name")
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📁 Обработка создания файла: {file_name}")
 
             # Checkpoint: начало обработки
@@ -521,10 +536,12 @@ class VictoriaEventHandlers:
             }
 
             self._create_checkpoint(context, HandlerState.COMPLETED, context.result)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Файл обработан: {file_name}")
 
             return context.result
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка обработки создания файла: {e}", exc_info=True)
             context.error = str(e)
             context.state = HandlerState.FAILED
@@ -539,6 +556,7 @@ class VictoriaEventHandlers:
             file_path = event.payload.get("file_path")
             file_name = event.payload.get("file_name")
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✏️ Обработка изменения файла: {file_name}")
 
             # Проверяем изменения
@@ -556,10 +574,12 @@ class VictoriaEventHandlers:
             }
 
             context.state = HandlerState.COMPLETED
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Изменения файла обработаны: {file_name}")
 
             return context.result
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка обработки изменения файла: {e}", exc_info=True)
             context.error = str(e)
             context.state = HandlerState.FAILED
@@ -580,6 +600,7 @@ class VictoriaEventHandlers:
                 context.state = HandlerState.COMPLETED
                 return {"action": "skipped", "service_name": service_name, "reason": "self"}
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"🔴 Обработка падения сервиса: {service_name}")
 
             # Пытаемся перезапустить сервис через SelfCheckSystem
@@ -592,6 +613,7 @@ class VictoriaEventHandlers:
                     "restart_result": restart_result,
                 }
                 context.state = HandlerState.COMPLETED
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Сервис перезапущен: {service_name}")
             else:
                 # Если не удалось — передаём задачу Елене (Monitor) на диагностику
@@ -602,6 +624,7 @@ class VictoriaEventHandlers:
                     "requires_manual_intervention": True,
                 }
                 context.state = HandlerState.WAITING_APPROVAL
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Не удалось перезапустить сервис: {service_name}")
 
                 async def _delegate_to_monitor():
@@ -615,19 +638,21 @@ class VictoriaEventHandlers:
                         )
                         await run_smart_agent_async(
                             prompt,
-                            expert_name="Елена",
+                            expert_name="Ирина",
                             category="reasoning",
                         )
                         logger.info(
                             f"✅ [MONITOR] Задача диагностики сервиса {service_name} передана Елене (Monitor)"
                         )
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.warning(f"⚠️ [MONITOR] Не удалось передать задачу Елене: {e}")
 
                 asyncio.create_task(_delegate_to_monitor())
 
             return context.result
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка обработки падения сервиса: {e}", exc_info=True)
             context.error = str(e)
             context.state = HandlerState.FAILED
@@ -643,6 +668,7 @@ class VictoriaEventHandlers:
             task_title = event.payload.get("task_title")
             hours_until = event.payload.get("hours_until")
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"⏰ Обработка приближения дедлайна: {task_title} (через {hours_until}ч)")
 
             # Проверяем статус задачи
@@ -668,10 +694,12 @@ class VictoriaEventHandlers:
             }
 
             context.state = HandlerState.COMPLETED
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Дедлайн обработан: {task_title}")
 
             return context.result
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка обработки приближения дедлайна: {e}", exc_info=True)
             context.error = str(e)
             context.state = HandlerState.FAILED
@@ -685,6 +713,7 @@ class VictoriaEventHandlers:
         try:
             error_info = event.payload.get("error_info", {})
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Обработка обнаруженной ошибки: {error_info.get('type', 'unknown')}")
 
             # [AUTONOMOUS] Mutation Engine - попытка автоматического исправления
@@ -699,6 +728,7 @@ class VictoriaEventHandlers:
                     )
                     context.metadata["mutation"] = mutation_result
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Mutation Engine error: {e}")
 
             # Диагностика через Extended Thinking (если доступен)
@@ -724,6 +754,7 @@ class VictoriaEventHandlers:
 
             return context.result
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка обработки обнаруженной ошибки: {e}", exc_info=True)
             context.error = str(e)
             context.state = HandlerState.FAILED
@@ -740,6 +771,7 @@ class VictoriaEventHandlers:
             )
             task_context = event.payload.get("task_context")
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔧 Обработка запроса skill: {skill_description}")
 
             # Запускаем Skill Discovery
@@ -758,6 +790,7 @@ class VictoriaEventHandlers:
                         "skill_path": skill.skill_path,
                     }
                     context.state = HandlerState.COMPLETED
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ Skill создан: {skill.name}")
                 else:
                     context.result = {
@@ -768,6 +801,7 @@ class VictoriaEventHandlers:
                     }
                     context.state = HandlerState.FAILED
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка Skill Discovery: {e}", exc_info=True)
                 context.result = {
                     "action": "skill_needed_handled",
@@ -779,6 +813,7 @@ class VictoriaEventHandlers:
 
             return context.result
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка обработки запроса skill: {e}", exc_info=True)
             context.error = str(e)
             context.state = HandlerState.FAILED
@@ -808,6 +843,7 @@ class VictoriaEventHandlers:
                             "invented_metrics": False,
                         }
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Не удалось использовать базу знаний: {e}")
         except Exception:
             pass
@@ -991,6 +1027,7 @@ class VictoriaEventHandlers:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Не удалось получить статус задачи из БД: {e}")
 
         # Fallback
@@ -1049,6 +1086,7 @@ class VictoriaEventHandlers:
                             "suggested_fixes": "См. базу знаний",
                         }
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Не удалось использовать базу знаний: {e}")
         except Exception:
             pass
@@ -1146,8 +1184,10 @@ async def main():
     )
 
     result = await handlers.handle_file_created(event)
-    print(f"Результат: {result}")
-    print(f"Статистика: {handlers.get_handler_stats()}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Результат: {result}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Статистика: {handlers.get_handler_stats()}")
 
 
 if __name__ == "__main__":

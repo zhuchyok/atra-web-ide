@@ -75,9 +75,11 @@ class ExternalAPIIntegration:
                     self.cache[cache_key] = results
                     return results
                 else:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ [EXTERNAL API] GitHub API error: {response.status_code}")
                     return []
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [EXTERNAL API] Ошибка поиска на GitHub: {e}")
             return []
 
@@ -133,6 +135,7 @@ class ExternalAPIIntegration:
                     )
                     return []
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [EXTERNAL API] Ошибка поиска на Stack Overflow: {e}")
             return []
 
@@ -149,6 +152,7 @@ class ExternalAPIIntegration:
         """
         # Упрощенная версия - можно расширить через парсинг официальной документации
         # Пока возвращаем None
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"📚 [EXTERNAL API] Запрос документации для {library_name}: {query}")
         return None
 

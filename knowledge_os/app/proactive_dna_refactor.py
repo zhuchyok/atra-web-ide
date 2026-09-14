@@ -41,6 +41,7 @@ class DNARefactorEngine:
         """
         Полный цикл рефакторинга личности эксперта.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🧬 [INCUBATOR] Starting deep DNA refactor for {expert_name}...")
 
         async with asyncpg.create_pool(DB_URL) as pool:
@@ -78,6 +79,7 @@ class DNARefactorEngine:
                 )
 
                 if not expert_data:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"Expert {expert_name} not found.")
                     return
 
@@ -113,13 +115,14 @@ class DNARefactorEngine:
     "confidence": 0.0-1.0
 }}
 """
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🧠 [INCUBATOR] Victoria is re-authoring {expert_name}...")
 
                 # Используем DI provider для LocalAIRouter
                 router = _get_local_router_singleton()
 
                 response_data = await router.run_local_llm(
-                    refactor_prompt, category="reasoning", model="victoria-wisdom-v3.5"
+                    refactor_prompt, category="reasoning", model="victoria-wisdom-24k"
                 )
 
                 if isinstance(response_data, (list, tuple)) and len(response_data) >= 1:
@@ -138,8 +141,10 @@ class DNARefactorEngine:
 
                     new_dna = mutation_data.get("new_dna")
 
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"DEBUG: new_dna length: {len(new_dna) if new_dna else 0}")
                     if not new_dna or len(new_dna) < 50:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.warning(f"Refactored DNA is too short or empty. Raw: {response}")
                         return
 
@@ -177,9 +182,11 @@ class DNARefactorEngine:
                         expert_data["id"],
                     )
 
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✨ [EVOLUTION] Expert {expert_name} evolved to v{new_version}!")
 
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ [INCUBATOR] Refactor failed: {e}")
 
     def _summarize_experience(self, events: List, logs: List) -> str:

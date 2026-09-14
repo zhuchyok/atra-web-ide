@@ -88,6 +88,7 @@ class SkillStateMachine:
                 persistence_dir = os.path.expanduser("~/.atra/state_machines")
                 os.makedirs(persistence_dir, exist_ok=True)
                 self.config.persistence_path = persistence_dir
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"💾 Persistence включен: {self.config.persistence_path}")
 
         # Регистрируем узлы
@@ -476,11 +477,13 @@ class SkillStateMachine:
         max_retries = state.get("max_retries", self.config.max_retries)
 
         if retry_count > max_retries:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Достигнут лимит retry: {max_retries}")
             state["current_node"] = StateNode.FAIL.value
             state["error"] = f"Достигнут лимит retry: {max_retries}"
             return await self._node_fail(state)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔄 State Machine: RETRY ({retry_count}/{max_retries})")
         state["current_node"] = StateNode.RETRY.value
         state["retry_count"] = retry_count
@@ -518,6 +521,7 @@ class SkillStateMachine:
             state["checkpoints"] = []
         state["checkpoints"].append(checkpoint)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"💾 Checkpoint создан: {checkpoint_id}")
 
     async def _persist_state(self, state: MachineState):
@@ -556,14 +560,17 @@ class SkillStateMachine:
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(safe_state, f, indent=2, ensure_ascii=False)
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"💾 Состояние сохранено: {filepath}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка сохранения состояния: {e}")
 
     async def restore_from_checkpoint(self, checkpoint_id: str) -> Optional[MachineState]:
         """Восстановить состояние из checkpoint"""
         checkpoint = self.checkpoints.get(checkpoint_id)
         if checkpoint:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔄 Восстановлено состояние из checkpoint: {checkpoint_id}")
             return checkpoint
 
@@ -575,9 +582,11 @@ class SkillStateMachine:
                         filepath = os.path.join(self.config.persistence_path, filename)
                         with open(filepath, encoding="utf-8") as f:
                             state = json.load(f)
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.info(f"🔄 Восстановлено состояние с диска: {filepath}")
                             return state
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка загрузки состояния: {e}")
 
         return None
@@ -650,6 +659,7 @@ class SkillStateMachine:
         Returns:
             Финальное состояние state machine
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 Запуск State Machine для события: {event.event_type.value}")
 
         # Инициализируем состояние
@@ -680,6 +690,7 @@ class SkillStateMachine:
 
             # Выполняем узел
             if current_node not in self.nodes:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Узел {current_node} не найден")
                 state["error"] = f"Узел {current_node} не найден"
                 state["current_node"] = StateNode.FAIL.value
@@ -702,16 +713,19 @@ class SkillStateMachine:
                 current_node = next_node
 
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка в узле {current_node}: {e}", exc_info=True)
                 state["error"] = str(e)
                 state["current_node"] = StateNode.FAIL.value
                 break
 
         if iteration >= max_iterations:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Достигнут лимит итераций: {max_iterations}")
             state["error"] = f"Достигнут лимит итераций: {max_iterations}"
             state["current_node"] = StateNode.FAIL.value
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ State Machine завершена: {state['current_node']}")
         return state
 
@@ -751,8 +765,10 @@ async def main():
     # Запускаем state machine
     result = await machine.run(event)
 
-    print(f"Результат: {result['current_node']}")
-    print(f"Checkpoints: {len(result['checkpoints'])}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Результат: {result['current_node']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Checkpoints: {len(result['checkpoints'])}")
 
 
 if __name__ == "__main__":

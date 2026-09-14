@@ -10,7 +10,7 @@ from ai_core import run_smart_agent_sync
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 
 
-def run_cursor_agent(prompt: str, expert_name: str = "Глеб"):
+def run_cursor_agent(prompt: str, expert_name: str = "Даниил"):
     return run_smart_agent_sync(prompt, expert_name=expert_name, category="expert_task")
 
 
@@ -151,5 +151,5 @@ async def process_task_for_expert(expert_name):
 if __name__ == "__main__":
     import sys
 
-    name = sys.argv[1] if len(sys.argv) > 1 else "Глеб"
+    name = sys.argv[1] if len(sys.argv) > 1 else "Даниил"
     asyncio.run(process_task_for_expert(name))

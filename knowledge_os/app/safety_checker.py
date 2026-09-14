@@ -132,10 +132,12 @@ class SafetyChecker:
         # 3. Есть критические предупреждения
 
         if not is_safe:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"🛡️ [SAFETY CHECK FAILED] Rerouting to cloud: {warning}")
             return True
 
         if score < 0.6:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [LOW QUALITY] Score {score:.2f}, rerouting to cloud")
             return True
 

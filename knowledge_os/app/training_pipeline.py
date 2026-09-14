@@ -75,4 +75,4 @@ from datetime import datetime
 
 if __name__ == "__main__":
     pipeline = LocalTrainingPipeline()
-    print(pipeline.trigger_auto_upgrade())
+    logger.info(pipeline.trigger_auto_upgrade())

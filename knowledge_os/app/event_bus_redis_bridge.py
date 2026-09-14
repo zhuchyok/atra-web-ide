@@ -52,6 +52,7 @@ class EventBusRedisBridge:
         try:
             groups = await client.xinfo_groups(stream_key)
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"[BRIDGE] stale cleanup skipped: {e}")
             return 0
 
@@ -95,6 +96,7 @@ class EventBusRedisBridge:
                 await client.xgroup_destroy(stream_key, str(name))
                 removed += 1
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"[BRIDGE] stale group destroy failed for {name}: {e}")
 
         if removed > 0:
@@ -108,6 +110,7 @@ class EventBusRedisBridge:
         if self.running:
             return
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🌉 [BRIDGE] Starting Redis Bridge on stream {self.stream_name}...")
         self.running = True
 
@@ -123,8 +126,10 @@ class EventBusRedisBridge:
                 await self._cleanup_stale_groups(client, stream_key)
                 await client.xgroup_create(stream_key, self.group_name, id="$", mkstream=True)
                 self._group_created = True
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [BRIDGE] Created unique consumer group: {self.group_name}")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Group creation: {e}")
 
         # 2. Subscribe to local events to publish them to Redis
@@ -157,8 +162,10 @@ class EventBusRedisBridge:
                 client = await self.redis_manager.get_client()
                 stream_key = f"stream:{self.stream_name}"
                 await client.xgroup_destroy(stream_key, self.group_name)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🗑️ [BRIDGE] Destroyed stale consumer group: {self.group_name}")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Group destruction error: {e}")
 
         logger.info("🌉 EventBus Redis Bridge stopped")
@@ -189,8 +196,10 @@ class EventBusRedisBridge:
 
         try:
             await self.redis_manager.push_to_stream(self.stream_name, data, deduplicate=False)
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"✅ [BRIDGE] Event {event.event_id} pushed to Redis")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [BRIDGE] Failed to push event to Redis: {e}")
 
     async def _redis_to_local(self):
@@ -222,6 +231,7 @@ class EventBusRedisBridge:
                                 stream_key, self.group_name, self.consumer_name, 0, ids
                             )
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Pending check/claim error: {e}")
 
                 # Now read from THIS consumer
@@ -240,6 +250,7 @@ class EventBusRedisBridge:
                             )
                             continue  # Retry in next loop iteration
                         except Exception as re_e:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.error(f"❌ [BRIDGE] Failed to recreate group: {re_e}")
                     raise e
 
@@ -256,11 +267,13 @@ class EventBusRedisBridge:
                     f"📥 [BRIDGE] Received {len(messages)} streams from Redis: {[s for s, m in messages]}"
                 )
                 for stream, msgs in messages:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"📥 [BRIDGE] Processing {len(msgs)} messages from stream {stream}")
                     for msg_id, data in msgs:
                         try:
                             raw_payload = data.get("payload")
                             if not raw_payload:
+                                # TODO: Convert f-string to %s formatting for performance
                                 logger.warning(f"⚠️ [BRIDGE] No payload in message {msg_id}")
                                 continue
 
@@ -311,16 +324,19 @@ class EventBusRedisBridge:
                             try:
                                 await self.event_bus.publish(event)
                             except Exception as pub_e:
+                                # TODO: Convert f-string to %s formatting for performance
                                 logger.error(f"❌ [BRIDGE] Failed to publish to local bus: {pub_e}")
 
                             # Acknowledge
                             await client.xack(f"stream:{self.stream_name}", self.group_name, msg_id)
 
                         except Exception as e:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.error(f"❌ Bridge error processing message {msg_id}: {e}")
 
             except Exception as e:
                 if self.running:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"⚠️ Bridge loop error: {e}")
                     await asyncio.sleep(5)
 

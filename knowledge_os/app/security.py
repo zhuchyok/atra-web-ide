@@ -69,7 +69,7 @@ class SecurityManager:
 
     def __init__(self, db_url: str = DB_URL):
         self.db_url = db_url
-        self.encryption = Fernet(ENCRYPTION_KEY.encode())
+        self.encryption = Fernet(ENCRYPTION_KEY.encode('utf-8'))
 
     def generate_jwt_token(
         self, user_id: str, username: str, role: Role, expires_in_hours: int = JWT_EXPIRATION_HOURS
@@ -98,7 +98,7 @@ class SecurityManager:
 
     def hash_password(self, password: str) -> str:
         """Хеширование пароля"""
-        return hashlib.sha256(password.encode()).hexdigest()
+        return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
     def verify_password(self, password: str, hashed: str) -> bool:
         """Проверка пароля"""
@@ -106,11 +106,11 @@ class SecurityManager:
 
     def encrypt_sensitive_data(self, data: str) -> str:
         """Шифрование чувствительных данных"""
-        return self.encryption.encrypt(data.encode()).decode()
+        return self.encryption.encrypt(data.encode('utf-8')).decode()
 
     def decrypt_sensitive_data(self, encrypted_data: str) -> str:
         """Расшифровка чувствительных данных"""
-        return self.encryption.decrypt(encrypted_data.encode()).decode()
+        return self.encryption.decrypt(encrypted_data.encode('utf-8')).decode()
 
     def has_permission(self, role: Role, permission: Permission) -> bool:
         """Проверка наличия права доступа"""
@@ -138,11 +138,13 @@ class SecurityManager:
                     encrypted_email,
                 )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Created user: {username} ({role.value})")
                 return str(user_id)
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error creating user: {e}")
             return None
 
@@ -180,6 +182,7 @@ class SecurityManager:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error authenticating user: {e}")
             return None
 
@@ -206,6 +209,7 @@ class SecurityManager:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error logging audit event: {e}")
             return None
 
@@ -235,6 +239,7 @@ class SecurityManager:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error getting audit logs: {e}")
             return []
 

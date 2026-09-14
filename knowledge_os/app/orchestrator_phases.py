@@ -246,6 +246,7 @@ async def phase_1_5_decompose(
                 )
                 continue
             except Exception as market_err:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [MARKET] Failed to post to Blackboard: {market_err}")
 
             struct = await decompose_via_victoria(goal)
@@ -281,6 +282,7 @@ async def phase_1_5_decompose(
                             },
                         )
                         if await hitl.check_approval_required("plan_approval"):
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.info(f"⏳ Task {task['id']} is waiting for plan approval.")
                             await conn.execute(
                                 """
@@ -305,9 +307,11 @@ async def phase_1_5_decompose(
                         )
                         await recruit_expert(micro_domain, is_micro=True)
                     except Exception as se:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.error(f"❌ [SPAWNING] Failed to spawn micro-agent: {se}")
 
                 if is_swarm:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🐝 [SWARM] Initializing MsgHub for task {task['id']}")
                     try:
                         from agentscope.msghub import msghub  # noqa: F401
@@ -492,6 +496,7 @@ async def phase_1_8_red_team(
                         f"✅ [AUTO-IMPL] План задачи {task['id']} прошел аудит и запущен в работу."
                     )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Critic phase failed for task {task['id']}: {e}")
 
     logger.info(
@@ -1080,6 +1085,14 @@ async def phase_5_curiosity(
 
     curiosity_assigned = 0
     curiosity_cooldown_min = int(os.getenv("ORCHESTRATOR_CURIOSITY_RETRY_COOLDOWN_MIN", "30"))
+    curiosity_max_assignee_active = int(
+        os.getenv("ORCHESTRATOR_CURIOSITY_MAX_ASSIGNEE_ACTIVE", "4")
+    )
+    curiosity_skip_domains = {
+        d.strip().lower()
+        for d in os.getenv("ORCHESTRATOR_CURIOSITY_SKIP_DOMAINS", "Test Domain").split(",")
+        if d.strip()
+    }
     global_curiosity_cb = await conn.fetchval(
         """
         SELECT 1
@@ -1088,7 +1101,10 @@ async def phase_5_curiosity(
           AND status IN ('failed', 'cancelled')
           AND updated_at > NOW() - ($1::text || ' minutes')::interval
           AND (
-              COALESCE(metadata->>'auto_fallback_reason', '') = 'circuit_breaker_loop_exhausted'
+              COALESCE(metadata->>'auto_fallback_reason', '') IN (
+                  'circuit_breaker_loop_exhausted',
+                  'rag_loop_no_llm_call_exhausted'
+              )
               OR COALESCE(metadata->>'last_error', '') ILIKE '%Circuit Breaker%'
               OR COALESCE(result, '') ILIKE '%Circuit Breaker%'
           )
@@ -1098,12 +1114,18 @@ async def phase_5_curiosity(
     )
     if global_curiosity_cb:
         logger.info(
-            "  ⏭️ Curiosity global cooldown: recent Circuit Breaker on starvation tasks within %s min",
+            "  ⏭️ Curiosity global cooldown: recent timeout fallback on starvation tasks within %s min",
             curiosity_cooldown_min,
         )
         deserts = []
 
     for desert in deserts:
+        if str(desert["name"]).strip().lower() in curiosity_skip_domains:
+            logger.info(
+                "  ⏭️ Skip Curiosity task for %s: domain is in skip list",
+                desert["name"],
+            )
+            continue
         active_curiosity = await conn.fetchval(
             """
             SELECT count(*)
@@ -1160,6 +1182,25 @@ async def phase_5_curiosity(
                     desert["name"],
                 )
                 continue
+        if best_expert:
+            active_for_best = await conn.fetchval(
+                """
+                SELECT count(*)
+                FROM tasks
+                WHERE assignee_expert_id = $1
+                  AND status IN ('pending', 'in_progress')
+                """,
+                best_expert["id"],
+            )
+            if int(active_for_best or 0) >= curiosity_max_assignee_active:
+                logger.info(
+                    "  ⏭️ Skip Curiosity task for %s: assignee %s overloaded (%s active, limit=%s)",
+                    desert["name"],
+                    best_expert.get("name"),
+                    active_for_best,
+                    curiosity_max_assignee_active,
+                )
+                continue
         curiosity_cooldown_min = int(os.getenv("ORCHESTRATOR_CURIOSITY_RETRY_COOLDOWN_MIN", "30"))
         # Cooldown is per title (any expert): CB timeout used to cancel, not fail,
         # and a new assignee (Инна vs Роман) bypassed same_task_for_expert.
@@ -1174,7 +1215,8 @@ async def phase_5_curiosity(
                   COALESCE(metadata->>'auto_fallback_reason', '') IN (
                       'curiosity_no_llm_progress_timeout',
                       'pending_curiosity_starvation_timeout',
-                      'circuit_breaker_loop_exhausted'
+                      'circuit_breaker_loop_exhausted',
+                      'rag_loop_no_llm_call_exhausted'
                   )
                   OR COALESCE(metadata->>'last_error', '') ILIKE '%Circuit Breaker%'
                   OR COALESCE(result, '') ILIKE '%Circuit Breaker%'
@@ -1192,6 +1234,9 @@ async def phase_5_curiosity(
             )
             continue
         priority = "high" if desert["node_count"] < 20 else "medium"
+        curiosity_preferred_source = os.getenv(
+            "ORCHESTRATOR_CURIOSITY_PREFERRED_SOURCE", "ollama"
+        ).lower()
         try:
             task_id = await conn.fetchval(
                 """
@@ -1199,7 +1244,10 @@ async def phase_5_curiosity(
                 VALUES ($1, $2, 'pending', $3, $4, $5, $6)
                 ON CONFLICT (title, COALESCE(project_context, 'default'::character varying))
                 WHERE (status = ANY (ARRAY['pending'::text, 'in_progress'::text]))
-                DO UPDATE SET updated_at = NOW()
+                DO UPDATE SET updated_at = CASE
+                    WHEN tasks.status = 'in_progress' THEN NOW()
+                    ELSE tasks.updated_at
+                END
                 RETURNING id
             """,
                 title_curiosity,
@@ -1213,6 +1261,9 @@ async def phase_5_curiosity(
                         "node_count": desert["node_count"],
                         "justification": reason,
                         "is_autonomous": True,
+                        "complex": True,
+                        "execution_profile": "rescue_fast",
+                        "preferred_source": curiosity_preferred_source,
                     }
                 ),
             )
@@ -1221,6 +1272,7 @@ async def phase_5_curiosity(
                 curiosity_assigned += 1
         except Exception as task_err:
             if "duplicate" in str(task_err).lower() or "23505" in str(task_err):
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"  ⏭️ Task already exists (dedup): {title_curiosity[:50]}")
             else:
                 raise

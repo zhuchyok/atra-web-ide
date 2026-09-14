@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Dict, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any, Dict, List, Optional
 
 import asyncpg
 
@@ -144,12 +145,15 @@ async def ensure_active_okrs_seeded(conn: asyncpg.Connection) -> Dict[str, Any]:
     Does not delete historical OKRs — Board simply ignores non-active periods.
     """
     period = get_active_okr_period()
-    existing = await conn.fetchval(
-        "SELECT COUNT(*) FROM okrs WHERE period = $1", period
-    )
+    existing = await conn.fetchval("SELECT COUNT(*) FROM okrs WHERE period = $1", period)
     if existing and int(existing) >= 3:
         refreshed = await refresh_key_results_from_metrics(conn)
-        return {"seeded": False, "period": period, "count": int(existing), "refreshed_kr": refreshed}
+        return {
+            "seeded": False,
+            "period": period,
+            "count": int(existing),
+            "refreshed_kr": refreshed,
+        }
 
     specs = [
         {
@@ -227,9 +231,7 @@ async def ensure_active_okrs_seeded(conn: asyncpg.Connection) -> Dict[str, Any]:
             )
 
     refreshed = await refresh_key_results_from_metrics(conn)
-    logger.info(
-        "Seeded %s OKRs for period=%s (refreshed_kr=%s)", period, period, refreshed
-    )
+    logger.info("Seeded %s OKRs for period=%s (refreshed_kr=%s)", period, period, refreshed)
     return {"seeded": True, "period": period, "count": created, "refreshed_kr": refreshed}
 
 
@@ -240,10 +242,10 @@ async def _main() -> None:
     conn = await asyncpg.connect(db_url)
     try:
         result = await ensure_active_okrs_seeded(conn)
-        print(result)
+        logger.info(result)
         rows = await fetch_active_okrs(conn, with_key_results=True)
         for r in rows:
-            print(
+            logger.info(
                 f"- {r['objective'][:60]} | KR={r.get('kr_description')} "
                 f"{r.get('current_value')}/{r.get('target_value')} {r.get('unit')}"
             )

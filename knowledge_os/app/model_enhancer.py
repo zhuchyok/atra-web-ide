@@ -61,12 +61,14 @@ class SelfConsistencyEngine:
         results = []
         for resp in responses:
             if isinstance(resp, Exception):
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка генерации: {resp}")
                 continue
             if resp.status_code == 200:
                 data = resp.json()
                 results.append(data.get("response", ""))
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Сгенерировано {len(results)} вариантов из {num_samples}")
         return results
 
@@ -177,7 +179,7 @@ class SpeculativeDecodingEngine:
             "command-r-plus:104b": "phi3.5:3.8b",
             "deepseek-r1-distill-llama:70b": "phi3.5:3.8b",
             "llama3.3:70b": "phi3.5:3.8b",
-            "qwen2.5-coder:32b": "qwen2.5:3b",
+            "qwen3-coder:30b": "qwen2.5:3b",
             "phi3.5:3.8b": "tinyllama:1.1b-chat",  # Tiny для маленькой
         }
 
@@ -407,12 +409,14 @@ class EnhancedRAGEngine:
                         }
                     )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Найдено {len(context)} релевантных контекстов")
                 return context
 
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка получения контекста: {e}")
             return []
 
@@ -597,9 +601,9 @@ class ModelEnhancer:
             # Ensemble для максимального качества
             # Выбираем несколько моделей для ensemble
             if task_type == "coding":
-                ensemble_models = ["qwen2.5-coder:32b", "qwen2.5:3b"]
+                ensemble_models = ["qwen3-coder:30b", "qwen2.5:3b"]
             elif task_type == "reasoning":
-                ensemble_models = ["phi3.5:3.8b", "qwen2.5-coder:32b"]
+                ensemble_models = ["phi3.5:3.8b", "qwen3-coder:30b"]
             else:
                 ensemble_models = [model_name, "phi3.5:3.8b"]
 
@@ -635,16 +639,16 @@ async def main():
         enhancement_methods=["self_consistency", "rag", "cot"],
         task_type="reasoning",
     )
-    print("Reasoning результат:", result1["response"][:200])
+    logger.info("Reasoning результат:", result1["response"][:200])
 
     # Пример 2: Coding с Speculative Decoding
     result2 = await enhancer.enhance_response(
         "Напиши функцию для сортировки списка",
-        "qwen2.5-coder:32b",
+        "qwen3-coder:30b",
         enhancement_methods=["speculative", "rag"],
         task_type="coding",
     )
-    print("Coding результат:", result2["response"][:200])
+    logger.info("Coding результат:", result2["response"][:200])
 
 
 if __name__ == "__main__":

@@ -33,6 +33,7 @@ class ConstitutionalCourt:
         Verifies a decision against the Digital Constitution.
         Returns: {"valid": bool, "violations": list, "feedback": str}
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"⚖️ [COURT] Verifying decision for: {topic[:50]}...")
 
         prompt = f"""
@@ -60,7 +61,7 @@ class ConstitutionalCourt:
         # Используем victoria-wisdom-v3.5 для строгого следования формату
         router = _get_local_router_singleton()
         response_data = await router.run_local_llm(
-            prompt, category="reasoning", model="victoria-wisdom-v3.5"
+            prompt, category="reasoning", model="victoria-wisdom-24k"
         )
 
         if isinstance(response_data, (list, tuple)) and len(response_data) >= 1:
@@ -109,6 +110,6 @@ if __name__ == "__main__":
         # Тест нарушения (открытый порт без туннеля - нарушение C2)
         test_decision = "Открыть порт 8080 для внешнего доступа напрямую через IP."
         res = await court.verify_decision("Настройка доступа", test_decision)
-        print(json.dumps(res, indent=2, ensure_ascii=False))
+        logger.info(json.dumps(res, indent=2, ensure_ascii=False))
 
     asyncio.run(test())

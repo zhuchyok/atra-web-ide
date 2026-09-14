@@ -61,25 +61,33 @@ class ContextCompressor:
         """
         if not prompt:
             return ""
-            
+
         # 1. Список стоп-фраз и "воды"
         fillers = [
-            r"пожалуйста", r"будьте добры", r"если вас не затруднит",
-            r"я хотел бы попросить вас", r"не могли бы вы", r"подскажите пожалуйста",
-            r"заранее спасибо", r"с уважением", r"надеюсь на ваш ответ",
-            r"в данном контексте", r"как уже упоминалось ранее",
+            r"пожалуйста",
+            r"будьте добры",
+            r"если вас не затруднит",
+            r"я хотел бы попросить вас",
+            r"не могли бы вы",
+            r"подскажите пожалуйста",
+            r"заранее спасибо",
+            r"с уважением",
+            r"надеюсь на ваш ответ",
+            r"в данном контексте",
+            r"как уже упоминалось ранее",
             r"хочу обратить ваше внимание на то что",
-            r"важно отметить что", r"стоит упомянуть что"
+            r"важно отметить что",
+            r"стоит упомянуть что",
         ]
-        
+
         squeezed = prompt
         for filler in fillers:
             squeezed = re.sub(filler, "", squeezed, flags=re.IGNORECASE)
-            
+
         # 2. Сжатие избыточных пробелов и пустых строк
         squeezed = re.sub(r" {2,}", " ", squeezed)
         squeezed = re.sub(r"\n{3,}", "\n\n", squeezed)
-        
+
         # 3. Удаление дублирующихся строк (SINGULARITY 25.0 FIX)
         lines = squeezed.splitlines()
         unique_lines = []
@@ -91,7 +99,7 @@ class ContextCompressor:
                 seen.add(clean_line)
             elif not clean_line:
                 unique_lines.append(line)
-                
+
         return "\n".join(unique_lines).strip()
 
     @classmethod
@@ -100,7 +108,7 @@ class ContextCompressor:
         if not prompt:
             return ""
         prompt = cls.strip_metadata(prompt)
-        prompt = cls.squeeze_prompt(prompt) # [SINGULARITY 24.0]
+        prompt = cls.squeeze_prompt(prompt)  # [SINGULARITY 24.0]
         return prompt
 
     @classmethod

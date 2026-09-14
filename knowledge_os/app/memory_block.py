@@ -5,9 +5,10 @@ Memory Block System (Singularity 21.32)
 
 import logging
 import re
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
 
 class MemoryBlockSystem:
     """Система управления блоком памяти в промптах."""
@@ -22,8 +23,8 @@ class MemoryBlockSystem:
             r"база\s+данных:\s+([a-zA-Z0-9\s\.\-_]+)",
             r"порт:\s+(\d+)",
             r"файл:\s+([a-zA-Z0-9\s\.\/_\-]+)",  # [SINGULARITY 21.33] Context Anchoring
-            r"doc:\s+([a-zA-Z0-9\s\.\/_\-]+)",   # [SINGULARITY 21.33] Context Anchoring
-            r"lesson:\s+([a-zA-Z0-9\s\.\/_\-,\!]+)", # [SINGULARITY 22.3] Episodic Memory
+            r"doc:\s+([a-zA-Z0-9\s\.\/_\-]+)",  # [SINGULARITY 21.33] Context Anchoring
+            r"lesson:\s+([a-zA-Z0-9\s\.\/_\-,\!]+)",  # [SINGULARITY 22.3] Episodic Memory
         ]
 
     def extract_memory(self, history: List[Dict[str, Any]]) -> str:
@@ -37,15 +38,15 @@ class MemoryBlockSystem:
             return ""
 
         facts = set()
-        anchors = set() # [SINGULARITY 21.33] Якоря контекста
-        lessons = set() # [SINGULARITY 22.3] Episodic Memory (Lessons Learned)
-        reflections = [] # [SINGULARITY 21.35] System 2: Рефлексия
-        
+        anchors = set()  # [SINGULARITY 21.33] Якоря контекста
+        lessons = set()  # [SINGULARITY 22.3] Episodic Memory (Lessons Learned)
+        reflections = []  # [SINGULARITY 21.35] System 2: Рефлексия
+
         for msg in history:
             content = msg.get("content", "")
             if not content:
                 continue
-            
+
             # System 1: Extraction
             for pattern in self.fact_patterns:
                 matches = re.findall(pattern, content, re.IGNORECASE)
@@ -56,7 +57,7 @@ class MemoryBlockSystem:
                         lessons.add(match.strip())
                     else:
                         facts.add(match.strip())
-            
+
             # System 2: Reflection (ищем блоки <thought> или явные выводы)
             reflection_match = re.search(r"<thought>(.*?)</thought>", content, re.DOTALL)
             if reflection_match:
@@ -66,7 +67,7 @@ class MemoryBlockSystem:
             return ""
 
         memory_block = "## Memory (Dual-Process Architecture)\n"
-        
+
         # System 1: Fast Facts
         if facts or anchors or lessons:
             memory_block += "### [SYSTEM 1: Fast Facts & Anchors]\n"
@@ -79,16 +80,18 @@ class MemoryBlockSystem:
             if lessons:
                 for lesson in sorted(list(lessons)):
                     memory_block += f"- LESSON LEARNED: {lesson}\n"
-        
+
         # System 2: Slow Reflection
         if reflections:
             memory_block += "\n### [SYSTEM 2: Deep Reflection & Insights]\n"
-            for ref in reflections[-3:]: # Только последние 3 инсайта
+            for ref in reflections[-3:]:  # Только последние 3 инсайта
                 memory_block += f"- {ref}\n"
-        
+
         return memory_block + "\n"
 
+
 _memory_system = MemoryBlockSystem()
+
 
 def get_memory_block(history: List[Dict[str, Any]]) -> str:
     """Возвращает отформатированный блок памяти."""

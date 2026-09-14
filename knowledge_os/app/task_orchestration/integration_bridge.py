@@ -120,7 +120,7 @@ class IntegrationBridge:
                         "expert_name": "Вероника",
                         "role": "Local Developer",
                         "score": 1.0,
-                        "assigned_models": ["ollama:qwen2.5-coder:32b"],
+                        "assigned_models": ["ollama:qwen3-coder:30b"],
                     }
 
             # ПРИНУДИТЕЛЬНО: для БД всегда добавляем Романа
@@ -136,10 +136,10 @@ class IntegrationBridge:
                 )
                 if not has_roman:
                     assignments["db_engineer_forced"] = {
-                        "expert_name": "Роман",
-                        "role": "Database Engineer",
+                        "expert_name": "Владимир",
+                        "role": "Data Engineer",
                         "score": 1.0,
-                        "assigned_models": ["ollama:qwen2.5-coder:32b"],
+                        "assigned_models": ["ollama:qwen3-coder:30b"],
                     }
 
             return {

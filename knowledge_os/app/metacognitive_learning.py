@@ -61,6 +61,7 @@ class MetacognitiveLearner:
         Returns:
             Оценка знаний (0-1)
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🧠 [{self.agent_name}] Выполняю самооценку...")
 
         # Анализируем производительность
@@ -85,6 +86,7 @@ class MetacognitiveLearner:
         elif base_score < 0.5:
             self.state.weaknesses.append("Низкая производительность")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ [{self.agent_name}] Самооценка: {base_score:.2f}")
         return base_score
 
@@ -99,6 +101,7 @@ class MetacognitiveLearner:
         Returns:
             План обучения (приоритизированные цели)
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📋 [{self.agent_name}] Планирую обучение...")
 
         # Анализируем пробелы
@@ -120,6 +123,7 @@ class MetacognitiveLearner:
             learning_goals.append(goal)
 
         self.state.learning_goals = learning_goals
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ [{self.agent_name}] Создано {len(learning_goals)} целей обучения")
 
         return learning_goals
@@ -138,6 +142,7 @@ class MetacognitiveLearner:
         Returns:
             Оценка опыта обучения
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔍 [{self.agent_name}] Оцениваю опыт обучения...")
 
         topic = learning_experience.get("topic", "Unknown")
@@ -188,6 +193,7 @@ class MetacognitiveLearner:
         """
         Адаптация процесса обучения на основе метакогнитивного состояния
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔄 [{self.agent_name}] Адаптирую процесс обучения...")
 
         # Анализируем историю
@@ -230,6 +236,7 @@ class MetacognitiveLearner:
             "weaknesses": self.state.weaknesses[-3:],  # Последние 3 слабые стороны
         }
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ [{self.agent_name}] Адаптация: {action} - {reason}")
 
         return adaptation_plan
@@ -242,6 +249,7 @@ class MetacognitiveLearner:
         """Сохранить состояние в файл"""
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(self.get_state(), f, ensure_ascii=False, indent=2)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"💾 Состояние сохранено в {filepath}")
 
     def load_state(self, filepath: str):
@@ -249,6 +257,7 @@ class MetacognitiveLearner:
         with open(filepath, encoding="utf-8") as f:
             data = json.load(f)
             self.state = MetacognitiveState(**data)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📂 Состояние загружено из {filepath}")
 
 

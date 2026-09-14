@@ -80,9 +80,11 @@ class VeronicaWebResearcher:
                 None, lambda: web_search_sync(query, max_results=max_results)
             )
             if results:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [WEB SEARCH] Найдено {len(results)} результатов")
             return results or []
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [WEB SEARCH] Ошибка: {e}")
             return []
 
@@ -115,15 +117,16 @@ class VeronicaWebResearcher:
         # Выбираем модель в зависимости от категории (MLX модели Mac Studio)
         model_map = {
             "research": "phi3.5:3.8b",
-            "coding": "qwen2.5-coder:32b",  # MLX модель (Mac Studio)
+            "coding": "qwen3-coder:30b",  # MLX модель (Mac Studio)
             "fast": "phi3.5:3.8b",  # Ollama модель
             "vip": "deepseek-r1:32b",  # VIP модель для Совета
             "reasoning": "deepseek-r1:32b",
-            "default": "qwen2.5-coder:32b",  # MLX модель (Mac Studio)
+            "default": "qwen3-coder:30b",  # MLX модель (Mac Studio)
         }
         model = model_map.get(category, model_map["default"])
 
         try:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🤖 [VERONICA] Обработка через {healthy_node['name']} (модель: {model})")
 
             async with httpx.AsyncClient(timeout=timeout) as client:
@@ -135,25 +138,29 @@ class VeronicaWebResearcher:
                 if response.status_code == 200:
                     result = response.json()
                     answer = result.get("response", "")
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ [VERONICA] Ответ получен ({len(answer)} символов)")
                     return answer
                 else:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ [VERONICA] Ошибка: {response.status_code}")
                     return f"❌ Ошибка локальной модели: {response.status_code}"
         except Exception as e:
-            logger.error(f"❌ [VERONICA] Ошибка: {e}")
-            return f"❌ Ошибка: {e}"
+            detail = str(e).strip() or repr(e) or type(e).__name__
+            logger.exception("❌ [VERONICA] Ошибка: %s", detail)
+            return f"❌ Ошибка: {detail}"
 
     async def _get_healthy_node(self) -> Optional[Dict]:
-        """Получение здорового узла"""
+        """Получение здорового узла (Ollama /api/tags или MLX /health)."""
         async with httpx.AsyncClient(timeout=5.0) as client:
             for node in self.nodes:
-                try:
-                    response = await client.get(f"{node['url']}/api/tags", timeout=2.0)
-                    if response.status_code == 200:
-                        return node
-                except:
-                    continue
+                for path in ("/api/tags", "/health", "/v1/models"):
+                    try:
+                        response = await client.get(f"{node['url']}{path}", timeout=2.0)
+                        if response.status_code == 200:
+                            return node
+                    except Exception:
+                        continue
         return None
 
     # --- PERPLEXITY BROWSER PATTERNS (Phase 5) ---
@@ -163,6 +170,7 @@ class VeronicaWebResearcher:
         [Perplexity Pattern] Открыть страницу в видимой вкладке для пользователя.
         Используется, когда пользователь хочет 'посмотреть' сайт или видео.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🌐 [BROWSER] Открытие страницы для просмотра: {url}")
         # В текущей реализации Web IDE мы можем вернуть команду для фронтенда или iframe URL
         return {"action": "open_visible_tab", "url": url, "mode": "viewing"}
@@ -172,6 +180,7 @@ class VeronicaWebResearcher:
         [Perplexity Pattern] Чтение полного содержимого страницы без взаимодействия.
         Используется для глубокого анализа документации или статей.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📖 [BROWSER] Чтение содержимого страницы: {url}")
         try:
             async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
@@ -185,6 +194,7 @@ class VeronicaWebResearcher:
                 response = await client.get(url)
                 return response.text[:50000]  # Лимит для стабильности
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [BROWSER] Ошибка чтения страницы {url}: {e}")
             return f"Error reading page: {str(e)}"
 
@@ -193,6 +203,7 @@ class VeronicaWebResearcher:
         [Perplexity Pattern] Интерактивное управление браузером (клики, формы).
         Использует BrowserOperator (browser-use + playwright).
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🤖 [BROWSER CONTROL] Выполнение задачи: {task}")
         try:
             try:
@@ -210,6 +221,7 @@ class VeronicaWebResearcher:
             result = await operator.execute_task(full_task)
             return result
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [BROWSER CONTROL] Ошибка: {e}")
             return {"status": "error", "message": str(e)}
 
@@ -219,6 +231,7 @@ class VeronicaWebResearcher:
         """
         Полный цикл: веб-поиск + анализ локальной моделью (без токенов).
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔬 [VERONICA RESEARCH] Запрос: {query}")
 
         # Шаг 1: Веб-поиск (если нужен)
@@ -257,27 +270,32 @@ class VeronicaWebResearcher:
 
 async def test_veronica_web_research():
     """Тест Вероники с веб-поиском"""
-    print("🧪 Тест: Вероника с веб-поиском\n")
+    logger.info("🧪 Тест: Вероника с веб-поиском\n")
 
     veronica = VeronicaWebResearcher()
 
     # Тест 1: Простой запрос без веб-поиска
-    print("📤 Тест 1: Простой запрос (без веб-поиска)")
+    logger.info("📤 Тест 1: Простой запрос (без веб-поиска)")
     result1 = await veronica.process_with_local_model(
         "Объясни, что такое алгоритмическая торговля", category="research"
     )
-    print(f"✅ Ответ получен ({len(result1)} символов)")
-    print(f"   Первые 200 символов: {result1[:200]}...\n")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"✅ Ответ получен ({len(result1)} символов)")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Первые 200 символов: {result1[:200]}...\n")
 
     # Тест 2: Запрос с веб-поиском
-    print("📤 Тест 2: Запрос с веб-поиском")
+    logger.info("📤 Тест 2: Запрос с веб-поиском")
     result2 = await veronica.research_and_analyze(
         "новые тренды в алгоритмической торговле 2025", category="research", use_web=True
     )
-    print("✅ Исследование завершено")
-    print(f"   Веб-результатов: {len(result2['web_results'])}")
-    print(f"   Анализ: {len(result2['analysis'])} символов")
-    print(f"   Токенов использовано: {result2['tokens_used']} (0 = бесплатно!)")
+    logger.info("✅ Исследование завершено")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Веб-результатов: {len(result2['web_results'])}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Анализ: {len(result2['analysis'])} символов")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Токенов использовано: {result2['tokens_used']} (0 = бесплатно!)")
 
     return True
 

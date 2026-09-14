@@ -84,6 +84,7 @@ class CollaborationForum:
             conn = await asyncpg.connect(self.db_url)
             return conn
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [COLLAB FORUM] Ошибка подключения к БД: {e}")
             return None
 
@@ -111,7 +112,7 @@ class CollaborationForum:
         try:
             # Генерируем post_id
             post_key = f"{agent_id}:{title}:{datetime.now(timezone.utc).isoformat()}"
-            post_id = hashlib.md5(post_key.encode()).hexdigest()[:16]
+            post_id = hashlib.md5(post_key.encode('utf-8')).hexdigest()[:16]
 
             post = ForumPost(
                 post_id=post_id,
@@ -158,6 +159,7 @@ class CollaborationForum:
 
                 self._posts_cache[post_id] = post
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [COLLAB FORUM] Создан пост {post_id} от агента {agent_id}")
                 return post_id
 
@@ -165,6 +167,7 @@ class CollaborationForum:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [COLLAB FORUM] Ошибка создания поста: {e}")
             return ""
 
@@ -263,6 +266,7 @@ class CollaborationForum:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [COLLAB FORUM] Ошибка получения популярных решений: {e}")
             return []
 
@@ -303,6 +307,7 @@ class CollaborationForum:
                     if post_id in self._posts_cache:
                         self._posts_cache[post_id].upvotes += 1
 
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"✅ [COLLAB FORUM] Пост {post_id} получил upvote от {agent_id}")
                     return True
 
@@ -312,6 +317,7 @@ class CollaborationForum:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [COLLAB FORUM] Ошибка upvote: {e}")
             return False
 
@@ -363,6 +369,7 @@ class CollaborationForum:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [COLLAB FORUM] Ошибка отметки полезности: {e}")
             return False
 

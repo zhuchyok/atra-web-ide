@@ -37,6 +37,7 @@ class ContextMirror:
             self._redis_client = redis.from_url(self.redis_url, decode_responses=True)
             return self._redis_client
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Error connecting to Redis: {e}")
             return None
 
@@ -76,6 +77,7 @@ class ContextMirror:
 
             return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Error saving atomic context for session {session_id}: {e}")
             return False
 
@@ -110,5 +112,6 @@ class ContextMirror:
                 return json.loads(data)
             return None
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Error retrieving atomic context for session {session_id}: {e}")
             return None

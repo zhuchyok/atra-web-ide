@@ -27,6 +27,13 @@ def validate_task_result(description: str, result: str) -> Tuple[bool, float]:
     result_lower = result.strip().lower()
     desc_lower = (description or "").strip().lower()
 
+    try:
+        from cursor_method import is_bare_done
+    except ImportError:
+        from app.cursor_method import is_bare_done
+    if is_bare_done(result):
+        return False, 0.2
+
     # Индикаторы ошибки в ответе
     error_indicators = [
         "⚠️",

@@ -6,6 +6,7 @@ description: Enterprise data pipeline automation. Retrieval skills для раб
 # Enterprise Data Pipeline Skill
 
 ## Когда использовать
+
 - ETL процессы для enterprise данных
 - Data retrieval из enterprise систем
 - Data transformation и cleaning
@@ -14,13 +15,16 @@ description: Enterprise data pipeline automation. Retrieval skills для раб
 ## Retrieval Skills Pipeline
 
 ### 1. Data Discovery
+
 Определи источники данных:
+
 - CRM (Salesforce, HubSpot)
 - ERP (SAP, Oracle)
 - Data Warehouse (Snowflake, BigQuery)
 - APIs (REST, GraphQL)
 
 ### 2. Data Extraction
+
 ```python
 # Example extraction patterns
 async def extract_from_salesforce():
@@ -36,22 +40,24 @@ async def extract_from_snowflake():
 ```
 
 ### 3. Data Transformation
+
 ```python
 def transform(raw_data):
     # Clean
     data = clean_nulls(raw_data)
-    
+
     # Normalize
     data = normalize_dates(data)
     data = normalize_types(data)
-    
+
     # Enrich
     data = add_computed_fields(data)
-    
+
     return data
 ```
 
 ### 4. Data Loading
+
 ```python
 async def load_to_destination(data, destination):
     if destination == 'snowflake':
@@ -65,6 +71,7 @@ async def load_to_destination(data, destination):
 ## Enterprise Integration Patterns
 
 ### API Rate Limiting
+
 ```python
 async def api_call_with_retry(url, max_retries=3):
     for attempt in range(max_retries):
@@ -82,6 +89,7 @@ async def api_call_with_retry(url, max_retries=3):
 ```
 
 ### Batch Processing
+
 ```python
 async def batch_process(items, batch_size=100):
     results = []
@@ -94,6 +102,7 @@ async def batch_process(items, batch_size=100):
 ```
 
 ### Error Handling
+
 ```python
 async def safe_pipeline(data):
     try:
@@ -114,12 +123,14 @@ async def safe_pipeline(data):
 ```
 
 ## Output Formats
+
 - **JSON** - structured data
 - **Parquet** - analytical queries
 - **CSV** - exports
 - **DataFrame** - pandas
 
 ## Monitoring
+
 ```python
 # Track metrics
 metrics = {

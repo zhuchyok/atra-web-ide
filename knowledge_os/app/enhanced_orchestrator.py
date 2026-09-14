@@ -300,7 +300,7 @@ try:
 except ImportError:
 
     async def run_global_scout_cycle():
-        pass
+        logger.debug("ℹ️ run_global_scout_cycle() not implemented yet")
 
 
 try:
@@ -322,7 +322,7 @@ except ImportError:
         """Fallback for SyntheticKnowledgeGenerator."""
 
         async def generate_synthetic_samples(self, **kwargs):
-            pass
+            logger.debug("ℹ️ generate_synthetic_samples() not implemented yet")
 
 
 try:
@@ -417,10 +417,13 @@ async def apply_time_decay(conn):
             SET status = 'cancelled',
                 metadata = metadata || jsonb_build_object(
                     'cancel_reason', 'energy_depleted',
-                    'cancelled_at', NOW()
+                    'cancelled_at', NOW(),
+                    'manual_cancel_reason', 'policy_energy_depleted',
+                    'auto_fallback_reason', 'energy_budget_time_decay'
                 )
             WHERE status = 'pending'
               AND (metadata->>'is_user_requested')::boolean IS NOT TRUE
+              AND COALESCE(metadata->>'source', '') <> 'victoria_monster_delegation'
               AND (
                   (priority = 'low' AND created_at < NOW() - INTERVAL '12 hours') OR
                   (priority = 'medium' AND created_at < NOW() - INTERVAL '24 hours') OR
@@ -429,8 +432,10 @@ async def apply_time_decay(conn):
               AND parent_task_id IS NULL
         """)
         if decay_results != "UPDATE 0":
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"  🧹 Time Decay: {decay_results.split()[-1]} stale tasks cancelled.")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"Time Decay failed: {e}")
 
 
@@ -548,7 +553,7 @@ except ImportError:
         """Fallback for SwarmOrchestrator."""
 
         async def handle_critical_failures(self):
-            pass
+            logger.debug("ℹ️ handle_critical_failures() not implemented yet")
 
     def get_handoff_manager():
         return None
@@ -562,10 +567,10 @@ except ImportError:
         """Fallback for MetaArchitect."""
 
         async def self_repair_cycle(self):
-            pass
+            logger.debug("ℹ️ self_repair_cycle() not implemented yet")
 
         async def self_evolution_cycle(self, max_hotspots: int = 3):
-            pass
+            logger.debug("ℹ️ self_evolution_cycle() not implemented yet")
 
         async def run_guarded_evolution(self) -> str:
             return "fallback_noop"
@@ -576,7 +581,7 @@ try:
 except ImportError:
 
     async def run_auto_link_detection():
-        pass
+        logger.debug("ℹ️ run_auto_link_detection() not implemented yet")
 
 
 try:
@@ -1394,6 +1399,7 @@ async def assign_task_to_best_expert(
         "SELECT id, title, description, metadata FROM tasks WHERE id = $1", task_id
     )
     if not task:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"Task {task_id} not found for assignment")
         return None
 
@@ -1432,7 +1438,18 @@ async def assign_task_to_best_expert(
                         preferred_source = str(task_dict["metadata"]["preferred_source"]).lower()
                         if preferred_source not in ("mlx", "ollama"):
                             preferred_source = "ollama"
+                execution_profile = ""
+                if isinstance(task_meta, str):
+                    task_meta = json.loads(task_meta) if task_meta else {}
+                is_curiosity_task = str(task_meta.get("reason", "")) == "curiosity_engine_starvation"
+                execution_profile = str(task_meta.get("execution_profile", "") or "").strip()
+                if is_curiosity_task and not execution_profile:
+                    execution_profile = "rescue_fast"
                 meta_extra = {"preferred_source": preferred_source}
+                if execution_profile:
+                    meta_extra["execution_profile"] = execution_profile
+                if is_curiosity_task:
+                    meta_extra["complex"] = True
                 await conn.execute(
                     """
                     UPDATE tasks
@@ -1542,7 +1559,18 @@ async def assign_task_to_best_expert(
                 preferred_source = str(task_dict["metadata"]["preferred_source"]).lower()
                 if preferred_source not in ("mlx", "ollama"):
                     preferred_source = "ollama"
+        execution_profile = ""
+        if isinstance(task_meta, str):
+            task_meta = json.loads(task_meta) if task_meta else {}
+        is_curiosity_task = str(task_meta.get("reason", "")) == "curiosity_engine_starvation"
+        execution_profile = str(task_meta.get("execution_profile", "") or "").strip()
+        if is_curiosity_task and not execution_profile:
+            execution_profile = "rescue_fast"
         meta_extra = {"preferred_source": preferred_source}
+        if execution_profile:
+            meta_extra["execution_profile"] = execution_profile
+        if is_curiosity_task:
+            meta_extra["complex"] = True
         await conn.execute(
             """
             UPDATE tasks
@@ -1615,7 +1643,7 @@ async def dispatch_pending_assignments(conn, limit: int = 50) -> int:
             task_meta = row["metadata"] or {}
             if isinstance(task_meta, str):
                 try:
-                    task_meta = json.loads(task_meta)
+                    task_meta = json.loads(task_meta) if task_meta else {}
                 except Exception:
                     task_meta = {}
             assigned_expert_name = row.get("expert_name")
@@ -1878,10 +1906,15 @@ async def reconcile_stale_in_progress(conn) -> Tuple[int, int]:
     stale_minutes = int(os.getenv("ORCHESTRATOR_STALE_INPROGRESS_MINUTES", "45"))
     max_retries = int(os.getenv("ORCHESTRATOR_STALE_INPROGRESS_MAX_RETRIES", "3"))
     ghost_grace_sec = int(os.getenv("ORCHESTRATOR_GHOST_INPROGRESS_GRACE_SEC", "60"))
-    curiosity_ghost_minutes = int(os.getenv("ORCHESTRATOR_CURIOSITY_GHOST_NO_LLM_MINUTES", "15"))
+    curiosity_ghost_minutes = int(os.getenv("ORCHESTRATOR_CURIOSITY_GHOST_NO_LLM_MINUTES", "10"))
     curiosity_pending_timeout_min = int(
-        os.getenv("ORCHESTRATOR_CURIOSITY_PENDING_TIMEOUT_MIN", "120")
+        os.getenv("ORCHESTRATOR_CURIOSITY_PENDING_TIMEOUT_MIN", "30")
     )
+    curiosity_skip_domains = [
+        d.strip().lower()
+        for d in os.getenv("ORCHESTRATOR_CURIOSITY_SKIP_DOMAINS", "Test Domain").split(",")
+        if d.strip()
+    ]
     pending_dispatch_timeout_min = int(os.getenv("ORCHESTRATOR_PENDING_DISPATCH_TIMEOUT_MIN", "60"))
     pending_dispatch_cap_reopen_min = int(os.getenv("ORCHESTRATOR_DISPATCH_CAP_REOPEN_MIN", "1"))
     pending_dispatch_max_strikes = int(os.getenv("ORCHESTRATOR_PENDING_DISPATCH_MAX_STRIKES", "3"))
@@ -1920,12 +1953,13 @@ async def reconcile_stale_in_progress(conn) -> Tuple[int, int]:
         """
         WITH moved AS (
             UPDATE tasks
-            SET status = 'failed',
+            SET status = 'cancelled',
                 updated_at = NOW(),
                 metadata = COALESCE(metadata, '{}'::jsonb) ||
                     jsonb_build_object(
                         'auto_fallback_at', NOW()::text,
                         'auto_fallback_reason', 'curiosity_no_llm_progress_timeout',
+                        'manual_cancel_reason', 'policy_curiosity_no_llm_timeout',
                         'stale_force_fallback', true
                     )
             WHERE status = 'in_progress'
@@ -1935,7 +1969,10 @@ async def reconcile_stale_in_progress(conn) -> Tuple[int, int]:
                     updated_at,
                     created_at
                   ) < NOW() - ($1::text || ' minutes')::interval
-              AND COALESCE(metadata->>'last_llm_call_at', '') = ''
+              AND (
+                    last_llm_call_at IS NULL
+                    OR last_llm_call_at < NOW() - ($1::text || ' minutes')::interval
+                  )
             RETURNING id
         )
         SELECT count(*) FROM moved
@@ -1947,12 +1984,13 @@ async def reconcile_stale_in_progress(conn) -> Tuple[int, int]:
         """
         WITH moved AS (
             UPDATE tasks
-            SET status = 'failed',
+            SET status = 'cancelled',
                 updated_at = NOW(),
                 metadata = COALESCE(metadata, '{}'::jsonb) ||
                     jsonb_build_object(
                         'auto_fallback_at', NOW()::text,
                         'auto_fallback_reason', 'pending_curiosity_starvation_timeout',
+                        'manual_cancel_reason', 'policy_pending_curiosity_timeout',
                         'stale_force_fallback', true
                     )
             WHERE status = 'pending'
@@ -1997,9 +2035,8 @@ async def reconcile_stale_in_progress(conn) -> Tuple[int, int]:
                   ) < NOW() - ($1::text || ' minutes')::interval
               AND COALESCE((metadata->>'pending_dispatch_timeout_count')::int, 0) + 1 < $2::int
               AND (
-                    COALESCE(metadata->>'last_llm_call_at', '') = ''
-                    OR (metadata->>'last_llm_call_at')::timestamptz <
-                        NOW() - ($3::text || ' minutes')::interval
+                    last_llm_call_at IS NULL
+                    OR last_llm_call_at < NOW() - ($3::text || ' minutes')::interval
                   )
               AND (
                     COALESCE(metadata->>'processing_started_at', '') = ''
@@ -2068,9 +2105,8 @@ async def reconcile_stale_in_progress(conn) -> Tuple[int, int]:
                   ) < NOW() - ($1::text || ' minutes')::interval
               AND COALESCE((metadata->>'pending_dispatch_timeout_count')::int, 0) + 1 >= $2::int
               AND (
-                    COALESCE(metadata->>'last_llm_call_at', '') = ''
-                    OR (metadata->>'last_llm_call_at')::timestamptz <
-                        NOW() - ($3::text || ' minutes')::interval
+                    last_llm_call_at IS NULL
+                    OR last_llm_call_at < NOW() - ($3::text || ' minutes')::interval
                   )
               AND (
                     COALESCE(metadata->>'processing_started_at', '') = ''
@@ -2111,6 +2147,56 @@ async def reconcile_stale_in_progress(conn) -> Tuple[int, int]:
     """,
         str(autonomous_runtime_cap_min),
     )
+    curiosity_cancelled_with_result_recovered = await conn.fetchval(
+        """
+        WITH moved AS (
+            UPDATE tasks
+            SET status = 'completed',
+                updated_at = NOW(),
+                completed_at = COALESCE(completed_at, NOW()),
+                metadata = COALESCE(metadata, '{}'::jsonb) ||
+                    jsonb_build_object(
+                        'auto_fallback_reason', 'curiosity_circuit_breaker_recovered_with_result',
+                        'manual_cancel_reason', '',
+                        'failed_requires_intervention', false,
+                        'task_contract_version', 'smart_worker_v1',
+                        'task_contract_output_schema', 'free_text'
+                    )
+            WHERE status = 'cancelled'
+              AND COALESCE(metadata->>'auto_fallback_reason', '') = 'circuit_breaker_loop_exhausted'
+              AND COALESCE(result, '') <> ''
+              AND COALESCE(result, '') !~* '^task timed out after'
+              AND COALESCE(result, '') !~* '^cancelled:'
+              AND COALESCE(result, '') !~* '^\\[auto_fallback\\]'
+              AND updated_at > NOW() - ($1::text || ' minutes')::interval
+            RETURNING id
+        )
+        SELECT count(*) FROM moved
+    """,
+        str(curiosity_ghost_minutes),
+    )
+    curiosity_skip_domain_cancelled = 0
+    if curiosity_skip_domains:
+        curiosity_skip_domain_cancelled = await conn.fetchval(
+            """
+            WITH moved AS (
+                UPDATE tasks
+                SET status = 'cancelled',
+                    updated_at = NOW(),
+                    metadata = COALESCE(metadata, '{}'::jsonb) ||
+                        jsonb_build_object(
+                            'auto_fallback_reason', 'curiosity_skip_domain_policy',
+                            'manual_cancel_reason', 'policy_skip_domain'
+                        )
+                WHERE status IN ('pending', 'in_progress')
+                  AND COALESCE(metadata->>'reason', '') = 'curiosity_engine_starvation'
+                  AND lower(regexp_replace(title, '^🔥\\s*(СРОЧНОЕ\\s+)?ИССЛЕДОВАНИЕ:\\s*', '')) = ANY($1::text[])
+                RETURNING id
+            )
+            SELECT count(*) FROM moved
+        """,
+            curiosity_skip_domains,
+        )
 
     requeued = await conn.fetchval(
         """
@@ -2172,6 +2258,8 @@ async def reconcile_stale_in_progress(conn) -> Tuple[int, int]:
         + (pending_dispatch_cap_reopened or 0)
         + (pending_dispatch_force_failed or 0)
         + (autonomous_runtime_force_failed or 0)
+        + (curiosity_cancelled_with_result_recovered or 0)
+        + (curiosity_skip_domain_cancelled or 0)
     ), int(fallback_ready or 0)
 
 
@@ -2795,6 +2883,7 @@ async def run_continuous(interval_seconds: int = 60, quick_poll_seconds: int = 3
         asyncio.create_task(log_subscribers_periodically())
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ [ENHANCED_ORCHESTRATOR] Failed to start autonomous daemons: {e}")
 
     health_monitor_interval = int(os.getenv("ORCHESTRATOR_HEALTH_MONITOR_INTERVAL", "300"))
@@ -2862,7 +2951,7 @@ if __name__ == "__main__":
     # [SINGULARITY 21.30] PID Lock Enforcement
     lock = PIDLock()
     if not lock.acquire():
-        print("⚠️ [ORCHESTRATOR] Process already running. Exiting to prevent duplication.")
+        logger.info("⚠️ [ORCHESTRATOR] Process already running. Exiting to prevent duplication.")
         sys.exit(0)
 
     try:
@@ -2898,9 +2987,9 @@ if __name__ == "__main__":
                 PROMPT_TEXT_INPUT, expert_name="Виктория", category="orchestrator"
             )
         if main_result:
-            print(main_result)
+            logger.info(main_result)
         else:
-            print("❌ Ошибка генерации ответа в ядре.")
+            logger.info("❌ Ошибка генерации ответа в ядре.")
     elif args.continuous:
         asyncio.run(
             run_continuous(interval_seconds=args.interval, quick_poll_seconds=args.quick_poll)

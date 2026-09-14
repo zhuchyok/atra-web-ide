@@ -37,7 +37,7 @@ class ModelOptimizer:
     # Оптимальные настройки для каждой модели
     MODEL_CONFIGS = {
         "command-r-plus:104b": ModelOptimizationConfig(
-            model_name="qwen2.5-coder:32b",  # 104b удалён, алиас на 32b
+            model_name="qwen3-coder:30b",  # 104b удалён, алиас на 32b
             prompt_cache_enabled=True,
             batch_size=1,
             max_tokens=4096,
@@ -75,8 +75,8 @@ class ModelOptimizer:
             use_memory_mapping=True,
             quantization_level="Q6",
         ),
-        "qwen2.5-coder:32b": ModelOptimizationConfig(
-            model_name="qwen2.5-coder:32b",
+        "qwen3-coder:30b": ModelOptimizationConfig(
+            model_name="qwen3-coder:30b",
             prompt_cache_enabled=True,
             batch_size=2,  # Средние модели - можно батчить
             max_tokens=8192,  # Код может быть длинным
@@ -252,27 +252,27 @@ class ModelOptimizer:
         task_model_map = {
             "coding": {
                 "low": ["qwen2.5:3b", "phi3.5:3.8b"],
-                "medium": ["qwen2.5-coder:32b"],
-                "high": ["qwen2.5-coder:32b"],
-                "very_high": ["qwen2.5-coder:32b", "phi3.5:3.8b"],
+                "medium": ["qwen3-coder:30b"],
+                "high": ["qwen3-coder:30b"],
+                "very_high": ["qwen3-coder:30b", "phi3.5:3.8b"],
             },
             "reasoning": {
                 "low": ["phi3.5:3.8b", "qwen2.5:3b"],
-                "medium": ["victoria-wisdom-v3.5:latest", "phi3.5:3.8b"],
-                "high": ["victoria-wisdom-v3.5:latest", "phi3.5:3.8b"],
-                "very_high": ["qwen2.5-coder:32b", "phi3.5:3.8b"],
+                "medium": ["victoria-wisdom-24k:latest", "phi3.5:3.8b"],
+                "high": ["victoria-wisdom-24k:latest", "phi3.5:3.8b"],
+                "very_high": ["qwen3-coder:30b", "phi3.5:3.8b"],
             },
             "fast": {
                 "low": ["tinyllama:1.1b-chat", "phi3:mini-4k"],
                 "medium": ["phi3.5:3.8b", "qwen2.5:3b"],
-                "high": ["qwen2.5-coder:32b"],
-                "very_high": ["qwen2.5-coder:32b"],
+                "high": ["qwen3-coder:30b"],
+                "very_high": ["qwen3-coder:30b"],
             },
             "general": {
                 "low": ["tinyllama:1.1b-chat", "phi3:mini-4k"],
                 "medium": ["phi3.5:3.8b", "qwen2.5:3b"],
-                "high": ["qwen2.5-coder:32b", "phi3.5:3.8b"],
-                "very_high": ["qwen2.5-coder:32b", "phi3.5:3.8b"],
+                "high": ["qwen3-coder:30b", "phi3.5:3.8b"],
+                "very_high": ["qwen3-coder:30b", "phi3.5:3.8b"],
             },
         }
 
@@ -288,6 +288,7 @@ class ModelOptimizer:
 
         # Fallback на первую доступную
         if available_models:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Используется fallback модель: {available_models[0]}")
             return available_models[0]
 
@@ -299,23 +300,28 @@ async def main():
     optimizer = ModelOptimizer()
 
     # Получить оптимизированную конфигурацию
-    config = optimizer.get_optimized_config("qwen2.5-coder:32b")
-    print("Конфигурация для qwen2.5-coder:32b:")
-    print(f"  Temperature: {config.temperature}")
-    print(f"  Batch size: {config.batch_size}")
-    print(f"  Max tokens: {config.max_tokens}")
+    config = optimizer.get_optimized_config("qwen3-coder:30b")
+    logger.info("Конфигурация для qwen3-coder:30b:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Temperature: {config.temperature}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Batch size: {config.batch_size}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Max tokens: {config.max_tokens}")
 
     # Оптимизировать промпт
     optimized_prompt = optimizer.optimize_prompt(
-        "Напиши функцию для сортировки", "qwen2.5-coder:32b", "coding"
+        "Напиши функцию для сортировки", "qwen3-coder:30b", "coding"
     )
-    print(f"\nОптимизированный промпт:\n{optimized_prompt}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\nОптимизированный промпт:\n{optimized_prompt}")
 
     # Выбрать оптимальную модель
     best_model = await optimizer.optimize_model_selection(
-        task_type="coding", complexity="high", available_models=["qwen2.5-coder:32b", "phi3.5:3.8b"]
+        task_type="coding", complexity="high", available_models=["qwen3-coder:30b", "phi3.5:3.8b"]
     )
-    print(f"\nОптимальная модель: {best_model}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\nОптимальная модель: {best_model}")
 
 
 if __name__ == "__main__":

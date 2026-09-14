@@ -156,6 +156,7 @@ class AgentSystemsIntegration:
             )
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [AGENT SYSTEMS] Ошибка обработки активности: {e}")
 
     async def get_system_status(self) -> Dict[str, Any]:

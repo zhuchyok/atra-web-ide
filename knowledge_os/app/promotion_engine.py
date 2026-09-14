@@ -221,6 +221,7 @@ async def check_and_promote_mutations(conn: Optional[asyncpg.Connection] = None)
                 )
 
         if promoted_count > 0:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Promotion cycle finished. Promoted {promoted_count} mutations.")
         else:
             logger.info("ℹ️ No mutations met promotion thresholds this cycle.")
@@ -362,6 +363,7 @@ async def run_promotion_cycle():
         summary = await check_and_promote_mutations()
         await _emit_rollout_report_if_due(summary or {})
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Error in promotion cycle: {e}", exc_info=True)
 
 

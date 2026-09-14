@@ -37,6 +37,7 @@ class TrafficMirror:
         if not self.sandbox_manager:
             return
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🛡️ [SHADOW] Deploying shadow version of {module_name}...")
 
         # Read mutated code

@@ -38,7 +38,7 @@ class ShadowEvaluator:
             "postgresql://admin:secret@localhost:6432/knowledge_os",  # pragma: allowlist secret
         )
         self.router = _get_local_router_singleton()
-        self.judge_model = os.getenv("SHADOW_JUDGE_MODEL", "victoria-wisdom-v3.5:latest")
+        self.judge_model = os.getenv("SHADOW_JUDGE_MODEL", "victoria-wisdom-24k:latest")
         self._pool = None
 
     async def _get_pool(self):
@@ -46,6 +46,7 @@ class ShadowEvaluator:
             try:
                 self._pool = await asyncpg.create_pool(self.db_url)
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [EVALUATOR] Failed to create DB pool: {e}")
         return self._pool
 
@@ -97,6 +98,7 @@ class ShadowEvaluator:
         Сравнивает два ответа с помощью модели-судьи.
         Возвращает вердикт (Win/Loss/Draw) и обоснование.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"⚖️ [EVALUATOR] Comparing responses for query: {query[:50]}...")
 
         if os.getenv("SHADOW_JUDGE_MODE", "").lower() in ("heuristic", "fast"):
@@ -167,6 +169,7 @@ VERDICT:"""
             return evaluation
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [EVALUATOR] Error during comparison: {e}")
             evaluation = self.heuristic_compare(prod_resp, shadow_resp)
             evaluation["reasoning"] = f"Judge error; heuristic used: {e}"
@@ -184,6 +187,7 @@ VERDICT:"""
         column = {"Win": "win_count", "Loss": "loss_count", "Draw": "draw_count"}.get(verdict)
 
         if not column:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [EVALUATOR] Unknown verdict: {verdict}")
             return
 
@@ -200,8 +204,10 @@ VERDICT:"""
                 """,
                     mutation_id,
                 )
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [EVALUATOR] Updated {column} for mutation {mutation_id}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [EVALUATOR] Failed to update DB: {e}")
 
     async def _log_battle(
@@ -242,6 +248,7 @@ VERDICT:"""
                     json.dumps(meta, ensure_ascii=False),
                 )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [EVALUATOR] Battle log failed: {e}")
 
     async def evaluate_and_update(

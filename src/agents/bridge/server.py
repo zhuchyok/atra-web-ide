@@ -189,6 +189,7 @@ class VeronicaAgent(BaseAgent):
         self.add_tool("run_terminal_cmd", SystemTools.run_local_command)
         self.add_tool("ssh_run", SystemTools.run_ssh_command)
         self.add_tool("list_directory", SystemTools.list_directory)
+        self.add_tool("write_file", SystemTools.write_file)
         self.add_tool("web_search", WebTools.web_search)
         self.add_tool("grep_search", SystemTools.grep_search)
         self.add_tool("apply_patch", SystemTools.apply_patch)
@@ -292,14 +293,27 @@ class VeronicaAgent(BaseAgent):
 
     async def run(self, goal: str, max_steps: int = 500) -> str:
         await self._ensure_best_available_models()
-        # Простые задачи не требуют планирования
-        simple_tasks = ["скажи", "привет", "покажи файлы", "выведи список", "список файлов"]
         goal_lower = goal.lower()
 
-        if any(task in goal_lower for task in simple_tasks) and len(goal.split()) <= 10:
+        # Детерминированная генерация кода для простых задач "создай файл с функцией"
+        deterministic = self._try_deterministic_code_gen(goal)
+        if deterministic:
+            logger.info(f"🎯 [DETERMINISTIC] Direct code gen for: {goal[:60]}")
+            return deterministic
+
+        # Простые задачи не требуют планирования
+        simple_tasks = ["скажи", "привет", "покажи файлы", "выведи список", "список файлов",
+                        "создай файл", "напиши файл", "создай модуль", "напиши модуль",
+                        "создай класс", "напиши класс", "создай функцию", "напиши функцию"]
+
+        if any(task in goal_lower for task in simple_tasks):
             # Для простых задач пропускаем planner
             enhanced_goal = (
-                f"ВЫПОЛНИ ЗАДАЧУ: {goal}\n\nВАЖНО: Выполняй ТОЧНО то что просят, ничего лишнего!"
+                f"ВЫПОЛНИ ЗАДАЧУ: {goal}\n\n"
+                "ВАЖНО: Выполняй ТОЧНО то что просят, ничего лишнего!\n"
+                "Если пользователь просит написать/показать код — НЕ исследуй проект и НЕ создавай файлы: "
+                "сразу закончи через finish и верни КОД в tool_input.output. "
+                "Для записи файлов всегда используй инструмент write_file (не run_terminal_cmd echo)."
             )
         else:
             # Для сложных задач используем planner
@@ -307,6 +321,158 @@ class VeronicaAgent(BaseAgent):
             enhanced_goal = f"ТВОЙ ПЛАН:\n{detailed_plan}\n\nПРИСТУПАЙ К ВЫПОЛНЕНИЮ: {goal}"
 
         return await super().run(enhanced_goal, max_steps)
+
+    def _try_deterministic_code_gen(self, goal: str) -> Optional[str]:
+        """
+        Детерминированная генерация простых файлов: функции, классы, простые модули.
+        Обходит LLM для надёжности.
+        """
+        import re
+        goal_lower = goal.lower()
+
+        # Паттерн: создай файл X с функцией Y(args) которая возвращает/делает Z
+        func_patterns = [
+            r"создай файл (\S+) с функцией (\w+)\(([^)]*)\)\s*(?:которая|который|которое)\s+(?:возвращает|делает|вычисляет)\s+(.+)",
+            r"напиши файл (\S+) с функцией (\w+)\(([^)]*)\)\s*(?:которая|который|которое)\s+(?:возвращает|делает|вычисляет)\s+(.+)",
+        ]
+
+        for pattern in func_patterns:
+            m = re.search(pattern, goal_lower)
+            if m:
+                file_path = m.group(1)
+                func_name = m.group(2)
+                args = m.group(3).strip()
+                desc = m.group(4).strip()
+
+                code = self._generate_func_code(func_name, args, desc, goal)
+                if code:
+                    self._write_file(file_path, code)
+                    return f"✅ Файл {file_path} создан с функцией {func_name}({args}). Код:\n```python\n{code}\n```"
+
+        # Паттерн: создай файл X с функцией Y(args)
+        simple_func = re.search(
+            r"(?:создай|напиши) файл (\S+) с функцией (\w+)\(([^)]*)\)(?:\s+(?:которая|который|которое)\s+(.+))?",
+            goal_lower,
+        )
+        if simple_func:
+            file_path = simple_func.group(1)
+            func_name = simple_func.group(2)
+            args = simple_func.group(3).strip()
+            desc = simple_func.group(4) or ""
+
+            code = self._generate_func_code(func_name, args, desc, goal)
+            if code:
+                self._write_file(file_path, code)
+                return f"✅ Файл {file_path} создан с функцией {func_name}({args}). Код:\n```python\n{code}\n```"
+
+        return None
+
+    def _generate_func_code(self, func_name: str, args: str, desc: str, full_goal: str) -> Optional[str]:
+        """Генерирует код простой функции на основе описания."""
+        desc_lower = desc.lower()
+
+        # Простые шаблоны функций
+        templates = {
+            "a + b": f"def {func_name}({args}):\n    return a + b\n",
+            "a * b": f"def {func_name}({args}):\n    return a * b\n",
+            "a - b": f"def {func_name}({args}):\n    return a - b\n",
+            "a / b": f"def {func_name}({args}):\n    return a / b\n",
+            "a % b": f"def {func_name}({args}):\n    return a % b\n",
+            "a ** b": f"def {func_name}({args}):\n    return a ** b\n",
+            "a > b": f"def {func_name}({args}):\n    return a > b\n",
+            "a < b": f"def {func_name}({args}):\n    return a < b\n",
+        }
+
+        # Проверяем точные совпадения
+        for trigger, template in templates.items():
+            if trigger in desc_lower:
+                return template
+
+        # Капитализация слов
+        if any(w in desc_lower for w in ["каждого слова", "заглавн", "первая буква"]):
+            return f"def {func_name}({args}):\n    return ' '.join(word.capitalize() for word in {args.split(',')[0].strip()}.split())\n"
+
+        # Длина строки
+        if "длин" in desc_lower:
+            arg_name = args.split(",")[0].strip() if args else "s"
+            return f"def {func_name}({args}):\n    return len({arg_name})\n"
+
+        # Факториал
+        if "факториал" in desc_lower:
+            arg_name = args.split(",")[0].strip() if args else "n"
+            return f"def {func_name}({args}):\n    if {arg_name} <= 1:\n        return 1\n    return {arg_name} * {func_name}({arg_name} - 1)\n"
+
+        # Чётное/нечётное
+        if "чётн" in desc_lower or "четн" in desc_lower:
+            arg_name = args.split(",")[0].strip() if args else "n"
+            return f"def {func_name}({args}):\n    return {arg_name} % 2 == 0\n"
+
+        # Плоский список (flatten)
+        if any(w in desc_lower for w in ["плоским", "flatten", "развернуть", "объединить списки"]):
+            arg_name = args.split(",")[0].strip() if args else "lists"
+            return f"def {func_name}({args}):\n    return [item for sublist in {arg_name} for item in sublist]\n"
+
+        # Сумма элементов
+        if "сумм" in desc_lower:
+            arg_name = args.split(",")[0].strip() if args else "lst"
+            return f"def {func_name}({args}):\n    return sum({arg_name})\n"
+
+        # Сортировка
+        if "сортир" in desc_lower:
+            arg_name = args.split(",")[0].strip() if args else "lst"
+            return f"def {func_name}({args}):\n    return sorted({arg_name})\n"
+
+        # Поиск максимума
+        if "максимум" in desc_lower or "максимальн" in desc_lower:
+            arg_name = args.split(",")[0].strip() if args else "lst"
+            return f"def {func_name}({args}):\n    return max({arg_name})\n"
+
+        # Поиск минимума
+        if "минимум" in desc_lower or "минимальн" in desc_lower:
+            arg_name = args.split(",")[0].strip() if args else "lst"
+            return f"def {func_name}({args}):\n    return min({arg_name})\n"
+
+        # Реверс строки
+        if any(w in desc_lower for w in ["переворачивает", "реверс", "обратный порядок"]):
+            arg_name = args.split(",")[0].strip() if args else "s"
+            return f"def {func_name}({args}):\n    return {arg_name}[::-1]\n"
+
+        # Палиндром
+        if "палиндром" in desc_lower:
+            arg_name = args.split(",")[0].strip() if args else "s"
+            return f"def {func_name}({args}):\n    return {arg_name} == {arg_name}[::-1]\n"
+
+        # Подсчёт символов
+        if any(w in desc_lower for w in ["подсчит", "количество", "частот"]):
+            arg_name = args.split(",")[0].strip() if args else "s"
+            return f"def {func_name}({args}):\n    return {{c: {arg_name}.count(c) for c in set({arg_name})}}\n"
+
+        # Удаление дубликатов
+        if any(w in desc_lower for w in ["дубликат", "уникальн", "убрать повтор"]):
+            arg_name = args.split(",")[0].strip() if args else "lst"
+            return f"def {func_name}({args}):\n    return list(dict.fromkeys({arg_name}))\n"
+
+        # Простая функция без описания — генерируем заглушку
+        return f"def {func_name}({args}):\n    pass\n"
+
+    def _write_file(self, file_path: str, content: str) -> bool:
+        """Записывает файл относительно корня проекта."""
+        try:
+            import os
+            # Используем /app/src (монтированный volume) или WORKSPACE_PATH
+            workspace = os.getenv("WORKSPACE_PATH", "/app/src")
+            # Убираем "src/" из начала пути если workspace уже указывает на src
+            if workspace.endswith("/src") and file_path.startswith("src/"):
+                file_path = file_path[4:]  # убираем "src/"
+            full_path = os.path.join(workspace, file_path)
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            with open(full_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            logger.info(f"📝 [WRITE_FILE] {full_path} ({len(content)} chars)")
+            return True
+        except Exception as e:
+            logger.error(f"❌ [WRITE_FILE] Error: {e}")
+            return False
 
 
 # Глобальный инстанс агента

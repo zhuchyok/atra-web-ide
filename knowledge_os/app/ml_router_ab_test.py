@@ -127,8 +127,10 @@ class MLRouterABTest:
                     success,
                 )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"✅ [AB TEST] Logged result: ML={used_ml}, route={selected_route}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [AB TEST] Error logging result: {e}")
 
     async def get_ab_test_statistics(self, days: int = 7) -> Dict[str, Any]:
@@ -210,6 +212,7 @@ class MLRouterABTest:
                     },
                 }
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [AB TEST] Error getting statistics: {e}")
             return {
                 "ml": {"count": 0, "avg_performance": 0, "avg_tokens_saved": 0, "success_rate": 0},

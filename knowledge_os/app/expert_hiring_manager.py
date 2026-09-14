@@ -64,6 +64,7 @@ class ExpertHiringManager:
             if json_match:
                 return json.loads(json_match.group())
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to analyze expertise gap: {e}")
         return {"decision": "train", "expert_name": "Виктория"}  # Fallback
 
@@ -75,6 +76,7 @@ class ExpertHiringManager:
 
         if decision == "hire":
             domain = gap_analysis.get("new_expert_domain")
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🕵️ [HIRING] Victoria decided to hire a new expert for: {domain}")
             from expert_generator import recruit_expert
 
@@ -82,6 +84,7 @@ class ExpertHiringManager:
 
         elif decision == "train":
             expert = gap_analysis.get("expert_name")
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🎓 [TRAINING] Victoria decided to train expert: {expert}")
             # Logic to add a specialized knowledge node for this expert
             # This is handled by the regular RAG/Knowledge system,

@@ -78,6 +78,7 @@ class CheckpointManager:
                 """)
             logger.info("✅ Таблица checkpoints создана")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Не удалось инициализировать БД для checkpoint'ов: {e}")
 
     async def create_checkpoint(
@@ -156,8 +157,10 @@ class CheckpointManager:
                         checkpoint.expires_at,
                     )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Не удалось сохранить checkpoint в БД: {e}")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"💾 Checkpoint создан: {checkpoint_id} (шаг {step}, прогресс {progress:.1%})")
 
         return checkpoint
@@ -201,6 +204,7 @@ class CheckpointManager:
                         self.checkpoints[checkpoint_id] = checkpoint
                         return checkpoint
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка получения checkpoint из БД: {e}")
 
         return None
@@ -248,6 +252,7 @@ class CheckpointManager:
                         self.checkpoints[checkpoint_id] = checkpoint
                         return checkpoint
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка получения checkpoint из БД: {e}")
 
         return None
@@ -265,6 +270,7 @@ class CheckpointManager:
         checkpoint = await self.get_checkpoint(checkpoint_id)
 
         if checkpoint:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔄 Восстановление из checkpoint: {checkpoint_id} (шаг {checkpoint.step})")
             return checkpoint.state
 
@@ -284,6 +290,7 @@ class CheckpointManager:
                         "DELETE FROM checkpoints WHERE checkpoint_id = $1", checkpoint_id
                     )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка удаления checkpoint из БД: {e}")
 
         return True
@@ -304,8 +311,10 @@ class CheckpointManager:
             try:
                 async with self._db_pool.acquire() as conn:
                     deleted = await conn.execute("DELETE FROM checkpoints WHERE expires_at < NOW()")
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🗑️ Удалено истекших checkpoint'ов: {deleted}")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка очистки checkpoint'ов в БД: {e}")
 
 

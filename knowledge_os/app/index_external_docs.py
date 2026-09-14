@@ -25,7 +25,7 @@ try:
     import asyncpg
     from app.semantic_cache import get_embedding
 except ImportError:
-    print("Ошибка: Необходимы asyncpg и app.semantic_cache. Проверьте установку зависимостей.")
+    logger.info("Ошибка: Необходимы asyncpg и app.semantic_cache. Проверьте установку зависимостей.")
     sys.exit(1)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -33,10 +33,10 @@ logger = logging.getLogger(__name__)
 
 REPOS = [
     "https://github.com/asgeirtj/system_prompts_leaks.git",
-    "https://github.com/openai/openai-cookbook.git", # Примеры и рецепты OpenAI
-    "https://github.com/deepseek-ai/DeepSeek-V3.git", # Документация и архитектура DeepSeek
-    "https://github.com/langchain-ai/langchain.git", # Основной фреймворк для RAG/LLM
-    "https://github.com/microsoft/autogen.git" # Агенты от Microsoft
+    "https://github.com/openai/openai-cookbook.git",  # Примеры и рецепты OpenAI
+    "https://github.com/deepseek-ai/DeepSeek-V3.git",  # Документация и архитектура DeepSeek
+    "https://github.com/langchain-ai/langchain.git",  # Основной фреймворк для RAG/LLM
+    "https://github.com/microsoft/autogen.git",  # Агенты от Microsoft
 ]
 URLS = ["https://docs.anthropic.com/en/docs/welcome"]
 
@@ -73,21 +73,24 @@ async def index_file(conn, file_path: str, domain_id: int):
         with open(file_path, encoding="utf-8") as f:
             content = f.read()
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Ошибка чтения файла {file_path}: {e}")
         return
 
     file_rel_path = os.path.relpath(file_path, TARGET_DIR)
-    file_hash = hashlib.sha256(content.encode()).hexdigest()
+    file_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
 
     # Проверка на дубликаты
     exists = await conn.fetchval(
         "SELECT id FROM knowledge_nodes WHERE metadata->>'file_hash' = $1", file_hash
     )
     if exists:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Файл {file_rel_path} уже проиндексирован.")
         return
 
     chunks = chunk_text(content)
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"Индексация {file_rel_path} ({len(chunks)} чанков)")
 
     for i, chunk in enumerate(chunks):
@@ -120,33 +123,37 @@ async def index_url(conn, url: str, domain_id: int):
     try:
         import httpx
         from bs4 import BeautifulSoup
-        
+
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"Загрузка контента с {url}...")
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             resp = await client.get(url)
             resp.raise_for_status()
-            
-        soup = BeautifulSoup(resp.text, 'html.parser')
+
+        soup = BeautifulSoup(resp.text, "html.parser")
         # Убираем скрипты и стили
         for script in soup(["script", "style"]):
             script.extract()
-            
-        text = soup.get_text(separator=' ', strip=True)
+
+        text = soup.get_text(separator=" ", strip=True)
         if not text:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"Пустой контент по URL: {url}")
             return
 
-        url_hash = hashlib.sha256(url.encode()).hexdigest()
-        
+        url_hash = hashlib.sha256(url.encode('utf-8')).hexdigest()
+
         # Проверка на дубликаты
         exists = await conn.fetchval(
             "SELECT id FROM knowledge_nodes WHERE metadata->>'source_url_hash' = $1", url_hash
         )
         if exists:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"URL {url} уже проиндексирован.")
             return
 
         chunks = chunk_text(text)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"Индексация URL {url} ({len(chunks)} чанков)")
 
         for i, chunk in enumerate(chunks):
@@ -173,6 +180,7 @@ async def index_url(conn, url: str, domain_id: int):
                 f"url:{url}",
             )
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Ошибка индексации URL {url}: {e}")
 
 
@@ -188,33 +196,37 @@ async def run_indexing():
         repo_name = repo_url.split("/")[-1].replace(".git", "")
         repo_path = os.path.join(TARGET_DIR, repo_name)
         if not os.path.exists(repo_path):
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"Клонирование {repo_url}...")
             try:
                 subprocess.run(["git", "clone", repo_url, repo_path], check=True)
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Ошибка клонирования {repo_url}: {e}")
         else:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"Обновление {repo_name}...")
             try:
                 subprocess.run(["git", "-C", repo_path, "pull"], check=True)
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Ошибка обновления {repo_name}: {e}")
 
     # 2. Индексация
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         domain_id = await get_or_create_domain(conn, "AI Research")
-        
+
         # Индексация файлов из репозиториев
         for root, _, files in os.walk(TARGET_DIR):
             for file in files:
                 if file.endswith((".md", ".txt", ".json")):
                     await index_file(conn, os.path.join(root, file), domain_id)
-                    
+
         # Индексация произвольных URL
         for url in URLS:
             await index_url(conn, url, domain_id)
-            
+
     finally:
         await conn.close()
 

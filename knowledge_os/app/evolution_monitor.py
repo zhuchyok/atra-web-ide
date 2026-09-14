@@ -35,6 +35,7 @@ class SingularityEvolutionMonitor:
 
         # 1. Collect new high-quality samples from logs and tasks
         new_samples = await self.distiller.collect_high_quality_samples(days=1)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Distilled {new_samples} new high-quality samples.")
 
         # 2. Check if we reached the threshold for Fine-tuning
@@ -54,6 +55,7 @@ class SingularityEvolutionMonitor:
         else:
             report += f"- Status: Accumulating wisdom. Needs {500 - count} more samples for the next evolution leap."
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"Report generated: {report}")
         return report
 

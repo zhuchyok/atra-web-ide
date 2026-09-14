@@ -47,7 +47,7 @@ class ContextualMemory:
     ) -> str:
         """Создание хеша контекста"""
         context_str = f"{query}|{domain or ''}|{expert or ''}"
-        return hashlib.sha256(context_str.encode()).hexdigest()
+        return hashlib.sha256(context_str.encode('utf-8')).hexdigest()
 
     async def save_pattern(
         self,
@@ -93,11 +93,13 @@ class ContextualMemory:
                     success_score,
                 )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Saved pattern: {pattern_type} (score: {success_score:.2f})")
                 return str(pattern_id)
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error saving pattern: {e}")
             return None
 
@@ -130,6 +132,7 @@ class ContextualMemory:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error finding patterns: {e}")
             return []
 
@@ -219,6 +222,7 @@ class AdaptiveLearner:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error learning from feedback: {e}")
             return None
 
@@ -250,6 +254,7 @@ class AdaptiveLearner:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error getting learned insights: {e}")
             return []
 
@@ -291,11 +296,13 @@ class PersonalizationEngine:
                     confidence,
                 )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Saved preference: {preference_type}/{preference_key}")
                 return str(pref_id)
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error saving preference: {e}")
             return None
 
@@ -333,6 +340,7 @@ class PersonalizationEngine:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error getting preferences: {e}")
             return {}
 
@@ -416,6 +424,7 @@ class PersonalizationEngine:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error inferring preferences: {e}")
             return {}
 
@@ -489,6 +498,7 @@ class NeedPredictor:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error predicting needs: {e}")
             return []
 
@@ -529,6 +539,7 @@ class NeedPredictor:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error validating prediction: {e}")
             return False
 
@@ -595,6 +606,7 @@ async def run_contextual_learning_cycle():
         logger.info("✅ Contextual learning cycle completed")
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Contextual learning error: {e}")
     finally:
         await conn.close()

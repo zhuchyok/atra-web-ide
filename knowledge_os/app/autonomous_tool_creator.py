@@ -60,6 +60,7 @@ class AutonomousToolCreator:
             if json_match:
                 return json.loads(json_match.group())
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to identify skill need: {e}")
         return None
 
@@ -94,6 +95,7 @@ class AutonomousToolCreator:
                 code = code.split("```")[1].split("```")[0].strip()
             return code
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to generate tool code: {e}")
         return None
 
@@ -103,6 +105,7 @@ class AutonomousToolCreator:
         """
         Tests the generated code in a sandbox and registers it as a permanent skill.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🛠️ [TOOL CREATOR] Testing and registering tool: {tool_name}")
 
         # 1. Create SKILL.md for the registry
@@ -136,8 +139,10 @@ This tool was autonomously generated to solve a specific need.
             import py_compile
 
             py_compile.compile(str(impl_file), doraise=True)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ [TOOL CREATOR] Syntax check passed for {tool_name}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [TOOL CREATOR] Syntax check failed for {tool_name}: {e}")
             return False
 
@@ -147,9 +152,11 @@ This tool was autonomously generated to solve a specific need.
 
             registry = get_skill_registry()
             registry.load_skills()  # Reload to include new skill
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🚀 [TOOL CREATOR] Tool {tool_name} successfully registered.")
             return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to register tool: {e}")
             return False
 

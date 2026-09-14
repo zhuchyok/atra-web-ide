@@ -35,6 +35,7 @@ class MLRouterV2:
             else:
                 logger.warning("⚠️ [ML ROUTER V2] Модель не найдена, используем эвристики")
         except ImportError as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [ML ROUTER V2] ML Trainer недоступен: {e}")
             self.trainer = None
 
@@ -102,7 +103,7 @@ class MLRouterV2:
                     # Для упрощения используем фиксированную confidence
                     # В реальности можно использовать predict_proba
                     confidence = 0.85
-                except:
+                except Exception:
                     pass
 
             logger.info(

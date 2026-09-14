@@ -164,6 +164,7 @@ class MLRouterModel:
         else:
             raise ValueError(f"Model type {self.model_type} not available")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ [ML MODEL] Trained {self.model_type} model on {len(X_train)} samples")
 
     def predict(
@@ -226,6 +227,7 @@ class MLRouterModel:
         with open(filepath, "wb") as f:
             pickle.dump(model_data, f)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ [ML MODEL] Saved model to {filepath}")
 
     def load(self, filepath: str):
@@ -242,4 +244,5 @@ class MLRouterModel:
         self.label_encoder = model_data["label_encoder"]
         self.reverse_label_encoder = model_data["reverse_label_encoder"]
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ [ML MODEL] Loaded model from {filepath}")

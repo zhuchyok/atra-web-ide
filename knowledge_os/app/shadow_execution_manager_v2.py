@@ -20,6 +20,7 @@ class ShadowExecutionManagerV2:
         self, task_id: str, main_func: Callable, shadow_func: Callable, *args, **kwargs
     ):
         """Runs both functions and compares performance."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🌑 [SHADOW] Starting shadow execution for task {task_id}")
 
         # 1. Run Main
@@ -48,6 +49,7 @@ class ShadowExecutionManagerV2:
                 await self._perform_hot_swap(task_id, shadow_func)
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SHADOW] Shadow execution failed: {e}")
 
         return main_result
@@ -55,6 +57,7 @@ class ShadowExecutionManagerV2:
     async def _perform_hot_swap(self, task_id: str, new_func: Callable):
         """Automates the switch to the optimized version."""
         # In a real system, this would update a routing table or a dynamic import
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"⚡ [HOT-SWAP] Task {task_id} switched to optimized shadow version.")
         pass
 

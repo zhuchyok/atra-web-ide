@@ -102,6 +102,7 @@ class ChecklistGenerator:
             conn = await asyncpg.connect(self.db_url)
             return conn
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [CHECKLIST GENERATOR] Ошибка подключения к БД: {e}")
             return None
 
@@ -139,6 +140,7 @@ class ChecklistGenerator:
                         items.append(item)
 
             if not items:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [CHECKLIST GENERATOR] Нет чеклиста для типа {task_type}")
                 return None
 
@@ -146,7 +148,7 @@ class ChecklistGenerator:
             import hashlib
 
             checklist_key = f"{task_type}:{':'.join(items)}"
-            checklist_id = hashlib.md5(checklist_key.encode()).hexdigest()[:16]
+            checklist_id = hashlib.md5(checklist_key.encode('utf-8')).hexdigest()[:16]
 
             checklist = Checklist(
                 checklist_id=checklist_id,
@@ -197,6 +199,7 @@ class ChecklistGenerator:
             return checklist
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [CHECKLIST GENERATOR] Ошибка генерации чеклиста: {e}")
             return None
 
@@ -255,6 +258,7 @@ class ChecklistGenerator:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [CHECKLIST GENERATOR] Ошибка извлечения из ошибок: {e}")
             return []
 
@@ -370,6 +374,7 @@ class ChecklistGenerator:
             return True
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [CHECKLIST GENERATOR] Ошибка обновления чеклиста: {e}")
             return False
 

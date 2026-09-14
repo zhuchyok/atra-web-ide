@@ -11,6 +11,7 @@ Agent-to-Agent Messaging System (Singularity 31.3)
 """
 
 import asyncio
+import inspect
 import json
 import logging
 import os
@@ -92,6 +93,7 @@ def register_handler(agent_name: str, handler: Callable):
     if agent_name not in _message_handlers:
         _message_handlers[agent_name] = []
     _message_handlers[agent_name].append(handler)
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"[AGENT_MSG] Handler registered for '{agent_name}'")
 
 
@@ -146,9 +148,11 @@ async def send_message(
             channel = f"agent:messages:{to_agent}" if to_agent != "*" else "agent:messages"
             await r.publish(channel, data)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"[AGENT_MSG] {from_agent} → {to_agent} ({verb}): {str(payload)[:80]}")
         return msg.msg_id
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"[AGENT_MSG] Send failed: {e}")
         return None
     finally:
@@ -170,6 +174,7 @@ async def listen(agent_name: str, loop_forever: bool = True):
     channel = f"agent:messages:{agent_name}"
     broadcast_channel = "agent:messages"
     await pubsub.subscribe(channel, broadcast_channel)
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"[AGENT_MSG] '{agent_name}' listening on {channel}")
 
     async def _process_message(data: Dict[str, Any]):
@@ -184,11 +189,12 @@ async def listen(agent_name: str, loop_forever: bool = True):
             handlers = _message_handlers.get(agent_name, [])
             for handler in handlers:
                 try:
-                    if asyncio.iscoroutinefunction(handler):
+                    if inspect.iscoroutinefunction(handler):
                         await handler(msg)
                     else:
                         handler(msg)
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"[AGENT_MSG] Handler error: {e}")
         except json.JSONDecodeError:
             pass
@@ -225,6 +231,7 @@ async def publish_presence(agent_name: str, capabilities: Optional[List[str]] = 
         # Also set a key with TTL for discovery
         await r.setex(f"agent:alive:{agent_name}", AGENT_PRESENCE_TTL, payload)
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"[AGENT_MSG] Presence publish failed: {e}")
     finally:
         await r.aclose()
@@ -247,6 +254,7 @@ async def discover_agents() -> List[Dict[str, Any]]:
                     pass
         return agents
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"[AGENT_MSG] Discovery failed: {e}")
         return []
     finally:
@@ -268,6 +276,7 @@ async def start_presence_broadcast(agent_name: str, capabilities: Optional[List[
     if _presence_task and not _presence_task.done():
         _presence_task.cancel()
     _presence_task = asyncio.create_task(_broadcast())
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"[AGENT_MSG] Presence broadcast started for '{agent_name}'")
     return _presence_task
 

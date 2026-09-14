@@ -91,6 +91,7 @@ class TeamFormationSystem:
             conn = await asyncpg.connect(self.db_url)
             return conn
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [TEAM FORMATION] Ошибка подключения к БД: {e}")
             return None
 
@@ -180,7 +181,7 @@ class TeamFormationSystem:
         try:
             # Генерируем team_id
             team_key = f"{task_id}:{task_type}:{datetime.now(timezone.utc).isoformat()}"
-            team_id = hashlib.md5(team_key.encode()).hexdigest()[:16]
+            team_id = hashlib.md5(team_key.encode('utf-8')).hexdigest()[:16]
 
             # Находим агентов с подходящей экспертизой
             conn = await self._get_conn()
@@ -283,6 +284,7 @@ class TeamFormationSystem:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [TEAM FORMATION] Ошибка формирования команды: {e}")
             return None
 
@@ -404,6 +406,7 @@ class TeamFormationSystem:
                             team_id,
                         )
 
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ [TEAM FORMATION] Команда {team_id} распущена")
                     return True
 
@@ -413,6 +416,7 @@ class TeamFormationSystem:
             return True
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [TEAM FORMATION] Ошибка роспуска команды: {e}")
             return False
 
@@ -449,6 +453,7 @@ class TeamFormationSystem:
             }
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [TEAM FORMATION] Ошибка оценки эффективности: {e}")
             return {}
 

@@ -156,7 +156,7 @@ def _load_experts_from_db() -> List[Dict[str, Any]]:
 
             async def _run():
                 conn = await asyncpg.connect(DB_URL)
-                rows = await conn.fetch("SELECT name, role, department FROM experts")
+                rows = await conn.fetch("SELECT name, role, department FROM experts WHERE is_active = true")
                 await conn.close()
                 return [
                     {"name": r["name"], "role": r["role"], "department": r["department"]}
@@ -228,7 +228,7 @@ def get_expert_services_text(
     merged = list(by_name.values())
 
     if not merged:
-        return "Список экспертов не загружен. Делегируй по ролям: стратегия — Павел, риск — Мария, данные — Максим, код — Игорь, архитектура — Виктория."
+        return "Список экспертов не загружен. Делегируй по ролям: стратегия — Виктор, риск — Леонид, данные — Инна, код — Даниил, архитектура — Виктория."
 
     if by_department:
         dept_map: Dict[str, List[Dict]] = {}
@@ -262,9 +262,9 @@ def get_expert_services_for_planning() -> str:
     employees = list(by_name.values())
     if not employees:
         return (
-            "Роли для разделов плана: индикаторы/фильтры — Павел (Trading Strategy Developer); "
-            "риск-менеджмент — Мария (Risk Manager); оптимизация/тесты — Максим (Data Analyst); "
-            "код/архитектура — Игорь (Backend), Виктория (Team Lead)."
+            "Роли для разделов плана: индикаторы/фильтры — Виктор (Trading Strategy Developer); "
+            "риск-менеджмент — Леонид (Risk Manager); оптимизация/тесты — Инна (Data Science Lead); "
+            "код/архитектура — Даниил (Backend), Виктория (Team Lead)."
         )
     # Собираем по ролям, релевантным для плана
     role_keywords = {

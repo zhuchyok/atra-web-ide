@@ -43,6 +43,7 @@ class PerformanceDaemon:
     async def start(self):
         self.running = True
         asyncio.create_task(self._run_loop())
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 Демон {self.name} запущен")
 
     async def _run_loop(self):
@@ -57,8 +58,8 @@ class PerformanceDaemon:
                             f"⚠️ [{self.name}] Деградация метрики {metric['name']}: {value} > {threshold}"
                         )
 
-                        # [SRE SELF-HEALING] Автоматическое исправление для Игоря
-                        if self.name == "Игорь":
+                        # [SRE SELF-HEALING] Автоматическое исправление для Макс
+                        if self.name == "Макс":
                             await self._attempt_self_healing(metric, value)
 
                         await self.event_bus.publish(
@@ -76,12 +77,14 @@ class PerformanceDaemon:
                             )
                         )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка в цикле демона {self.name}: {e}")
             await asyncio.sleep(60)
 
     async def _attempt_self_healing(self, metric, value):
         """[Self-Healing Infrastructure] Автоматические действия по исправлению."""
-        logger.info(f"🔧 [SELF-HEALING] Игорь инициирует исправление для {metric['name']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"🔧 [SELF-HEALING] Макс инициирует исправление для {metric['name']}")
 
         if metric["name"] == "rag_latency":
             # Действие: Очистка кэша Redis и переиндексация легких узлов
@@ -91,6 +94,7 @@ class PerformanceDaemon:
                 await (await redis_manager.get_client()).flushdb()
                 logger.info("🧹 [SELF-HEALING] Кэш Redis очищен для ускорения RAG")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [SELF-HEALING] Ошибка очистки кэша: {e}")
 
         if metric["name"] == "db_connections":
@@ -130,13 +134,14 @@ class PerformanceDaemon:
 
             return 0.0
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error fetching metric {metric['name']}: {e}")
             return 0.0
 
 
 async def setup_daemons():
-    igor = PerformanceDaemon(
-        "Игорь",
+    maks = PerformanceDaemon(
+        "Макс",
         [{"name": "rag_latency", "threshold": 2.0}, {"name": "db_connections", "threshold": 250}],
     )
     dmitriy = PerformanceDaemon(
@@ -212,4 +217,5 @@ async def setup_daemons():
             f"🎭 [DAEMONS] (PID: {os.getpid()}) DialogueController, VictoriaEnhanced and Redis Bridge integrated on EventBus ID: {id(bus)}"
         )
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ [DAEMONS] Failed to start DialogueController: {e}")

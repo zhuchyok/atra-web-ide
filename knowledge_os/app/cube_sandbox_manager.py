@@ -46,6 +46,7 @@ class CubeSandboxManager:
 
     async def _run_local_fallback(self, expert_name: str, command: str) -> Dict[str, Any]:
         """Fallback when Lima/limactl is unavailable in runtime image."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"⚠️ [CUBE-VM:{expert_name}] Using local process fallback")
         process = await asyncio.create_subprocess_exec(
             "bash",
@@ -80,6 +81,7 @@ class CubeSandboxManager:
         """
         Executes a command in a dedicated Firecracker MicroVM inside Lima.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"⚡ [CUBE-VM:{expert_name}] Executing: {command}")
 
         # [SINGULARITY 26.7] Deterministic Context Mapping
@@ -124,11 +126,13 @@ class CubeSandboxManager:
             }
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [CUBE-VM] Critical error during execution: {e}")
             return await self._run_local_fallback(expert_name, command)
 
     def cleanup_sandbox(self, expert_name: str):
         """MicroVMs are ephemeral and usually cleanup themselves on exit."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🧹 MicroVM for {expert_name} released.")
 
 

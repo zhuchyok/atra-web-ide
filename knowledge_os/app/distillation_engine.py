@@ -127,9 +127,11 @@ class KnowledgeDistiller:
         if forced:
             try:
                 forced_size = max(1, int(forced))
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"📌 [ELASTIC-BATCH] Forced batch size via env: {forced_size}")
                 return forced_size
             except Exception:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [ELASTIC-BATCH] Invalid DISTILL_FORCE_BATCH_SIZE={forced}")
 
         try:
@@ -152,6 +154,7 @@ class KnowledgeDistiller:
             )
             return batch_size
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [ELASTIC-BATCH] Failed to calculate batch size: {e}")
             return DEFAULT_DISTILLATION_BATCH_SIZE
 
@@ -188,6 +191,7 @@ class KnowledgeDistiller:
                     examples += f"- СУТЬ: {row['summary']}\n  ИНСТРУКЦИЯ: {row['instruction']}\n"
             return examples
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [DISTILLER] Ошибка получения примеров: {e}")
             return ""
 
@@ -323,6 +327,7 @@ class KnowledgeDistiller:
                     return await _try_model(self.teacher_fallback_model)
                 return ""
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [OLLAMA-DIRECT] Failed to call Ollama: {e}")
             return ""
 
@@ -471,6 +476,7 @@ class KnowledgeDistiller:
             distilled_json = await self._call_teacher_direct(prompt)
             if distilled_json:
                 break
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [OLLAMA-RETRY] Attempt {attempt + 1} failed for node {node_id}")
             await asyncio.sleep(2)
 
@@ -821,6 +827,7 @@ class KnowledgeDistiller:
 
             async def distill_one(node_row):
                 node_id, content, metadata_str, vector_str = node_row
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🧪 [DISTILLATION] Distilling node: {node_id}")
                 async with semaphore:
                     wisdom = await self._distill_single_node(node_id, content)
@@ -951,6 +958,7 @@ class KnowledgeDistiller:
                         node_id,
                     )
                     if verify_count > 0:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"✅ [VERIFIED] Node {node_id} is distilled.")
                     else:
                         logger.warning(
@@ -958,6 +966,7 @@ class KnowledgeDistiller:
                         )
                 except Exception as pg_err:
                     err_text = str(pg_err).lower()
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ [POSTGRES-SYNC] Failed to update node {node_id}: {pg_err}")
                     if "connection is closed" in err_text:
                         # Stop current batch on lost DB connection to avoid error storms.
@@ -998,6 +1007,7 @@ class KnowledgeDistiller:
                         f"⏭️ [LANCEDB-SYNC] Skipping node {node_id} (no vector sync backend)."
                     )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [DISTILLATION] Node {node_id} compressed and synced.")
 
             if db_connection_lost:
@@ -1011,6 +1021,7 @@ class KnowledgeDistiller:
                 await tx.rollback()
             except Exception:
                 pass
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [DISTILLATION] Quantum Leap error: {e}")
 
     async def redistill_priority_batch(self, limit: int = 5) -> dict:

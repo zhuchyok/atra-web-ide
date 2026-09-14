@@ -45,20 +45,20 @@ class AdvancedEnsemble:
 
     def __init__(self):
         self.models = [
-            "victoria-wisdom-v3.5",
+            "victoria-wisdom-24k",
             "phi3.5:3.8b",
             "glm-4.7-flash:latest",
-            "victoria-wisdom-v3.5",
+            "victoria-wisdom-24k",
             "phi3.5:3.8b",
         ]
 
         self.model_performance: Dict[str, Dict[str, ModelPerformance]] = defaultdict(dict)
         self.model_specialization: Dict[str, List[str]] = {
-            "reasoning": ["victoria-wisdom-v3.5", "phi3.5:3.8b"],
-            "planning": ["victoria-wisdom-v3.5", "phi3.5:3.8b"],
-            "coding": ["victoria-wisdom-v3.5", "phi3.5:3.8b"],
+            "reasoning": ["victoria-wisdom-24k", "phi3.5:3.8b"],
+            "planning": ["victoria-wisdom-24k", "phi3.5:3.8b"],
+            "coding": ["victoria-wisdom-24k", "phi3.5:3.8b"],
             "fast": ["phi3.5:3.8b", "tinyllama:1.1b-chat"],
-            "complex": ["victoria-wisdom-v3.5", "phi3.5:3.8b"],
+            "complex": ["victoria-wisdom-24k", "phi3.5:3.8b"],
         }
 
     def _classify_task(self, goal: str) -> str:

@@ -127,6 +127,7 @@ class TacitKnowledgeMiner:
                 try:
                     style_vector = await get_embedding(style_text)
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"Error generating embedding: {e}")
 
             if not style_vector:
@@ -352,6 +353,7 @@ class TacitKnowledgeMiner:
 
             return float(dot_product / (norm1 * norm2))
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error calculating cosine similarity: {e}")
             return 0.0
 
@@ -434,6 +436,7 @@ class TacitKnowledgeMiner:
                 )
                 profile_id = str(profile_id) if profile_id else None
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Saved style profile for user {user_identifier}: {profile_id}")
             return profile_id
 
@@ -478,6 +481,7 @@ class TacitKnowledgeMiner:
             try:
                 generated_vector = await get_embedding(style_text)
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Error generating embedding for similarity: {e}")
 
         if not generated_vector:
@@ -518,10 +522,13 @@ async def update_style_profiles():
                     # Сохраняем профиль
                     await miner.save_style_profile(user_id, style_data)
                     updated_count += 1
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ Updated style profile for user {user_id}")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Error updating style profile for user {user_id}: {e}")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Updated {updated_count} style profiles")
 
 

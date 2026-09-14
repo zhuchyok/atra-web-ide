@@ -47,6 +47,7 @@ class CodebaseMutationEngine:
         line_number = error_info.get("line")
 
         if not file_path or not os.path.exists(file_path):
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"🧬 [MUTATION] Файл не найден: {file_path}")
             return {"success": False, "reason": "file_not_found"}
 
@@ -106,6 +107,7 @@ class CodebaseMutationEngine:
             confidence = patch_data.get("confidence", 0.0)
 
             if decision == "ignore":
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🧬 [MUTATION] Victoria решила игнорировать ошибку в {file_path}")
                 return {
                     "success": True,
@@ -169,6 +171,7 @@ class CodebaseMutationEngine:
                 }
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [MUTATION] Ошибка генерации мутации: {e}")
 
         return {"success": False, "status": "failed_to_mutate"}
@@ -194,15 +197,19 @@ class CodebaseMutationEngine:
                     # [SINGULARITY 28.0] Constitutional Guard for Antibody Injection
                     try:
                         from constitutional_court import get_constitutional_court
+
                         court = get_constitutional_court()
                         is_constitutional = await court.verify_decision(
                             decision_description=f"Inject antibody into {expert_name} DNA due to failure: {error_msg[:100]}",
-                            context={"expert": expert_name, "error": error_msg}
+                            context={"expert": expert_name, "error": error_msg},
                         )
                         if not is_constitutional:
-                            logger.warning(f"⚖️ [CONSTITUTIONAL GUARD] Antibody injection for {expert_name} rejected.")
+                            logger.warning(
+                                f"⚖️ [CONSTITUTIONAL GUARD] Antibody injection for {expert_name} rejected."
+                            )
                             return
                     except Exception as court_err:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"Constitutional Antibody verification skipped: {court_err}")
 
                     antibody = f"\n### 🛡️ ANTI-ERROR RULE (Auto-Learned):\nAvoid this pattern which caused error: {error_msg[:100]}. Ensure proper validation/imports."
@@ -246,10 +253,12 @@ class CodebaseMutationEngine:
                         new_dna,
                         "Antifragile_Feedback_Loop",
                     )
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🧬 [DNA] Injected antibody for {expert_name} after error.")
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to update DNA on failure: {e}")
 
     async def _reinforce_expert_dna_on_success(self, expert_name: str, query: str, response: str):
@@ -287,15 +296,19 @@ class CodebaseMutationEngine:
                     # [SINGULARITY 28.0] Constitutional Guard for DNA Mutation
                     try:
                         from constitutional_court import get_constitutional_court
+
                         court = get_constitutional_court()
                         is_constitutional = await court.verify_decision(
                             decision_description=f"Reinforce DNA for {expert_name} with success rule: {wisdom_rule}",
-                            context={"expert": expert_name, "wisdom_rule": wisdom_rule}
+                            context={"expert": expert_name, "wisdom_rule": wisdom_rule},
                         )
                         if not is_constitutional:
-                            logger.warning(f"⚖️ [CONSTITUTIONAL GUARD] DNA reinforcement for {expert_name} rejected.")
+                            logger.warning(
+                                f"⚖️ [CONSTITUTIONAL GUARD] DNA reinforcement for {expert_name} rejected."
+                            )
                             return
                     except Exception as court_err:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"Constitutional DNA verification skipped: {court_err}")
 
                     success_rule = f"\n### 🏆 SUCCESS RULE (Auto-Learned):\n{wisdom_rule}"
@@ -320,10 +333,12 @@ class CodebaseMutationEngine:
                         new_dna,
                         "Success_Reinforcement_Loop",
                     )
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🧬 [DNA] Reinforced success for {expert_name}.")
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to reinforce DNA on success: {e}")
 
     async def _verify_patch_safety(self, file_path: str, patch_data: Dict) -> bool:
@@ -334,11 +349,12 @@ class CodebaseMutationEngine:
         import os
         import sys
         import uuid
+
         from sandbox_manager import get_sandbox_manager
 
         temp_file = f"{file_path}.tmp"
         backup_file = f"{file_path}.bak"
-        
+
         try:
             # 1. Читаем текущий контент
             with open(file_path, encoding="utf-8") as f:
@@ -348,6 +364,7 @@ class CodebaseMutationEngine:
             new_code = patch_data.get("new_code")
 
             if old_code not in content:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"🧬 [MUTATION] Старый код не найден в {file_path}")
                 return False
 
@@ -361,15 +378,23 @@ class CodebaseMutationEngine:
             # [SINGULARITY 28.0] Constitutional Guard: Final verification against COGNITIVE_CODE.md
             try:
                 from constitutional_court import get_constitutional_court
+
                 court = get_constitutional_court()
                 is_constitutional = await court.verify_decision(
                     decision_description=f"Mutation of {file_path}: {patch_data.get('fix_description')}",
-                    context={"file": file_path, "patch": patch_data, "new_content_preview": new_content[:2000]}
+                    context={
+                        "file": file_path,
+                        "patch": patch_data,
+                        "new_content_preview": new_content[:2000],
+                    },
                 )
                 if not is_constitutional:
-                    logger.warning(f"⚖️ [CONSTITUTIONAL GUARD] Mutation of {file_path} rejected by Constitutional Court.")
+                    logger.warning(
+                        f"⚖️ [CONSTITUTIONAL GUARD] Mutation of {file_path} rejected by Constitutional Court."
+                    )
                     return False
             except Exception as court_err:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Constitutional Court verification skipped: {court_err}")
 
             sandbox = get_sandbox_manager()
@@ -381,11 +406,13 @@ class CodebaseMutationEngine:
             sandbox_id = f"mutation_{uuid.uuid4().hex[:8]}"
             shared_dir = "./knowledge_os/sandbox_shared"
             os.makedirs(shared_dir, exist_ok=True)
-            
+
             # Копируем файл в песочницу
             rel_path = os.path.relpath(file_path, os.getcwd())
-            sandbox_file_path = os.path.join(shared_dir, f"{sandbox_id}_{os.path.basename(file_path)}")
-            
+            sandbox_file_path = os.path.join(
+                shared_dir, f"{sandbox_id}_{os.path.basename(file_path)}"
+            )
+
             with open(sandbox_file_path, "w", encoding="utf-8") as f:
                 f.write(new_content)
 
@@ -393,60 +420,83 @@ class CodebaseMutationEngine:
 
             # 3. Проверка синтаксиса в Docker
             if file_path.endswith(".py"):
-                compile_res = await sandbox.run_in_sandbox("Mutation", f"python3 -m py_compile {sandbox_filename}")
+                compile_res = await sandbox.run_in_sandbox(
+                    "Mutation", f"python3 -m py_compile {sandbox_filename}"
+                )
                 if compile_res.get("exit_code", 1) != 0:
-                    logger.warning(f"⚠️ [MUTATION] Патч нарушает синтаксис: {compile_res.get('output')}")
+                    logger.warning(
+                        f"⚠️ [MUTATION] Патч нарушает синтаксис: {compile_res.get('output')}"
+                    )
                     return False
 
             # 4. Запуск тестов в Docker (если есть)
             test_file = self._find_related_test(file_path)
-            
+
             # [SINGULARITY 24.0] Dependency-Aware Regression Guard
             from dependency_mapper import get_dependency_mapper
+
             mapper = get_dependency_mapper()
             affected_files = mapper.get_affected_files(file_path)
-            
+
             related_tests = [test_file] if test_file else []
             for aff_file in affected_files:
                 aff_test = self._find_related_test(os.path.join(self.project_root, aff_file))
                 if aff_test and aff_test not in related_tests:
                     related_tests.append(aff_test)
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🧪 [DEPENDENCY GUARD] Added test for affected file: {aff_file}")
-            
+
             for t_file in related_tests:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🧪 [MUTATION] Запуск теста {t_file} в песочнице...")
                 # Копируем тест в песочницу
-                sandbox_test_path = os.path.join(shared_dir, f"{sandbox_id}_{os.path.basename(t_file)}")
-                with open(t_file, "r", encoding="utf-8") as f:
+                sandbox_test_path = os.path.join(
+                    shared_dir, f"{sandbox_id}_{os.path.basename(t_file)}"
+                )
+                with open(t_file, encoding="utf-8") as f:
                     test_content = f.read()
-                
+
                 # В тесте нужно подменить импорт тестируемого файла на временный sandbox_filename (без .py)
                 module_name = os.path.basename(file_path).replace(".py", "")
                 sandbox_module_name = sandbox_filename.replace(".py", "")
-                test_content = test_content.replace(f"from {module_name}", f"import {sandbox_module_name} as {module_name} # patched\n# from {module_name}")
-                test_content = test_content.replace(f"import {module_name}", f"import {sandbox_module_name} as {module_name}")
-                
+                test_content = test_content.replace(
+                    f"from {module_name}",
+                    f"import {sandbox_module_name} as {module_name} # patched\n# from {module_name}",
+                )
+                test_content = test_content.replace(
+                    f"import {module_name}", f"import {sandbox_module_name} as {module_name}"
+                )
+
                 with open(sandbox_test_path, "w", encoding="utf-8") as f:
                     f.write(test_content)
 
-                test_res = await sandbox.run_in_sandbox("Mutation", f"pytest {os.path.basename(sandbox_test_path)}")
-                
+                test_res = await sandbox.run_in_sandbox(
+                    "Mutation", f"pytest {os.path.basename(sandbox_test_path)}"
+                )
+
                 # Чистим тесты из песочницы
-                if os.path.exists(sandbox_test_path): os.remove(sandbox_test_path)
+                if os.path.exists(sandbox_test_path):
+                    os.remove(sandbox_test_path)
 
                 if test_res.get("exit_code", 1) != 0:
-                    logger.warning(f"❌ [MUTATION] Тест {t_file} провален в песочнице! {test_res.get('output')}")
+                    logger.warning(
+                        f"❌ [MUTATION] Тест {t_file} провален в песочнице! {test_res.get('output')}"
+                    )
                     return False
 
             if related_tests:
-                logger.info(f"✅ [MUTATION] Все тесты ({len(related_tests)}) пройдены в песочнице успешно!")
+                logger.info(
+                    f"✅ [MUTATION] Все тесты ({len(related_tests)}) пройдены в песочнице успешно!"
+                )
 
             # Чистим файл из песочницы
-            if os.path.exists(sandbox_file_path): os.remove(sandbox_file_path)
-            
+            if os.path.exists(sandbox_file_path):
+                os.remove(sandbox_file_path)
+
             return True
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [MUTATION] Ошибка проверки в песочнице: {e}")
             return False
 
@@ -459,29 +509,37 @@ class CodebaseMutationEngine:
                 f.write(new_content)
 
             if file_path.endswith(".py"):
-                process = subprocess.run([sys.executable, "-m", "py_compile", temp_file], capture_output=True)
-                if process.returncode != 0: return False
+                process = subprocess.run(
+                    [sys.executable, "-m", "py_compile", temp_file], capture_output=True
+                )
+                if process.returncode != 0:
+                    return False
 
             test_file = self._find_related_test(file_path)
             if test_file:
                 os.rename(file_path, backup_file)
                 os.rename(temp_file, file_path)
                 try:
-                    test_process = subprocess.run([sys.executable, "-m", "pytest", test_file], capture_output=True, timeout=30)
+                    test_process = subprocess.run(
+                        [sys.executable, "-m", "pytest", test_file], capture_output=True, timeout=30
+                    )
                     if test_process.returncode != 0:
                         os.rename(file_path, temp_file)
                         os.rename(backup_file, file_path)
                         return False
-                    if os.path.exists(backup_file): os.remove(backup_file)
+                    if os.path.exists(backup_file):
+                        os.remove(backup_file)
                     return True
                 except Exception:
                     if os.path.exists(backup_file):
-                        if os.path.exists(file_path): os.remove(file_path)
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
                         os.rename(backup_file, file_path)
                     return False
             return True
         finally:
-            if os.path.exists(temp_file): os.remove(temp_file)
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
 
     async def _architectural_guard(self, code: str, file_path: str) -> bool:
         """[SINGULARITY 21.20] Harness: Проверка кода на соответствие стандартам гигантов."""
@@ -536,32 +594,171 @@ class CodebaseMutationEngine:
                 new_content = content.replace(old_code, new_code)
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write(new_content)
-                
+
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [MUTATION] Патч применен к {file_path}")
-                
+
                 # [SINGULARITY 28.9] Autonomous Git Cycle
                 try:
                     fix_desc = patch_data.get("fix_description", "Autonomous self-repair")
                     subprocess.run(["git", "add", file_path], cwd=self.project_root, check=True)
-                    subprocess.run(["git", "commit", "-m", f"🧬 [EVOLUTION] {fix_desc}"], cwd=self.project_root, check=True)
-                    logger.info(f"📦 [GIT] Mutation committed: {fix_desc}")
+                    subprocess.run(
+                        ["git", "commit", "-m", f"🧬 [EVOLUTION] {fix_desc}"],
+                        cwd=self.project_root,
+                        check=True,
+                    )
+                    logger.info("📦 [GIT] Mutation committed: %s", fix_desc)
                 except Exception as git_err:
-                    logger.warning(f"⚠️ [GIT] Failed to commit mutation: {git_err}")
-                
+                    logger.warning("⚠️ [GIT] Failed to commit mutation: %s", git_err)
+
+                # [MULTI-AGENT] Git Push — автоматический push в remote
+                try:
+                    subprocess.run(
+                        ["git", "push"],
+                        cwd=self.project_root,
+                        check=True,
+                        timeout=30,
+                    )
+                    logger.info("🚀 [GIT] Mutation pushed to remote")
+                except subprocess.TimeoutExpired:
+                    logger.warning("⚠️ [GIT] Push timed out (30s)")
+                except Exception as push_err:
+                    logger.warning("⚠️ [GIT] Push failed: %s", push_err)
+
                 return True
             else:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [MUTATION] Старый код не найден в {file_path} для замены")
                 return False
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [MUTATION] Ошибка применения патча: {e}")
             return False
+
+    async def create_branch(self, branch_name: str, base_branch: str = "main") -> bool:
+        """Создать новую ветку в Git."""
+        try:
+            # Проверяем текущую ветку
+            result = subprocess.run(
+                ["git", "branch", "--show-current"],
+                cwd=self.project_root,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            current_branch = result.stdout.strip()
+
+            # Если уже на нужной ветке - просто создаем новую
+            if current_branch == branch_name:
+                logger.info("📦 [GIT] Already on branch: %s", branch_name)
+                return True
+
+            # Создаем и переключаемся на новую ветку
+            subprocess.run(
+                ["git", "checkout", "-b", branch_name],
+                cwd=self.project_root,
+                check=True,
+            )
+            logger.info("📦 [GIT] Created and switched to branch: %s", branch_name)
+            return True
+        except Exception as e:
+            logger.warning("⚠️ [GIT] Failed to create branch %s: %s", branch_name, e)
+            return False
+
+    async def switch_branch(self, branch_name: str) -> bool:
+        """Переключиться на ветку в Git."""
+        try:
+            subprocess.run(
+                ["git", "checkout", branch_name],
+                cwd=self.project_root,
+                check=True,
+            )
+            logger.info("📦 [GIT] Switched to branch: %s", branch_name)
+            return True
+        except Exception as e:
+            logger.warning("⚠️ [GIT] Failed to switch to branch %s: %s", branch_name, e)
+            return False
+
+    async def create_pull_request(self, branch_name: str, title: str, description: str = "") -> Optional[str]:
+        """Создать Pull Request через GitHub CLI (gh)."""
+        try:
+            # Проверяем наличие gh CLI
+            subprocess.run(
+                ["gh", "--version"],
+                cwd=self.project_root,
+                capture_output=True,
+                check=True,
+            )
+
+            # Создаем PR
+            cmd = ["gh", "pr", "create", "--title", title, "--body", description or title]
+            result = subprocess.run(
+                cmd,
+                cwd=self.project_root,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            pr_url = result.stdout.strip()
+            logger.info("📦 [GIT] Pull request created: %s", pr_url)
+            return pr_url
+        except FileNotFoundError:
+            logger.warning("⚠️ [GIT] gh CLI not found, skipping PR creation")
+            return None
+        except Exception as e:
+            logger.warning("⚠️ [GIT] Failed to create PR: %s", e)
+            return None
+
+    async def get_status(self) -> Dict[str, Any]:
+        """Получить статус Git репозитория."""
+        try:
+            # Текущая ветка
+            branch_result = subprocess.run(
+                ["git", "branch", "--show-current"],
+                cwd=self.project_root,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            current_branch = branch_result.stdout.strip()
+
+            # Статус
+            status_result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=self.project_root,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            changed_files = len(status_result.stdout.strip().split('\n')) if status_result.stdout.strip() else 0
+
+            # Последний коммит
+            log_result = subprocess.run(
+                ["git", "log", "-1", "--pretty=format:%h %s"],
+                cwd=self.project_root,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            last_commit = log_result.stdout.strip()
+
+            return {
+                "branch": current_branch,
+                "changed_files": changed_files,
+                "last_commit": last_commit,
+                "is_clean": changed_files == 0,
+            }
+        except Exception as e:
+            logger.warning("⚠️ [GIT] Failed to get status: %s", e)
+            return {"error": str(e)}
 
     def _parse_json(self, text: str) -> Optional[Dict]:
         try:
             match = re.search(r"\{.*\}", text, re.DOTALL)
             if match:
                 return json.loads(match.group())
-        except:
+        except Exception:
             pass
         return None
 
@@ -570,9 +767,11 @@ class CodebaseMutationEngine:
         logger.info("🌙 [MUTATION] Запуск ночной оптимизации...")
         try:
             from expert_researcher import get_expert_researcher
+
             researcher = get_expert_researcher()
             await researcher.run_nightly_inventory()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [MUTATION] Nightly R&D failed: {e}")
 
 

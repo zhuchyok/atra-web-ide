@@ -218,6 +218,7 @@ class PredictiveCache:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Ошибка анализа истории запросов: {e}")
             return {}
 
@@ -427,6 +428,7 @@ class PredictiveCache:
                         f"✅ [PREDICTIVE CACHE] Пред-кэширован ответ для: {pred_query[:50]}..."
                     )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [PREDICTIVE CACHE] Ошибка пред-кэширования: {e}")
 
 
@@ -519,7 +521,7 @@ class EmbeddingCache:
     async def get_or_compute_embedding(self, text: str) -> List[float]:
         """Получает эмбеддинг из кэша или вычисляет"""
         # Хэш текста для ключа
-        text_hash = hashlib.md5(text.encode()).hexdigest()
+        text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
 
         # Проверяем memory cache
         if text_hash in self.memory_cache:
@@ -576,6 +578,7 @@ class ParallelProcessor:
         processed_results = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [PARALLEL] Task {i} failed: {result}")
                 processed_results.append(None)
             else:
@@ -904,6 +907,7 @@ class BETokenManager:
                 token_name = f"CUSTOM_{count}_{hash(instruction) % 10000}"
                 if token_name not in self._token_map:
                     self.register_token(token_name, instruction)
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"📝 [BE-TOKEN] Автоматически создан токен: {token_name}")
 
 

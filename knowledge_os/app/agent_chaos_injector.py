@@ -21,6 +21,7 @@ class AgentChaosInjector:
             return context
 
         chaos_type = random.choice(["latency", "hallucination", "tool_error"])
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"🐒 [CHAOS] Injecting {chaos_type} into agent workflow...")
 
         if chaos_type == "latency":

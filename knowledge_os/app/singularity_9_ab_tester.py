@@ -346,6 +346,7 @@ class Singularity9ABTester:
                     "sample_size": compression_metrics["A"]["sample_size"],
                 }
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SINGULARITY 9 AB TEST] Error validating metrics: {e}")
 
         return results

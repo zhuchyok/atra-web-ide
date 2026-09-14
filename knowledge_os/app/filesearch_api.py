@@ -1,11 +1,12 @@
 import json
 import uuid
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from pathlib import Path
-from typing import AsyncGenerator, Optional
+from typing import Optional
 
 import aiohttp
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 

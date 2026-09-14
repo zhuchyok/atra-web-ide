@@ -83,6 +83,7 @@ class DeadlineTracker:
                 logger.error("❌ asyncpg не установлен, Deadline Tracker не может работать с БД")
                 return None
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка подключения к БД: {e}")
                 return None
 
@@ -131,6 +132,7 @@ class DeadlineTracker:
                         except ValueError:
                             continue
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Не удалось распарсить дату '{date_str}': {e}")
                     continue
 
@@ -185,6 +187,7 @@ class DeadlineTracker:
                                 # Unix timestamp
                                 deadline = datetime.fromtimestamp(deadline_str, tz=timezone.utc)
                         except Exception as e:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.debug(f"Ошибка парсинга дедлайна из metadata: {e}")
 
                 # Если не нашли в metadata, парсим из описания
@@ -197,6 +200,7 @@ class DeadlineTracker:
 
             return tasks
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка получения задач из БД: {e}")
             return []
 
@@ -287,6 +291,7 @@ class DeadlineTracker:
         )
 
         await self.event_bus.publish(event)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"⏰ Дедлайн приближается: {deadline.task_title} (через {hours_until}ч)")
 
     async def _publish_deadline_passed(self, deadline: TaskDeadline):
@@ -304,6 +309,7 @@ class DeadlineTracker:
         )
 
         await self.event_bus.publish(event)
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ Дедлайн прошел: {deadline.task_title}")
 
     async def _monitoring_loop(self):
@@ -315,6 +321,7 @@ class DeadlineTracker:
                 await self._check_deadlines()
                 await asyncio.sleep(self.check_interval)
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка в цикле мониторинга дедлайнов: {e}", exc_info=True)
                 await asyncio.sleep(self.check_interval)
 
@@ -399,13 +406,14 @@ async def main():
     # Подписываемся на события дедлайнов
     async def handle_deadline_approaching(event: Event):
         payload = event.payload
-        print(
+        logger.info(
             f"⏰ Дедлайн приближается: {payload.get('task_title')} (через {payload.get('hours_until')}ч)"
         )
 
     async def handle_deadline_passed(event: Event):
         payload = event.payload
-        print(f"⚠️ Дедлайн прошел: {payload.get('task_title')}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"⚠️ Дедлайн прошел: {payload.get('task_title')}")
 
     event_bus.subscribe(EventType.DEADLINE_APPROACHING, handle_deadline_approaching)
     event_bus.subscribe(EventType.DEADLINE_PASSED, handle_deadline_passed)
@@ -416,13 +424,14 @@ async def main():
     await tracker.start()
 
     # Ждем события
-    print("⏳ Мониторинг дедлайнов (нажмите Ctrl+C для остановки)...")
+    logger.info("⏳ Мониторинг дедлайнов (нажмите Ctrl+C для остановки)...")
     try:
         await asyncio.sleep(300)
     except KeyboardInterrupt:
         pass
 
-    print(f"\n📊 Статистика: {tracker.get_stats()}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n📊 Статистика: {tracker.get_stats()}")
 
     await tracker.stop()
     await event_bus.stop()

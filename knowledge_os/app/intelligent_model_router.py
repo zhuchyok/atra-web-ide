@@ -75,8 +75,8 @@ class IntelligentModelRouter:
         # Базовые способности моделей (обновляются на основе реальных данных)
         self._base_capabilities = {
             # УРОВЕНЬ 1: Гроссмейстеры (30B+) - Основной интеллект
-            "victoria-wisdom-v3.5": ModelCapability(
-                model_name="victoria-wisdom-v3.5",
+            "victoria-wisdom-24k": ModelCapability(
+                model_name="victoria-wisdom-24k",
                 task_types=[
                     "reasoning",
                     "complex_reasoning",
@@ -205,6 +205,7 @@ class IntelligentModelRouter:
             try:
                 self._pool = await asyncpg.create_pool(self.db_url)
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"Не удалось создать пул БД для роутера: {e}")
         return self._pool
 
@@ -433,7 +434,7 @@ class IntelligentModelRouter:
         elif isinstance(category, str):
             category = category.lower()
         elif category is not None:
-            # Если это объект другого типа (например, сам TaskCategory, но без .value, что странно, 
+            # Если это объект другого типа (например, сам TaskCategory, но без .value, что странно,
             # или если мы хотим быть максимально безопасными)
             category = str(category).lower()
 
@@ -503,7 +504,7 @@ class IntelligentModelRouter:
 
             # Если сложность экстремальная (>0.9) и мы не в режиме экономии,
             # можно было бы эскалировать, но мы держим курс на локальность.
-            return "victoria-wisdom-v3.5", TaskCategory(cat_str or "general"), 1.0
+            return "victoria-wisdom-24k", TaskCategory(cat_str or "general"), 1.0
 
         if prioritize_speed:
             optimize_for = "speed"

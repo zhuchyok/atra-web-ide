@@ -81,6 +81,7 @@ class MacStudioMonitor:
             # Если модель не в списке бессмертных — выгружаем
             is_immortal = any(immortal in name for immortal in IMMORTAL_MODELS)
             if not is_immortal:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🔥 [THERMAL PROTECTION] Unloading model {name} due to high load/temp")
                 try:
                     async with httpx.AsyncClient(timeout=5.0) as client:
@@ -90,6 +91,7 @@ class MacStudioMonitor:
                             json={"model": name, "keep_alive": 0},
                         )
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"Failed to unload model {name}: {e}")
 
     async def get_hardware_stats(self) -> Dict[str, Any]:
@@ -177,7 +179,7 @@ class MacStudioMonitor:
                 resp = await client.get("http://localhost:11434/api/ps")
                 if resp.status_code == 200:
                     return resp.json().get("models", [])
-        except:
+        except Exception:
             pass
         return []
 
@@ -191,7 +193,7 @@ class MacStudioMonitor:
                     data = resp.json()
                     # Если MLX API возвращает список кэшированных моделей
                     return data.get("cached_models", [])
-        except:
+        except Exception:
             pass
         return []
 
@@ -211,6 +213,6 @@ if __name__ == "__main__":
     async def test():
         monitor = MacStudioMonitor()
         stats = await monitor.get_full_stats()
-        print(json.dumps(stats, indent=2, ensure_ascii=False))
+        logger.info(json.dumps(stats, indent=2, ensure_ascii=False))
 
     asyncio.run(test())

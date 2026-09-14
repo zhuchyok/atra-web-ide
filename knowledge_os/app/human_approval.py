@@ -156,6 +156,7 @@ class HumanApprovalSystem:
             approval = self._approvals[approval_id]
             if approval.status == ApprovalStatus.PENDING:
                 approval.status = ApprovalStatus.EXPIRED
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"[APPROVAL] {approval_id} EXPIRED")
 
                 if approval_id in self._callbacks:
@@ -166,6 +167,7 @@ class HumanApprovalSystem:
     async def approve(self, approval_id: str, approver: str, reason: str = "") -> bool:
         """Одобрить запрос"""
         if approval_id not in self._approvals:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"[APPROVAL] {approval_id} not found")
             return False
 
@@ -183,12 +185,14 @@ class HumanApprovalSystem:
             if not fut.done():
                 fut.set_result(True)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"[APPROVAL] {approval_id} APPROVED by {approver}")
         return True
 
     async def reject(self, approval_id: str, approver: str, reason: str) -> bool:
         """Отклонить запрос"""
         if approval_id not in self._approvals:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"[APPROVAL] {approval_id} not found")
             return False
 
@@ -206,6 +210,7 @@ class HumanApprovalSystem:
             if not fut.done():
                 fut.set_result(False)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"[APPROVAL] {approval_id} REJECTED by {approver}: {reason}")
         return True
 
@@ -218,6 +223,7 @@ class HumanApprovalSystem:
             result = await asyncio.wait_for(self._callbacks[approval_id], timeout=timeout_seconds)
             return bool(result)
         except asyncio.TimeoutError:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"[APPROVAL] {approval_id} TIMEOUT")
             return False
 

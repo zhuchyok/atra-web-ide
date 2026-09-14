@@ -73,6 +73,7 @@ class ObservabilityManager:
                     insecure=os.getenv("OTLP_INSECURE", "false").lower() == "true",
                 )
                 provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"📊 OTLP exporter настроен: {otlp_endpoint}")
 
             # Получаем tracer
@@ -83,9 +84,11 @@ class ObservabilityManager:
             try:
                 HTTPXClientInstrumentor().instrument()
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Не удалось инструментировать HTTPX: {e}")
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка настройки OpenTelemetry: {e}")
             self.enabled = False
 

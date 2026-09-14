@@ -178,6 +178,7 @@ class CodeSmellModelTrainer:
             logger.error("❌ scikit-learn не установлен, обучение невозможно")
             return False
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 [CODE SMELL TRAINER] Начало обучения модели (данные за {days} дней)...")
 
         # Загружаем данные
@@ -253,6 +254,7 @@ class CodeSmellModelTrainer:
         precision = precision_score(y_test, y_pred, zero_division=0)
         recall = recall_score(y_test, y_pred, zero_division=0)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📊 [CODE SMELL TRAINER] Precision: {precision:.2%}, Recall: {recall:.2%}")
         logger.info(
             f"📊 [CODE SMELL TRAINER] Classification report:\n{classification_report(y_test, y_pred)}"
@@ -278,9 +280,11 @@ class CodeSmellModelTrainer:
                         },
                         f,
                     )
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [CODE SMELL TRAINER] Модель сохранена: {MODEL_PATH}")
                 return True
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [CODE SMELL TRAINER] Ошибка сохранения модели: {e}")
                 return False
         else:
@@ -298,6 +302,7 @@ class CodeSmellModelTrainer:
         """
         try:
             if not os.path.exists(MODEL_PATH):
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [CODE SMELL TRAINER] Модель не найдена: {MODEL_PATH}")
                 return False
 
@@ -307,9 +312,11 @@ class CodeSmellModelTrainer:
                 self.feature_names = model_data.get("feature_names", self.feature_names)
                 self.model_type = model_data.get("model_type", self.model_type)
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ [CODE SMELL TRAINER] Модель загружена: {MODEL_PATH}")
             return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [CODE SMELL TRAINER] Ошибка загрузки модели: {e}")
             return False
 

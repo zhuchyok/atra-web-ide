@@ -41,6 +41,7 @@ class SingularityAutonomousManager:
             self._components["auto_model_manager"] = auto_model_mgr
             logger.info("✅ Auto Model Manager инициализирован")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Auto Model Manager не инициализирован: {e}")
 
         try:
@@ -51,6 +52,7 @@ class SingularityAutonomousManager:
             self._components["auto_backup_manager"] = backup_mgr
             logger.info("✅ Auto Backup Manager инициализирован")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Auto Backup Manager не инициализирован: {e}")
 
         try:
@@ -61,6 +63,7 @@ class SingularityAutonomousManager:
             self._components["anomaly_detector"] = anomaly_detector
             logger.info("✅ Anomaly Detector инициализирован")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Anomaly Detector не инициализирован: {e}")
 
         try:
@@ -71,6 +74,7 @@ class SingularityAutonomousManager:
             self._components["model_validator"] = validator
             logger.info("✅ Model Validator инициализирован")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Model Validator не инициализирован: {e}")
 
         try:
@@ -81,6 +85,7 @@ class SingularityAutonomousManager:
             self._components["auto_prompt_optimizer"] = optimizer
             logger.info("✅ Auto Prompt Optimizer инициализирован")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Auto Prompt Optimizer не инициализирован: {e}")
 
         try:
@@ -91,6 +96,7 @@ class SingularityAutonomousManager:
             self._components["telegram_alerter"] = alerter
             logger.info("✅ Telegram Alerter инициализирован")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Telegram Alerter не инициализирован: {e}")
 
         try:
@@ -101,6 +107,7 @@ class SingularityAutonomousManager:
             self._components["metrics_collector"] = metrics_collector
             logger.info("✅ Metrics Collector инициализирован")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Metrics Collector не инициализирован: {e}")
 
         try:
@@ -111,6 +118,7 @@ class SingularityAutonomousManager:
             self._components["sla_monitor"] = sla_monitor
             logger.info("✅ SLA Monitor инициализирован")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ SLA Monitor не инициализирован: {e}")
 
         try:
@@ -121,6 +129,7 @@ class SingularityAutonomousManager:
             self._components["safety_checker"] = safety_checker
             logger.info("✅ Safety Checker инициализирован")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Safety Checker не инициализирован: {e}")
 
         try:
@@ -131,8 +140,10 @@ class SingularityAutonomousManager:
             self._components["cache_cleanup_task"] = cleanup_task
             logger.info("✅ Cache Cleanup Task инициализирован")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Cache Cleanup Task не инициализирован: {e}")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Инициализировано {len(self._components)} компонентов")
 
     async def start_all_components(self):
@@ -163,6 +174,7 @@ class SingularityAutonomousManager:
             self._tasks.append(asyncio.create_task(report_generator.start_periodic_reports()))
             logger.info("✅ Report Generator запущен (периодические отчеты)")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Report Generator не запущен: {e}")
 
         # Остальные компоненты работают по требованию или через enhanced_monitor
@@ -221,6 +233,7 @@ class SingularityAutonomousManager:
                         await report_gen.send_report_to_telegram(daily_report, "daily")
                         logger.info("✅ Ежедневный отчет отправлен")
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.error(f"❌ Ошибка генерации ежедневного отчета: {e}")
 
                 # Генерация еженедельного отчета (раз в неделю в понедельник в 9:00) (Singularity 8.0)
@@ -233,6 +246,7 @@ class SingularityAutonomousManager:
                         await report_gen.send_report_to_telegram(weekly_report, "weekly")
                         logger.info("✅ Еженедельный отчет отправлен")
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.error(f"❌ Ошибка генерации еженедельного отчета: {e}")
 
                 # Оптимизация промптов (раз в день в 3:00)
@@ -243,6 +257,7 @@ class SingularityAutonomousManager:
                     current_prompt = "Ты - Виктория, Team Lead команды экспертов..."
                     improvements = await optimizer.suggest_improvements(current_prompt, "Виктория")
                     if improvements:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"💡 Найдено {len(improvements)} предложений по улучшению")
                         for imp in improvements[:3]:
                             await optimizer.log_improvement(imp, "Виктория", applied=False)
@@ -256,6 +271,7 @@ class SingularityAutonomousManager:
                 await asyncio.sleep(3600)
 
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка в периодических задачах: {e}")
                 await asyncio.sleep(3600)
 

@@ -59,6 +59,7 @@ async def run_monster_audits(description: str, metadata: dict) -> Optional[str]:
         if secret_report:
             return secret_report
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Monster audits skipped: {e}")
     return None
 

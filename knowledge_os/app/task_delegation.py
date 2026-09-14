@@ -171,6 +171,7 @@ class TaskDelegator:
         # Выбираем агента с наивысшим score
         if agent_scores:
             best_agent = max(agent_scores.items(), key=lambda x: x[1])[0]
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🎯 Выбран агент: {best_agent} (score: {agent_scores[best_agent]:.2f})")
             return best_agent
 

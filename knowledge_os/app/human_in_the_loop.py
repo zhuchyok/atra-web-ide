@@ -140,7 +140,9 @@ class HumanInTheLoop:
         # [AGENT SCOPE] HITL Hook
         try:
             from agentscope.rpc import RpcClient
+
             # В AgentScope HITL может быть реализован через RPC или специальные хуки
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔗 [AGENT SCOPE] Triggering HITL Hook for {action}")
         except ImportError:
             pass
@@ -164,6 +166,7 @@ class HumanInTheLoop:
 
         # Если критичность высокая - требуем одобрения
         if criticality in [ActionCriticality.HIGH, ActionCriticality.CRITICAL]:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Требуется одобрение: {action} (критичность: {criticality.value})")
             # Здесь можно добавить уведомление пользователю (Telegram, email и т.д.)
 
@@ -189,6 +192,7 @@ class HumanInTheLoop:
             True если одобрено
         """
         if request_id not in self.pending_approvals:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Запрос на одобрение не найден: {request_id}")
             return False
 
@@ -202,6 +206,7 @@ class HumanInTheLoop:
             approval.status = ApprovalStatus.MODIFIED
             approval.modified_result = modified_result
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Действие одобрено: {approval.action} ({approved_by})")
 
         # Вызываем callback если есть
@@ -228,6 +233,7 @@ class HumanInTheLoop:
             True если отклонено
         """
         if request_id not in self.pending_approvals:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Запрос на одобрение не найден: {request_id}")
             return False
 
@@ -237,6 +243,7 @@ class HumanInTheLoop:
         approval.approved_by = rejected_by
         approval.feedback = reason or "Отклонено пользователем"
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"❌ Действие отклонено: {approval.action} ({rejected_by})")
 
         return True
@@ -289,6 +296,7 @@ class HumanInTheLoop:
         )
 
         self.feedback_history.append(feedback)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📝 Обратная связь записана: {agent_name} - {feedback_type}")
 
         return feedback

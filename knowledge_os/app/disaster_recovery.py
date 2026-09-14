@@ -75,6 +75,7 @@ class DisasterRecovery:
             await conn.close()
             return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Database check failed: {e}")
             return False
 
@@ -173,6 +174,7 @@ class DisasterRecovery:
             try:
                 await self._log_mode_change(mode_change)
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Failed to log mode change: {e}")
 
     async def _log_mode_change(self, mode_change: Dict[str, Any]):
@@ -198,6 +200,7 @@ class DisasterRecovery:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Failed to save mode change to DB: {e}")
 
     async def run_health_check(self) -> SystemMode:

@@ -72,7 +72,7 @@ class RedisManager:
             import os as system_os
 
             # [SINGULARITY 24.3] Логируем всегда для отладки
-            print(
+            logger.info(
                 f"DEBUG: [REDIS_MANAGER] Initialized with URL: {self.url} (PID: {system_os.getpid()})"
             )
             # [SINGULARITY 24.3] Сбрасываем пул при инициализации, если он был
@@ -82,7 +82,7 @@ class RedisManager:
             if url and url != self.url:
                 import os as system_os
 
-                print(
+                logger.info(
                     f"DEBUG: [REDIS_MANAGER] Updating URL from {self.url} to {url} (PID: {system_os.getpid()})"
                 )
                 self.url = url
@@ -92,7 +92,7 @@ class RedisManager:
                 import os as system_os
 
                 new_url = os.getenv("REDIS_URL")
-                print(
+                logger.info(
                     f"DEBUG: [REDIS_MANAGER] Updating URL from {self.url} to {new_url} from ENV (PID: {system_os.getpid()})"
                 )
                 self.url = new_url
@@ -105,7 +105,8 @@ class RedisManager:
             from app import redis_manager as rm_module
 
         rm_module.REDIS_URL = self.url
-        print(f"DEBUG: [REDIS_MANAGER] Module REDIS_URL is now: {rm_module.REDIS_URL}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"DEBUG: [REDIS_MANAGER] Module REDIS_URL is now: {rm_module.REDIS_URL}")
 
     async def get_client(self) -> redis.Redis:
         """Получает или создает клиент Redis из пула."""
@@ -123,30 +124,22 @@ class RedisManager:
                         # Blocking XREADGROUP (block=5s+) must not hit socket_timeout.
                         # Default None; if env sets a value it must be > max block seconds.
                         _sock_timeout_raw = os.getenv("REDIS_SOCKET_TIMEOUT_SEC", "").strip()
-                        _sock_timeout = (
-                            float(_sock_timeout_raw) if _sock_timeout_raw else None
-                        )
-                        _connect_timeout = float(
-                            os.getenv("REDIS_SOCKET_CONNECT_TIMEOUT_SEC", "5")
-                        )
+                        _sock_timeout = float(_sock_timeout_raw) if _sock_timeout_raw else None
+                        _connect_timeout = float(os.getenv("REDIS_SOCKET_CONNECT_TIMEOUT_SEC", "5"))
                         if self.url.startswith("unix://"):
                             path = self.url.replace("unix://", "")
                             self._pool = redis.ConnectionPool(
                                 connection_class=redis.UnixDomainSocketConnection,
                                 path=path,
                                 decode_responses=True,
-                                max_connections=int(
-                                    os.getenv("REDIS_MAX_CONNECTIONS", "20")
-                                ),
+                                max_connections=int(os.getenv("REDIS_MAX_CONNECTIONS", "20")),
                                 socket_timeout=_sock_timeout,
                                 socket_connect_timeout=_connect_timeout,
                             )
                         else:
                             self._pool = redis.ConnectionPool.from_url(
                                 self.url,
-                                max_connections=int(
-                                    os.getenv("REDIS_MAX_CONNECTIONS", "20")
-                                ),
+                                max_connections=int(os.getenv("REDIS_MAX_CONNECTIONS", "20")),
                                 decode_responses=True,
                                 socket_timeout=_sock_timeout,
                                 socket_connect_timeout=_connect_timeout,
@@ -156,6 +149,7 @@ class RedisManager:
                         client = redis.Redis(connection_pool=self._pool)
                         await client.ping()
 
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"✅ [REDIS] Пул соединений создан: {self.url}")
                         break
                     except (redis.ConnectionError, redis.TimeoutError) as e:
@@ -165,9 +159,10 @@ class RedisManager:
                         logger.warning(
                             f"⚠️ [REDIS] Connection failed, retrying in {wait_time:.2f}s... ({e})"
                         )
-                        time.sleep(wait_time)
+                        await asyncio.sleep(wait_time)
 
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [REDIS] Ошибка создания пула: {e}")
                 raise
         return redis.Redis(connection_pool=self._pool)
@@ -182,6 +177,7 @@ class RedisManager:
             ttl_int = int(float(ttl)) if ttl is not None else 3600
             await client.set(f"cache:{key}", val, ex=ttl_int)
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [REDIS] Ошибка записи в кэш {key}: {e}")
 
     async def get_cache(self, key: str) -> Optional[Any]:
@@ -191,6 +187,7 @@ class RedisManager:
             val = await client.get(f"cache:{key}")
             return json.loads(val) if val else None
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [REDIS] Ошибка чтения кэша {key}: {e}")
             return None
 
@@ -213,6 +210,7 @@ class RedisManager:
             # TTL для статуса задачи - 24 часа
             await client.expire(f"task:{task_id}", 86400)
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [REDIS] Ошибка обновления статуса задачи {task_id}: {e}")
 
     async def get_task_status(self, task_id: str) -> Optional[Dict]:
@@ -222,6 +220,7 @@ class RedisManager:
             data = await client.hgetall(f"task:{task_id}")
             return {k: json.loads(v) for k, v in data.items()} if data else None
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [REDIS] Ошибка получения статуса задачи {task_id}: {e}")
             return None
 
@@ -242,6 +241,7 @@ class RedisManager:
                     lock_key, "processing", ex=_TASK_DEDUP_LOCK_TTL, nx=True
                 )
                 if not is_locked:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"🚫 [REDIS] Дубликат задачи {task_id} проигнорирован")
                     return False
 
@@ -265,9 +265,11 @@ class RedisManager:
 
             # Ограничиваем длину потока 10000 записей (мировая практика)
             await client.xadd(f"stream:{stream_name}", {"payload": json.dumps(data)}, maxlen=10000)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📥 [REDIS] Задача {task_id} добавлена в поток {stream_name}")
             return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [REDIS] Ошибка записи в поток {stream_name}: {e}")
             return False
 
@@ -296,6 +298,7 @@ class RedisManager:
                 return res[1]
             return []
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [REDIS] Ошибка autoclaim в потоке {stream_name}: {e}")
             return []
 
@@ -305,6 +308,7 @@ class RedisManager:
             client = await self.get_client()
             await client.delete(f"lock:task:{task_id}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [REDIS] Не удалось снять блокировку {task_id}: {e}")
 
     async def get_queue_depth(self, queue_name: str) -> int:
@@ -316,6 +320,7 @@ class RedisManager:
                 _queue_depth.labels(queue_name=queue_name).set(depth)
             return depth
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [REDIS] Failed to get queue depth for {queue_name}: {e}")
             return 0
 

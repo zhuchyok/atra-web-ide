@@ -91,6 +91,7 @@ class MLRouterDataCollector:
                 )
                 return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [ML DATA] Error saving routing decision: {e}")
             return False
 
@@ -146,6 +147,7 @@ class MLRouterDataCollector:
                 )
                 return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [ML DATA] Error saving prediction: {e}")
             return False
 
@@ -161,6 +163,7 @@ class MLRouterDataCollector:
                 """)
                 return count or 0
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [ML DATA] Error getting training data count: {e}")
             return 0
 
@@ -185,6 +188,7 @@ class MLRouterDataCollector:
 
                 return [dict(row) for row in rows]
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [ML DATA] Error getting training data: {e}")
             return []
 

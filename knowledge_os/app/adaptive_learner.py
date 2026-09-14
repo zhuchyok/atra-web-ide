@@ -68,6 +68,7 @@ class AdaptiveLearner:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [ADAPTIVE LEARNING] Error analyzing feedback: {e}")
             return 0
 
@@ -179,6 +180,7 @@ class AdaptiveLearner:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [ADAPTIVE LEARNING] Error prioritizing examples: {e}")
             return 0
 
@@ -193,6 +195,7 @@ async def run_adaptive_learning_cycle():
     # Приоритизируем примеры
     deleted = await learner.prioritize_examples_by_success()
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"✅ [ADAPTIVE LEARNING] Cycle completed: {updated} updated, {deleted} deleted")
     return updated, deleted
 

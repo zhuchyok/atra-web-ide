@@ -127,6 +127,7 @@ class UsageAnalytics:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [USAGE ANALYTICS] Ошибка сбора аналитики: {e}")
 
     async def get_user_analytics(self, user_id: str, days: int = 7) -> Dict[str, Any]:
@@ -196,6 +197,7 @@ class UsageAnalytics:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [USAGE ANALYTICS] Ошибка получения аналитики пользователя: {e}")
             return {}
 
@@ -245,6 +247,7 @@ class UsageAnalytics:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [USAGE ANALYTICS] Ошибка получения аналитики экспертов: {e}")
             return {}
 
@@ -301,6 +304,7 @@ class UsageAnalytics:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [USAGE ANALYTICS] Ошибка получения аналитики моделей: {e}")
             return {}
 

@@ -6,6 +6,7 @@ description: Полная автоматизация тестирования - 
 # Test Automation Skill
 
 ## Когда использовать
+
 - Генерация тестов для нового кода
 - Unit tests
 - Integration tests
@@ -15,6 +16,7 @@ description: Полная автоматизация тестирования - 
 ## Test Types
 
 ### 1. Unit Tests
+
 ```python
 def test_user_creation():
     user = User(name="John", email="john@test.com")
@@ -23,6 +25,7 @@ def test_user_creation():
 ```
 
 ### 2. Integration Tests
+
 ```python
 @pytest.mark.asyncio
 async def test_user_repository():
@@ -33,6 +36,7 @@ async def test_user_repository():
 ```
 
 ### 3. E2E Tests (Playwright)
+
 ```python
 def test_login_flow():
     page.goto("/login")
@@ -45,22 +49,24 @@ def test_login_flow():
 ## Test Generation Patterns
 
 ### From Code
+
 ```python
 # Generate tests for function
 def generate_tests(function_code):
     # Extract inputs/outputs
     inputs = extract_parameters(function_code)
     outputs = extract_return(function_code)
-    
+
     # Generate test cases
     tests = []
     for inputs in edge_cases:
         tests.append(make_test(inputs, outputs))
-    
+
     return tests
 ```
 
 ### Property-Based Testing
+
 ```python
 from hypothesis import given, strategies as st
 
@@ -73,6 +79,7 @@ def test_sort_list(lst):
 ## Coverage
 
 ### Coverage Analysis
+
 ```bash
 # Run with coverage
 pytest --cov=src --cov-report=html
@@ -82,6 +89,7 @@ Coverage.py report
 ```
 
 ### Target Coverage
+
 - Unit tests: 80%+
 - Integration: 60%+
 - Critical paths: 100%
@@ -89,6 +97,7 @@ Coverage.py report
 ## Test Fixtures
 
 ### Fixtures Pattern
+
 ```python
 @pytest.fixture
 async def db():
@@ -106,6 +115,7 @@ def user():
 ## Mock Patterns
 
 ### Unit Mocks
+
 ```python
 from unittest.mock import Mock, patch
 
@@ -117,6 +127,7 @@ def test_with_mock(mock_method):
 ```
 
 ### Async Mocks
+
 ```python
 @pytest.mark.asyncio
 async def test_async_mock():
@@ -127,6 +138,7 @@ async def test_async_mock():
 ```
 
 ## Commands
+
 ```bash
 /test generate <file>     # Generate tests
 /test run                # Run all tests
@@ -136,6 +148,7 @@ async def test_async_mock():
 ```
 
 ## Output
+
 ```json
 {
   "tests_generated": 15,

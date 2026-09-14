@@ -54,6 +54,11 @@ class PerpetualEvolution:
                     await asyncio.wait_for(evolve_coro, timeout=EVOLUTION_SCOUT_TIMEOUT_SEC)
                 else:
                     await evolve_coro
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "⚠️ [EVOLUTION] Recursive cycle timed out after %ss (budget mode).",
+                    EVOLUTION_SCOUT_TIMEOUT_SEC,
+                )
             except Exception as e:
                 msg = str(e)
                 if "connection" in msg.lower() or "All connection attempts failed" in msg:
@@ -73,6 +78,7 @@ class PerpetualEvolution:
                 else:
                     await distill_coro
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"⚠️ [EVOLUTION] Ошибка дистилляции: {e}")
 
             # 3. Автономная дистилляция (Synthetic Data)
@@ -86,6 +92,7 @@ class PerpetualEvolution:
                 else:
                     await auto_coro
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"⚠️ [EVOLUTION] Ошибка автономной дистилляции: {e}")
 
             # 4. Автономная эволюция/мутации экспертов
@@ -101,9 +108,11 @@ class PerpetualEvolution:
                         await evolve_coro
                     await run_promotion_cycle()
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"⚠️ [EVOLUTION] Ошибка эволюции экспертов: {e}")
 
             return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [EVOLUTION] Критическая ошибка в цикле: {e}")
             return False

@@ -103,6 +103,7 @@ def run_cursor_agent(prompt: str, timeout: int = 300) -> Optional[str]:
         )
         return result.stdout.strip()
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Cursor agent error: {e}")
         return None
 
@@ -142,6 +143,7 @@ class StreamingOrchestrator:
         @self.insight_consumer.on_event(EventType.INSIGHT_HYPOTHESIS)
         async def handle_hypothesis(event: InsightEvent, raw_data: Dict) -> bool:
             """Обрабатывает новые гипотезы - может создавать задачи для валидации."""
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔬 New hypothesis to validate: {event.hypothesis[:100]}...")
 
             # Создаём задачу на валидацию гипотезы
@@ -187,6 +189,7 @@ class StreamingOrchestrator:
                         assignee_name=expert["name"],
                         priority="high",
                     )
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"📋 Created validation task {task_id} for {expert['name']}")
 
             return True
@@ -203,6 +206,7 @@ class StreamingOrchestrator:
 
     async def run_orchestration_cycle(self):
         """Выполняет один цикл оркестрации."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"[{datetime.now()}] 🚀 STREAMING ORCHESTRATOR v4.0 starting cycle...")
 
         pool = await get_pool()
@@ -217,6 +221,7 @@ class StreamingOrchestrator:
             LIMIT 50
         """)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📚 Found {len(new_knowledge)} new knowledge nodes to process")
 
         # === ФАЗА 2: КРОСС-ДОМЕННОЕ СВЯЗЫВАНИЕ ===
@@ -229,12 +234,15 @@ class StreamingOrchestrator:
         # === ФАЗА 4: HEALTH CHECK ===
         if self.stream_manager:
             health = await self.stream_manager.health_check()
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📊 Streams health: {health['status']}")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"[{datetime.now()}] ✅ Orchestration cycle completed")
 
     async def _process_knowledge_node(self, pool: asyncpg.Pool, node: Dict[str, Any]):
         """Обрабатывает узел знаний - создаёт кросс-доменные связи."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🧩 Processing: {node['content'][:50]}...")
 
         # Находим случайный узел из другого домена
@@ -359,6 +367,28 @@ class StreamingOrchestrator:
             HAVING count(k.id) < 50
                OR max(k.created_at) < NOW() - INTERVAL '48 hours'
         """)
+        global_curiosity_cb = await pool.fetchval(
+            """
+            SELECT 1
+            FROM tasks
+            WHERE COALESCE(metadata->>'reason', '') = 'curiosity_engine_starvation'
+              AND status IN ('failed', 'cancelled')
+              AND updated_at > NOW() - ($1::text || ' minutes')::interval
+              AND (
+                  COALESCE(metadata->>'auto_fallback_reason', '') IN (
+                      'circuit_breaker_loop_exhausted',
+                      'rag_loop_no_llm_call_exhausted'
+                  )
+                  OR COALESCE(metadata->>'last_error', '') ILIKE '%Circuit Breaker%'
+                  OR COALESCE(result, '') ILIKE '%Circuit Breaker%'
+              )
+            LIMIT 1
+            """,
+            str(int(os.getenv("ORCHESTRATOR_CURIOSITY_RETRY_COOLDOWN_MIN", "30"))),
+        )
+        if global_curiosity_cb:
+            logger.info("⏭️ Curiosity global cooldown: recent timeout fallback on starvation tasks")
+            deserts = []
 
         victoria_id = await pool.fetchval("SELECT id FROM experts WHERE name = 'Виктория'")
 
@@ -382,6 +412,7 @@ class StreamingOrchestrator:
             )
 
             if expert_count == 0 and (autonomous_count or 0) < autonomous_limit:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"👤 Recruiting expert for {canonical}...")
                 try:
                     subprocess.run(
@@ -393,6 +424,7 @@ class StreamingOrchestrator:
                         timeout=60,
                     )
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"Expert generation failed: {e}")
                 autonomous_count = (autonomous_count or 0) + 1
                 continue
@@ -404,16 +436,39 @@ class StreamingOrchestrator:
             )
             title_curiosity = f"🔥 СРОЧНОЕ ИССЛЕДОВАНИЕ: {desert['name']}"
             cooldown_min = int(os.getenv("ORCHESTRATOR_CURIOSITY_RETRY_COOLDOWN_MIN", "30"))
+            curiosity_max_assignee_active = int(
+                os.getenv("ORCHESTRATOR_CURIOSITY_MAX_ASSIGNEE_ACTIVE", "4")
+            )
+            curiosity_skip_domains = {
+                d.strip().lower()
+                for d in os.getenv("ORCHESTRATOR_CURIOSITY_SKIP_DOMAINS", "Test Domain").split(",")
+                if d.strip()
+            }
+            if str(desert["name"]).strip().lower() in curiosity_skip_domains:
+                logger.info(
+                    "⏭️ Skip curiosity for %s: domain in skip list",
+                    desert["name"],
+                )
+                continue
+            curiosity_preferred_source = os.getenv(
+                "ORCHESTRATOR_CURIOSITY_PREFERRED_SOURCE", "ollama"
+            ).lower()
             recent_curiosity_failure = await pool.fetchval(
                 """
                 SELECT 1
                 FROM tasks
                 WHERE title = $1
-                  AND status = 'failed'
+                  AND status IN ('failed', 'cancelled')
                   AND updated_at > NOW() - ($2::text || ' minutes')::interval
-                  AND COALESCE(metadata->>'auto_fallback_reason', '') IN (
-                      'curiosity_no_llm_progress_timeout',
-                      'pending_curiosity_starvation_timeout'
+                  AND (
+                      COALESCE(metadata->>'auto_fallback_reason', '') IN (
+                          'curiosity_no_llm_progress_timeout',
+                          'pending_curiosity_starvation_timeout',
+                          'circuit_breaker_loop_exhausted',
+                          'rag_loop_no_llm_call_exhausted'
+                      )
+                      OR COALESCE(metadata->>'last_error', '') ILIKE '%Circuit Breaker%'
+                      OR COALESCE(result, '') ILIKE '%Circuit Breaker%'
                   )
                 LIMIT 1
                 """,
@@ -435,6 +490,24 @@ class StreamingOrchestrator:
             )
 
             if assignee and victoria_id:
+                assignee_active = await pool.fetchval(
+                    """
+                    SELECT count(*)
+                    FROM tasks
+                    WHERE assignee_expert_id = $1
+                      AND status IN ('pending', 'in_progress')
+                    """,
+                    assignee["id"],
+                )
+                if int(assignee_active or 0) >= curiosity_max_assignee_active:
+                    logger.info(
+                        "⏭️ Skip curiosity for %s: assignee %s overloaded (%s active, limit=%s)",
+                        desert["name"],
+                        assignee["name"],
+                        assignee_active,
+                        curiosity_max_assignee_active,
+                    )
+                    continue
                 # Дедупликация: та же задача (title+description) для того же эксперта не чаще раза в 30 дней
                 if same_task_for_expert_in_last_n_days:
                     async with pool.acquire() as conn:
@@ -460,7 +533,15 @@ class StreamingOrchestrator:
                     curiosity_task,
                     assignee["id"],
                     victoria_id,
-                    json.dumps({"reason": "curiosity_engine_starvation", "domain": desert["name"]}),
+                    json.dumps(
+                        {
+                            "reason": "curiosity_engine_starvation",
+                            "domain": desert["name"],
+                            "complex": True,
+                            "execution_profile": "rescue_fast",
+                            "preferred_source": curiosity_preferred_source,
+                        }
+                    ),
                 )
 
                 # Публикуем событие
@@ -476,10 +557,12 @@ class StreamingOrchestrator:
                         metadata={"source": "curiosity_engine"},
                     )
 
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"📋 Created research task {task_id} for {assignee['name']}")
 
     async def start_continuous(self, interval_seconds: int = 300):
         """Запускает непрерывную оркестрацию."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 Starting continuous orchestration (interval: {interval_seconds}s)")
 
         # Запускаем consumer для обработки insight событий
@@ -490,6 +573,7 @@ class StreamingOrchestrator:
                 try:
                     await self.run_orchestration_cycle()
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"Orchestration cycle error: {e}")
 
                 await asyncio.sleep(interval_seconds)

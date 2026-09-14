@@ -96,6 +96,7 @@ class TaskPrioritizer:
             conn = await asyncpg.connect(self.db_url)
             return conn
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [TASK PRIORITIZER] Ошибка подключения к БД: {e}")
             return None
 
@@ -176,7 +177,7 @@ class TaskPrioritizer:
             import hashlib
 
             task_key = f"{task_type}:{description}:{datetime.now(timezone.utc).isoformat()}"
-            task_id = hashlib.md5(task_key.encode()).hexdigest()[:16]
+            task_id = hashlib.md5(task_key.encode('utf-8')).hexdigest()[:16]
 
             # Рассчитываем приоритет
             priority, priority_score = self.calculate_priority_score(
@@ -247,6 +248,7 @@ class TaskPrioritizer:
             return task_id
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [TASK PRIORITIZER] Ошибка добавления задачи: {e}")
             return ""
 
@@ -296,6 +298,7 @@ class TaskPrioritizer:
                         await conn.close()
 
             if not task:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [TASK PRIORITIZER] Задача {task_id} не найдена")
                 return False
 
@@ -347,6 +350,7 @@ class TaskPrioritizer:
             return True
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [TASK PRIORITIZER] Ошибка назначения задачи: {e}")
             return False
 
@@ -418,6 +422,7 @@ class TaskPrioritizer:
             return next_task
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [TASK PRIORITIZER] Ошибка получения следующей задачи: {e}")
             return None
 
@@ -480,6 +485,7 @@ class TaskPrioritizer:
             return True
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [TASK PRIORITIZER] Ошибка завершения задачи: {e}")
             return False
 
@@ -524,6 +530,7 @@ class TaskPrioritizer:
             }
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [TASK PRIORITIZER] Ошибка получения статистики: {e}")
             return {}
 

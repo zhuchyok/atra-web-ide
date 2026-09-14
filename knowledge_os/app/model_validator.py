@@ -90,6 +90,7 @@ class ModelValidator:
                     data = response.json()
                     return [model["name"] for model in data.get("models", [])]
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"Ошибка получения моделей из {ollama_url}: {e}")
         return []
 
@@ -147,6 +148,7 @@ class ModelValidator:
 
     async def validate_model(self, model_name: str, ollama_url: str) -> ValidationResult:
         """Валидирует модель на всех тестовых промптах"""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🧪 Валидация модели {model_name}...")
 
         total_accuracy = 0.0
@@ -215,6 +217,7 @@ class ModelValidator:
                             f"(accuracy={result.accuracy:.2f} < {self.min_accuracy_threshold})"
                         )
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ Ошибка валидации модели {model_name}: {e}")
 
         return all_results
@@ -244,10 +247,12 @@ class ModelValidator:
                     result.passed,
                 )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"✅ Результат валидации {result.model_name} сохранен в БД")
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Не удалось сохранить результат валидации: {e}")
 
     async def get_validation_summary(self, hours: int = 24) -> Dict[str, Any]:
@@ -292,6 +297,7 @@ class ModelValidator:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка получения сводки валидации: {e}")
             return {}
 

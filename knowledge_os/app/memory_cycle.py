@@ -41,6 +41,7 @@ class MemoryCycle:
         conn = await asyncpg.connect(self.db_url)
         try:
             count = await conn.fetchval("SELECT prune_knowledge_nodes()")
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"♻️ [MEMORY CYCLE] Soft Delete: {count} nodes moved to archive.")
             if count and count > 0:
                 await self._bump_freshness_version()

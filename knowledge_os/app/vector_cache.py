@@ -77,9 +77,11 @@ class LocalVectorCache:
                     self.contents = new_contents
                     self.last_sync = datetime.now()
 
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ [VECTOR CACHE] Cached {len(self.contents)} nodes in RAM.")
 
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [VECTOR CACHE] Sync failed: {e}")
 
     async def search(

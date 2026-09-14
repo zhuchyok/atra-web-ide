@@ -63,6 +63,7 @@ class LoadPredictor:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Error analyzing patterns: {e}")
             return {"hourly": {}, "daily": {}, "peak_hour": 14, "peak_day": 1}
 

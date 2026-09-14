@@ -101,6 +101,7 @@ class AgentKPITracker:
             conn = await asyncpg.connect(self.db_url)
             return conn
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [KPI TRACKER] Ошибка подключения к БД: {e}")
             return None
 
@@ -214,6 +215,7 @@ class AgentKPITracker:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [KPI TRACKER] Ошибка расчета KPI для {agent_id}: {e}")
             return []
 
@@ -289,6 +291,7 @@ class AgentKPITracker:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [KPI TRACKER] Ошибка получения метрик для {agent_id}: {e}")
             return None
 
@@ -385,6 +388,7 @@ class AgentKPITracker:
             return dashboard_data
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [KPI TRACKER] Ошибка получения dashboard данных: {e}")
             return {}
 

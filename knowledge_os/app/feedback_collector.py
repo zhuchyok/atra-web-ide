@@ -128,6 +128,7 @@ class FeedbackCollector:
                 )
                 return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [FEEDBACK] Error collecting feedback: {e}")
             return False
 
@@ -228,12 +229,16 @@ class FeedbackCollector:
                             await mutation._reinforce_expert_dna_on_success(
                                 expert_name, query, response
                             )
-                            logger.info(f"🧬 [DNA] Success reinforcement triggered for {expert_name}")
+                            logger.info(
+                                f"🧬 [DNA] Success reinforcement triggered for {expert_name}"
+                            )
                     except Exception as re_err:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"Failed to trigger success reinforcement: {re_err}")
 
                 return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [FEEDBACK] Error collecting explicit feedback: {e}")
             return False
 
@@ -279,6 +284,7 @@ class FeedbackCollector:
                     "positive_rate": (positive / total) if total > 0 else 0.0,
                 }
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [FEEDBACK] Error getting statistics: {e}")
             return {"total": 0, "positive": 0, "negative": 0, "reroute_rate": 0.0}
 

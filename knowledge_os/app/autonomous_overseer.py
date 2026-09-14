@@ -32,6 +32,7 @@ class AutonomousOverseer:
             for issue in issues:
                 await self._create_autonomous_task(conn, issue)
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ [OVERSEER] Cycle complete. Created {len(issues)} autonomous tasks.")
         finally:
             await conn.close()
@@ -54,7 +55,7 @@ class AutonomousOverseer:
                     "description": f"Automatically detected error in logs: {err['content']}",
                     "category": "bugfix",
                     "priority": "high",
-                    "assignee_hint": "Игорь",
+                    "assignee_hint": "Даниил",
                 }
             )
 
@@ -110,6 +111,7 @@ class AutonomousOverseer:
             json.dumps(metadata),
         )
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🆕 [OVERSEER] Created task: {issue['title']}")
 
 

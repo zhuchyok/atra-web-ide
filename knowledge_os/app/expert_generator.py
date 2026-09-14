@@ -123,7 +123,11 @@ async def recruit_expert(domain_name: str, is_micro: bool = False):
         logger.error("❌ asyncpg is not installed. Recruitment is disabled.")
         return
 
-    logger.info("🕵️ Autonomous Recruitment: Designing %sexpert for domain '%s'...", "micro-" if is_micro else "", domain_name)
+    logger.info(
+        "🕵️ Autonomous Recruitment: Designing %sexpert for domain '%s'...",
+        "micro-" if is_micro else "",
+        domain_name,
+    )
     conn = await asyncpg.connect(DB_URL)
 
     # 1. Анализируем лучшие мировые практики для этой роли (промпт мирового уровня)
@@ -131,9 +135,9 @@ async def recruit_expert(domain_name: str, is_micro: bool = False):
         recruitment_prompt = f"""
         Ты — Архитектор Микро-агентов. Создай узкоспециализированного временного агента.
         ОБЛАСТЬ: {domain_name}
-        ЗАДАЧА: Придумай имя и очень конкретный system_prompt (max 500 символов), 
+        ЗАДАЧА: Придумай имя и очень конкретный system_prompt (max 500 символов),
         фокусирующийся ТОЛЬКО на этой области.
-        
+
         ВЕРНИ ТОЛЬКО JSON:
         {{
             "name": "Имя",
@@ -158,7 +162,7 @@ async def recruit_expert(domain_name: str, is_micro: bool = False):
            - Границы экспертизы (что входит, что делегировать)
            - Формат ответа (по возможности)
            - Лучшие практики индустрии
-        Референс: структура промптов топ-экспертов (Анна QA, Павел Trading, Игорь Backend) — чёткая специализация, Reuse First, структурированный ответ.
+        Референс: структура промптов топ-экспертов (Анна QA, Виктор Trading, Даниил Backend) — чёткая специализация, Reuse First, структурированный ответ.
 
         Длина system_prompt: минимум 200 символов, желательно 400+.
 
@@ -335,4 +339,4 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         asyncio.run(recruit_expert(sys.argv[1]))
     else:
-        print("Usage: python expert_generator.py <domain_name>")
+        logger.info("Usage: python expert_generator.py <domain_name>")

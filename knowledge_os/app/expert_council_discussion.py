@@ -23,19 +23,18 @@ class ExpertCouncil:
     def __init__(self, session_id=None, max_experts: int | None = None):
         self.session_id = session_id
         self.base_experts = [
-            {"name": "Игорь", "role": "backend_developer", "focus": "Architecture & Docker"},
-            {"name": "Роман", "role": "database_engineer", "focus": "SQL & Migrations"},
+            {"name": "Даниил", "role": "backend_lead", "focus": "Architecture & Backend"},
+            {"name": "Владимир", "role": "data_engineer", "focus": "SQL & Migrations"},
             {"name": "Дмитрий", "role": "ml_engineer", "focus": "Ollama & MLX Performance"},
-            {"name": "Анна", "role": "qa_engineer", "focus": "Testing & Reliability"},
-            {"name": "Борис", "role": "devops_engineer", "focus": "Infrastructure, Docker, Deploy"},
-            {"name": "Александр", "role": "security_architect", "focus": "Security, Audit"},
-            {"name": "Евгения", "role": "marketing_director", "focus": "PR, Growth, Marketing"},
+            {"name": "Анна", "role": "qa_lead", "focus": "Testing & Reliability"},
+            {"name": "Макс", "role": "devops_lead", "focus": "Infrastructure, Docker, Deploy"},
+            {"name": "Алексей", "role": "security_engineer", "focus": "Security, Audit"},
+            {"name": "Евгения", "role": "pr_director", "focus": "PR, Growth, Marketing"},
             {
-                "name": "Константин",
-                "role": "technical_lead",
+                "name": "Адриан",
+                "role": "system_design_lead",
                 "focus": "Architecture, Technical Decisions",
             },
-            {"name": "Артём", "role": "ux_ui_designer", "focus": "UX/UI Design, Web Strategy"},
         ]
         # Cap for API SLA — full roster still available via COUNCIL_MAX_EXPERTS.
         cap = max_experts
@@ -54,6 +53,7 @@ class ExpertCouncil:
         [SINGULARITY 24.0] beautiful_mode is now TRUE by default.
         Includes Autonomous HR: Synthesizes a specialist if needed.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🏛️ [COUNCIL] Starting debate on: {topic[:50]}...")
 
         persist_db = os.getenv("COUNCIL_PERSIST_DB", "false").lower() in ("1", "true", "yes")
@@ -113,6 +113,7 @@ class ExpertCouncil:
 
             # 2. Sequential expert opinions
             for expert in self.experts:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🗣️ [COUNCIL] Calling expert: {expert['name']} ({expert['role']})")
 
                 if beautiful_mode:
@@ -161,9 +162,7 @@ class ExpertCouncil:
                         )
 
                     gen = await asyncio.wait_for(
-                        generate_dialogue(
-                            prompt, expert_name=expert["name"], model_hint="fast"
-                        ),
+                        generate_dialogue(prompt, expert_name=expert["name"], model_hint="fast"),
                         timeout=per_expert_timeout,
                     )
                     opinion = gen.text
@@ -259,9 +258,7 @@ class ExpertCouncil:
 
                 syn_timeout = float(os.getenv("COUNCIL_SYNTHESIS_TIMEOUT_SEC", "18"))
                 gen = await asyncio.wait_for(
-                    generate_dialogue(
-                        synthesis_prompt, expert_name="Виктория", model_hint="fast"
-                    ),
+                    generate_dialogue(synthesis_prompt, expert_name="Виктория", model_hint="fast"),
                     timeout=syn_timeout,
                 )
                 final_decision = gen.text
@@ -327,6 +324,7 @@ class ExpertCouncil:
             }
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [COUNCIL] Error in debate: {e}")
             if conn:
                 try:
@@ -349,6 +347,7 @@ if __name__ == "__main__":
             "Внедрение Hierarchy of Reasoning",
             "Использовать phi3.5 для простых задач и qwen2.5 для сложных через LocalRouter.",
         )
-        print(f"\n--- ФИНАЛЬНОЕ РЕШЕНИЕ ---\n{decision}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"\n--- ФИНАЛЬНОЕ РЕШЕНИЕ ---\n{decision}")
 
     asyncio.run(test())

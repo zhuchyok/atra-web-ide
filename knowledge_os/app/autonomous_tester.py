@@ -49,6 +49,7 @@ class AutonomousTester:
                     return json.load(f)
             return {"error": "Report file not generated", "stderr": stderr.decode()}
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [TESTER] Test suite execution failed: {e}")
             return {"error": str(e)}
 
@@ -59,6 +60,7 @@ class AutonomousTester:
             logger.info("✅ [TESTER] All tests passed! No healing needed.")
             return
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔍 [TESTER] Found {len(failures)} failures. Initiating AI Healing...")
 
         from knowledge_os.app.ai_core import run_smart_agent_async
@@ -84,6 +86,7 @@ class AutonomousTester:
             healing_proposal = await run_smart_agent_async(
                 prompt, expert_name="Анна", category="reasoning"
             )
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"💊 [HEALING] Proposal for {test_name}:\n{healing_proposal}")
 
             # Логируем в БД как задачу для исполнения
@@ -93,6 +96,7 @@ class AutonomousTester:
         """Logs the healing proposal as a task in DB."""
         try:
             from db_pool import create_task_safe
+
             task_id = await create_task_safe(
                 title=f"💊 SELF-HEALING: Fix {test_name}",
                 description=proposal,
@@ -100,10 +104,13 @@ class AutonomousTester:
                 metadata={"type": "self_healing", "test": test_name},
             )
             if task_id:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"📝 [TESTER] Healing task created for {test_name}: {task_id}")
             else:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"⏭️ [TESTER] Healing task already exists for {test_name} (dedup)")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [TESTER] Failed to log task: {e}")
 
     async def run_cycle(self):
@@ -112,6 +119,7 @@ class AutonomousTester:
         if "error" not in report:
             await self.analyze_failures(report)
         else:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [TESTER] Cycle skipped due to error: {report.get('error')}")
 
 

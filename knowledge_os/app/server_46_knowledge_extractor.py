@@ -115,8 +115,10 @@ class Server46KnowledgeExtractor:
                         }
                     )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Извлечено {len(knowledge_items)} знаний из git истории")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка извлечения git истории: {e}")
 
         return knowledge_items
@@ -152,8 +154,10 @@ class Server46KnowledgeExtractor:
                             }
                         )
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Ошибка чтения {doc_file}: {e}")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Извлечено {len(knowledge_items)} знаний из документации")
         return knowledge_items
 
@@ -202,6 +206,7 @@ class Server46KnowledgeExtractor:
                 }
             )
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Извлечено {len(knowledge_items)} знаний из кода")
         return knowledge_items
 
@@ -282,6 +287,7 @@ class Server46KnowledgeExtractor:
                         try:
                             embedding = await get_embedding(content)
                         except Exception as e:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.debug(f"Ошибка создания эмбеддинга: {e}")
 
                     metadata = item.get("metadata", {})
@@ -302,8 +308,10 @@ class Server46KnowledgeExtractor:
 
                     saved_count += 1
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Сохранено {saved_count} знаний о сервере 46 в базу знаний")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка сохранения знаний: {e}", exc_info=True)
 
         return saved_count
@@ -338,20 +346,31 @@ async def main():
     extractor = Server46KnowledgeExtractor()
     result = await extractor.extract_all_knowledge()
 
-    print("\n✅ Извлечение знаний завершено:")
-    print(f"   - Из git истории: {result['git_knowledge_count']}")
-    print(f"   - Из документации: {result['doc_knowledge_count']}")
-    print(f"   - Из кода: {result['code_knowledge_count']}")
-    print(f"   - Всего извлечено: {result['total_extracted']}")
-    print(f"   - Сохранено в БД: {result['saved_to_db']}")
-    print("\n📊 Состояние корпорации на сервере 46:")
+    logger.info("\n✅ Извлечение знаний завершено:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Из git истории: {result['git_knowledge_count']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Из документации: {result['doc_knowledge_count']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Из кода: {result['code_knowledge_count']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Всего извлечено: {result['total_extracted']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Сохранено в БД: {result['saved_to_db']}")
+    logger.info("\n📊 Состояние корпорации на сервере 46:")
     state = result["server_state"]
-    print(f"   - Экспертов: {state['experts_count']}")
-    print(f"   - Узлов знаний: {state['knowledge_nodes_count']}")
-    print(f"   - Доменов: {state['domains_count']}")
-    print(f"   - Задач: {state['tasks_count']}")
-    print(f"   - Систем: {len(state['systems'])}")
-    print(f"   - Возможностей: {len(state['capabilities'])}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Экспертов: {state['experts_count']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Узлов знаний: {state['knowledge_nodes_count']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Доменов: {state['domains_count']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Задач: {state['tasks_count']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Систем: {len(state['systems'])}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Возможностей: {len(state['capabilities'])}")
 
 
 if __name__ == "__main__":

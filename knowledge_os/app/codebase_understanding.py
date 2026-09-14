@@ -133,8 +133,10 @@ class CodebaseUnderstanding:
                                     }
                                 )
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"⚠️ [CODEBASE] Ошибка сканирования {py_file}: {e}")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"📋 [CODEBASE] Найдено компонентов: {len(components)}")
         return components
 

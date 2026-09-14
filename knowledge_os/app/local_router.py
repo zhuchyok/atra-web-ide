@@ -50,7 +50,7 @@ except ImportError:
     except ImportError:
 
         def record_llm_request(*args, **kwargs):
-            pass
+            logger.debug("ℹ️ record_llm_request() not implemented yet")
 
 
 try:
@@ -66,7 +66,7 @@ except ImportError:
 
         class _DummyCounter:
             def inc(self, *a, **kw):
-                pass
+                logger.debug("ℹ️ inc() not implemented yet")
 
         _OLLAMA_BP_SKIPS = _DummyCounter()
 
@@ -100,6 +100,7 @@ OLLAMA_API_URL = (
     or os.getenv("SERVER_LLM_URL")
     or _default_ollama
 )
+OLLAMA_EXECUTOR_API_URL = os.getenv("OLLAMA_EXECUTOR_BASE_URL") or OLLAMA_API_URL
 _raw_mlx = (
     os.getenv("MLX_API_URL")
     or os.getenv("MAC_LLM_URL")
@@ -147,8 +148,8 @@ except ImportError:
 IMMORTAL_MODELS = {"nomic-embed-text", "nomic-embed-text:latest", "moondream", "moondream:latest"}
 # [SINGULARITY 21.4] Tool Guard: Only these models can execute tools
 TOOL_CALL_ALLOWED_MODELS = [
-    "victoria-wisdom-v3.5",
-    "victoria-wisdom-v3.5:latest",
+    "victoria-wisdom-24k",
+    "victoria-wisdom-24k:latest",
     "victoria-wisdom-v3.5",
     "victoria-wisdom-v3.5:latest",
     "qwen3.5:35b",
@@ -203,26 +204,26 @@ _MODELS_CACHE_TTL = 120  # 2 минуты
 
 # Мозг и руки — victoria-wisdom-v3.5.
 OLLAMA_MODELS_FALLBACK = {
-    "reasoning": os.getenv("MODEL_REASONING", "victoria-wisdom-v3.5:latest"),
-    "coding": os.getenv("MODEL_CODER", "victoria-wisdom-v3.5:latest"),
-    "chat": "victoria-wisdom-v3.5:latest",
+    "reasoning": os.getenv("MODEL_REASONING", "victoria-wisdom-24k:latest"),
+    "coding": os.getenv("MODEL_CODER", "victoria-wisdom-24k:latest"),
+    "chat": "victoria-wisdom-24k:latest",
     "fast": os.getenv("MODEL_FAST", "tinyllama:1.1b-chat"),
     "vision": os.getenv("MODEL_VISION", "minicpm-v:latest"),
     "vision_hd": "minicpm-v:latest",
     "vision_pdf": os.getenv("MODEL_VISION_PDF", "minicpm-v:latest"),
     "thinking": os.getenv("MODEL_THINKING", "lfm2.5-thinking:1.2b"),
-    "default": "victoria-wisdom-v3.5:latest",
-    "vip": "victoria-wisdom-v3.5:latest",
+    "default": "victoria-wisdom-24k:latest",
+    "vip": "victoria-wisdom-24k:latest",
 }
 
 # MLX: только лёгкие — 70b/104b/32b удалены (Metal/память); не подставлять удалённые.
 # [SINGULARITY 21.5] Victoria v3.5 Total Dominance: v3.5 is now the primary brain in MLX
 MLX_MODELS_FALLBACK = {
-    "reasoning": "victoria-wisdom-v3.5",
-    "coding": "victoria-wisdom-v3.5",
-    "chat": "victoria-wisdom-v3.5",
+    "reasoning": "victoria-wisdom-24k",
+    "coding": "victoria-wisdom-24k",
+    "chat": "victoria-wisdom-24k",
     "fast": "phi3.5:3.8b-stable",
-    "default": "victoria-wisdom-v3.5",
+    "default": "victoria-wisdom-24k",
 }
 
 # Для обратной совместимости
@@ -287,6 +288,17 @@ class LocalAIRouter:
                 "routing_key": "ollama_studio",
             }
         )
+        if _valid_http_url(OLLAMA_EXECUTOR_API_URL) and OLLAMA_EXECUTOR_API_URL.rstrip(
+            "/"
+        ) != ollama_url.rstrip("/"):
+            self.nodes.append(
+                {
+                    "name": "Mac Studio (Ollama Executor)",
+                    "url": OLLAMA_EXECUTOR_API_URL.rstrip("/"),
+                    "priority": 1,
+                    "routing_key": "ollama_executor",
+                }
+            )
         self._active_node = None
         self._performance_cache = {}  # Cache for node performance metrics
         self._cache_ttl = 300  # 5 minutes
@@ -333,6 +345,7 @@ class LocalAIRouter:
                 failure_threshold=10,  # [SINGULARITY 25.0] 10 failures → OPEN (tolerates burst post-recovery; was 5)
                 recovery_timeout=60,  # [SINGULARITY 25.0] 60s probe cycle (was 120s — faster recovery)
             )
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"🛡️ [CIRCUIT BREAKER] Initialized for {node_url} as {breaker_name}")
 
         # [SINGULARITY 25.0] Startup sanity-check: warn if Ollama semaphore and NUM_PARALLEL are out of sync.
@@ -362,6 +375,13 @@ class LocalAIRouter:
                 _num_parallel - _max_slots,
             )
 
+    @staticmethod
+    def _is_ollama_node(node: Dict) -> bool:
+        """Treat classic and dedicated executor URLs as Ollama nodes."""
+        url = str(node.get("url", "")).lower()
+        routing_key = str(node.get("routing_key", "")).lower()
+        return ("11434" in url) or ("ollama" in url) or ("ollama" in routing_key)
+
     @property
     def memory_manager(self):
         """Доступ к memory_manager для обратной совместимости"""
@@ -388,6 +408,83 @@ class LocalAIRouter:
                 self._prompt_cache.pop(k, None)
                 self._prompt_cache_meta.pop(k, None)
 
+    async def _publish_routing_journal(
+        self,
+        *,
+        task_type: str,
+        category: Optional[str],
+        selected_route: str,
+        selected_model: Optional[str],
+        selected_node: Optional[str],
+        candidate_nodes: List[str],
+        latency_ms: float,
+        success: bool,
+        reason: str = "",
+    ) -> None:
+        """
+        Emit a compact routing decision event for offline quality analysis.
+        Best-effort only: never block request flow.
+        """
+        try:
+            payload = {
+                "ts": str(int(time.time() * 1000)),
+                "task_type": str(task_type or ""),
+                "category": str(category or ""),
+                "selected_route": str(selected_route or ""),
+                "selected_model": str(selected_model or ""),
+                "selected_node": str(selected_node or ""),
+                "candidates": json.dumps(candidate_nodes[:12], ensure_ascii=False),
+                "latency_ms": f"{latency_ms:.2f}",
+                "success": "1" if success else "0",
+                "reason": str(reason or ""),
+            }
+            try:
+                from app.redis_manager import redis_manager
+            except Exception:
+                from redis_manager import redis_manager
+
+            client = await redis_manager.get_client()
+            await client.xadd("stream:routing_decisions", payload, maxlen=10000, approximate=True)
+        except Exception as e:
+            logger.warning("routing_journal_publish_primary_failed: %s", e)
+            # Fallback path: tolerate bad REDIS_URL in a single container.
+            try:
+                import redis.asyncio as _redis_async
+
+                fallback_urls = []
+                env_url = (os.getenv("REDIS_URL") or "").strip()
+                if env_url:
+                    fallback_urls.append(env_url)
+                fallback_urls.extend(
+                    [
+                        "unix:///data/redis.sock",
+                        "redis://knowledge_os_redis:6379/0",
+                        "redis://127.0.0.1:6379/0",
+                    ]
+                )
+
+                seen = set()
+                for url in fallback_urls:
+                    if not url or url in seen:
+                        continue
+                    seen.add(url)
+                    try:
+                        c = _redis_async.from_url(url, decode_responses=True)
+                        await c.ping()
+                        await c.xadd(
+                            "stream:routing_decisions",
+                            payload,
+                            maxlen=10000,
+                            approximate=True,
+                        )
+                        await c.aclose()
+                        logger.info("routing_journal_publish_fallback_ok url=%s", url)
+                        return
+                    except Exception:
+                        continue
+            except Exception as fallback_err:
+                logger.debug("routing_journal_publish_fallback_failed: %s", fallback_err)
+
     _cached_ml_model = None  # класс-уровень: один экземпляр на процесс (переиспользование при множестве LocalAIRouter)
     _cached_ml_model_path = None
 
@@ -407,6 +504,7 @@ class LocalAIRouter:
                 LocalAIRouter._cached_ml_model_path = self.ml_model_path
                 logger.info("✅ [ML ROUTER] ML model loaded successfully (cached for process)")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [ML ROUTER] Failed to load ML model: {e}")
                 self.ml_model = None
         else:
@@ -446,6 +544,7 @@ class LocalAIRouter:
             )
             return predicted_route, confidence
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [ML ROUTER] Prediction error: {e}")
             return None, None
 
@@ -480,6 +579,7 @@ class LocalAIRouter:
                     if response.status_code == 200:
                         healthy_nodes.append({**node, "latency": latency, "status": "online"})
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ Node {node['name']} is offline: {e}")
 
         # Не кэшируем пустой результат — следующая попытка сразу перепроверит
@@ -587,10 +687,12 @@ class LocalAIRouter:
 
                 return result
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Error getting performance metrics: {e}")
                 await conn.close()
                 return {}
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Error in _get_node_performance_metrics: {e}")
             return {}
 
@@ -678,6 +780,7 @@ class LocalAIRouter:
                     f"🔄 [MODEL SCAN] Обновлены модели: MLX={len(mlx_models)}, Ollama={len(ollama_models)}"
                 )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка сканирования моделей: {e}, используем fallback")
 
     def _select_model(
@@ -708,7 +811,7 @@ class LocalAIRouter:
                     logger.warning(
                         "🔥 [THERMAL PROTECTION] Mac Studio is hot! Switching to light models."
                     )
-        except:
+        except Exception:
             pass
 
         prompt_lower = prompt.lower()
@@ -744,11 +847,13 @@ class LocalAIRouter:
             if node_type == "mlx" and _cached_mlx_models:
                 model = pick_mlx_for_category(effective_category, _cached_mlx_models)
                 if model:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"🎯 [DYNAMIC] MLX: {model} для {effective_category}")
                     return model
             elif node_type == "ollama" and _cached_ollama_models:
                 model = pick_ollama_for_category(effective_category, _cached_ollama_models)
                 if model:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"🎯 [DYNAMIC] Ollama: {model} для {effective_category}")
                     return model
 
@@ -798,10 +903,10 @@ class LocalAIRouter:
 
             # MLX перегружен если:
             # - Все слоты заняты (active_requests >= max_concurrent)
-            # - Есть очередь (queue_size > 0)
+            # - Есть накопившаяся очередь (queue_size > 2)
+            max_c = stats.get("max_concurrent", 3)
             is_overloaded = (
-                stats.get("active_requests", 0) >= stats.get("max_concurrent", 5)
-                or stats.get("queue_size", 0) > 0
+                stats.get("active_requests", 0) >= max_c or stats.get("queue_size", 0) > 2
             )
 
             if is_overloaded:
@@ -812,6 +917,7 @@ class LocalAIRouter:
 
             return is_overloaded
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ Не удалось проверить загрузку MLX: {e}")
             return False  # Если не можем проверить, считаем что не перегружен
 
@@ -886,6 +992,7 @@ class LocalAIRouter:
                     )
                     return results
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Visual search failed: {e}")
         return []
 
@@ -909,6 +1016,7 @@ class LocalAIRouter:
             val = await client.get("system:ice_mode")
             return str(val).lower() in ("true", "1", "yes")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Failed to check ice_mode: {e}")
             return False
 
@@ -975,6 +1083,7 @@ class LocalAIRouter:
         # [SINGULARITY 24.3] Persona Injection for Experts
         if expert_name and not system_prompt:
             system_prompt = f"ТЫ - {expert_name}. Действуй и отвечай в соответствии со своей ролью и характером."
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🎭 [PERSONA] Injected persona for {expert_name}")
 
         # [SINGULARITY 30.1] Rate Limiter: LLM inference requires a token
@@ -986,6 +1095,7 @@ class LocalAIRouter:
                 logger.warning("🛑 [LIMITER] LLM inference rejected (no tokens available)")
                 return ("System is overloaded. Please try again later.", "limiter")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Rate limiter check failed: {e}")
 
         # 🔄 ДИНАМИЧЕСКОЕ ОБНОВЛЕНИЕ СПИСКА МОДЕЛЕЙ (если истёк TTL)
@@ -1053,11 +1163,12 @@ class LocalAIRouter:
                             # sending a request with keep_alive=0 might help.
                             # Best way is to use the internal memory manager if it supports it.
                             pass
-                    except:
+                    except Exception:
                         pass
                     await asyncio.sleep(5)
                     res = await self._get_system_resources()
                     avail_gb = res.get("ram", {}).get("available_gb", 100)
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🛡️ [R&D MEMORY GUARD] RAM after cleanup: {avail_gb:.1f}GB")
 
             if avail_gb < 8:
@@ -1091,8 +1202,10 @@ class LocalAIRouter:
                         # Re-check memory
                         res = await self._get_system_resources()
                         avail_gb = res.get("ram", {}).get("available_gb", 100)
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"🛡️ [QUALITY GUARD] RAM after cleanup: {avail_gb:.1f}GB")
         except Exception as tier_err:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Dynamic tiering failed: {tier_err}")
 
         if images and MODEL_MAP.get("vision"):
@@ -1104,7 +1217,7 @@ class LocalAIRouter:
         prompt_cache_key = None
         if len(prompt) <= 1000 and not images:
             raw_key = f"{prompt}|{category or ''}|{model or ''}|{session_id or ''}"
-            prompt_cache_key = hashlib.sha256(raw_key.encode()).hexdigest()[:32]
+            prompt_cache_key = hashlib.sha256(raw_key.encode("utf-8")).hexdigest()[:32]
             now = time.time()
             if prompt_cache_key in self._prompt_cache:
                 ts = self._prompt_cache_meta.get(prompt_cache_key, 0)
@@ -1143,6 +1256,7 @@ class LocalAIRouter:
                 self._memory_manager = get_memory_manager(self._memory_manager_url)
                 logger.debug("✅ ModelMemoryManager инициализирован (ленивая инициализация)")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"⚠️ ModelMemoryManager недоступен: {e}")
                 self._memory_manager = None
 
@@ -1169,6 +1283,7 @@ class LocalAIRouter:
 
                 blackboard = get_blackboard_service()
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🐘 [HEAVY-MODEL] {model} is a heavyweight. Requesting global lock...")
                 if not await blackboard.acquire_heavy_model_lock(model):
                     return (
@@ -1179,6 +1294,7 @@ class LocalAIRouter:
                 # После захвата замка — проактивная выгрузка других моделей
                 await self._memory_manager.predictive_unload("extreme")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [HEAVY-LOCK] Error in semaphore logic: {e}")
 
         # УМНЫЙ ВЫБОР УЗЛА: система сама выбирает лучший источник на основе задачи
@@ -1209,6 +1325,7 @@ class LocalAIRouter:
                 # Перемещаем предсказанный узел на второе место (после load balancer)
                 healthy_nodes.remove(predicted_node)
                 healthy_nodes.insert(1, predicted_node)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🤖 [ML ROUTER] Учитываем ML-предсказание: {predicted_node['name']}")
 
         # 3. Выбор на основе типа задачи (reasoning → MLX, fast → Ollama, и т.д.)
@@ -1216,9 +1333,7 @@ class LocalAIRouter:
 
         # 4. БАЛАНСИРОВКА: Перемешиваем узлы для равномерного использования MLX и Ollama
         mlx_nodes = [n for n in healthy_nodes if "11435" in n["url"] or "mlx" in n["url"].lower()]
-        ollama_nodes = [
-            n for n in healthy_nodes if "11434" in n["url"] or "ollama" in n["url"].lower()
-        ]
+        ollama_nodes = [n for n in healthy_nodes if self._is_ollama_node(n)]
         other_nodes = [n for n in healthy_nodes if n not in mlx_nodes and n not in ollama_nodes]
         # Логируем раз в 5 мин, если MLX недоступен — чтобы было видно, что задачи идут только в Ollama
         if not mlx_nodes and ollama_nodes:
@@ -1245,6 +1360,7 @@ class LocalAIRouter:
                         "(меньше 429, быстрее ответ)"
                     )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Проверка перегрузки MLX: {e}")
 
         # Если есть оба типа узлов и не поставили Ollama первым — чередуем их
@@ -1282,7 +1398,7 @@ class LocalAIRouter:
         # [SINGULARITY 21.3] God Mode: Victoria Brain → MLX, Victoria Hands → Ollama
         # victoria-wisdom-v3.5 (без тега)  = мозг  → MLX (планировщик, reasoning)
         # victoria-wisdom-v3.5:latest       = руки  → Ollama (executor, step execution)
-        is_victoria = model and "victoria-wisdom-v3.5" in model.lower()
+        is_victoria = model and "victoria-wisdom" in model.lower()
         # Руки — модель с явным тегом :latest → всегда Ollama
         is_victoria_hands = is_victoria and model and model.lower().endswith(":latest")
         # Мозг — без тега, или тег явно не :latest
@@ -1354,10 +1470,7 @@ class LocalAIRouter:
                 if (
                     preferred_source == "mlx" and ("11435" in n["url"] or "mlx" in n["url"].lower())
                 )
-                or (
-                    preferred_source == "ollama"
-                    and ("11434" in n["url"] or "ollama" in n["url"].lower())
-                )
+                or (preferred_source == "ollama" and self._is_ollama_node(n))
             ]
             if preferred_nodes:
                 for node in preferred_nodes:
@@ -1367,6 +1480,23 @@ class LocalAIRouter:
                 logger.info(
                     f"🎯 [PREFERRED] Используем предпочтительный источник: {preferred_source}"
                 )
+
+        # Dedicated heavy-coder route: prefer executor node for executor model.
+        if model:
+            executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k:latest")
+            same_executor_model = model == executor_model or model.rstrip(
+                ":latest"
+            ) == executor_model.rstrip(":latest")
+            if same_executor_model:
+                exec_nodes = [n for n in healthy_nodes if n.get("routing_key") == "ollama_executor"]
+                if exec_nodes:
+                    for node in reversed(exec_nodes):
+                        if node in healthy_nodes:
+                            healthy_nodes.remove(node)
+                            healthy_nodes.insert(0, node)
+                    logger.info(
+                        "🎯 [EXECUTOR ROUTE] Heavy coder model pinned to dedicated Ollama node"
+                    )
 
         # [SINGULARITY 21.5] Context Mirroring: Save context before call
         session_id = session_id or getattr(self, "_current_session_id", None)
@@ -1378,6 +1508,7 @@ class LocalAIRouter:
 
         # Try each node with retry logic
         start_time = time.time()
+        candidate_nodes = [str(n.get("name", "unknown")) for n in healthy_nodes]
         for node in healthy_nodes:
             node_url_base = node["url"]
 
@@ -1389,6 +1520,7 @@ class LocalAIRouter:
             breaker = self._node_breakers.get(node_url_base)
             if breaker and breaker.state == CircuitState.OPEN:
                 if not breaker._should_attempt_reset():
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"🚨 [CIRCUIT BREAKER] Node {node_url_base} is OPEN. Skipping.")
                     continue
                 else:
@@ -1492,6 +1624,7 @@ class LocalAIRouter:
                         )
                         continue
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Admission control check failed: {e}")
 
             # [FALLBACK_MODE] If MLX failed and we are on Ollama, use mirrored context
@@ -1549,6 +1682,7 @@ class LocalAIRouter:
                                         json={"model": "deepseek-r1:32b", "keep_alive": 0},
                                     )
                     except Exception as mem_err:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"Memory cleanup failed: {mem_err}")
 
                 # ВАЖНО: Для REASONING задач ВСЕГДА используем _select_model()
@@ -1605,6 +1739,7 @@ class LocalAIRouter:
                                     prompt, category, node_type=node_type
                                 )
                         except Exception as e:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.debug(f"Intelligent router failed: {e}, using fallback")
                             current_model = self._select_model(
                                 prompt, category, node_type=node_type
@@ -1696,6 +1831,7 @@ class LocalAIRouter:
                                 f"✅ [CONTEXT GUARD] Squeezed prompt to {len(full_prompt)} chars"
                             )
                     except Exception as cg_err:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"Context guard failed: {cg_err}")
 
                 payload = {"model": model, "prompt": full_prompt, "stream": False}
@@ -1739,6 +1875,7 @@ class LocalAIRouter:
                         )
                         continue  # Пропускаем этот узел, пробуем следующий
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Resource monitoring failed: {e}")
 
             # Load Balancing: отмечаем начало запроса
@@ -1771,6 +1908,7 @@ class LocalAIRouter:
                         # Увеличиваем таймаут для reasoning задач (Совет, стратегия)
                         if category == "reasoning":
                             _node_timeout = max(_node_timeout, 1800.0)
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.info(f"🕒 [REASONING] Увеличен таймаут до {_node_timeout}с")
 
                         # МОНСТР-ЛОГИКА: Если форсирован локальный роутинг, увеличиваем таймаут до 10 минут
@@ -1834,6 +1972,7 @@ class LocalAIRouter:
                                 "70b",
                                 "104b",
                                 "qwq",
+                                "victoria-wisdom-24k",
                                 "victoria-wisdom-v3.5",
                             ]
                         )
@@ -2089,6 +2228,17 @@ class LocalAIRouter:
                                             "attempt": attempt + 1,
                                         },
                                     )
+                                await self._publish_routing_journal(
+                                    task_type=task_type,
+                                    category=category,
+                                    selected_route=routing_source,
+                                    selected_model=model,
+                                    selected_node=node.get("name"),
+                                    candidate_nodes=candidate_nodes,
+                                    latency_ms=latency_ms,
+                                    success=True,
+                                    reason="ok",
+                                )
 
                                 # Сохраняем информацию об использованной модели для отслеживания
                                 # Это будет использовано в worker'е для записи производительности
@@ -2125,6 +2275,7 @@ class LocalAIRouter:
                                         output_tokens=out_tokens,
                                     )
                                 except Exception as metrics_err:
+                                    # TODO: Convert f-string to %s formatting for performance
                                     logger.debug(f"Failed to record local metrics: {metrics_err}")
 
                                 # [SINGULARITY 30.6] Heavyweight Semaphore Release
@@ -2137,6 +2288,7 @@ class LocalAIRouter:
                                         blackboard = get_blackboard_service()
                                         await blackboard.release_heavy_model_lock(model)
                                     except Exception as e:
+                                        # TODO: Convert f-string to %s formatting for performance
                                         logger.warning(f"⚠️ [HEAVY-LOCK] Error releasing lock: {e}")
 
                                 return result, routing_source
@@ -2252,6 +2404,17 @@ class LocalAIRouter:
                 success=False,
                 features={"reason": "all_nodes_failed"},
             )
+        await self._publish_routing_journal(
+            task_type=task_type,
+            category=category,
+            selected_route="cloud",
+            selected_model=initial_model,
+            selected_node=None,
+            candidate_nodes=candidate_nodes,
+            latency_ms=total_latency,
+            success=False,
+            reason="all_nodes_failed",
+        )
 
         return None, None
 
@@ -2312,12 +2475,13 @@ class LocalAIRouter:
                     reserve_bytes = MLX_RAM_RESERVE_GB * 1024**3
                     if ram.available >= reserve_bytes:
                         node = mlx_nodes[0]
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"🎯 [VIP STREAM] Выбран MLX узел: {node['name']}")
                     else:
                         logger.warning(
                             "🧠 [ADMISSION CONTROL] MLX skipped for streaming to save brain!"
                         )
-                except:
+                except Exception:
                     pass
 
         if not node:
@@ -2337,6 +2501,7 @@ class LocalAIRouter:
             node = available_nodes[0]
 
         node_url = f"{node['url']}/api/generate"
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🌊 [STREAMING] Node: {node['name']} | Model: {model}")
 
         full_prompt = f"{system_prompt}\n\nUser: {prompt}\nAssistant:"
@@ -2375,6 +2540,7 @@ class LocalAIRouter:
                         if breaker:
                             breaker._on_failure(f"HTTP {response.status_code}")
 
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.error(f"❌ [STREAMING] Error: {response.status_code}")
                         return
 
@@ -2401,6 +2567,7 @@ class LocalAIRouter:
             if breaker:
                 breaker._on_failure(f"StreamException: {e}")
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [STREAMING] Error: {e}")
             return
 
@@ -2440,6 +2607,7 @@ class LocalAIRouter:
                 f"🧠 [ADAPTIVE CONTEXT] Model: {model_name} | RAM Available: {available_gb:.1f}GB | Selected num_ctx: {options['num_ctx']}"
             )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Failed to calculate adaptive context: {e}")
 
         return options
@@ -2450,7 +2618,7 @@ class LocalAIRouter:
             return False
         lowered = model_name.lower()
         # Victoria aliases are now backed by Qwen 3.6 and should also suppress thinking traces.
-        return "qwen3" in lowered or "victoria-wisdom-v3.5" in lowered
+        return "qwen3" in lowered or "victoria-wisdom" in lowered
 
     def _determine_task_type(self, prompt: str, category: Optional[str] = None) -> str:
         """Определяет тип задачи для сбора данных"""

@@ -164,6 +164,7 @@ class MultiAgentCollaboration:
         )
 
         self.tasks[task_id] = task
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📋 Задача делегирована: {task_id} → {assigned_to} ({task_type.value})")
 
         return task
@@ -232,6 +233,7 @@ class MultiAgentCollaboration:
         except httpx.RequestError as e:
             task.status = "failed"
             task.error = f"Connection error: {str(e)}"
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка подключения к агенту {task.assigned_to} ({agent_url}): {e}")
 
             duration = (datetime.now(timezone.utc) - start_time).total_seconds()
@@ -248,6 +250,7 @@ class MultiAgentCollaboration:
             task.error = str(e)
             duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка выполнения задачи {task.task_id}: {e}")
 
             return CollaborationResult(
@@ -331,6 +334,7 @@ class MultiAgentCollaboration:
 
         except Exception as e:
             duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка координации: {e}")
 
             return CollaborationResult(

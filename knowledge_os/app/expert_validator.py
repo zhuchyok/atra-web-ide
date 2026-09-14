@@ -63,18 +63,18 @@ DB_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
 
 # Основные эксперты для fallback (минимальный набор)
 FALLBACK_EXPERTS: List[str] = [
-    "Дмитрий",  # Engineer
-    "Мария",  # Analyst
-    "Максим",  # Developer
+    "Дмитрий",  # ML Engineer
+    "Леонид",  # Risk Manager
+    "Инна",  # Data Science Lead
 ]
 
 # Расширенный fallback (для war-room и критических задач)
 EXTENDED_FALLBACK_EXPERTS: List[str] = [
     "Дмитрий",
-    "Мария",
-    "Максим",
-    "Сергей",
-    "Елена",
+    "Леонид",
+    "Инна",
+    "Макс",
+    "Георгий",
 ]
 
 # Координаторы (не включаются в обычные fallback-списки)
@@ -345,28 +345,34 @@ async def print_expert_comparison():
     Выводит сравнение хардкод-списков с данными БД.
     Полезно для диагностики.
     """
-    print("=" * 60)
-    print("📊 СРАВНЕНИЕ ХАРДКОД-СПИСКОВ ЭКСПЕРТОВ С БД")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("📊 СРАВНЕНИЕ ХАРДКОД-СПИСКОВ ЭКСПЕРТОВ С БД")
+    logger.info("=" * 60)
 
     # 1. SELECT COUNT(*)
     count = await get_db_expert_count()
-    print(f"\n🗄️ SELECT COUNT(*) FROM experts: {count}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n🗄️ SELECT COUNT(*) FROM experts: {count}")
 
     # 2. SELECT name
     names = await get_db_expert_names()
-    print(f"\n📋 SELECT name FROM experts ({len(names)} записей):")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n📋 SELECT name FROM experts ({len(names)} записей):")
     for name in names:
         fallback_marker = " [в FALLBACK]" if name in FALLBACK_EXPERTS else ""
         extended_marker = " [в EXTENDED]" if name in EXTENDED_FALLBACK_EXPERTS else ""
-        print(f"   - {name}{fallback_marker}{extended_marker}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   - {name}{fallback_marker}{extended_marker}")
 
     # 3. Валидация основного fallback
-    print(f"\n🔍 Валидация FALLBACK_EXPERTS ({len(FALLBACK_EXPERTS)}):")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n🔍 Валидация FALLBACK_EXPERTS ({len(FALLBACK_EXPERTS)}):")
     validation = await validate_expert_names(FALLBACK_EXPERTS, emit_warning=False)
-    print(f"   Статус: {validation}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Статус: {validation}")
     if validation.missing_names:
-        print(f"   ❌ Отсутствуют в БД: {validation.missing_names}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   ❌ Отсутствуют в БД: {validation.missing_names}")
 
     # 4. Расхождения
     db_set = set(names) - COORDINATOR_NAMES
@@ -376,23 +382,27 @@ async def print_expert_comparison():
     only_in_fallback = fallback_set - db_set
 
     if only_in_db:
-        print(f"\n⚠️ Эксперты в БД, но НЕ в fallback ({len(only_in_db)}):")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"\n⚠️ Эксперты в БД, но НЕ в fallback ({len(only_in_db)}):")
         for name in sorted(only_in_db):
-            print(f"   - {name}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   - {name}")
 
     if only_in_fallback:
-        print(f"\n❌ Эксперты в fallback, но НЕ в БД ({len(only_in_fallback)}):")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"\n❌ Эксперты в fallback, но НЕ в БД ({len(only_in_fallback)}):")
         for name in sorted(only_in_fallback):
-            print(f"   - {name}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   - {name}")
 
-    print("\n" + "=" * 60)
+    logger.info("\n" + "=" * 60)
     if not only_in_fallback and len(only_in_db) == 0:
-        print("✅ Хардкод-списки соответствуют БД")
+        logger.info("✅ Хардкод-списки соответствуют БД")
     elif only_in_fallback:
-        print("❌ ОШИБКА: В fallback есть несуществующие эксперты!")
+        logger.info("❌ ОШИБКА: В fallback есть несуществующие эксперты!")
     else:
-        print("⚠️ ВНИМАНИЕ: Хардкод-списки неполные (есть эксперты только в БД)")
-    print("=" * 60)
+        logger.info("⚠️ ВНИМАНИЕ: Хардкод-списки неполные (есть эксперты только в БД)")
+    logger.info("=" * 60)
 
 
 # =============================================================================

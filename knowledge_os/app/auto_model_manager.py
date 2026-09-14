@@ -44,27 +44,27 @@ class AutoModelManager:
         # Конфигурация моделей по времени дня
         self.model_configs = {
             TimeOfDay.MORNING: {
-                "priority_models": ["qwen2.5-coder:32b"],  # MLX модель (Mac Studio) - Coding утром
+                "priority_models": ["qwen3-coder:30b"],  # MLX модель (Mac Studio) - Coding утром
                 "fallback_models": ["phi3.5:3.8b"],  # Ollama модель (Mac Studio)
-                "unload_models": ["qwen2.5-coder:32b"],
+                "unload_models": ["qwen3-coder:30b"],
             },
             TimeOfDay.AFTERNOON: {
                 "priority_models": [
-                    "qwen2.5-coder:32b",
+                    "qwen3-coder:30b",
                     "phi3.5:3.8b",
                 ],  # MLX + Ollama модели (Mac Studio)
                 "fallback_models": ["tinyllama:1.1b-chat-v1.0-q4_0"],
                 "unload_models": [],
             },
             TimeOfDay.EVENING: {
-                "priority_models": ["phi3.5:3.8b", "qwen2.5-coder:32b"],
+                "priority_models": ["phi3.5:3.8b", "qwen3-coder:30b"],
                 "fallback_models": ["phi3:mini-4k-instruct-q4_k_m"],
                 "unload_models": [],
             },
             TimeOfDay.NIGHT: {
                 "priority_models": ["tinyllama:1.1b-chat-v1.0-q4_0"],  # Только легкие модели ночью
                 "fallback_models": [],
-                "unload_models": ["qwen2.5-coder:32b"],
+                "unload_models": ["qwen3-coder:30b"],
             },
         }
 
@@ -93,12 +93,14 @@ class AutoModelManager:
                     data = response.json()
                     return [model["name"] for model in data.get("models", [])]
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"Ошибка получения списка моделей: {e}")
         return []
 
     async def load_model(self, model_name: str) -> bool:
         """Загрузить модель через Ollama API"""
         try:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔄 Загрузка модели {model_name}...")
             async with httpx.AsyncClient(timeout=60.0) as client:
                 # Загружаем модель через generate запрос
@@ -108,9 +110,11 @@ class AutoModelManager:
                     timeout=60.0,
                 )
                 if response.status_code == 200:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ Модель {model_name} загружена")
                     return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Ошибка загрузки модели {model_name}: {e}")
         return False
 
@@ -125,6 +129,7 @@ class AutoModelManager:
         time_of_day = self.get_time_of_day()
         config = self.model_configs[time_of_day]
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🕐 Текущее время дня: {time_of_day.value}")
 
         loaded_models = await self.get_loaded_models()
@@ -176,6 +181,7 @@ class AutoModelManager:
                 await asyncio.sleep(check_interval)
 
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Ошибка в мониторинге моделей: {e}")
                 await asyncio.sleep(check_interval)
 

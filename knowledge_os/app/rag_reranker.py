@@ -70,6 +70,7 @@ class RAGReranker:
             return reranked_nodes[:top_k]
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [RERANKER] Ошибка переранжирования: {e}")
             return nodes[:top_k]
 

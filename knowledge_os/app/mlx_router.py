@@ -23,6 +23,7 @@ try:
     MLX_LM_AVAILABLE = True
     logger.info("✅ MLX доступен для использования")
 except ImportError as e:
+    # TODO: Convert f-string to %s formatting for performance
     logger.warning(f"⚠️ MLX недоступен: {e}")
     MLX_AVAILABLE = False
     MLX_LM_AVAILABLE = False
@@ -73,10 +74,12 @@ class MLXRouter:
 
         # Проверяем кэш
         if model_key in self.models_cache:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"✅ [MLX] Используем модель из кэша: {model_key}")
             return self.models_cache[model_key]
 
         try:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔄 [MLX] Загружаем модель: {model_key}")
             # Загружаем модель через MLX (использует Neural Engine)
             model, tokenizer = load(model_key)
@@ -88,10 +91,12 @@ class MLXRouter:
                 "loaded_at": datetime.now(),
             }
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ [MLX] Модель загружена: {model_key}")
             return self.models_cache[model_key]
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [MLX] Ошибка загрузки модели {model_key}: {e}")
             return None
 
@@ -128,6 +133,7 @@ class MLXRouter:
             model = model_data["model"]
             tokenizer = model_data["tokenizer"]
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"🔄 [MLX] Генерируем ответ (max_tokens={max_tokens})")
 
             # Генерируем ответ через MLX (использует Neural Engine)
@@ -162,6 +168,7 @@ class MLXRouter:
                 return None
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [MLX] Ошибка генерации ответа: {e}")
             return None
 

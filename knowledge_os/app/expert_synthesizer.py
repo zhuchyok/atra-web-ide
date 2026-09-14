@@ -3,6 +3,7 @@ import json
 import logging
 import os
 from typing import Any, Dict, Optional
+
 import asyncpg
 from ai_core import run_smart_agent_async
 
@@ -101,6 +102,7 @@ class ExpertSynthesizer:
             return {}
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Expert synthesis failed: {e}")
             return {}
         finally:
@@ -109,6 +111,7 @@ class ExpertSynthesizer:
 
     async def synthesize_expert(self, name: str, role: str, focus: str) -> Dict[str, Any]:
         """Generates a full system prompt for a new expert."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🧬 Synthesizing new expert: {name} ({role})...")
 
         prompt = f"""### ЗАДАЧА: СОЗДАНИЕ ЦИФРОВОГО СЛЕПКА ЭКСПЕРТА
@@ -119,7 +122,7 @@ class ExpertSynthesizer:
 ФОКУС: {focus}
 
 ЗАДАНИЕ:
-Напиши профессиональный, глубокий системный промпт, который сделает этого эксперта лучшим в своей области. 
+Напиши профессиональный, глубокий системный промпт, который сделает этого эксперта лучшим в своей области.
 Используй стандарты Singularity 24.0.
 
 ВЕРНИ ТОЛЬКО JSON:
@@ -148,8 +151,8 @@ class ExpertSynthesizer:
                 """
                 INSERT INTO experts (name, role, system_prompt, department, metadata, is_active)
                 VALUES ($1, $2, $3, $4, $5::jsonb, true)
-                ON CONFLICT (name) DO UPDATE 
-                SET system_prompt = EXCLUDED.system_prompt, 
+                ON CONFLICT (name) DO UPDATE
+                SET system_prompt = EXCLUDED.system_prompt,
                     metadata = experts.metadata || EXCLUDED.metadata
             """,
                 expert_data["name"],
@@ -158,8 +161,10 @@ class ExpertSynthesizer:
                 expert_data.get("department", "General"),
                 json.dumps(expert_data.get("metadata", {})),
             )
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Expert {expert_data['name']} registered in DB.")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Failed to register expert: {e}")
         finally:
             await conn.close()

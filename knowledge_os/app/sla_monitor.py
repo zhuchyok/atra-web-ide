@@ -66,6 +66,7 @@ class SLAMonitor:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Error calculating p95 latency: {e}")
             return 1.5  # Fallback
 
@@ -109,6 +110,7 @@ class SLAMonitor:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Error calculating availability: {e}")
             return 0.998  # Fallback
 
@@ -140,6 +142,7 @@ class SLAMonitor:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Error calculating cache hit rate: {e}")
             return 0.0
 
@@ -222,6 +225,7 @@ class SLAMonitor:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Error calculating token savings: {e}")
             return 0.4  # Fallback
 

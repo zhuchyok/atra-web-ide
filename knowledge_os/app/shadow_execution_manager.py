@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 import logging
 import time
@@ -32,11 +33,12 @@ class ShadowExecutionManager:
         # 1. Запускаем оригинал
         start_orig = time.perf_counter()
         try:
-            if asyncio.iscoroutinefunction(original_func):
+            if inspect.iscoroutinefunction(original_func):
                 original_result = await original_func(*args, **kwargs)
             else:
                 original_result = original_func(*args, **kwargs)
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SHADOW] Ошибка в оригинальной функции: {e}")
             raise e
         orig_duration = time.perf_counter() - start_orig
@@ -63,7 +65,7 @@ class ShadowExecutionManager:
         """Выполнить теневую функцию и сравнить с оригиналом."""
         start_shadow = time.perf_counter()
         try:
-            if asyncio.iscoroutinefunction(shadow_func):
+            if inspect.iscoroutinefunction(shadow_func):
                 shadow_result = await shadow_func(*args, **kwargs)
             else:
                 shadow_result = shadow_func(*args, **kwargs)
@@ -96,12 +98,14 @@ class ShadowExecutionManager:
                     f"🚀 [SHADOW] Найдена оптимизация! {shadow_id} быстрее на {comparison['improvement_percent']:.1f}%"
                 )
             elif not is_match:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [SHADOW] Результаты {shadow_id} не совпадают с оригиналом")
 
             # В будущем: запись в БД victoria_tasks для Mutation Engine
             await self._record_to_knowledge_base(comparison)
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SHADOW] Ошибка в теневой функции {shadow_id}: {e}")
             self.results[shadow_id] = {"status": "failed", "error": str(e)}
 

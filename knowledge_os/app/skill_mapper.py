@@ -75,6 +75,19 @@ SKILL_PATTERNS = {
         "skill_path": f"{SKILL_BASE_PATH}/*/skills/verification-before-completion/SKILL.md",
         "description": "Проверка результата — verification before completion",
     },
+    "cursor_method": {
+        "patterns": [
+            r"cursor_method",
+            r"как\s+cursor",
+            r"метод\s+cursor",
+            r"близнец",
+            r"парн(ый|ая)\s+(задач|урок)",
+        ],
+        "skill_path": os.path.join(
+            os.path.dirname(__file__), "skills", "cursor-method", "SKILL.md"
+        ),
+        "description": "Рабочий метод Cursor — факты, доказательство, корень",
+    },
     "code_review": {
         "patterns": [
             r"ревью\s+код",
@@ -102,6 +115,7 @@ class SkillMapper:
             # Разрешаем wildcard в пути
             paths = glob.glob(pattern_path)
             if not paths:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"[SKILL_MAPPER] Файл скилла не найден по пути: {pattern_path}")
                 return None
 
@@ -113,9 +127,11 @@ class SkillMapper:
             with open(file_path, encoding="utf-8") as f:
                 content = f.read()
                 self._skill_cache[file_path] = content
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"[SKILL_MAPPER] Загружен полный текст скилла из {file_path}")
                 return content
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"[SKILL_MAPPER] Ошибка загрузки файла скилла {pattern_path}: {e}")
             return None
 
@@ -215,6 +231,12 @@ class SkillMapper:
                 "3. Подтверди что фича работает (manual QA)\n"
                 "4. Проверь что не сломалось смежное\n"
                 "5. ТОЛЬКО после проверки — заявляй о завершении"
+            ),
+            "cursor_method": (
+                "1. Факты до вывода (файлы, логи, health)\n"
+                "2. Не «готово» без доказательства\n"
+                "3. Корень, не симптом. KISS\n"
+                "4. Если данных нет — блокер, не выдумка"
             ),
             "code_review": (
                 "1. Проверь соответствие требованиям\n"

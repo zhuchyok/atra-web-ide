@@ -148,10 +148,12 @@ class ThreatDetector:
                         ),
                     )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"🚨 [THREAT DETECTOR] Обнаружено {len(threats)} угроз")
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Не удалось сохранить угрозы в БД: {e}")
 
 

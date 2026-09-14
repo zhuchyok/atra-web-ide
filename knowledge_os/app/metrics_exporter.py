@@ -65,6 +65,7 @@ class MetricsExporter:
             metrics.extend(request_metrics)
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [METRICS EXPORTER] Ошибка экспорта метрик: {e}")
             metrics.append(f"# ERROR: {e}")
 
@@ -114,6 +115,7 @@ class MetricsExporter:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [METRICS EXPORTER] Ошибка получения latency метрик: {e}")
 
         return metrics
@@ -151,6 +153,7 @@ class MetricsExporter:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [METRICS EXPORTER] Ошибка получения cache метрик: {e}")
 
         return metrics
@@ -193,6 +196,7 @@ class MetricsExporter:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [METRICS EXPORTER] Ошибка получения token метрик: {e}")
 
         return metrics
@@ -231,6 +235,7 @@ class MetricsExporter:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [METRICS EXPORTER] Ошибка получения error метрик: {e}")
 
         return metrics
@@ -277,6 +282,7 @@ class MetricsExporter:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [METRICS EXPORTER] Ошибка получения request метрик: {e}")
 
         return metrics

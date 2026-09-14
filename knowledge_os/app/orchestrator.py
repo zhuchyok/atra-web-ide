@@ -183,6 +183,30 @@ async def run_orchestration_cycle():
             FROM domains d LEFT JOIN knowledge_nodes k ON d.id = k.domain_id
             GROUP BY d.id, d.name HAVING count(k.id) < 50 OR max(k.created_at) < NOW() - INTERVAL '48 hours'
         """)
+        global_curiosity_cb = await conn.fetchval(
+            """
+            SELECT 1
+            FROM tasks
+            WHERE COALESCE(metadata->>'reason', '') = 'curiosity_engine_starvation'
+              AND status IN ('failed', 'cancelled')
+              AND updated_at > NOW() - ($1::text || ' minutes')::interval
+              AND (
+                  COALESCE(metadata->>'auto_fallback_reason', '') IN (
+                      'circuit_breaker_loop_exhausted',
+                      'rag_loop_no_llm_call_exhausted'
+                  )
+                  OR COALESCE(metadata->>'last_error', '') ILIKE '%Circuit Breaker%'
+                  OR COALESCE(result, '') ILIKE '%Circuit Breaker%'
+              )
+            LIMIT 1
+            """,
+            str(int(os.getenv("ORCHESTRATOR_CURIOSITY_RETRY_COOLDOWN_MIN", "30"))),
+        )
+        if global_curiosity_cb:
+            print(
+                "⏭️ [ORCHESTRATOR] Curiosity global cooldown: recent timeout fallback on starvation tasks"
+            )
+            deserts = []
 
         for desert in deserts:
             print(f" desert Curiosity Engine: Domain '{desert['name']}' is starving for knowledge.")
@@ -205,16 +229,38 @@ async def run_orchestration_cycle():
             curiosity_task = f"Проведи глубокое исследование новых технологий и трендов 2026 в области {desert['name']}. Найди 3 прорывных инсайта."
             title_curiosity = f"🔥 СРОЧНОЕ ИССЛЕДОВАНИЕ: {desert['name']}"
             cooldown_min = int(os.getenv("ORCHESTRATOR_CURIOSITY_RETRY_COOLDOWN_MIN", "30"))
+            curiosity_max_assignee_active = int(
+                os.getenv("ORCHESTRATOR_CURIOSITY_MAX_ASSIGNEE_ACTIVE", "4")
+            )
+            curiosity_skip_domains = {
+                d.strip().lower()
+                for d in os.getenv("ORCHESTRATOR_CURIOSITY_SKIP_DOMAINS", "Test Domain").split(",")
+                if d.strip()
+            }
+            if str(desert["name"]).strip().lower() in curiosity_skip_domains:
+                print(
+                    f"⏭️ [ORCHESTRATOR] Skip curiosity for '{desert['name']}': domain in skip list"
+                )
+                continue
+            curiosity_preferred_source = os.getenv(
+                "ORCHESTRATOR_CURIOSITY_PREFERRED_SOURCE", "ollama"
+            ).lower()
             recent_curiosity_failure = await conn.fetchval(
                 """
                 SELECT 1
                 FROM tasks
                 WHERE title = $1
-                  AND status = 'failed'
+                  AND status IN ('failed', 'cancelled')
                   AND updated_at > NOW() - ($2::text || ' minutes')::interval
-                  AND COALESCE(metadata->>'auto_fallback_reason', '') IN (
-                      'curiosity_no_llm_progress_timeout',
-                      'pending_curiosity_starvation_timeout'
+                  AND (
+                      COALESCE(metadata->>'auto_fallback_reason', '') IN (
+                          'curiosity_no_llm_progress_timeout',
+                          'pending_curiosity_starvation_timeout',
+                          'circuit_breaker_loop_exhausted',
+                          'rag_loop_no_llm_call_exhausted'
+                      )
+                      OR COALESCE(metadata->>'last_error', '') ILIKE '%Circuit Breaker%'
+                      OR COALESCE(result, '') ILIKE '%Circuit Breaker%'
                   )
                 LIMIT 1
                 """,
@@ -233,19 +279,44 @@ async def run_orchestration_cycle():
                 desert["name"],
             )
             if assignee:
+                assignee_active = await conn.fetchval(
+                    """
+                    SELECT count(*)
+                    FROM tasks
+                    WHERE assignee_expert_id = $1
+                      AND status IN ('pending', 'in_progress')
+                    """,
+                    assignee["id"],
+                )
+                if int(assignee_active or 0) >= curiosity_max_assignee_active:
+                    print(
+                        f"⏭️ [ORCHESTRATOR] Skip curiosity for '{desert['name']}': assignee overloaded "
+                        f"({assignee_active} active, limit={curiosity_max_assignee_active})"
+                    )
+                    continue
                 await conn.execute(
                     """
                     INSERT INTO tasks (title, description, status, assignee_expert_id, creator_expert_id, metadata)
                     VALUES ($1, $2, 'pending', $3, $4, $5)
                     ON CONFLICT (title, COALESCE(project_context, 'default'::character varying))
                     WHERE (status = ANY (ARRAY['pending'::text, 'in_progress'::text]))
-                    DO UPDATE SET updated_at = NOW()
+                    DO UPDATE SET updated_at = CASE
+                        WHEN tasks.status = 'in_progress' THEN NOW()
+                        ELSE tasks.updated_at
+                    END
                 """,
                     title_curiosity,
                     curiosity_task,
                     assignee["id"],
                     victoria_id,
-                    json.dumps({"reason": "curiosity_engine_starvation"}),
+                    json.dumps(
+                        {
+                            "reason": "curiosity_engine_starvation",
+                            "complex": True,
+                            "execution_profile": "rescue_fast",
+                            "preferred_source": curiosity_preferred_source,
+                        }
+                    ),
                 )
 
         await conn.close()

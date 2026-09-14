@@ -42,7 +42,7 @@ class FunctionCaller:
     Pattern: OpenAI tool_calls + Anthropic.
     """
 
-    def __init__(self, tools: List[Tool], model: str = "victoria-wisdom-v3.5"):
+    def __init__(self, tools: List[Tool], model: str = "victoria-wisdom-24k"):
         self.tools = tools
         self.model = model
         self._tool_map: Dict[str, Callable] = {}
@@ -63,6 +63,7 @@ class FunctionCaller:
                 result = await self._tool_map[func_name](**args)
                 return {"type": "function", "name": func_name, "result": result}
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"[FunctionCaller] {func_name} failed: {e}")
                 return {"type": "error", "message": str(e)}
 
@@ -118,6 +119,7 @@ Response:"""
                         except json.JSONDecodeError:
                             pass
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"[FunctionCaller] Parse failed: {e}")
         return None
 

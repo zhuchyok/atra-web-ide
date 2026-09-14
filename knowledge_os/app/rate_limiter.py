@@ -168,6 +168,7 @@ class RateLimiter:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [RATE LIMITER] Ошибка проверки rate limit: {e}")
             # В случае ошибки разрешаем запрос (fail-open)
             return (True, None)
@@ -212,10 +213,12 @@ class RateLimiter:
                 """)
                 deleted_count = int(deleted.split()[-1]) if deleted else 0
                 if deleted_count > 0:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🧹 [RATE LIMITER] Очищено {deleted_count} старых записей")
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [RATE LIMITER] Ошибка очистки: {e}")
 
 

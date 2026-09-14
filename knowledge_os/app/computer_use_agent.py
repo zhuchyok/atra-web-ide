@@ -39,6 +39,7 @@ class ComputerUseAgent:
             self._initialized = True
             logger.info("[ComputerUseAgent] Initialized")
         except ImportError as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"[ComputerUseAgent] BrowserOperator not available: {e}")
             self._initialized = True
 
@@ -61,9 +62,11 @@ class ComputerUseAgent:
 
         try:
             result = await self._browser_op.execute_task(goal, project_context)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"[ComputerUseAgent] Task completed: {result.get('status')}")
             return result
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"[ComputerUseAgent] Error: {e}")
             return {"status": "error", "message": str(e), "output": "", "screenshot": None}
 

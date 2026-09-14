@@ -1,3 +1,5 @@
+
+logger = logging.getLogger(__name__)
 """
 Enhanced MCP Server with Multimodal Search
 Улучшенный MCP сервер с мультимодальным поиском
@@ -386,5 +388,5 @@ if __name__ == "__main__":
     import logging
 
     logging.basicConfig(level=logging.INFO)
-    print("🚀 Knowledge OS MCP Server (Enhanced) starting with MULTIMODAL SEARCH...")
+    logger.info("🚀 Knowledge OS MCP Server (Enhanced) starting with MULTIMODAL SEARCH...")
     mcp.run(transport="sse")

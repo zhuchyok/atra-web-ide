@@ -113,6 +113,7 @@ class PerformanceWatchdog:
                     subprocess.run(["rm", "-rf", "cache/*"], check=False)
                     logger.info("✅ [DISK PRESSURE] Emergency cleanup completed.")
                 except Exception as disk_err:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ [DISK PRESSURE] Cleanup failed: {disk_err}")
 
             if is_hard_overload:
@@ -163,6 +164,7 @@ class PerformanceWatchdog:
                 await self._event_bus.publish(event)
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error in system resource monitoring: {e}")
 
     async def evaluate_lane_sla(self):
@@ -228,6 +230,7 @@ class PerformanceWatchdog:
             if not queue_stale:
                 await client.delete("system:rebalance_needed")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error evaluating lane SLA: {e}")
 
     async def reconcile_blackboard(self):
@@ -240,8 +243,10 @@ class PerformanceWatchdog:
             blackboard = get_blackboard_service()
             result = await blackboard.reconcile_goals_with_tasks(stale_minutes=15)
             if result.get("reopened_no_heartbeat") or result.get("reopened_policy_mismatch"):
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"♻️ [RECONCILE] Blackboard recovered tasks: {result}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error reconciling blackboard goals: {e}")
 
     async def collect_slow_queries(self) -> List[Dict[str, Any]]:
@@ -272,6 +277,7 @@ class PerformanceWatchdog:
                 )
                 return [dict(r) for r in rows]
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Error collecting slow queries: {e}")
                 return []
 
@@ -311,10 +317,11 @@ CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
 """
         try:
             analysis = await run_smart_agent_async(
-                prompt, expert_name="Игорь", category="performance_audit"
+                prompt, expert_name="Виталий", category="performance_audit"
             )
             return analysis
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error analyzing query: {e}")
             return None
 
@@ -333,6 +340,7 @@ CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
             return False
 
         sql = match.group(0)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 Autonomous optimization detected: {sql}")
 
         pool = await self.get_pool()
@@ -346,12 +354,15 @@ CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
                     "SELECT count(*) FROM pg_indexes WHERE indexname = $1", idx_name
                 )
                 if exists:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"Index {idx_name} already exists, skipping.")
                     return False
 
                 # 2. Execute optimization
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"Executing: {sql}")
                 await conn.execute(sql)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Optimization applied successfully: {idx_name}")
 
                 # 3. Log to evolution_log
@@ -364,11 +375,12 @@ CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
                         f"Applied autonomous index: {idx_name}",
                         json.dumps({"sql": sql}),
                     )
-                except:
+                except Exception:
                     pass
 
                 return True
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Error applying optimization: {e}")
                 return False
 
@@ -393,6 +405,7 @@ CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
                     meta,
                 )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Error logging hypothesis: {e}")
 
     async def run_once(self):
@@ -417,7 +430,7 @@ CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
                 try:
                     libc = ctypes.CDLL(ctypes.util.find_library("c"))
                     libc.malloc_trim(0)
-                except:
+                except Exception:
                     pass
 
                 # Clear Ollama cache for non-immortal models
@@ -426,9 +439,10 @@ CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
 
                     mmm = get_memory_manager()
                     await mmm.emergency_memory_cleanup()
-                except:
+                except Exception:
                     pass
         except Exception as z_err:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [Z-CLEANER] Cleanup failed: {z_err}")
 
         # [SINGULARITY 29.2] Blackboard GC
@@ -448,9 +462,10 @@ CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
                         priority="high",
                         tags=["recycle", "robot"],
                     )
-                except:
+                except Exception:
                     pass
         except Exception as gc_err:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [WATCHDOG] Blackboard GC failed: {gc_err}")
 
         slow_queries = await self.collect_slow_queries()
@@ -492,6 +507,7 @@ CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
                         f"🚨 [SELF-HEALING] Container {container} is {status}! Attempting to restart..."
                     )
                     subprocess.run(["docker", "start", container], check=True)
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ [SELF-HEALING] Container {container} restarted successfully.")
 
                     # [SINGULARITY 29.3] Notify via ntfy
@@ -505,7 +521,7 @@ CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
                             priority="urgent",
                             tags=["emergency", "muscle"],
                         )
-                    except:
+                    except Exception:
                         pass
 
                 elif status == "running":
@@ -533,9 +549,10 @@ CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
                                 priority="high",
                                 tags=["ambulance", "wrench"],
                             )
-                        except:
+                        except Exception:
                             pass
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [SELF-HEALING] Failed to check/heal {container}: {e}")
 
     async def start(self):
@@ -550,16 +567,19 @@ CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
             try:
                 await self.run_once()
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Error in watchdog loop: {e}")
             await asyncio.sleep(self.interval)
 
     async def system_monitor_loop(self):
         """Loop for monitoring system resources every 10 seconds."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"System monitoring loop started. Interval: {self.system_monitor_interval}s")
         while True:
             try:
                 await self.monitor_system_resources()
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Error in system monitor loop: {e}")
             await asyncio.sleep(self.system_monitor_interval)
 

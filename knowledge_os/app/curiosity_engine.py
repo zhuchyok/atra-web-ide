@@ -115,6 +115,7 @@ class CuriosityEngine:
                             {"source": "curiosity_engine", "gap": gap, "is_autonomous": True}
                         ),
                     )
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🚀 Created research task for gap: {gap}")
 
             return f"Curiosity Engine identified {len(gaps)} gaps. Created research tasks."

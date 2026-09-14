@@ -9,9 +9,19 @@
 import asyncio
 import logging
 import os
+import re
 from typing import Any
 
 logger = logging.getLogger(__name__)
+ORCHESTRATOR_DELEGATION_PREFERRED_SOURCE = os.getenv(
+    "ORCHESTRATOR_DELEGATION_PREFERRED_SOURCE", "ollama"
+)
+ORCHESTRATOR_DELEGATION_EXECUTION_PROFILE = os.getenv(
+    "ORCHESTRATOR_DELEGATION_EXECUTION_PROFILE", "rescue_fast"
+)
+ORCHESTRATOR_STATUS_SNAPSHOT_MAX_DELEGATES = int(
+    os.getenv("ORCHESTRATOR_STATUS_SNAPSHOT_MAX_DELEGATES", "3")
+)
 
 
 def _is_veronica_only(assignments: dict[str, Any]) -> bool:
@@ -39,6 +49,86 @@ def _is_audit_goal(goal: str) -> bool:
         return False
     g = goal.lower().strip()
     return "аудит" in g or " audit" in g or "audit " in g or g.startswith("audit")
+
+
+def _is_method_only_goal(goal: str) -> bool:
+    text = (goal or "").strip().lower()
+    if not text:
+        return True
+    markers = ("как", "метод", "подход", "принцип", "framework", "методология")
+    actionable = ("исправ", "сделай", "запусти", "проверь", "run ", "fix ", "create ", "update ")
+    return any(m in text for m in markers) and not any(a in text for a in actionable)
+
+
+def _is_status_snapshot_goal(goal: str) -> bool:
+    text = (goal or "").strip().lower()
+    return any(k in text for k in ("status", "статус", "срез", "snapshot", "health"))
+
+
+def _is_simple_direct_goal(goal: str) -> bool:
+    text = (goal or "").strip().lower()
+    if not text:
+        return False
+    # Remove frequent boilerplate so simple user intent can still be detected.
+    lines = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if any(
+            marker in line
+            for marker in (
+                "метод cursor",
+                "факты до вывода",
+                "не говори",
+                "корень, не симптом",
+                "уроки домена cursor_method",
+            )
+        ):
+            continue
+        line = re.sub(r"^\d+[\).\s:-]*", "", line)
+        lines.append(line)
+    text = " ".join(lines).strip() or text
+    heavy_markers = (
+        "проверь файл",
+        "check file",
+        "аудит",
+        "audit",
+        "исслед",
+        "research",
+        "deep",
+        "почини",
+        "fix",
+        "создай файл",
+        "edit file",
+        "docker",
+        "миграц",
+        "refactor",
+    )
+    if any(m in text for m in heavy_markers):
+        return False
+    if len(text) > 220:
+        return False
+    simple_patterns = (
+        r"напиши\s+одн\w*\s+строк\w*.*python",
+        r"вывод\s+текущ\w*\s+дат\w*",
+        r"\bhello(?:\s*,?\s*world)?\b",
+        r"назови\s+только\s+число",
+        r"сколько\s+эксперт\w*",
+        r"выведи\s+список\s+файл\w*",
+        r"список\s+файл\w*.*до\s+\d+",
+        r"статус\s+health.*одной\s+строк\w*",
+        r"кратк\w*\s+чеклист\w*.*\d+\s+пункт",
+        r"чеклист\w*.*runtime.*очеред",
+    )
+    return any(re.search(p, text, re.IGNORECASE) for p in simple_patterns)
+
+
+def _compact_goal_for_delegation(goal: str) -> str:
+    compact_goal = (goal or "").strip()
+    if len(compact_goal) > 900:
+        compact_goal = compact_goal[:900].rstrip()
+    return compact_goal
 
 
 async def execute_assignments_async(
@@ -99,8 +189,23 @@ async def execute_assignments_async(
 
             tasks_to_run = []
             task_info = []  # (key, expert_name, task_id, subtask_desc)
+            compact_goal = _compact_goal_for_delegation(goal)
+            delegation_preferred_source = ORCHESTRATOR_DELEGATION_PREFERRED_SOURCE
+            delegation_execution_profile = ORCHESTRATOR_DELEGATION_EXECUTION_PROFILE
+            if _is_method_only_goal(compact_goal):
+                logger.info("Skipping delegation: no actionable goal after compaction")
+                return ""
+            if _is_simple_direct_goal(compact_goal):
+                logger.info("Skipping delegation: simple direct goal handled by Victoria directly")
+                return ""
+            assignments_items = list(assignments.items())
+            if _is_status_snapshot_goal(compact_goal):
+                limit = max(1, ORCHESTRATOR_STATUS_SNAPSHOT_MAX_DELEGATES)
+                if len(assignments_items) > limit:
+                    logger.info("limiting delegation fanout to %s for status snapshot", limit)
+                    assignments_items = assignments_items[:limit]
 
-            for key, val in assignments.items():
+            for key, val in assignments_items:
                 expert_name = val.get("expert_name") or val.get("expert_id") or key
                 # File/security audits must not land on Marketing/etc. (wrong twin UX).
                 goal_l = (goal or "").lower()
@@ -128,10 +233,11 @@ async def execute_assignments_async(
                         preferred = await conn.fetchval(
                             """
                             SELECT name FROM experts
-                            WHERE name IN ('Алексей', 'Игорь', 'Анна', 'Сергей')
+                            WHERE name IN ('Алексей', 'Даниил', 'Анна', 'Макс')
+                            AND is_active = true
                             ORDER BY CASE name
                                 WHEN 'Алексей' THEN 0
-                                WHEN 'Игорь' THEN 1
+                                WHEN 'Даниил' THEN 1
                                 WHEN 'Анна' THEN 2
                                 ELSE 3
                             END
@@ -154,10 +260,11 @@ async def execute_assignments_async(
                 )
 
                 subtask_desc = prompt_template.format(
-                    goal=goal[:1000],
+                    goal=compact_goal[:1000],
                     strategy_line=strategy_line,
                     expert_name=expert_name,
                 )
+                delegation_goal = (compact_goal or "").strip()[:1000] or subtask_desc[:1000]
 
                 # СОЗДАЕМ РЕАЛЬНУЮ ЗАДАЧУ В БД
                 # ON CONFLICT: idx_tasks_active_dedup защищает от дублей (title+project_context, active only).
@@ -167,30 +274,55 @@ async def execute_assignments_async(
                 # Avoids partial-index ON CONFLICT expression mismatch with COALESCE cast.
                 task_id = await conn.fetchval(
                     """
-                    UPDATE tasks SET updated_at = NOW()
+                    UPDATE tasks
+                    SET updated_at = NOW(),
+                        description = $2,
+                        goal = COALESCE(NULLIF($5, ''), goal),
+                        metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb,
+                        project_context = COALESCE($4, project_context)
                     WHERE title = $1
                       AND status IN ('pending', 'in_progress')
-                      AND COALESCE(project_context, 'default') = 'default'
+                      AND COALESCE(project_context, 'default') = COALESCE($4, 'default')
                     RETURNING id
                     """,
                     task_title,
+                    subtask_desc,
+                    json.dumps(
+                        {
+                            "source": "victoria_monster_delegation",
+                            "execution_profile": delegation_execution_profile,
+                            "preferred_source": delegation_preferred_source,
+                            "delegation_goal_compacted": bool(compact_goal),
+                        }
+                    ),
+                    project_context,
+                    delegation_goal,
                 )
                 if not task_id:
                     task_id = await conn.fetchval(
                         """
-                        INSERT INTO tasks (title, description, status, priority, assignee_expert_id, creator_expert_id, metadata)
-                        VALUES ($1, $2, 'pending', 'high', $3, $4, $5)
+                        INSERT INTO tasks (title, description, goal, status, priority, assignee_expert_id, creator_expert_id, metadata, project_context)
+                        VALUES ($1, $2, $3, 'pending', 'high', $4, $5, $6, $7)
                         RETURNING id
                         """,
                         task_title,
                         subtask_desc,
+                        delegation_goal,
                         expert_id,
                         victoria_id,
                         json.dumps(
-                            {"source": "victoria_monster_delegation", "parent_goal": goal[:200]}
+                            {
+                                "source": "victoria_monster_delegation",
+                                "parent_goal": compact_goal[:200],
+                                "execution_profile": delegation_execution_profile,
+                                "preferred_source": delegation_preferred_source,
+                                "delegation_goal_compacted": bool(compact_goal),
+                            }
                         ),
+                        project_context,
                     )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🚀 [MONSTER] Создана/найдена задача {task_id} для {expert_name}")
 
                 # МОНСТР-ЛОГИКА 10.0: Отправляем задачу в Redis Stream для асинхронного воркера
@@ -204,10 +336,13 @@ async def execute_assignments_async(
                             "category": "orchestrator_assignment",
                             "project_context": project_context,
                             "metadata": {
-                                "complex": True
+                                "complex": True,
+                                "execution_profile": delegation_execution_profile,
+                                "preferred_source": delegation_preferred_source,
                             },  # Форсируем ReAct для выполнения действий (создание файлов и т.д.)
                         },
                     )
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"📥 [MONSTER] Задача {task_id} отправлена в очередь Redis")
                     continue  # Workers handle processing, skip local execution
 
@@ -276,11 +411,22 @@ async def execute_assignments_async(
                             )
                             await expert_conn.execute(
                                 """
-                                UPDATE tasks SET status = 'completed', result = $2, completed_at = NOW()
+                                UPDATE tasks
+                                SET status = 'completed',
+                                    result = $2,
+                                    completed_at = NOW(),
+                                    metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
                                 WHERE id = $1
                             """,
                                 task_id,
                                 report_text,
+                                json.dumps(
+                                    {
+                                        "completion_reason": "worker_success",
+                                        "task_contract_version": "smart_worker_v1",
+                                        "task_contract_output_schema": "free_text",
+                                    }
+                                ),
                             )
 
                             # МОНСТР-ЛОГИКА: Сохраняем результат в knowledge_nodes, чтобы эксперты учились друг у друга
@@ -354,6 +500,7 @@ async def execute_assignments_async(
         finally:
             await conn.close()
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Monster delegation failed: {e}")
         # Fallback на старую логику без БД если база лежит
         return "Ошибка делегирования через БД. Проверьте подключение."

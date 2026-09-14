@@ -7,9 +7,9 @@
 - OpenTelemetry совместимый формат
 """
 
+import logging
 import os
 import uuid
-import logging
 from contextvars import ContextVar
 from typing import Optional
 
@@ -79,12 +79,15 @@ def traced(agent_name: str):
             trace_id = get_trace_id() or generate_trace_id()
             set_trace_id(trace_id)
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"[{agent_name}] START trace_id={trace_id}")
             try:
                 result = await func(*args, **kwargs)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"[{agent_name}] END trace_id={trace_id} success")
                 return result
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"[{agent_name}] ERROR trace_id={trace_id} error={e}")
                 raise
 

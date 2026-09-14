@@ -24,7 +24,7 @@ except ImportError:
 
 # Настройки
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
-TG_TOKEN = os.getenv("TG_TOKEN", "8422371257:AAEwgSCvSv637QqDsi-EAayVYj8dsENsLbU")
+TG_TOKEN = os.getenv("TG_TOKEN", "")
 CHAT_ID = os.getenv("CHAT_ID", "556251171")
 LOG_PATH = "/root/knowledge_os/logs/monitor.log"
 
@@ -54,7 +54,8 @@ async def send_telegram_alert(message: str, priority: str = "medium"):
                 timeout=10.0,
             )
         except Exception as e:
-            print(f"Failed to send Telegram alert: {e}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"Failed to send Telegram alert: {e}")
 
 
 def log_message(message: str):
@@ -63,7 +64,7 @@ def log_message(message: str):
     log_entry = f"[{timestamp}] {message}\n"
     with open(LOG_PATH, "a") as f:
         f.write(log_entry)
-    print(log_entry.strip())
+    logger.info(log_entry.strip())
 
 
 async def get_system_metrics() -> Dict:
@@ -158,6 +159,7 @@ async def get_ab_test_metrics() -> Dict:
         stats = await ab_test.get_ab_test_statistics(days=7)
         return stats
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Error getting AB test metrics: {e}")
         return {
             "ml": {"count": 0, "avg_performance": 0, "avg_tokens_saved": 0, "success_rate": 0},
@@ -188,6 +190,7 @@ async def get_adaptive_learning_metrics() -> Dict:
             "improvement_trend": "analyzing",  # Будет вычисляться на основе истории
         }
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Error getting adaptive learning metrics: {e}")
         return {
             "feedback_total": 0,
@@ -389,12 +392,14 @@ async def run_adaptive_learning_cycle():
         from adaptive_learner import run_adaptive_learning_cycle
 
         updated, deleted = await run_adaptive_learning_cycle()
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ [ADAPTIVE LEARNING] Cycle completed: {updated} updated, {deleted} deleted")
         return {"updated": updated, "deleted": deleted}
     except ImportError:
         logger.warning("⚠️ AdaptiveLearner not available")
         return {"updated": 0, "deleted": 0}
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ [ADAPTIVE LEARNING] Error: {e}")
         return {"updated": 0, "deleted": 0}
 
@@ -497,6 +502,7 @@ async def run_monitoring_cycle():
                     log_message("⚠️ SSH Tunnel: недоступен, пересоздаю...")
                     tunnel_manager.create_tunnel()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Tunnel monitoring failed: {e}")
 
     # Мониторинг SLA/SLO
@@ -534,6 +540,7 @@ async def run_monitoring_cycle():
                     f"   • {metric_name}: {value:.3f}{unit} (target: {target:.3f}{unit}) ✅"
                 )
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"SLA monitoring failed: {e}")
 
     # Мониторинг Disaster Recovery
@@ -548,6 +555,7 @@ async def run_monitoring_cycle():
             log_message(alert_msg)
             await send_telegram_alert(alert_msg, "medium")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Disaster recovery monitoring failed: {e}")
 
     # Мониторинг памяти моделей
@@ -580,6 +588,7 @@ async def run_monitoring_cycle():
                     alert_msg = f"⚠️ Модель {model_name} использует {memory_mb:.2f}MB памяти"
                     await send_telegram_alert(alert_msg, "medium")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Memory monitoring failed: {e}")
 
     # Adaptive Learning: запуск цикла адаптивного обучения (ежедневно)
@@ -591,6 +600,7 @@ async def run_monitoring_cycle():
                 f"🔄 [ADAPTIVE LEARNING] Updated {adaptive_result.get('updated', 0)} examples, deleted {adaptive_result.get('deleted', 0)}"
             )
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Adaptive learning cycle failed: {e}")
 
     # Мониторинг Circuit Breaker событий
@@ -639,6 +649,7 @@ async def run_monitoring_cycle():
         finally:
             await conn.close()
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Circuit breaker monitoring failed: {e}")
 
     # Сбор реальных метрик производительности
@@ -666,6 +677,7 @@ async def run_monitoring_cycle():
                 f"min={tokens_stats.get('min', 0):.2f}, max={tokens_stats.get('max', 0):.2f}"
             )
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Metrics collection failed: {e}")
 
     # Интеграция автономных компонентов Singularity 7.5
@@ -678,6 +690,7 @@ async def run_monitoring_cycle():
             auto_model_mgr.start_monitoring()
             log_message("🔄 Auto Model Manager запущен")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Auto Model Manager integration failed: {e}")
 
     try:
@@ -689,6 +702,7 @@ async def run_monitoring_cycle():
             backup_mgr.start_monitoring()
             log_message("💾 Auto Backup Manager запущен")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Auto Backup Manager integration failed: {e}")
 
     try:
@@ -702,6 +716,7 @@ async def run_monitoring_cycle():
             for key, count in anomaly_stats.items():
                 log_message(f"   • {key}: {count}")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Anomaly Detector integration failed: {e}")
 
     # Predictive Cache Warming - анализ паттернов и предсказание запросов
@@ -756,6 +771,7 @@ async def run_monitoring_cycle():
         else:
             log_message("📊 Predictive Cache: Недостаточно данных для анализа паттернов")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Predictive Cache integration failed: {e}")
 
     try:
@@ -774,6 +790,7 @@ async def run_monitoring_cycle():
                     f"✅ Валидация моделей: {passed_count}/{len(validation_results)} прошли"
                 )
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Model Validator integration failed: {e}")
 
     try:
@@ -792,6 +809,7 @@ async def run_monitoring_cycle():
                     # Логируем улучшение в БД
                     await optimizer.log_improvement(imp, "Виктория", applied=False)
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Auto Prompt Optimizer integration failed: {e}")
 
     log_message("✅ Monitoring cycle completed")

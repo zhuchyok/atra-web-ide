@@ -77,6 +77,18 @@ logging.basicConfig(
 logger = logging.getLogger("ExpertWorker")
 
 DB_URL = os.getenv("DATABASE_URL")
+
+
+def _ollama_url_for_model(model: Optional[str]) -> str:
+    """Route executor model to dedicated Ollama endpoint when configured."""
+    base_default = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434").rstrip("/")
+    executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k:latest")
+    m = (model or "").strip()
+    if m and (m == executor_model or m.rstrip(":latest") == executor_model.rstrip(":latest")):
+        return os.getenv("OLLAMA_EXECUTOR_BASE_URL", base_default).rstrip("/")
+    return base_default
+
+
 try:
     from app.expert_stream_routing import SHARED_EXPERT_STREAM, worker_stream_name
 except ImportError:
@@ -383,7 +395,8 @@ class VictoriaExpertActor(AgentBase):
             try:
                 task_uuid = uuid.UUID(self.task_id)
             except ValueError:
-                print(f"DEBUG: Non-UUID task_id detected: {self.task_id}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"DEBUG: Non-UUID task_id detected: {self.task_id}")
                 payload["original_task_id"] = self.task_id
 
         async with pool.acquire() as conn:
@@ -435,11 +448,13 @@ class VictoriaExpertActor(AgentBase):
             )
             if snapshot:
                 self.load_state_dict(json.loads(snapshot["state_data"]))
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🔄 [RECOVERY] {self.name} restored from snapshot.")
 
     def reply(self, x: dict = None) -> dict:
         # Sync stub for AgentScope pipeline compatibility.
         # Real async processing goes through process_async() called from process_task().
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🎭 [ACTOR:{self.name}] Processing message (sync stub)...")
         if x and "content" in x:
             asyncio.create_task(self.record_event("receive_message", {"content": x["content"]}))
@@ -487,9 +502,11 @@ class VictoriaExpertActor(AgentBase):
                 )
                 if contract:
                     handoff.validation_schema = contract
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🚀 [SWARM] {self.name} initiated handoff to {to_expert}")
                 return handoff
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SWARM] Handoff initiation failed: {e}")
         return None
 
@@ -510,6 +527,7 @@ async def _mark_llm_call(conn, task_id: str) -> None:
             task_id,
         )
     except Exception as _e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"[LLM_CALL_MARK] Failed to update last_llm_call_at for {task_id}: {_e}")
 
 
@@ -584,6 +602,7 @@ async def _resolve_canonical_task_id(
         # Backward compatibility while migration is rolling out.
         return None, "unresolved"
     except Exception as map_err:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"⚠️ [TASK-ID] Failed to resolve mapping for {external_task_id}: {map_err}")
 
     # Legacy fallback: recover mapping from tasks metadata for already created verification/handoff chains.
@@ -815,6 +834,7 @@ async def process_task(task_data: dict):
                             except ProcessLookupError:
                                 _active_background_tasks.pop(bg_task_id, None)
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [PREEMPTION] Failed to suspend tasks: {e}")
 
     # [SINGULARITY 30.0] Pre-flight Memory Cleanup for heavy/R&D tasks
@@ -827,7 +847,7 @@ async def process_task(task_data: dict):
                 mmm = get_memory_manager()
                 intensity = metadata.get("resource_intensity", "normal")
                 await mmm.predictive_unload(intensity)
-            except:
+            except Exception:
                 pass
 
             import psutil
@@ -845,7 +865,7 @@ async def process_task(task_data: dict):
                 try:
                     libc = ctypes.CDLL(ctypes.util.find_library("c"))
                     libc.malloc_trim(0)
-                except:
+                except Exception:
                     pass
 
                 # Trigger global model cleanup via MemoryManager if possible
@@ -855,13 +875,16 @@ async def process_task(task_data: dict):
                     mmm = get_model_memory_manager()
                     await mmm.cleanup_unused_models(aggressive=True)
                     logger.info("✅ [PRE-FLIGHT GC] Global model cleanup completed")
-                except:
+                except Exception:
                     pass
         except Exception as gc_err:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Pre-flight GC failed: {gc_err}")
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"🛠️ [WORKER] Начало выполнения задачи {task_id} для {expert_name}")
-    print(f"DEBUG_PRINT: task_data metadata: {task_data.get('metadata')}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"DEBUG_PRINT: task_data metadata: {task_data.get('metadata')}")
 
     # [SINGULARITY 29.2] Background Heartbeat Task
     async def heartbeat_loop():
@@ -892,13 +915,14 @@ async def process_task(task_data: dict):
                             tags=["brain", "hourglass"],
                         )
                         last_progress_notify = now
-                    except:
+                    except Exception:
                         pass
 
                 await asyncio.sleep(20)  # Heartbeat every 20s (TTL is 60s)
         except asyncio.CancelledError:
             pass
         except Exception as hb_err:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [HEARTBEAT] Loop failed for {task_id}: {hb_err}")
 
     hb_task = asyncio.create_task(heartbeat_loop())
@@ -952,11 +976,13 @@ async def process_task(task_data: dict):
                             last_progress_notify = now
 
                     except Exception as e:
-                        print(f"❌ [SIDECAR-HEARTBEAT] Error: {e}")
+                        # TODO: Convert f-string to %s formatting for performance
+                        logger.info(f"❌ [SIDECAR-HEARTBEAT] Error: {e}")
 
                     time.sleep(20)
             except Exception as e:
-                print(f"❌ [SIDECAR-HEARTBEAT] Thread failed to start: {e}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"❌ [SIDECAR-HEARTBEAT] Thread failed to start: {e}")
 
         thread = threading.Thread(target=heartbeat_thread_func, daemon=True)
         thread.start()
@@ -1006,6 +1032,7 @@ async def process_task(task_data: dict):
                         _worker_active.labels(queue=queue_name).dec()
                     return
             except Exception as age_err:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"⚠️ [TTL] Не удалось проверить возраст задачи: {age_err}")
 
     try:
@@ -1111,6 +1138,7 @@ async def process_task(task_data: dict):
                 from agentscope.msghub import msghub
 
                 # Воркер подключается к MsgHub задачи
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🐝 [SWARM] Expert {expert_name} joining MsgHub for task {task_id}")
             except ImportError:
                 pass
@@ -1255,6 +1283,7 @@ async def process_task(task_data: dict):
                         },
                     )
                 except Exception as actor_err:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ [ACTOR] Recovery failed: {actor_err}")
 
                 # 2. Выполняем через AI Core или ReAct Agent (Singularity 14.0)
@@ -1285,6 +1314,7 @@ async def process_task(task_data: dict):
                             )
                         )
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"⚠️ [DIALOGUE] Failed to publish thought: {e}")
 
                 # [SINGULARITY 24.3] Fast Path для диалоговых задач — MLX (victoria-wisdom) или Ollama (phi3.5)
@@ -1311,6 +1341,7 @@ async def process_task(task_data: dict):
                                         f"🌟 [VIP DIALOGUE] Expert {expert_name} has VIP priority"
                                     )
                         except Exception as e:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.debug(f"Failed to fetch expert priority for dialogue: {e}")
 
                         _ollama_base = (
@@ -1339,6 +1370,7 @@ async def process_task(task_data: dict):
                                     f"Ты — {expert_name}, эксперт корпорации Singularity 21.5."
                                 )
                         except Exception as dna_err:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.debug(f"Failed to load DNA for dialogue: {dna_err}")
                             _persona = f"Ты — {expert_name}, эксперт корпорации Singularity 21.5."
 
@@ -1368,6 +1400,7 @@ async def process_task(task_data: dict):
                             _headers["X-Request-Priority"] = "high"
 
                         if _use_mlx:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.info(f"🎯 [FAST PATH] MLX victoria-wisdom для {expert_name}")
                             try:
                                 await _mark_llm_call(conn, db_task_id or task_id)
@@ -1407,6 +1440,7 @@ async def process_task(task_data: dict):
                             except asyncio.CancelledError:
                                 raise
                             except Exception as _mlx_err:
+                                # TODO: Convert f-string to %s formatting for performance
                                 logger.warning(f"⚠️ [FAST PATH] MLX ошибка: {_mlx_err}")
                         else:
                             # Ollama с retry для небольших моделей (phi3.5 и др.)
@@ -1460,6 +1494,7 @@ async def process_task(task_data: dict):
                             f"✅ [DIALOGUE FAST PATH] {expert_name} ответил ({len(report_text)} chars)"
                         )
                     except Exception as fast_err:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.warning(f"⚠️ [DIALOGUE FAST PATH] Fallback на ai_core: {fast_err}")
 
                         # [SINGULARITY 24.7] Retry Intelligence: Downgrade model on failure
@@ -1496,28 +1531,31 @@ async def process_task(task_data: dict):
                             report.get("result") if isinstance(report, dict) else report
                         )
                 elif task_data.get("metadata", {}).get("complex") or expert_name == "Виктория":
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🧠 [WORKER] Используем ReAct Agent для сложной задачи {task_id}")
                     try:
                         model_hint = task_data.get("metadata", {}).get("model_hint")
-                        print(
-                            f"DEBUG_PRINT: Initializing ReActAgent with model: {model_hint or 'victoria-wisdom-v3.5:latest'}"
+                        logger.info(
+                            f"DEBUG_PRINT: Initializing ReActAgent with model: {model_hint or 'victoria-wisdom-24k:latest'}"
                         )
                         agent = ReActAgent(
                             agent_name=expert_name,
-                            model_name=model_hint or "victoria-wisdom-v3.5:latest",
+                            model_name=model_hint or "victoria-wisdom-24k:latest",
                         )
-                        print(f"DEBUG_PRINT: Calling agent.run() for task {task_id}")
+                        # TODO: Convert f-string to %s formatting for performance
+                        logger.info(f"DEBUG_PRINT: Calling agent.run() for task {task_id}")
                         await _mark_llm_call(conn, db_task_id or task_id)
 
                         # [SINGULARITY 27.2] Event Sourcing: Record task start if actor exists
                         if actor:
                             await actor.record_event(
                                 "react_agent_started",
-                                {"model": model_hint or "victoria-wisdom-v3.5:latest"},
+                                {"model": model_hint or "victoria-wisdom-24k:latest"},
                             )
 
                         report = await agent.run(goal=description)
-                        print(f"DEBUG_PRINT: agent.run() finished for task {task_id}")
+                        # TODO: Convert f-string to %s formatting for performance
+                        logger.info(f"DEBUG_PRINT: agent.run() finished for task {task_id}")
                         # [SINGULARITY 21.26] Fix: ReActAgent returns 'response', not 'result'
                         if isinstance(report, dict) and "response" in report:
                             report_text = report["response"]
@@ -1532,6 +1570,7 @@ async def process_task(task_data: dict):
                                 "react_agent_completed", {"result_len": len(report_text or "")}
                             )
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.error(f"⚠️ Ошибка ReAct Agent, fallback на AI Core: {e}")
                         await _mark_llm_call(conn, db_task_id or task_id)
 
@@ -1606,7 +1645,7 @@ async def process_task(task_data: dict):
                             if _contract:
                                 try:
                                     contract_json = json.loads(_contract.group(1))
-                                except:
+                                except Exception:
                                     pass
 
                             from explicit_handoffs import get_handoff_manager
@@ -1692,6 +1731,7 @@ async def process_task(task_data: dict):
                                 )
 
                     except Exception as he:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.error(f"❌ [SWARM] Handoff detection failed: {he}")
 
                 # [SINGULARITY 27.0] Stub/unavailable result → requeue with exponential backoff
@@ -1758,6 +1798,7 @@ async def process_task(task_data: dict):
                             source="task_escalation",
                         )
                     except Exception as board_err:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.warning(f"[BOARD] Consult failed (non-critical): {board_err}")
 
                     # [SINGULARITY 28.7] Mandatory Adversarial Trust Gate
@@ -1936,7 +1977,8 @@ async def process_task(task_data: dict):
                 global _last_success_ts
                 _last_success_ts = int(time.time())
                 if is_valid_uuid:
-                    print(f"DEBUG_PRINT: Updating task {task_id} to completed in DB")
+                    # TODO: Convert f-string to %s formatting for performance
+                    logger.info(f"DEBUG_PRINT: Updating task {task_id} to completed in DB")
                     _update_res = await conn.execute(
                         """
                         UPDATE tasks
@@ -2006,8 +2048,10 @@ async def process_task(task_data: dict):
                                 db_task_id,
                                 json.dumps({"reasoning_trace": _trace[:2000]}),
                             )
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.info(f"🧠 [REFLECTION] reasoning_trace saved for task {task_id}")
                     except Exception as _te:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"reasoning_trace extraction failed: {_te}")
 
                 # [SINGULARITY 26.3] Final State Snapshot
@@ -2065,9 +2109,9 @@ async def process_task(task_data: dict):
                                 priority="high",
                                 tags=["rocket", "brain"],
                             )
-                        except:
+                        except Exception:
                             pass
-                except:
+                except Exception:
                     pass
 
                 # [SINGULARITY 24.3] Живой Чат: Публикация ответа эксперта в EventBus
@@ -2100,6 +2144,7 @@ async def process_task(task_data: dict):
                             f"🎭 [DIALOGUE] Expert {expert_name} published response for {dialogue_id}"
                         )
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.error(f"⚠️ [DIALOGUE] Failed to publish response: {e}")
 
                 # [SINGULARITY 30.0] Post-task Memory Release Hook
@@ -2120,18 +2165,19 @@ async def process_task(task_data: dict):
                             )
                             import httpx
 
-                            ollama_base = os.getenv(
-                                "OLLAMA_BASE_URL", "http://host.docker.internal:11434"
-                            )
+                            ollama_base = _ollama_url_for_model(used_model)
                             async with httpx.AsyncClient(timeout=5.0) as _hc:
                                 await _hc.post(
                                     f"{ollama_base}/api/generate",
                                     json={"model": used_model, "prompt": "", "keep_alive": 0},
                                 )
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.info(f"✅ [POST-TASK] Model {used_model} released from VRAM/RAM")
                 except Exception as release_err:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Post-task memory release failed: {release_err}")
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [WORKER] Задача {task_id} успешно завершена")
 
                 if _PROMETHEUS_AVAILABLE:
@@ -2145,6 +2191,7 @@ async def process_task(task_data: dict):
                     _redis_client = await redis_manager.get_client()
                     await _redis_client.publish(f"task:completed:{task_id}", "completed")
                 except Exception as _pub_err:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"[PUBSUB] Publish failed (non-critical): {_pub_err}")
 
                 # [SINGULARITY 26.4] Детерминированный handoff — без LLM-тегов
@@ -2180,6 +2227,7 @@ async def process_task(task_data: dict):
                                 },
                             )
                         except Exception as h_err:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.warning(f"⚠️ [MARKET] Failed to post handoff: {h_err}")
 
                         if actor:
@@ -2191,6 +2239,7 @@ async def process_task(task_data: dict):
                                 },
                             )
                 except Exception as _hf_err:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"[HANDOFF] Deterministic check failed (non-critical): {_hf_err}")
 
     except asyncio.TimeoutError:
@@ -2216,6 +2265,7 @@ async def process_task(task_data: dict):
         await _handle_task_error(task_id, error_msg, db_task_id, expert_name=expert_name)
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ [WORKER] Ошибка задачи {task_id}: {e}", exc_info=True)
         error_msg = str(e)
         error_type = type(e).__name__
@@ -2301,10 +2351,28 @@ async def _handle_task_error(
                 # [P1 LOOP-BREAKER] Повторяющиеся Circuit Breaker таймауты не должны
                 # бесконечно ходить по pending/retry; переводим в manual triage.
                 if _is_circuit_breaker and circuit_breaker_count >= cb_max_retries:
+                    existing_result = await conn.fetchval(
+                        "SELECT COALESCE(result, '') FROM tasks WHERE id = $1", canonical_task_id
+                    )
+                    existing_result_lc = str(existing_result or "").strip().lower()
+                    task_source = str(meta.get("source", "")).strip().lower()
+                    is_curator_task = task_source == "curator_autonomous"
+                    has_meaningful_existing_result = bool(existing_result_lc) and not (
+                        existing_result_lc.startswith("task timed out after")
+                        or existing_result_lc.startswith("cancelled:")
+                        or existing_result_lc.startswith("[auto_fallback]")
+                    )
+                    should_complete = is_curator_task or has_meaningful_existing_result
+                    final_status = "completed" if should_complete else "cancelled"
+                    fallback_reason = (
+                        "curator_circuit_breaker_degraded_completed"
+                        if should_complete
+                        else "circuit_breaker_loop_exhausted"
+                    )
                     await conn.execute(
                         """
                         UPDATE tasks
-                        SET status = 'cancelled',
+                        SET status = $4,
                             retry_after = NULL,
                             updated_at = NOW(),
                             result = $2,
@@ -2319,18 +2387,28 @@ async def _handle_task_error(
                                 "attempt_count": attempt_count,
                                 "circuit_breaker_count": circuit_breaker_count,
                                 "last_error": error_msg[:300],
-                                "auto_fallback_reason": "circuit_breaker_loop_exhausted",
-                                "failed_requires_intervention": True,
+                                "auto_fallback_reason": fallback_reason,
+                                "manual_cancel_reason": (
+                                    "policy_circuit_breaker_cap" if not should_complete else ""
+                                ),
+                                "failed_requires_intervention": not should_complete,
+                                "circuit_breaker_recovered_with_existing_result": bool(
+                                    has_meaningful_existing_result
+                                ),
+                                "task_contract_version": "smart_worker_v1",
+                                "task_contract_output_schema": "free_text",
                                 "diagnostic_path": "expert_worker_manual_triage",
                             }
                         ),
+                        final_status,
                     )
                     await redis_manager.update_task_status(
-                        external_task_id, "cancelled", result=error_msg
+                        external_task_id, final_status, result=error_msg
                     )
                     logger.error(
-                        "🧯 [CIRCUIT-BREAKER LOOP] Task %s moved to cancelled/manual triage after %s consecutive CB timeouts",
+                        "🧯 [CIRCUIT-BREAKER LOOP] Task %s moved to %s/manual triage after %s consecutive CB timeouts",
                         external_task_id,
+                        final_status,
                         circuit_breaker_count,
                     )
                     await redis_manager.release_task_lock(external_task_id)
@@ -2391,7 +2469,7 @@ async def _handle_task_error(
 
                         bb = get_blackboard_service()
                         await bb.release_task(external_task_id, expert_name)
-                    except:
+                    except Exception:
                         pass
                     return  # не fail — будет повтор
 
@@ -2424,6 +2502,7 @@ async def _handle_task_error(
                             f"🧬 [DNA] Mutation triggered for {expert_name} after permanent failure."
                         )
                     except Exception as mut_err:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"Failed to trigger DNA mutation: {mut_err}")
 
         await redis_manager.release_task_lock(external_task_id)
@@ -2433,9 +2512,10 @@ async def _handle_task_error(
 
             bb = get_blackboard_service()
             await bb.release_task(external_task_id, expert_name)
-        except:
+        except Exception:
             pass
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"⚠️ Не удалось сохранить ошибку в БД/Redis: {e}")
 
 
@@ -2445,6 +2525,7 @@ async def worker_loop():
 
     # [SINGULARITY 28.7] Identify this worker
     expert_name = os.getenv("EXPERT_NAME", f"Worker_{os.uname().nodename}")
+    # TODO: Convert f-string to %s formatting for performance
     logger.error(f"🆔 [WORKER] I am identified as: {expert_name}")
 
     # [SINGULARITY 31.3] Agent messaging for all worker paths
@@ -2455,8 +2536,10 @@ async def worker_loop():
         _agent_id = f"{expert_name}-Worker"
         asyncio.create_task(listen(_agent_id))
         asyncio.create_task(start_presence_broadcast(_agent_id, [expert_name.lower()]))
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔗 [AGENT_MSG] Expert '{_agent_id}' subscribed")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"[AGENT_MSG] Init: {e}")
 
     enforce_target_expert = os.getenv("BLACKBOARD_ENFORCE_TARGET_EXPERT", "true").lower() in (
@@ -2504,6 +2587,7 @@ async def worker_loop():
             try:
                 await _publish_worker_runtime_heartbeat(expert_name)
             except Exception as hb_err:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [RUNTIME-HEARTBEAT] Failed for {expert_name}: {hb_err}")
             await asyncio.sleep(interval)
 
@@ -2537,10 +2621,12 @@ async def worker_loop():
                             ]
                         )
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.error(f"❌ [PROVISIONING] Failed to scale: {e}")
 
                 await asyncio.sleep(60)
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [PROVISIONING] Monitor failed: {e}")
 
     asyncio.create_task(monitor_queue_and_provision())
@@ -2556,6 +2642,7 @@ async def worker_loop():
 
     async def monitor_blackboard_tasks():
         """Фоновый демон для поиска и захвата задач с Blackboard."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"👀 [AUTONOMY] Blackboard monitor started for {expert_name}")
         try:
             from resource_guard import get_resource_guard
@@ -2661,7 +2748,7 @@ async def worker_loop():
                         if any(
                             kw in task_goal["goal"].lower() for kw in ["security", "audit", "fix"]
                         ):
-                            if expert_name in ("Роман", "Игорь"):
+                            if expert_name in ("Владимир", "Даниил"):
                                 expertise_score = 0.9
 
                         bid_score = (expertise_score * 0.6) + (health_score * 0.4)
@@ -2669,6 +2756,7 @@ async def worker_loop():
                         await asyncio.sleep(3)
                         winner = await blackboard.resolve_auction(task_id)
                         if winner == expert_name:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.error(f"🏆 [AUCTION] {expert_name} WON task {task_id}")
                             payload = {
                                 "task_id": task_id,
@@ -2700,6 +2788,7 @@ async def worker_loop():
 
                 await asyncio.sleep(10)
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [AUTONOMY] Blackboard monitor failed: {e}")
 
     # [SINGULARITY 30.4] Resurrection Logic: Recover tasks assigned to this expert on startup
@@ -2873,6 +2962,7 @@ async def worker_loop():
                                 )
                                 continue
 
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.error(f"🔄 [RESURRECTION] Found my task {tid}. Resuming...")
                             payload = {
                                 "task_id": tid,
@@ -2888,6 +2978,7 @@ async def worker_loop():
                         f"✅ [RESURRECTION] Successfully resumed {recovered_count} tasks for {expert_name}"
                     )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [RESURRECTION] Recovery failed: {e}")
 
             await asyncio.sleep(recovery_interval)
@@ -2911,6 +3002,7 @@ async def worker_loop():
         asyncio.create_task(learner.start_continuous_learning(interval_hours=6))
         logger.info("🧠 [SINGULARITY 10.0] Collective Learning system started")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ [SINGULARITY 10.0] Could not start collective learning: {e}")
 
     logger.info(
@@ -2935,6 +3027,7 @@ async def worker_loop():
         await start_redis_bridge(bus)
         logger.info("🌉 [WORKER] EventBus Redis Bridge запущен для Живого Чата")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ [WORKER] Не удалось запустить EventBus Bridge: {e}")
 
     # [FULL FIX 2026-04-08] Get DB pool once for the worker lifetime
@@ -3002,10 +3095,76 @@ async def worker_loop():
                 f"🧹 [WORKER] Cleaned up {len(stale_eb_groups)} stale event_bus_stream groups"
             )
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ [WORKER] event_bus_stream cleanup skipped: {e}")
+
+    # Safe periodic cleanup of stale consumers for current stream/group.
+    cleanup_enabled = os.getenv("WORKER_CLEANUP_STALE_CONSUMERS", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    cleanup_interval_sec = max(
+        30, int(os.getenv("WORKER_CLEANUP_STALE_CONSUMERS_INTERVAL_SEC", "300"))
+    )
+    cleanup_idle_ms = max(
+        60000, int(os.getenv("WORKER_CLEANUP_STALE_CONSUMERS_IDLE_MS", "3600000"))
+    )
+    cleanup_limit = max(1, int(os.getenv("WORKER_CLEANUP_STALE_CONSUMERS_LIMIT", "50")))
+    last_cleanup_ts = 0.0
+
+    async def _cleanup_stale_stream_consumers() -> int:
+        if not cleanup_enabled:
+            return 0
+        removed = 0
+        stream_key = f"stream:{STREAM_NAME}"
+        try:
+            consumers = await client.xinfo_consumers(stream_key, GROUP_NAME)
+        except Exception as e:
+            logger.debug("consumer cleanup skipped for %s: %s", stream_key, e)
+            return 0
+
+        for c in consumers or []:
+            name = c.get("name")
+            if isinstance(name, bytes):
+                name = name.decode("utf-8", errors="ignore")
+            if not name or str(name) == CONSUMER_NAME:
+                continue
+            pending = int(c.get("pending") or 0)
+            idle = int(c.get("idle") or 0)
+            if pending == 0 and idle >= cleanup_idle_ms:
+                try:
+                    await client.xgroup_delconsumer(stream_key, GROUP_NAME, str(name))
+                    removed += 1
+                    if removed >= cleanup_limit:
+                        break
+                except Exception as e:
+                    logger.debug(
+                        "failed delconsumer stream=%s group=%s consumer=%s: %s",
+                        stream_key,
+                        GROUP_NAME,
+                        name,
+                        e,
+                    )
+        if removed > 0:
+            logger.info(
+                "🧹 [WORKER] stale consumers removed=%s stream=%s group=%s idle_ms>=%s",
+                removed,
+                stream_key,
+                GROUP_NAME,
+                cleanup_idle_ms,
+            )
+        return removed
+
+    # Startup hygiene pass (safe: pending==0 only).
+    await _cleanup_stale_stream_consumers()
 
     while True:
         try:
+            now_ts = time.time()
+            if now_ts - last_cleanup_ts >= cleanup_interval_sec:
+                await _cleanup_stale_stream_consumers()
+                last_cleanup_ts = now_ts
             # [FULL FIX 2026-04-08] Three-phase pending management:
             # Phase 1: Kill zombie messages (>10 deliveries) → ACK Redis + mark PostgreSQL failed
             # Phase 2: Xclaim legitimately stale messages (idle >5min, deliveries ≤10)
@@ -3149,6 +3308,7 @@ async def worker_loop():
                         logger.warning(
                             f"⚠️ [STALE-DROP] Failed to process stale msg {_p['message_id']}: {_drop_err}"
                         )
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"🧹 [STALE-DROP] Dropped {len(_stale_ids)} stale pending messages")
 
             # pending_mine всё ещё нужен для Phase 3c: если не обработан через background,
@@ -3371,6 +3531,7 @@ async def worker_loop():
                             try:
                                 await process_task(_p)
                             except Exception as e:
+                                # TODO: Convert f-string to %s formatting for performance
                                 logger.error(f"❌ [WORKER] Ошибка обработки сообщения {_id}: {e}")
                                 _task_id = _p.get("task_id") if isinstance(_p, dict) else None
                                 if _task_id:
@@ -3400,13 +3561,16 @@ async def worker_loop():
 
                         asyncio.create_task(_run_task())
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.error(f"❌ [WORKER] Ошибка обработки сообщения {msg_id}: {e}")
                         try:
                             await client.xack(f"stream:{STREAM_NAME}", GROUP_NAME, msg_id)
                         except Exception as xack_err:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.warning(f"⚠️ [WORKER] Failed to xack on msg {msg_id}: {xack_err}")
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"⚠️ [WORKER] Ошибка в цикле: {e}")
             await asyncio.sleep(5)
 
@@ -3445,6 +3609,7 @@ def start_metrics_server(port=8001):
 def run_metrics_only(port=8001):
     """Запуск только HTTP сервера для метрик (без воркера)."""
     app = start_metrics_server(port)
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"📊 [METRICS] Starting metrics server on port {port}")
     web.run_app(app, host="0.0.0.0", port=port, print=lambda x: None)
 
@@ -3460,8 +3625,10 @@ def run_worker_with_metrics(port=8001):
             _en = os.getenv("EXPERT_NAME", "expert")
             asyncio.create_task(listen(_en))
             asyncio.create_task(start_presence_broadcast(_en, [_en.lower()]))
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔗 [AGENT_MSG] Expert '{_en}' subscribed")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"[AGENT_MSG] Init unavailable: {e}")
 
         metrics_app = start_metrics_server(port)
@@ -3469,6 +3636,7 @@ def run_worker_with_metrics(port=8001):
         await metrics_runner.setup()
         metrics_site = web.TCPSite(metrics_runner, "0.0.0.0", port)
         await metrics_site.start()
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📊 [METRICS] Metrics server started on port {port}")
         try:
             await worker_loop()
@@ -3516,6 +3684,7 @@ if __name__ == "__main__":
     def run_metrics_only(port=8001):
         """Запуск только HTTP сервера для метрик (без воркера)."""
         app = start_metrics_server(port)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📊 [METRICS] Starting metrics server on port {port}")
         web.run_app(app, host="0.0.0.0", port=port, print=lambda x: None)
 
@@ -3528,6 +3697,7 @@ if __name__ == "__main__":
             await metrics_runner.setup()
             metrics_site = web.TCPSite(metrics_runner, "0.0.0.0", port)
             await metrics_site.start()
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📊 [METRICS] Metrics server started on port {port}")
             try:
                 await worker_loop()
@@ -3551,8 +3721,10 @@ if __name__ == "__main__":
                 _en = os.getenv("EXPERT_NAME", "expert")
                 asyncio.create_task(listen(_en))
                 asyncio.create_task(start_presence_broadcast(_en, [_en.lower()]))
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🔗 [AGENT_MSG] Expert '{_en}' subscribed")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"[AGENT_MSG] Init unavailable: {e}")
             await worker_loop()
 

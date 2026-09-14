@@ -175,7 +175,7 @@ async def get_embedding(text: str) -> Optional[list]:
         return None
 
     # Генерируем ключ для группировки (хэш текста)
-    text_hash = hashlib.md5(text.encode()).hexdigest()
+    text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
 
     # [SINGULARITY 29.7] Redis Cache Check
     from app.redis_manager import get_redis_manager
@@ -187,13 +187,16 @@ async def get_embedding(text: str) -> Optional[list]:
         client = await redis.get_client()
         cached_val = await client.get(cache_key)
         if cached_val:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚡ [CACHE HIT] Embedding found in Redis: {text_hash}")
             return json.loads(cached_val)
     except Exception as re:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"⚠️ [CACHE MISS] Redis error: {re}")
 
     async with _embedding_lock:
         if text_hash in _inflight_embeddings:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"🔗 [COLLAPSING] Waiting for in-flight embedding: {text_hash}")
             _safe_record_collapsed()
             # Ждем завершения уже запущенного запроса
@@ -217,6 +220,7 @@ async def get_embedding(text: str) -> Optional[list]:
             if res:
                 try:
                     await client.set(cache_key, json.dumps(res), ex=86400)  # 24h TTL
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"💾 [CACHE SAVE] Embedding stored in Redis: {text_hash}")
                 except Exception:
                     pass
@@ -224,6 +228,7 @@ async def get_embedding(text: str) -> Optional[list]:
             future.set_result(res)
             return res
     except CircuitBreakerOpenError:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"🚨 [CIRCUIT BREAKER] Ollama embeddings is OPEN, skipping: {text_hash}")
         future.set_result(None)
         return None
@@ -384,6 +389,7 @@ async def _execute_embedding_request(text: str) -> Optional[list]:
             logger.debug("✅ [EMBED] sentence-transformers fallback OK")
             return vecs[0]
     except Exception as _st_err:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"[EMBED] sentence-transformers failed: {_st_err}")
 
     return None
@@ -522,6 +528,7 @@ class SemanticAICache:
                             return emb_val
                     await conn.close()
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"Error in graceful degradation: {e}")
                     if conn:
                         await conn.close()
@@ -552,7 +559,7 @@ class SemanticAICache:
             import hashlib
 
             normalized = " ".join(text.lower().split())
-            text_hash = hashlib.md5(normalized.encode()).hexdigest()
+            text_hash = hashlib.md5(normalized.encode('utf-8')).hexdigest()
 
         if text_hash in self._embedding_cache:
             return self._embedding_cache[text_hash]
@@ -619,6 +626,7 @@ class SemanticAICache:
             await conn.close()
             return result
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error in get_cache_info: {e}")
             return None
 
@@ -638,6 +646,7 @@ class SemanticAICache:
             for related_query in cache_info["related_queries"][:3]:  # Увеличиваем до топ-3
                 # Запускаем фоновую задачу префетчинга
                 asyncio.create_task(graphrag.retrieve_graph_context(related_query))
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🔮 [PREFETCH] Warm-up GraphRAG for: {related_query[:50]}...")
 
             # 3. [SINGULARITY 10.0+] Подгружаем связанные узлы знаний напрямую
@@ -654,6 +663,7 @@ class SemanticAICache:
                 )
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Prefetching failed: {e}")
 
     async def _warmup_node_to_redis(self, node_id: str):
@@ -984,7 +994,8 @@ async def test_cache():
     answer = "Для уменьшения потребления токенов используйте локальное кэширование."
     await cache.save_to_cache(question, answer, "Виктория")
     cached = await cache.get_cached_response(question, "Виктория")
-    print(f"Cached result: {cached}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Cached result: {cached}")
 
 
 if __name__ == "__main__":

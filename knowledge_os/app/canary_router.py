@@ -49,6 +49,7 @@ async def get_active_mutations(expert_id: str) -> list[dict[str, Any]]:
             )
             return [dict(r) for r in rows]
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"[CANARY] Failed to get mutations: {e}")
         return []
 
@@ -127,8 +128,10 @@ async def record_canary_result(
                 (canary_response or "")[:8000] or "(empty shadow)",
                 json.dumps(meta, ensure_ascii=False),
             )
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"[CANARY] {verdict} for mutation {str(mutation_id)[:8]} ({expert_name})")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"[CANARY] Record failed: {e}")
 
 
@@ -213,6 +216,7 @@ async def run_canary_daemon(limit: int = 5) -> int:
             )
             rows = [dict(r) for r in fetched]
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"[CANARY_DAEMON] Query failed: {e}")
         return 0
 

@@ -28,7 +28,7 @@ except ImportError:
         import psutil
 
         PSUTIL_AVAILABLE = True
-    except:
+    except Exception:
         pass
 
 logger = logging.getLogger(__name__)
@@ -124,6 +124,7 @@ class ResourceMonitor:
                 "timestamp": datetime.now().isoformat(),
             }
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error getting system resources: {e}")
             return {}
 
@@ -156,6 +157,7 @@ class ResourceMonitor:
                         ),
                     }
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"MLX health check failed: {e}")
             return {"status": "unavailable", "error": str(e)}
 
@@ -184,6 +186,7 @@ class ResourceMonitor:
                         ),
                     }
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"Ollama health check failed: {e}")
             return {"status": "unavailable", "error": str(e)}
 

@@ -102,6 +102,7 @@ class ContextAnalyzer:
 
             return relevant_parts
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [CONTEXT ANALYZER] Error analyzing context: {e}")
             return self._simple_relevance(context, query)
 
@@ -151,6 +152,7 @@ class ContextAnalyzer:
 
             return float(dot_product / (norm1 * norm2))
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error calculating cosine similarity: {e}")
             return 0.0
 
@@ -279,6 +281,7 @@ class ContextAnalyzer:
 
                 return predicted_queries[:limit]
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [CONTEXT ANALYZER] Error predicting next query: {e}")
             return []
 
@@ -303,6 +306,7 @@ class ContextAnalyzer:
                 compressed = await self.compress_context(context, query, max_length)
                 precompressed[query] = compressed
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"⚠️ [CONTEXT ANALYZER] Error precompressing for query '{query}': {e}")
 
         return precompressed
@@ -346,6 +350,7 @@ class ContextAnalyzer:
 
                 return None
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [CONTEXT ANALYZER] Error getting precompressed context: {e}")
             return None
 
@@ -422,8 +427,10 @@ async def run_predictive_compression():
                         f"❌ [PREDICTIVE COMPRESSION] Error processing user {user_id}: {e}"
                     )
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ [PREDICTIVE COMPRESSION] Processed {processed_count} users")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ [PREDICTIVE COMPRESSION] Error in compression cycle: {e}")
 
 

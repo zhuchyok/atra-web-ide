@@ -94,6 +94,7 @@ class VisionProcessor:
                     f"✅ [VISION] Moondream Station клиент инициализирован: {self.moondream_station_url}"
                 )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [VISION] Не удалось инициализировать Moondream клиент: {e}")
                 self.moondream_client = None
 
@@ -124,6 +125,7 @@ class VisionProcessor:
 
         try:
             if image_path:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"🔍 [VISION] Loading image from path: {image_path}")
                 # [SINGULARITY 21.9] Проверка на Git LFS заглушки
                 try:
@@ -132,16 +134,20 @@ class VisionProcessor:
                             # Читаем больше байт для надежной проверки LFS (минимум 100)
                             header = f.read(128)
                             if b"git-lfs" in header or b"github.com/spec/v1" in header:
+                                # TODO: Convert f-string to %s formatting for performance
                                 logger.debug(f"⏩ [VISION] Skipping Git LFS pointer: {image_path}")
                                 return None
                     else:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.warning(f"⚠️ [VISION] Image path does not exist: {image_path}")
                         return None
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"⚠️ [VISION] Error checking LFS for {image_path}: {e}")
 
                 return Image.open(image_path)
             elif image_base64:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"🔍 [VISION] Loading image from base64 (length: {len(image_base64)})")
                 # Декодируем base64
                 if isinstance(image_base64, str):
@@ -154,6 +160,7 @@ class VisionProcessor:
                 return Image.open(io.BytesIO(image_data))
             return None
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [VISION] Ошибка подготовки изображения: {e}")
             return None
 
@@ -190,6 +197,7 @@ class VisionProcessor:
                         logger.info("✅ [VISION] Processed with Ollama (moondream:latest)")
                         return str(answer)
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Ollama vision failed: {e}")
 
         # 2. Пытаемся через Moondream Station (MLX) как fallback
@@ -198,6 +206,7 @@ class VisionProcessor:
 
         try:
             loop = asyncio.get_event_loop()
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"🔄 [VISION] Moondream query with prompt: {prompt[:50]}...")
 
             def run_query():
@@ -210,6 +219,7 @@ class VisionProcessor:
                         return str(gen)
                     return None
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Query failed, trying caption: {e}")
                     res = self.moondream_client.caption(image, stream=True)
                     if isinstance(res, dict) and "caption" in res:
@@ -225,6 +235,7 @@ class VisionProcessor:
                 return str(answer)
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [VISION] Moondream Station failed: {e} (Type: {type(e).__name__})")
 
         return None
@@ -250,6 +261,7 @@ class VisionProcessor:
                         logger.info("✅ [VISION] Processed with Moondream Station API (MLX)")
                         return answer
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [VISION] Moondream Station API failed: {e}")
 
         return None
@@ -265,6 +277,7 @@ class VisionProcessor:
             for model_name in models_to_try:
                 try:
                     # [DEBUG]
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Trying Ollama model {model_name} on {node['url']}")
                     node_url = f"{node['url']}/api/generate"
 
@@ -294,6 +307,7 @@ class VisionProcessor:
                                 )
                                 return result
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"⚠️ [VISION] Ollama {model_name} on {node['name']} failed: {e}")
                     continue
 
@@ -353,6 +367,7 @@ class VisionProcessor:
                         f"Ollama vision returned status {response.status_code}: {response.text}"
                     )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Ollama vision failed: {e} (Type: {type(e).__name__})")
 
         # Приоритет 2: Moondream Station (MLX) - прямой клиент

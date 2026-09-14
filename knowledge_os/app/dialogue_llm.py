@@ -37,7 +37,7 @@ def _strip_model_artifacts(text: str) -> str:
 MLX_BASE = os.getenv("MLX_BASE_URL", "http://host.docker.internal:11435").rstrip("/")
 OLLAMA_BASE = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434").rstrip("/")
 DEFAULT_OLLAMA_MODEL = os.getenv("DIALOGUE_OLLAMA_MODEL", "phi3.5:3.8b")
-DEFAULT_MLX_MODEL = os.getenv("DIALOGUE_MLX_MODEL", "victoria-wisdom-v3.5")
+DEFAULT_MLX_MODEL = os.getenv("DIALOGUE_MLX_MODEL", "victoria-wisdom-24k")
 HTTP_TIMEOUT = float(os.getenv("DIALOGUE_LLM_TIMEOUT_SEC", "90"))
 MLX_TIMEOUT = float(os.getenv("DIALOGUE_MLX_TIMEOUT_SEC", "60"))
 MAX_TOKENS = max(64, int(os.getenv("DIALOGUE_MAX_TOKENS", "280")))
@@ -52,7 +52,7 @@ _FALLBACK_MODELS = [
     "phi3.5:3.8b-stable",
     "smollm2:360m",
     "tinyllama:1.1b-chat",
-    "victoria-wisdom-v3.5:latest",
+    "victoria-wisdom-24k:latest",
 ]
 
 INCOMPLETE_MARKER = "[INCOMPLETE]"

@@ -64,6 +64,8 @@ def finalize_rule_result(result: str) -> tuple[str, dict[str, Any], str]:
                 "quality_degraded": False,
                 "rule_success": True,
                 "kpi_success": True,
+                "task_contract_version": "smart_worker_v1",
+                "task_contract_output_schema": "free_text",
             },
             "completed",
         )
@@ -76,6 +78,8 @@ def finalize_rule_result(result: str) -> tuple[str, dict[str, Any], str]:
             "failed_requires_intervention": True,
             "llm_unavailable_fallback": True,
             "completion_kind": "rule_fallback_degraded",
+            "auto_fallback_reason": "rule_fallback_cancelled",
+            "manual_cancel_reason": "policy_rule_fallback",
             "kpi_success": False,
             "rule_success": False,
         },
@@ -298,10 +302,10 @@ def _execute_simple_code(title: str, description: str) -> str:
             "Rule-based выполнение:\n\n"
             "```python\n"
             "from datetime import datetime\n"
-            f"print(datetime.now())  # {ts}\n"
+            f"logger.info(datetime.now())  # {ts}\n"
             "```"
         )
-    return 'Rule-based выполнение:\n\n```python\nprint("Hello, World!")\n```'
+    return 'Rule-based выполнение:\n\n```python\nlogger.info("Hello, World!")\n```'
 
 
 def _execute_research_response(title: str, description: str) -> str:
@@ -339,6 +343,12 @@ def can_handle(task: dict[str, Any]) -> bool:
     title = task.get("title", "")
     description = task.get("description", "")
 
+    # Delegation wrappers often contain words like "status/health" in instructions,
+    # but they are real expert assignments and should not be short-circuited by
+    # generic status/research/verify templates. Keep only deterministic fast paths.
+    if source == "victoria_monster_delegation" and title.startswith("🤖 Делегировано:"):
+        return _is_file_audit_task(title, description) or _is_health_check_task(title, description)
+
     # Старый путь: dashboard
     if source == "dashboard_daily_improver":
         return _match_template(title) is not None
@@ -371,6 +381,17 @@ async def execute_fallback(task: dict[str, Any]) -> str | None:
     title = task.get("title", "")
     description = task.get("description", "")
 
+    if source == "victoria_monster_delegation" and title.startswith("🤖 Делегировано:"):
+        if _is_health_check_task(title, description):
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"[RULE EXEC] Delegation health-check task: {title[:60]}")
+            return await _execute_health_check(title, description)
+        if _is_file_audit_task(title, description):
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"[RULE EXEC] Delegation file-audit task: {title[:60]}")
+            return _execute_file_audit(title, description)
+        return None
+
     # Старый путь: dashboard
     if source == "dashboard_daily_improver":
         template_result = _match_template(title)
@@ -388,25 +409,31 @@ async def execute_fallback(task: dict[str, Any]) -> str | None:
 
     # [SWISS-CLOCK] Новые паттерны
     if _is_health_check_task(title, description):
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"[RULE EXEC] Health-check task: {title[:60]}")
         return await _execute_health_check(title, description)
 
     if _is_simple_code_task(title, description):
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"[RULE EXEC] Simple code task: {title[:60]}")
         return _execute_simple_code(title, description)
 
     if _is_status_task(title, description):
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"[RULE EXEC] Status task: {title[:60]}")
         return _execute_status_response(title, description)
 
     if _is_research_task(title, description):
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"[RULE EXEC] Research task: {title[:60]}")
         return _execute_research_response(title, description)
 
     if _is_verify_task(title, description):
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"[RULE EXEC] Verify task: {title[:60]}")
         return _execute_verify_response(title, description)
     if _is_file_audit_task(title, description):
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"[RULE EXEC] File audit task: {title[:60]}")
         return _execute_file_audit(title, description)
 

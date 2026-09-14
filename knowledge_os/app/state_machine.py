@@ -61,6 +61,7 @@ class StateGraph:
             func: Функция узла (async, принимает state, возвращает обновленный state)
         """
         self.nodes[name] = func
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"✅ Добавлен узел: {name}")
 
     def add_edge(self, from_node: str, to_node: str, condition: Optional[Callable] = None):
@@ -73,6 +74,7 @@ class StateGraph:
             condition: Условие перехода (опционально, принимает state, возвращает bool)
         """
         self.edges.append((from_node, to_node, condition))
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"✅ Добавлено ребро: {from_node} → {to_node}")
 
     def add_conditional_edges(
@@ -88,6 +90,7 @@ class StateGraph:
         """
         for key, to_node in edge_map.items():
             self.edges.append((from_node, to_node, lambda s, k=key: condition_func(s) == k))
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"✅ Добавлены условные ребра из {from_node}: {edge_map}")
 
     def set_entry_point(self, node_name: str):
@@ -95,6 +98,7 @@ class StateGraph:
         if node_name not in self.nodes:
             raise ValueError(f"Узел {node_name} не существует")
         self.entry_point = node_name
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"✅ Точка входа: {node_name}")
 
     async def run(self, initial_state: Optional[AgentState] = None) -> AgentState:
@@ -116,6 +120,7 @@ class StateGraph:
         current_node = self.entry_point
         state = initial_state
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 Запуск State Graph, начальный узел: {current_node}")
 
         visited = set()
@@ -126,18 +131,21 @@ class StateGraph:
             iteration += 1
 
             if current_node in visited:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Обнаружен цикл: {current_node}")
                 break
 
             visited.add(current_node)
 
             if current_node not in self.nodes:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Узел {current_node} не найден")
                 state.error = f"Узел {current_node} не найден"
                 break
 
             # Выполняем узел
             try:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🔄 Выполнение узла: {current_node}")
                 state.current_node = current_node
                 state.node_states[current_node] = NodeState.RUNNING
@@ -150,9 +158,11 @@ class StateGraph:
                 state = await node_func(state)
 
                 state.node_states[current_node] = NodeState.COMPLETED
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Узел {current_node} выполнен")
 
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка в узле {current_node}: {e}")
                 state.node_states[current_node] = NodeState.FAILED
                 state.error = str(e)
@@ -168,6 +178,7 @@ class StateGraph:
             current_node = next_node
 
         if iteration >= max_iterations:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Достигнут лимит итераций: {max_iterations}")
 
         return state
@@ -185,6 +196,7 @@ class StateGraph:
                         if condition(state):
                             candidates.append(to_node)
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.warning(f"⚠️ Ошибка в условии перехода: {e}")
 
         if len(candidates) == 0:
@@ -274,10 +286,13 @@ async def example_workflow():
     # Запускаем
     final_state = await graph.run(initial_state)
 
-    print("Финальное состояние:")
-    print(f"  Цель: {final_state.goal}")
-    print(f"  Результаты: {final_state.node_results}")
-    print(f"  Ошибка: {final_state.error}")
+    logger.info("Финальное состояние:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Цель: {final_state.goal}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Результаты: {final_state.node_results}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Ошибка: {final_state.error}")
 
 
 if __name__ == "__main__":

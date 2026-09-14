@@ -13,7 +13,7 @@ SERVICES = [
     "knowledge_os_dashboard.service",
     "knowledge_os_worker.service",
 ]
-TG_TOKEN = "8422371257:AAEwgSCvSv637QqDsi-EAayVYj8dsENsLbU"
+TG_TOKEN = ""
 CHAT_ID = 556251171
 LOG_PATH = "/root/knowledge_os/logs/guardian.log"
 

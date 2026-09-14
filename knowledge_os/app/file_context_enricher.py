@@ -64,6 +64,7 @@ class FileContextEnricher:
                 # Пробуем абсолютный путь
                 full_path = Path(file_path)
                 if not full_path.exists():
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"Файл не найден: {file_path}")
                     return None
 
@@ -79,10 +80,12 @@ class FileContextEnricher:
             with open(full_path, encoding="utf-8", errors="ignore") as f:
                 content = f.read()
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Файл прочитан: {file_path} ({len(content)} символов)")
             return content
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка чтения файла {file_path}: {e}")
             return None
 
@@ -120,6 +123,7 @@ class FileContextEnricher:
                 return header + content
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка chunking файла {file_path}: {e}")
             return f"⚠️ Ошибка чтения файла: {e}"
 
@@ -209,6 +213,7 @@ class FileContextEnricher:
 
         # Проверяем размер контекста
         if len(enriched) > MAX_CONTEXT_LENGTH:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"Контекст слишком большой ({len(enriched)} символов), обрезаем")
             # Обрезаем до MAX_CONTEXT_LENGTH
             enriched = enriched[:MAX_CONTEXT_LENGTH] + "\n\n[...контекст обрезан для экономии...]"

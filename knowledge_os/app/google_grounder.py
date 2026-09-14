@@ -50,6 +50,7 @@ class GoogleGrounder:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.get(url, params=params)
                 if resp.status_code != 200:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"[GoogleGrounder] API error: {resp.status_code}")
                     return await self._fallback_scrape(query)
 
@@ -66,6 +67,7 @@ class GoogleGrounder:
                     )
                 return results
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"[GoogleGrounder] Error: {e}")
             return await self._fallback_scrape(query)
 
@@ -85,6 +87,7 @@ class GoogleGrounder:
                 for r in results
             ]
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"[GoogleGrounder] Fallback failed: {e}")
             return []
 

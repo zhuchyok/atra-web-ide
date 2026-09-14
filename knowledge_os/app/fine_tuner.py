@@ -59,6 +59,7 @@ class FineTuner:
                 )
                 return resp.json()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"[FineTuner] OpenAI error: {e}")
             return {"error": str(e)}
 
@@ -67,8 +68,9 @@ class FineTuner:
         model_name: str,
         training_data: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        import httpx
         import json
+
+        import httpx
 
         try:
             async with httpx.AsyncClient(timeout=300.0) as client:
@@ -90,15 +92,19 @@ class FineTuner:
 
                 if resp.status_code == 200:
                     result = resp.json()
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"[FineTuner] MLX fine-tune started: {result.get('id')}")
                     return {"status": "started", "job_id": result.get("id"), "model": model_name}
                 else:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"[FineTuner] MLX fine-tune failed: {resp.status_code}")
                     return {"status": "error", "error": resp.text}
         except httpx.ConnectError:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"[FineTuner] Cannot connect to MLX at {self.mlx_url}")
             return {"status": "error", "message": "MLX not available"}
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"[FineTuner] MLX fine-tune error: {e}")
             return {"status": "error", "message": str(e)}
 
@@ -117,6 +123,7 @@ class FineTuner:
                 data = resp.json()
                 return data.get("data", [])
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"[FineTuner] List error: {e}")
             return []
 

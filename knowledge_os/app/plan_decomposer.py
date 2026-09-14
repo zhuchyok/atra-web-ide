@@ -61,6 +61,42 @@ class PlanDecomposer:
         )
         self.session_manager = session_manager
 
+    async def decompose(self, goal: str) -> List[str]:
+        """
+        Декомпозирует цель на подзадачи.
+
+        Args:
+            goal: Цель для декомпозиции
+
+        Returns:
+            List[str]: Список подзадач
+        """
+        if not goal or not goal.strip():
+            return []
+
+        # Простая эвристика: разбиваем по маркерам
+        subtasks = []
+        goal_lower = goal.lower()
+
+        # Разбиваем по союзам и маркерам
+        markers = [" и ", ", ", "а также", "плюс", "затем", "после этого"]
+        current = goal
+        for marker in markers:
+            if marker in current.lower():
+                parts = current.split(marker, 1)
+                if len(parts) == 2:
+                    subtasks.extend([p.strip() for p in parts if p.strip()])
+                    current = ""
+                    break
+
+        if not subtasks:
+            subtasks = [goal]
+
+        # Фильтруем слишком короткие подзадачи
+        subtasks = [t for t in subtasks if len(t) > 10]
+
+        return subtasks if len(subtasks) > 1 else [goal]
+
     async def decompose_master_plan(self, session_id: str) -> Dict[str, List[str]]:
         """
         Декомпозирует MASTER_PLAN на подпланы
@@ -94,6 +130,7 @@ class PlanDecomposer:
             conn.close()
 
             if not row:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [DECOMPOSER] MASTER_PLAN не найден для сессии {session_id}")
                 return {}
 
@@ -125,6 +162,7 @@ class PlanDecomposer:
 
             return decomposition_result
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [DECOMPOSER] Ошибка декомпозиции MASTER_PLAN: {e}")
             return {}
 
@@ -154,6 +192,7 @@ class PlanDecomposer:
 
             sections.append({"title": title, "content": content, "role_hint": role_hint})
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"📋 [DECOMPOSER] Распарсено {len(sections)} разделов")
 
         return sections
@@ -192,6 +231,7 @@ class PlanDecomposer:
             if get_mcts_planner and (
                 len(section_content) > 500 or "архитектур" in section_content.lower()
             ):
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🌳 [MCTS] Optimizing section: {section_title}")
                 mcts = get_mcts_planner()
                 optimized_steps = await mcts.plan(section_title, section_content)
@@ -210,6 +250,7 @@ class PlanDecomposer:
                         decomposition_prompt, expert_name=role_hint, category="strategy"
                     )
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ [DECOMPOSER] Ошибка генерации подплана через LLM: {e}")
                     # Fallback: создаем базовый подплан
                     subplan_markdown = self._generate_basic_subplan(
@@ -240,6 +281,7 @@ class PlanDecomposer:
 
             return [subplan_id]
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [DECOMPOSER] Ошибка декомпозиции раздела: {e}")
             return []
 

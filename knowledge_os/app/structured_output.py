@@ -6,7 +6,7 @@ Usage:
 
     output = StructuredOutput(TaskResult)
     result = await output.generate("Проанализируй задачу", context="...")
-    print(result.answer, result.confidence)
+    logger.info(result.answer, result.confidence)
 """
 
 import json
@@ -18,7 +18,7 @@ from pydantic import BaseModel, ValidationError
 logger = logging.getLogger(__name__)
 
 MLX_URL = os.getenv("MLX_API_URL", "http://localhost:11435")
-DEFAULT_MODEL = os.getenv("VICTORIA_MODEL", "victoria-wisdom-v3.5")
+DEFAULT_MODEL = os.getenv("VICTORIA_MODEL", "victoria-wisdom-24k")
 
 
 class StructuredOutputError(Exception):
@@ -67,7 +67,7 @@ IMPORTANT: Ответ ДОЛЖЕН быть валидным JSON по схем�
         context: Optional[str] = None,
         category: Optional[str] = None,
     ) -> BaseModel:
-        
+
         system_prompt = self._build_system_prompt()
         full_prompt = f"{system_prompt}\n\nКонтекст: {context or ''}\n\nЗапрос: {user_prompt}"
 
@@ -76,9 +76,11 @@ IMPORTANT: Ответ ДОЛЖЕН быть валидным JSON по схем�
                 response_text = await self._call_llm(full_prompt, category)
                 parsed = self._parse_json_response(response_text)
                 validated = self.schema(**parsed)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"[StructuredOutput] OK, attempt {attempt + 1}")
                 return validated
             except (ValidationError, json.JSONDecodeError) as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"[StructuredOutput] Attempt {attempt + 1} failed: {e}")
                 if attempt < self.max_retries - 1:
                     full_prompt += "\n\nПопробуй еще раз."
@@ -86,7 +88,7 @@ IMPORTANT: Ответ ДОЛЖЕН быть валидным JSON по схем�
         raise StructuredOutputError(f"Failed after {self.max_retries} attempts")
 
     async def _call_llm(self, prompt: str, category: Optional[str] = None) -> str:
-        
+
         url = MLX_URL.rstrip("/")
         is_mlx = "11435" in url
 

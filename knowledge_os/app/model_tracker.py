@@ -25,7 +25,7 @@ except ImportError:
                 pass
 
             async def notify_new_model(self, *args, **kwargs):
-                pass
+                logger.debug("ℹ️ notify_new_model() not implemented yet")
 
 
 logger = logging.getLogger(__name__)
@@ -54,6 +54,7 @@ class ModelTracker:
                     data = response.json()
                     return data.get("models", [])
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка получения моделей: {e}")
         return []
 
@@ -69,6 +70,7 @@ class ModelTracker:
                         if model.get("name") == model_name:
                             return model
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"Ошибка получения деталей модели {model_name}: {e}")
         return None
 
@@ -162,6 +164,7 @@ class ModelTracker:
                 existing["id"],
             )
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Обновлена информация о модели: {model_name}")
         else:
             # Создаем новую запись
@@ -177,6 +180,7 @@ class ModelTracker:
                 True,
             )
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✨ Добавлена новая модель в базу знаний: {model_name}")
 
     def _determine_model_category(self, model_name: str, details: Dict) -> str:
@@ -224,9 +228,11 @@ class ModelTracker:
             removed_models = self.last_known_models - current_models
 
             if new_models:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🆕 Обнаружены новые модели: {', '.join(new_models)}")
 
             if removed_models:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"⚠️ Модели удалены: {', '.join(removed_models)}")
 
             # Сохраняем все модели в базу знаний
@@ -254,9 +260,11 @@ class ModelTracker:
                 await conn.close()
 
             self.last_known_models = current_models
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Отслеживание моделей завершено. Всего моделей: {len(current_models)}")
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка отслеживания моделей: {e}", exc_info=True)
 
     async def _save_changes_summary(
@@ -309,6 +317,7 @@ class ModelTracker:
     async def run_continuous(self):
         """Запустить непрерывное отслеживание"""
         self._running = True
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 Запущено отслеживание моделей (интервал: {CHECK_INTERVAL} сек)")
 
         # Первая проверка сразу

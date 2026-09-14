@@ -96,6 +96,7 @@ class SemanticRouter:
                         await self.redis_manager.set_cache(cache_key, emb, ttl=604800)
                     return emb
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Embedding error: {e}")
         return None
 
@@ -144,6 +145,7 @@ class SemanticRouter:
                     best_category = cat
 
         if best_score >= self.threshold:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🎯 Routed to {best_category} (score: {best_score:.2f})")
 
             # [SINGULARITY 24.0] Predictive Context Prefetching
@@ -169,11 +171,12 @@ class SemanticRouter:
                             ]
                         )
                         await self.redis_manager.set_cache(
-                            f"prefetch:{hashlib.md5(query.encode()).hexdigest()}",
+                            f"prefetch:{hashlib.md5(query.encode('utf-8')).hexdigest()}",
                             prefetch_data,
                             ttl=300,
                         )
             except Exception as pe:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Predictive prefetch failed: {pe}")
 
             return best_category
@@ -198,8 +201,10 @@ if __name__ == "__main__":
         router = get_semantic_router()
         await router.warmup()
         res = await router.route("хай, виктория")
-        print(f"Result for 'хай, виктория': {res}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"Result for 'хай, виктория': {res}")
         res = await router.route("что ты умеешь делать?")
-        print(f"Result for 'что ты умеешь делать?': {res}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"Result for 'что ты умеешь делать?': {res}")
 
     asyncio.run(test())

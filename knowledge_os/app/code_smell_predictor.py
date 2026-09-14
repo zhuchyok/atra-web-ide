@@ -91,6 +91,7 @@ class CodeSmellPredictor:
                 "avg_function_length": avg_function_length,
             }
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error analyzing code complexity: {e}")
             return {
                 "cyclomatic_complexity": 0.0,
@@ -281,6 +282,7 @@ class CodeSmellPredictor:
                 )
                 return str(prediction_id) if prediction_id else None
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Error saving bug prediction: {e}")
                 return None
 
@@ -319,7 +321,11 @@ def complex_function(a, b, c, d, e):
     predictor = CodeSmellPredictor()
     prediction = predictor.predict_bugs("test.py", test_code)
 
-    print(f"File: {prediction.file_path}")
-    print(f"Bug Probability: {prediction.bug_probability:.2f}")
-    print(f"Likely Issues: {prediction.likely_issues}")
-    print(f"Risk Files: {prediction.risk_files}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"File: {prediction.file_path}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Bug Probability: {prediction.bug_probability:.2f}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Likely Issues: {prediction.likely_issues}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Risk Files: {prediction.risk_files}")

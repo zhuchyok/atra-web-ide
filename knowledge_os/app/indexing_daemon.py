@@ -49,11 +49,13 @@ class IndexingHandler(FileSystemEventHandler):
 
     def on_modified(self, event):
         if not event.is_directory and self._is_allowed(event.src_path):
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📝 Файл изменен: {event.src_path}")
             self.daemon.queue_file(event.src_path)
 
     def on_created(self, event):
         if not event.is_directory and self._is_allowed(event.src_path):
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🆕 Файл создан: {event.src_path}")
             self.daemon.queue_file(event.src_path)
 
@@ -93,6 +95,7 @@ class IndexingDaemon:
                         data = await resp.json()
                         return data.get("embedding")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка получения эмбеддинга: {e}")
         return None
 
@@ -117,10 +120,11 @@ class IndexingDaemon:
             if not content.strip():
                 return
 
-            content_hash = hashlib.md5(content.encode()).hexdigest()
+            content_hash = hashlib.md5(content.encode('utf-8')).hexdigest()
             if self.processed_hashes.get(path) == content_hash:
                 return  # Файл не изменился содержательно
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔍 Индексация: {path}")
             embedding = await self.get_embedding(content)
             if not embedding:
@@ -161,6 +165,7 @@ class IndexingDaemon:
                             project_slug = row["slug"]
                             break
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Project slug resolution: {e}")
 
                 import json as _json
@@ -196,11 +201,13 @@ class IndexingDaemon:
                 )
 
                 self.processed_hashes[path] = content_hash
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Проиндексирован: {path}")
             finally:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка индексации {path}: {e}")
 
     async def worker(self):
@@ -213,6 +220,7 @@ class IndexingDaemon:
 
     async def initial_scan(self):
         """Первоначальное сканирование всего проекта."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 Начало первичного сканирования: {WORKSPACE_ROOT}")
         skip_dirs = {
             ".git",

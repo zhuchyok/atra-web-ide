@@ -25,6 +25,16 @@ _client: Optional[httpx.AsyncClient] = None
 _lock = asyncio.Lock()
 
 
+def _http2_available() -> bool:
+    """Return True when optional http2 dependency is installed."""
+    try:
+        import h2  # type: ignore  # noqa: F401
+
+        return True
+    except Exception:
+        return False
+
+
 async def get_http_client(limits: Optional[httpx.Limits] = None) -> httpx.AsyncClient:
     """Ленивая инициализация общего клиента. Потокобезопасно."""
     global _client
@@ -32,11 +42,15 @@ async def get_http_client(limits: Optional[httpx.Limits] = None) -> httpx.AsyncC
         if _client is None or _client.is_closed:
             if _client is not None and _client.is_closed:
                 logger.debug("Shared HTTP client was closed, re-initializing")
+            use_http2 = _http2_available()
             _client = httpx.AsyncClient(
                 limits=limits or DEFAULT_LIMITS,
                 timeout=httpx.Timeout(10.0),
-                http2=True,  # [ATRA v1] HTTP/2: 30% latency reduction, 10x speedup от multiplexing
+                # Keep HTTP/2 optimization when h2 is available; otherwise fallback safely.
+                http2=use_http2,
             )
+            if not use_http2:
+                logger.info("Shared HTTP client: h2 not installed, using HTTP/1.1 fallback")
             logger.debug("Shared HTTP client initialized")
         return _client
 

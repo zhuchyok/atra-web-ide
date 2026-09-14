@@ -47,7 +47,7 @@ class EnhancedCache:
         """Генерация ключа кэша"""
         cache_data = {"method": method, "goal": goal, "context": context or {}}
         cache_str = json.dumps(cache_data, sort_keys=True)
-        return hashlib.sha256(cache_str.encode()).hexdigest()
+        return hashlib.sha256(cache_str.encode('utf-8')).hexdigest()
 
     async def get(
         self, method: str, goal: str, context: Optional[Dict] = None
@@ -60,6 +60,7 @@ class EnhancedCache:
             entry = self._cache[cache_key]
             if time.time() - entry["timestamp"] < self.ttl_seconds:
                 self._access_times[cache_key] = time.time()
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"✅ Cache hit: {method}")
                 return entry["result"]
             else:
@@ -73,11 +74,14 @@ class EnhancedCache:
                 prompt_key = f"{method}:{goal[:100]}"
                 cached = await self.prompt_cache.get_cached_response(prompt_key, "enhanced")
                 if cached:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"✅ PromptCache hit: {method}")
                     return json.loads(cached) if isinstance(cached, str) else cached
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"PromptCache check failed: {e}")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"❌ Cache miss: {method}")
         return None
 
@@ -103,6 +107,7 @@ class EnhancedCache:
                     prompt_key, "enhanced", json.dumps(result), ttl_seconds=self.ttl_seconds
                 )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"PromptCache save failed: {e}")
 
     def _evict_oldest(self):

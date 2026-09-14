@@ -31,7 +31,7 @@ class PromptCache:
     def _get_prompt_hash(self, prompt: str, model_name: str) -> str:
         """Создать хеш промпта"""
         content = f"{model_name}:{prompt}"
-        return hashlib.sha256(content.encode()).hexdigest()
+        return hashlib.sha256(content.encode('utf-8')).hexdigest()
 
     async def get_cached_response(self, prompt: str, model_name: str) -> Optional[str]:
         """
@@ -50,6 +50,7 @@ class PromptCache:
         if prompt_hash in self._memory_cache:
             cached = self._memory_cache[prompt_hash]
             if datetime.now(timezone.utc) - cached["timestamp"] < timedelta(hours=self.ttl_hours):
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"✅ [PROMPT CACHE] Memory hit: {prompt[:50]}...")
                 return cached["response"]
             else:
@@ -98,12 +99,14 @@ class PromptCache:
                         "timestamp": row["created_at"],
                     }
 
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ [PROMPT CACHE] DB hit: {prompt[:50]}...")
                     return response
 
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [PROMPT CACHE] Ошибка получения из БД: {e}")
 
         return None
@@ -159,11 +162,13 @@ class PromptCache:
                     response[:10000],
                 )  # Ограничиваем размер
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"💾 [PROMPT CACHE] Сохранен: {prompt[:50]}...")
 
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [PROMPT CACHE] Ошибка сохранения в БД: {e}")
 
     async def _create_cache_table(self, conn: asyncpg.Connection):
@@ -199,10 +204,12 @@ class PromptCache:
                     days,
                 )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🗑️ [PROMPT CACHE] Удалено старых записей: {deleted.split()[-1]}")
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [PROMPT CACHE] Ошибка очистки: {e}")
 
 
@@ -211,15 +218,16 @@ async def main():
     cache = PromptCache()
 
     # Проверяем кэш
-    cached = await cache.get_cached_response("Как работает система?", "qwen2.5-coder:32b")
+    cached = await cache.get_cached_response("Как работает система?", "qwen3-coder:30b")
 
     if cached:
-        print(f"✅ Найден в кэше: {cached[:100]}...")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"✅ Найден в кэше: {cached[:100]}...")
     else:
-        print("❌ Не найдено в кэше")
+        logger.info("❌ Не найдено в кэше")
         # Сохраняем ответ
         await cache.save_cached_response(
-            "Как работает система?", "qwen2.5-coder:32b", "Система работает следующим образом..."
+            "Как работает система?", "qwen3-coder:30b", "Система работает следующим образом..."
         )
 
 

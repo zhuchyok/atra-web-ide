@@ -24,6 +24,7 @@ class FederatedLearner:
     async def exchange_knowledge(self, node_name: str) -> List[Dict]:
         """Обмен знаниями между узлами"""
         # Заглушка - в будущем реализовать обмен distilled знаниями
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔄 [FEDERATED] Обмен знаниями для узла {node_name}")
         return []
 

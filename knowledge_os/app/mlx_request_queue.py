@@ -135,6 +135,7 @@ class MLXRequestQueue:
             return True, request_id, queue_position
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка добавления запроса в очередь: {e}")
             return False, request_id, None
 
@@ -194,6 +195,7 @@ class MLXRequestQueue:
                 asyncio.create_task(self._execute_request(request))
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка обработки очереди: {e}", exc_info=True)
         finally:
             self._processing = False
@@ -203,8 +205,9 @@ class MLXRequestQueue:
         """Выполнить запрос"""
         start_time = datetime.now()
         try:
-            # Выполняем callback
-            result = await request.callback()
+            # Выполняем callback с жёстким таймаутом: зависший LLM-вызов
+            # не должен навсегда занимать слот (max_concurrent=1 → дедлок).
+            result = await asyncio.wait_for(request.callback(), timeout=request.timeout)
 
             duration = (datetime.now() - start_time).total_seconds()
             logger.debug(
@@ -215,6 +218,14 @@ class MLXRequestQueue:
             self._stats["total_processed"] += 1
             return result
 
+        except asyncio.TimeoutError:
+            duration = (datetime.now() - start_time).total_seconds()
+            logger.error(
+                f"⏰ Запрос {request.request_id} превысил таймаут выполнения "
+                f"({request.timeout}с, фактически {duration:.2f}с) — слот освобождён"
+            )
+            self._stats["total_expired"] += 1
+            raise
         except Exception as e:
             duration = (datetime.now() - start_time).total_seconds()
             logger.error(
@@ -269,7 +280,7 @@ def get_request_queue() -> MLXRequestQueue:
     """Получить глобальный экземпляр очереди"""
     global _request_queue
     if _request_queue is None:
-        max_concurrent = int(os.getenv("MLX_MAX_CONCURRENT", "1"))
+        max_concurrent = int(os.getenv("MLX_MAX_CONCURRENT", "3"))
         max_queue = int(os.getenv("MLX_MAX_QUEUE_SIZE", "50"))
         _request_queue = MLXRequestQueue(max_concurrent=max_concurrent, max_queue_size=max_queue)
         logger.info(

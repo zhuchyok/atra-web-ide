@@ -698,7 +698,7 @@ class BlackboardService:
             "data": evidence,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
-        
+
         client = await self.redis.get_client()
         # Semantic Locking: Check for contradictions (simplified version)
         # In a real system, this would use an LLM to check against previous entries

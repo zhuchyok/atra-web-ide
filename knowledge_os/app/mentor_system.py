@@ -82,6 +82,7 @@ class MentorSystem:
             conn = await asyncpg.connect(self.db_url)
             return conn
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [MENTOR SYSTEM] Ошибка подключения к БД: {e}")
             return None
 
@@ -177,6 +178,7 @@ class MentorSystem:
             return rating
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [MENTOR SYSTEM] Ошибка расчета рейтинга для {agent_id}: {e}")
             return None
         finally:
@@ -226,11 +228,13 @@ class MentorSystem:
                 )
 
                 if not mentors:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"⚠️ [MENTOR SYSTEM] Ментор не найден для {mentee_id}")
                     return None
 
                 # Выбираем лучшего ментора (с наивысшим mentorship_score)
                 best_mentor = mentors[0]["agent_id"]
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [MENTOR SYSTEM] Найден ментор {best_mentor} для {mentee_id}")
                 return best_mentor
 
@@ -238,6 +242,7 @@ class MentorSystem:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [MENTOR SYSTEM] Ошибка поиска ментора для {mentee_id}: {e}")
             return None
 
@@ -257,12 +262,14 @@ class MentorSystem:
             if not mentor_id:
                 mentor_id = await self.find_mentor_for_agent(mentee_id)
                 if not mentor_id:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ [MENTOR SYSTEM] Не удалось найти ментора для {mentee_id}")
                     return False
 
             # Проверяем, нет ли уже активного ментора
             existing = await self.get_active_mentor(mentee_id)
             if existing:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"ℹ️ [MENTOR SYSTEM] У {mentee_id} уже есть ментор {existing.mentor_id}")
                 return True
 
@@ -307,6 +314,7 @@ class MentorSystem:
                 # Обновляем кэш
                 self._assignments_cache[f"{mentor_id}:{mentee_id}"] = assignment
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [MENTOR SYSTEM] Ментор {mentor_id} назначен для {mentee_id}")
                 return True
 
@@ -314,6 +322,7 @@ class MentorSystem:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [MENTOR SYSTEM] Ошибка назначения ментора: {e}")
             return False
 
@@ -375,6 +384,7 @@ class MentorSystem:
             return None
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [MENTOR SYSTEM] Ошибка получения ментора для {mentee_id}: {e}")
             return None
         finally:
@@ -440,6 +450,7 @@ class MentorSystem:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [MENTOR SYSTEM] Ошибка передачи рекомендации: {e}")
             return False
 
@@ -509,6 +520,7 @@ class MentorSystem:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [MENTOR SYSTEM] Ошибка получения статистики: {e}")
             return {}
 

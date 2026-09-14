@@ -107,6 +107,7 @@ class SelfLearningAgent:
         # Сохраняем в БД
         await self._save_tasks_to_db(tasks)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Сгенерировано {len(tasks)} задач")
 
         return tasks
@@ -126,6 +127,7 @@ class SelfLearningAgent:
             agent_name=self.agent_name,
         )
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🎓 [{self.agent_name}] Начинаю обучение на {len(tasks)} задачах")
 
         for task in tasks:
@@ -142,6 +144,7 @@ class SelfLearningAgent:
             # Self-reward: генерируем награду на основе результата
             reward = await self._generate_reward(task, result, performance)
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📊 Задача {task.task_id}: performance={performance:.2f}, reward={reward}")
 
         # Вычисляем общий improvement score
@@ -152,6 +155,7 @@ class SelfLearningAgent:
         self.learning_history.append(session)
         await self._save_session_to_db(session)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Обучение завершено, improvement score: {session.improvement_score:.2f}")
 
         return session
@@ -166,6 +170,7 @@ class SelfLearningAgent:
         Returns:
             Адаптации и улучшения
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔄 [{self.agent_name}] Адаптация на основе обучения...")
 
         # Анализируем слабые места
@@ -177,6 +182,7 @@ class SelfLearningAgent:
         # Применяем адаптации
         adaptations = await self._apply_adaptations(improvements)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Адаптация завершена: {len(adaptations)} улучшений")
 
         return {
@@ -193,9 +199,11 @@ class SelfLearningAgent:
         Args:
             iterations: Количество итераций
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔄 [{self.agent_name}] Запуск непрерывного обучения ({iterations} итераций)")
 
         for i in range(iterations):
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"\n--- Итерация {i + 1}/{iterations} ---")
 
             # 1. Генерируем задачи
@@ -393,6 +401,7 @@ class SelfLearningAgent:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Ошибка сохранения задач: {e}")
 
     async def _save_session_to_db(self, session: LearningSession):
@@ -427,6 +436,7 @@ class SelfLearningAgent:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Ошибка сохранения сессии: {e}")
 
     async def _generate_response(self, prompt: str, max_tokens: int = 2048) -> str:
@@ -448,9 +458,11 @@ class SelfLearningAgent:
                 if response.status_code == 200:
                     return response.json().get("response", "")
                 else:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"Ошибка генерации: {response.status_code}")
                     return ""
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка запроса к модели: {e}")
             return ""
 
@@ -468,10 +480,13 @@ async def main():
     # Адаптируемся
     adaptations = await agent.adapt_from_learning(session)
 
-    print("Результаты обучения:")
-    print(f"  Improvement score: {session.improvement_score:.2f}")
-    print(f"  Weak areas: {adaptations['weak_areas']}")
-    print(f"  Improvements: {adaptations['improvements'][:3]}")
+    logger.info("Результаты обучения:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Improvement score: {session.improvement_score:.2f}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Weak areas: {adaptations['weak_areas']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Improvements: {adaptations['improvements'][:3]}")
 
 
 if __name__ == "__main__":

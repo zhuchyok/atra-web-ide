@@ -74,6 +74,7 @@ class AdaptiveAgent:
 
         self.adaptation_history.append(adaptation)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔄 Адаптация: exploration_rate = {self.rl.exploration_rate:.3f}")
 
         return adaptation
@@ -147,6 +148,7 @@ class AdaptiveAgent:
         action = await self.rl.select_action(state, available_actions, context)
 
         # Логируем выбор
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"🎯 Адаптивный выбор: {action} для состояния {state}")
 
         return action

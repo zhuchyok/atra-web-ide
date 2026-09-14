@@ -83,12 +83,14 @@ class CodeValidator:
 
             if critical_missing:
                 msg = f"Критическая ошибка: Использованы, но не импортированы: {', '.join(critical_missing)}"
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"CodeValidator: {msg} in {filename}")
                 return {"success": False, "error": msg, "type": "ImportError"}
 
             return {"success": True}
 
         except SyntaxError as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"CodeValidator: SyntaxError in {filename}: {e.msg} at line {e.lineno}")
             return {
                 "success": False,
@@ -98,6 +100,7 @@ class CodeValidator:
                 "type": "SyntaxError",
             }
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.exception(f"CodeValidator: Непредвиденная ошибка при валидации {filename}")
             return {
                 "success": False,

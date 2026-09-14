@@ -130,9 +130,12 @@ class SkillRegistry:
         self.skills_by_category: Dict[str, List[Skill]] = {}
 
         logger.info("✅ Skill Registry инициализирован")
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"   Bundled: {self.bundled_skills_dir}")
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"   Managed: {self.managed_skills_dir}")
         if self.workspace_skills_dir:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"   Workspace: {self.workspace_skills_dir}")
 
     def _parse_skill_metadata(self, skill_path: Path) -> Optional[SkillMetadata]:
@@ -146,12 +149,14 @@ class SkillRegistry:
 
             # Парсим YAML frontmatter
             if not content.startswith("---"):
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ SKILL.md не начинается с YAML frontmatter: {skill_path}")
                 return None
 
             # Извлекаем frontmatter
             parts = content.split("---", 2)
             if len(parts) < 3:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Неверный формат SKILL.md: {skill_path}")
                 return None
 
@@ -170,7 +175,7 @@ class SkillRegistry:
                     if key == "metadata":
                         try:
                             metadata_dict["metadata_json"] = json.loads(value)
-                        except:
+                        except Exception:
                             pass
                     else:
                         metadata_dict[key] = value
@@ -203,6 +208,7 @@ class SkillRegistry:
                 command_tool=metadata_dict.get("command-tool"),
             )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка парсинга SKILL.md {skill_path}: {e}")
             return None
 
@@ -219,6 +225,7 @@ class SkillRegistry:
             if isinstance(bins, list):
                 for bin_name in bins:
                     if not self._check_bin_exists(bin_name):
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"⚠️ Skill {metadata.name} требует bin: {bin_name} (не найден)")
                         return False
 
@@ -255,6 +262,7 @@ class SkillRegistry:
 
         # Проверяем gating
         if not self._check_gating(metadata):
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ Skill {metadata.name} не прошел gating, пропускаем")
             return None
 
@@ -264,6 +272,7 @@ class SkillRegistry:
             parts = content.split("---", 2)
             instructions = parts[2].strip() if len(parts) >= 3 else ""
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка чтения инструкций: {e}")
             instructions = ""
 
@@ -300,6 +309,7 @@ class SkillRegistry:
             if not skills_dir or not skills_dir.exists():
                 continue
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📂 Загрузка skills из: {skills_dir}")
 
             # Рекурсивный поиск SKILL.md
@@ -317,8 +327,10 @@ class SkillRegistry:
                             self.skills_by_category[category] = []
                         self.skills_by_category[category].append(skill)
 
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"✅ Skill загружен: {skill.name} ({source.value})")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📊 Всего загружено skills: {len(self.skills)}")
 
     def register_skill(self, skill: Skill):
@@ -331,6 +343,7 @@ class SkillRegistry:
             self.skills_by_category[category] = []
         self.skills_by_category[category].append(skill)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Skill зарегистрирован: {skill.name}")
 
     def get_skill(self, name: str) -> Optional[Skill]:
@@ -384,7 +397,9 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     registry = get_skill_registry()
-    print(f"\n📊 Статистика: {registry.get_stats()}")
-    print("\n📋 Skills:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n📊 Статистика: {registry.get_stats()}")
+    logger.info("\n📋 Skills:")
     for skill in registry.list_skills():
-        print(f"  - {skill.name}: {skill.description} ({skill.source.value})")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"  - {skill.name}: {skill.description} ({skill.source.value})")

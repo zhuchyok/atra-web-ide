@@ -10,9 +10,9 @@ class ResourceGuard:
     [SINGULARITY 21.25] Global Resource Controller.
     Coordinates autonomous tasks based on Mac Studio hardware load.
     """
-    
-    def __init__(self, 
-                 ram_threshold_pct: float = 85.0, 
+
+    def __init__(self,
+                 ram_threshold_pct: float = 85.0,
                  cpu_threshold_pct: float = 75.0,
                  thermal_threshold: int = 1):
         self.ram_threshold = ram_threshold_pct

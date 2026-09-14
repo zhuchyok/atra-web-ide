@@ -185,6 +185,7 @@ async def _collect_by_department_heads_enhanced(
         # Получаем Department Head
         dept_head = await self._get_department_head(department)
         if not dept_head:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Department Head не найден для '{department}'")
             # Реальная обработка без Department Head - используем Victoria для синтеза
             try:
@@ -212,6 +213,7 @@ async def _collect_by_department_heads_enhanced(
                     "synthesized": True,
                 }
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка синтеза через Victoria: {e}")
                 # Только в крайнем случае - простое агрегирование
                 department_syntheses[department] = {
@@ -276,6 +278,7 @@ async def _collect_by_department_heads_enhanced(
             )
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка синтеза отдела '{department}': {e}")
             # Fallback
             department_syntheses[department] = {
@@ -309,6 +312,7 @@ async def _get_department_head(self, department: str) -> Optional[Dict]:
             finally:
                 await conn.close()
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"⚠️ Не удалось получить Department Head из БД: {e}")
 
     # Реальный поиск через department_heads_system
@@ -341,6 +345,7 @@ async def _get_department_head(self, department: str) -> Optional[Dict]:
             # Если не найден в БД, возвращаем базовую информацию
             return {"name": head_name, "department": department, "role": "Department Head"}
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"⚠️ Ошибка получения Department Head из системы: {e}")
 
     return None
@@ -385,14 +390,14 @@ def _parse_synthesis_result(self, synthesis_result: Any) -> Dict:
     if achievements_match:
         try:
             result["key_achievements"] = json.loads(f"[{achievements_match.group(1)}]")
-        except:
+        except Exception:
             pass
 
     files_match = re.search(r'"files_created":\s*\[(.*?)\]', synthesis_text, re.DOTALL)
     if files_match:
         try:
             result["files_created"] = json.loads(f"[{files_match.group(1)}]")
-        except:
+        except Exception:
             pass
 
     return result

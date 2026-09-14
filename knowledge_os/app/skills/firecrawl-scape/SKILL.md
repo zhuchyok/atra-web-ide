@@ -6,6 +6,7 @@ description: Веб-скрапінг та збір даних. Використ�
 # Firecrawl Skill
 
 ## Когда использовать
+
 - Сбор контента с веб-сайтов
 - Извлечение структурированных данных
 - Парсинг таблиц и списков
@@ -13,6 +14,7 @@ description: Веб-скрапінг та збір даних. Використ�
 - Сбор ценовой информации
 
 ## Установка
+
 ```bash
 pip install firecrawl
 ```
@@ -20,6 +22,7 @@ pip install firecrawl
 ## Использование
 
 ### CLI
+
 ```bash
 # Простой scrape
 firecrawl https://example.com
@@ -32,6 +35,7 @@ firecrawl https://example.com --format json
 ```
 
 ### Python API
+
 ```python
 from firecrawl import Firecrawl
 
@@ -43,6 +47,7 @@ print(result.markdown)
 ## Особенности
 
 ### Что делает хорошо
+
 - JavaScript рендеринг
 - Cloudflare绕过
 - Структурированный вывод
@@ -50,11 +55,13 @@ print(result.markdown)
 - JSON Schema
 
 ### Что не делает
+
 - Не логинится (нужен отдельный код)
 - Не делает скриншоты
 - Ограниченная скорость
 
 ## Output форматы
+
 - **Markdown** - для контента
 - **JSON** - для данных
 - **HTML** - для анализа
@@ -62,16 +69,19 @@ print(result.markdown)
 ## Примеры
 
 ### Продуктовый анализ
+
 ```bash
 firecrawl https://shop.com/products --crawl --max 20
 ```
 
 ### Job listings
+
 ```bash
 firecrawl https://careers.example.com/jobs --json
 ```
 
 ###Pricing
+
 ```bash
 firecrawl https://pricing.example.com --format json
 ```

@@ -21,18 +21,28 @@ except ImportError:
     web = None
 
 try:
-    from prometheus_client import Counter, Gauge, Histogram
+    from prometheus_client import Counter, Gauge, Histogram, REGISTRY
 
     _PROMETHEUS_AVAILABLE = True
 except ImportError:
     _PROMETHEUS_AVAILABLE = False
     Counter = Histogram = Gauge = None
+    REGISTRY = None
 
 logger = logging.getLogger(__name__)
 _LOCAL_ROUTER_FACTORY_CACHE = None
 _last_success_ts = 0
 
 if _PROMETHEUS_AVAILABLE:
+    def _get_or_create_gauge(name: str, description: str, labelnames: list[str]):
+        try:
+            return Gauge(name, description, labelnames)
+        except ValueError:
+            existing = getattr(REGISTRY, "_names_to_collectors", {}).get(name)
+            if existing is not None:
+                return existing
+            raise
+
     _smart_worker_tasks_total = Counter(
         "smart_worker_tasks_total", "Total tasks processed by smart worker", ["status"]
     )
@@ -41,6 +51,16 @@ if _PROMETHEUS_AVAILABLE:
     )
     _smart_worker_active = Gauge(
         "smart_worker_active_tasks", "Number of active tasks being processed by smart worker"
+    )
+    _smart_worker_group_lag = _get_or_create_gauge(
+        "smart_worker_stream_group_lag",
+        "Redis stream group lag for smart worker monitored streams",
+        ["stream_name", "group_name"],
+    )
+    _smart_worker_group_pending = _get_or_create_gauge(
+        "smart_worker_stream_group_pending",
+        "Redis stream group pending count for smart worker monitored streams",
+        ["stream_name", "group_name"],
     )
 
 
@@ -97,7 +117,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     import asyncpg
 except ImportError:
-    print(
+    logger.info(
         "Установите зависимости: bash knowledge_os/scripts/setup_knowledge_os.sh (или pip install -r knowledge_os/requirements.txt)",
         file=sys.stderr,
     )
@@ -219,6 +239,7 @@ async def escalate_task_to_board(
             return result.get("directive_text") or result.get("directive") or None
         return None
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"Board escalation failed for task {task_id}: {e}")
         return None
 
@@ -290,11 +311,17 @@ async def process_batch_tasks(pool, tasks: list):
             async with pool.acquire() as conn:
                 for t, result in zip(tasks, parsed):
                     await conn.execute(
-                        "UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW() WHERE id = $1",
+                        "UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(), "
+                        "completed_at = COALESCE(completed_at, NOW()), "
+                        "metadata = COALESCE(metadata, '{}'::jsonb) || "
+                        "jsonb_build_object('task_contract_version', 'smart_worker_v1', "
+                        "'task_contract_output_schema', 'free_text') "
+                        "WHERE id = $1",
                         t["id"],
                         result,
                     )
-                print(f"[{datetime.now()}] ✅ Batch completed: {len(tasks)} tasks (batch_group)")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"[{datetime.now()}] ✅ Batch completed: {len(tasks)} tasks (batch_group)")
                 return True
     except Exception as e:
         logger.debug("Batch LLM failed, falling back to individual: %s", e)
@@ -418,6 +445,94 @@ def _fast_file_check_from_task(task: dict) -> str | None:
     return None
 
 
+def _is_method_only_text(text: str) -> bool:
+    if not text:
+        return False
+    lines = [ln.strip() for ln in str(text).splitlines() if ln.strip()]
+    if not lines:
+        return False
+    boilerplate_re = re.compile(
+        r"(метод cursor|факты до вывода|не говори|не выдумывай|"
+        r"корень,\s*не\s*сим|вывод команды,\s*тест,\s*health|"
+        r"уроки домена|если канала/данных нет|твоя роль:|"
+        r"задача от team lead victoria|выполни свою часть работы)",
+        re.IGNORECASE,
+    )
+    norm_lines = [re.sub(r"^[0-9]+[.)]?\s*", "", ln).strip() for ln in lines]
+    boilerplate_lines = [ln for ln in norm_lines if boilerplate_re.search(ln)]
+    if not boilerplate_lines:
+        return False
+    meaningful = [ln for ln in norm_lines if ln and not boilerplate_re.search(ln)]
+    # Treat tiny punctuation leftovers as non-meaningful noise.
+    meaningful = [ln for ln in meaningful if len(re.sub(r"[\W_]+", "", ln, flags=re.UNICODE)) > 6]
+    return len(meaningful) == 0
+
+
+def _is_simple_direct_delegation_text(text: str) -> bool:
+    if not text:
+        return False
+    t = str(text).strip().lower()
+    if not t:
+        return False
+    heavy_markers = (
+        "проверь файл",
+        "check file",
+        "аудит",
+        "audit",
+        "исслед",
+        "research",
+        "deep",
+        "почини",
+        "fix",
+        "создай файл",
+        "edit file",
+        "docker",
+        "миграц",
+        "refactor",
+    )
+    if any(m in t for m in heavy_markers):
+        return False
+    simple_patterns = (
+        r"напиши\s+одн\w*\s+строк\w*.*python",
+        r"вывод\s+текущ\w*\s+дат\w*",
+        r"\bhello(?:\s*,?\s*world)?\b",
+        r"назови\s+только\s+число",
+        r"сколько\s+эксперт\w*",
+        r"выведи\s+список\s+файл\w*",
+        r"список\s+файл\w*.*до\s+\d+",
+        r"статус\s+health.*одной\s+строк\w*",
+        r"кратк\w*\s+чеклист\w*.*\d+\s+пункт",
+        r"чеклист\w*.*runtime.*очеред",
+    )
+    return any(re.search(p, t, re.IGNORECASE) for p in simple_patterns)
+
+
+def _fast_skip_method_only_delegation(task: dict) -> str | None:
+    meta = task.get("metadata") or {}
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except Exception:
+            meta = {}
+    if not isinstance(meta, dict):
+        meta = {}
+
+    source = str(meta.get("source") or "")
+    title = str(task.get("title") or "")
+    if source != "victoria_monster_delegation" or not title.startswith("🤖 Делегировано:"):
+        return None
+
+    description = str(task.get("description") or "")
+    goal = str(task.get("goal") or "")
+    if not goal.strip() and not description.strip():
+        return "SKIPPED: empty delegation payload (no goal/description)"
+    if _is_method_only_text(description) or _is_method_only_text(goal):
+        return "SKIPPED: no actionable goal after method boilerplate normalization"
+    if _is_simple_direct_delegation_text(description) or _is_simple_direct_delegation_text(goal):
+        return "SKIPPED: simple direct goal should be handled by Victoria directly"
+    return None
+
+
 async def process_task(pool, task):
     global _last_success_ts
     task_id = task["id"]
@@ -427,36 +542,61 @@ async def process_task(pool, task):
     task_category = task.get("_effective_category", "default")
     task_start_time = time.perf_counter()
 
+    active_metric_counted = False
     if _PROMETHEUS_AVAILABLE:
         _smart_worker_active.inc()
+        active_metric_counted = True
+
+    def _release_active_metric():
+        nonlocal active_metric_counted
+        if _PROMETHEUS_AVAILABLE and active_metric_counted:
+            _smart_worker_active.dec()
+            active_metric_counted = False
 
     # ─── FAST PATH: тривиальные file_check задачи — без LLM, за <1ms ───────────
+    skip_result = _fast_skip_method_only_delegation(task)
+    if skip_result is not None:
+        try:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE tasks SET status='completed', result=$1, updated_at=NOW(), completed_at=NOW(), "
+                    "last_real_progress_at=NOW(), "
+                    "metadata = COALESCE(metadata, '{}'::jsonb) || "
+                    "jsonb_build_object('completion_reason', 'delegation_fast_skipped', "
+                    "'manual_cancel_reason', '', 'failed_requires_intervention', false, "
+                    "'task_contract_version', 'smart_worker_v1', "
+                    "'task_contract_output_schema', 'free_text') "
+                    "WHERE id=$2",
+                    skip_result,
+                    task_id,
+                )
+        except Exception as db_err:
+            # TODO: Convert f-string to %s formatting for performance
+            logger.error(f"Failed to save method-only skip result for {task_id}: {db_err}")
+        _release_active_metric()
+        return
+
     fast_result = _fast_file_check_from_task(task)
     if fast_result is not None:
         # [SINGULARITY 29.0] Guaranteed DB persistence
         try:
             async with pool.acquire() as conn:
                 await conn.execute(
-                    "UPDATE tasks SET status='completed', result=$1, updated_at=NOW(), completed_at=NOW(), last_real_progress_at=NOW() WHERE id=$2",
+                    "UPDATE tasks SET status='completed', result=$1, updated_at=NOW(), completed_at=NOW(), "
+                    "last_real_progress_at=NOW(), "
+                    "metadata = COALESCE(metadata, '{}'::jsonb) || "
+                    "jsonb_build_object('task_contract_version', 'smart_worker_v1', "
+                    "'task_contract_output_schema', 'free_text') "
+                    "WHERE id=$2",
                     fast_result,
                     task_id,
                 )
         except Exception as db_err:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to save fast-path result for {task_id}: {db_err}")
 
-        # [SINGULARITY 29.1] Episodic Journaling (Fast Path)
-        try:
-            journal_mgr = ExpertJournalManager(pool)
-            await journal_mgr.add_entry(
-                expert_id=task.get("assignee_expert_id"),
-                task_id=task_id,
-                summary=f"Fast-path file check: {task_title}",
-                learnings=f"Result: {fast_result}",
-                importance=3,
-                metadata={"execution_mode": "fast_path"},
-            )
-        except Exception as j_err:
-            logger.debug(f"Journaling failed for fast-path {task_id}: {j_err}")
+        # Fast-path не пишем в журнал: это шум, не опыт эксперта.
+        _release_active_metric()
         return
     # ─────────────────────────────────────────────────────────────────────────────
 
@@ -465,7 +605,7 @@ async def process_task(pool, task):
 
     trace_id = f"trace_{uuid.uuid4().hex[:12]}"
 
-    print(
+    logger.info(
         f"[{datetime.now()}] [TRACE:{trace_id}] Expert {expert_name} processing: {task_title} [Source: {preferred_source or 'auto'}]"
     )
 
@@ -494,6 +634,7 @@ async def process_task(pool, task):
                 heartbeat_stopped = True
                 break
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Heartbeat error for task {task_id}: {e}")
                 # Продолжаем работу даже при ошибке heartbeat
                 try:
@@ -540,9 +681,10 @@ async def process_task(pool, task):
 
             # Если задача уже обрабатывается (не обновилась), пропускаем
             if result == "UPDATE 0":
-                print(
+                logger.info(
                     f"[{datetime.now()}] Task {task_id} already being processed or recently updated, skipping..."
                 )
+                _release_active_metric()
                 return
 
             try:
@@ -560,6 +702,7 @@ async def process_task(pool, task):
                     "UPDATE tasks SET status = 'failed', result = 'Expert not found', updated_at = NOW() WHERE id = $1",
                     task_id,
                 )
+                _release_active_metric()
                 return
 
             # Auto-inject assigned skills + dynamic expert context into runtime prompt.
@@ -601,6 +744,7 @@ async def process_task(pool, task):
                             keywords=keywords,
                         ),
                     )
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ Задача {task_id} обогащена контекстом файла: {file_path}")
                 elif task_metadata.get("file_paths"):
                     file_paths = task_metadata.get("file_paths", [])
@@ -646,6 +790,7 @@ async def process_task(pool, task):
                     sys.path.insert(0, os.path.dirname(__file__))
                     from scout_task_processor import process_scout_task
 
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🕵️ Обработка задачи разведки: {task['title']}")
                     scout_result = await process_scout_task(task_metadata, task_description)
 
@@ -655,15 +800,24 @@ async def process_task(pool, task):
                             # [SINGULARITY 31.2] Update last success timestamp for cognitive health
                             _last_success_ts = int(time.time())
                             await conn.execute(
-                                "UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW() WHERE id = $1",
+                                "UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(), "
+                                "completed_at = COALESCE(completed_at, NOW()), "
+                                "metadata = COALESCE(metadata, '{}'::jsonb) || "
+                                "jsonb_build_object('task_contract_version', 'smart_worker_v1', "
+                                "'task_contract_output_schema', 'free_text') "
+                                "WHERE id = $1",
                                 task_id,
                                 scout_result,
                             )
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ Задача разведки {task_id} завершена: {scout_result[:100]}...")
+                    _release_active_metric()
                     return  # Выходим, не вызывая LLM
                 except ImportError as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"scout_task_processor недоступен ({e}), обрабатываем через LLM")
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"Ошибка обработки задачи разведки: {e}, обрабатываем через LLM")
                     import traceback
 
@@ -739,6 +893,7 @@ async def process_task(pool, task):
                     expert_config["id"], f"{task_title} {task_description}"
                 )
             except Exception as m_err:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Memory recall failed: {m_err}")
 
             if _task_needs_web_search(task["title"], task_description):
@@ -777,7 +932,12 @@ async def process_task(pool, task):
                                 # [SINGULARITY 31.2] Update last success timestamp for cognitive health
                                 _last_success_ts = int(time.time())
                                 await conn.execute(
-                                    "UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW() WHERE id = $1",
+                                    "UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(), "
+                                    "completed_at = COALESCE(completed_at, NOW()), "
+                                    "metadata = COALESCE(metadata, '{}'::jsonb) || "
+                                    "jsonb_build_object('task_contract_version', 'smart_worker_v1', "
+                                    "'task_contract_output_schema', 'free_text') "
+                                    "WHERE id = $1",
                                     task_id,
                                     result_text,
                                 )
@@ -789,10 +949,13 @@ async def process_task(pool, task):
                                     "UPDATE tasks SET status = 'failed', result = 'Симуляция выполнена, но результат не записан', updated_at = NOW() WHERE id = $1",
                                     task_id,
                                 )
+                        _release_active_metric()
                         return
                     except ImportError as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.warning(f"simulator недоступен ({e}), обрабатываем через LLM")
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.error(f"Ошибка симуляции #{sim_id}: {e}", exc_info=True)
                         async with pool.acquire() as conn:
                             await conn.execute(
@@ -800,6 +963,7 @@ async def process_task(pool, task):
                                 task_id,
                                 f"Ошибка симуляции: {str(e)}",
                             )
+                        _release_active_metric()
                         return
 
             prompt = f"""{expert_config["system_prompt"]}
@@ -844,6 +1008,7 @@ DESC: {task_description}
             if hasattr(ai_core, "_current_router"):
                 setattr(ai_core, "_current_router", router_instance)
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Could not set preferred source/model: {e}")
 
     if router_instance:
@@ -948,6 +1113,7 @@ DESC: {task_description}
                         task_id,
                     )
             except Exception as _lm_err:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"[LLM_CALL_MARK] smart_worker: failed for {task_id}: {_lm_err}")
             report = await asyncio.wait_for(
                 run_cursor_agent_smart(prompt, expert_name, router=router_instance),
@@ -955,11 +1121,13 @@ DESC: {task_description}
             )
         except asyncio.TimeoutError:
             _last_failure_reason = "timeout"
-            print(f"[{datetime.now()}] ⏱️ Task {task_id} timed out after {llm_timeout}s")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"[{datetime.now()}] ⏱️ Task {task_id} timed out after {llm_timeout}s")
             report = None
         except Exception as e:
             _last_failure_reason = str(e)[:500]
-            print(f"[{datetime.now()}] Error calling agent for task {task_id}: {e}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"[{datetime.now()}] Error calling agent for task {task_id}: {e}")
             import traceback
 
             traceback.print_exc()
@@ -1030,7 +1198,7 @@ DESC: {task_description}
             return
 
         # Логируем ответ для отладки
-        print(
+        logger.info(
             f"[{datetime.now()}] Agent response for task {task_id} (length: {len(report) if report else 0}): {report[:100] if report else 'None'}..."
         )
 
@@ -1054,7 +1222,7 @@ DESC: {task_description}
                         )
                         if metadata and metadata.get("used_model"):
                             used_model = metadata["used_model"]
-                except:
+                except Exception:
                     pass
 
                 # Записываем попытку (латентность от начала обработки до получения ответа)
@@ -1102,12 +1270,13 @@ DESC: {task_description}
                             str(next_model) if next_model else "",
                             backoff_seconds,
                         )
-                    print(
+                    logger.info(
                         f"[{datetime.now()}] 🔄 Task {task_id} reverted to PENDING for model upgrade "
                         f"to {next_model} (retry_after={backoff_seconds}s)"
                     )
                     return  # Прекращаем текущую обработку, так как задача ушла на апгрейд
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Model performance tracking failed: {e}")
 
         # Проверяем, что ответ не является сообщением об ошибке или пустым (Singularity 24.3 Fix)
@@ -1154,7 +1323,7 @@ DESC: {task_description}
         if is_error:
             # Безопасное логирование ошибки (Singularity 24.3 Fix)
             error_preview = report[:150] if report and isinstance(report, str) else "None/Empty"
-            print(
+            logger.info(
                 f"[{datetime.now()}] ⚠️ Agent returned error for task {task_id}: {error_preview}..."
             )
 
@@ -1214,7 +1383,7 @@ DESC: {task_description}
                             db_status,
                             json.dumps(meta_patch),
                         )
-                    print(
+                    logger.info(
                         f"[{datetime.now()}] {'✅' if db_status == 'completed' else '⚠️'} "
                         f"Task {task_id} rule_executor → {db_status} "
                         f"(degraded={meta_patch.get('quality_degraded')})"
@@ -1250,14 +1419,19 @@ DESC: {task_description}
                         """
                         UPDATE tasks
                         SET status = 'completed', result = $2, updated_at = NOW(),
+                            completed_at = COALESCE(completed_at, NOW()),
                             metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+                                || jsonb_build_object(
+                                    'task_contract_version', 'smart_worker_v1',
+                                    'task_contract_output_schema', 'free_text'
+                                )
                         WHERE id = $1
                     """,
                         task_id,
                         final_result,
                         meta_escalation,
                     )
-                print(
+                logger.info(
                     f"[{datetime.now()}] ✅ Task {task_id} completed with board escalation (attempt {attempt_count})"
                 )
                 return
@@ -1276,7 +1450,7 @@ DESC: {task_description}
                             )
                             if metadata and metadata.get("used_model"):
                                 used_model = metadata["used_model"]
-                    except:
+                    except Exception:
                         pass
 
                     latency_ms_fail = int((time.perf_counter() - t_start) * 1000)
@@ -1328,12 +1502,13 @@ DESC: {task_description}
                                 str(next_model),
                                 backoff_seconds,
                             )
-                        print(
+                        logger.info(
                             f"[{datetime.now()}] 🔄 Task {task_id} upgraded to model {next_model} "
                             f"for retry_after={backoff_seconds}s"
                         )
                         return
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Model upgrade check failed: {e}")
 
                 # Возвращаем в pending для повторной попытки
@@ -1359,7 +1534,7 @@ DESC: {task_description}
                         str(report[:500]) if report and isinstance(report, str) else "",
                         backoff_seconds,
                     )
-                print(
+                logger.info(
                     f"[{datetime.now()}] ⚠️ Task {task_id} reverted to PENDING "
                     f"(attempt {attempt_count}/{MAX_ATTEMPTS}, retry_after={backoff_seconds}s)."
                 )
@@ -1426,14 +1601,19 @@ DESC: {task_description}
                             await conn.execute(
                                 """
                                 UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(),
+                                    completed_at = COALESCE(completed_at, NOW()),
                                     metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+                                        || jsonb_build_object(
+                                            'task_contract_version', 'smart_worker_v1',
+                                            'task_contract_output_schema', 'free_text'
+                                        )
                                 WHERE id = $1
                             """,
                                 task_id,
                                 final_result,
                                 meta_v,
                             )
-                        print(
+                        logger.info(
                             f"[{datetime.now()}] ✅ Task {task_id} completed with board escalation after validation failure (attempt {v_attempt_count})"
                         )
                     else:
@@ -1450,39 +1630,71 @@ DESC: {task_description}
                                 float(score),
                                 v_attempt_count,
                             )
-                        print(
+                        logger.info(
                             f"[{datetime.now()}] ⚠️ Task {task_id} validation failed (attempt {v_attempt_count}/{MAX_ATTEMPTS}), reverted to pending"
                         )
                     return
             except ImportError:
                 pass
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Validation skip for task {task_id}: {e}")
 
         if not is_error:
             # [FIX] Мark task as completed in the success path (was dead code inside if is_error:)
             async with pool.acquire() as conn:
                 await conn.execute(
-                    "UPDATE tasks SET status = 'completed', result = $1, updated_at = NOW(), completed_at = NOW() WHERE id = $2",
+                    "UPDATE tasks "
+                    "SET status = 'completed', "
+                    "    result = $1, "
+                    "    updated_at = NOW(), "
+                    "    completed_at = NOW(), "
+                    "    metadata = COALESCE(metadata, '{}'::jsonb) || "
+                    "        jsonb_build_object("
+                    "            'task_contract_version', 'smart_worker_v1', "
+                    "            'task_contract_output_schema', 'free_text'"
+                    "        ) "
+                    "WHERE id = $2",
                     report,
                     task_id,
                 )
-            print(f"[{datetime.now()}] ✅ Task {task_id} COMPLETED.")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"[{datetime.now()}] ✅ Task {task_id} COMPLETED.")
+            try:
+                from cursor_method import should_journal_task
+            except ImportError:
+                from app.cursor_method import should_journal_task
+            summary = f"Task completed: {task_title}"
+            if should_journal_task(summary, "success"):
+                try:
+                    journal_mgr = ExpertJournalManager(pool)
+                    await journal_mgr.add_entry(
+                        expert_id=task.get("assignee_expert_id"),
+                        task_id=task_id,
+                        summary=summary,
+                        learnings=(report or "")[:400],
+                        importance=6,
+                        metadata={"execution_mode": "success"},
+                    )
+                except Exception as j_err:
+                    # TODO: Convert f-string to %s formatting for performance
+                    logger.debug(f"Journaling failed for success {task_id}: {j_err}")
             duration = time.perf_counter() - task_start_time
             if _PROMETHEUS_AVAILABLE:
                 _smart_worker_tasks_total.labels(status="completed").inc()
                 _smart_worker_task_duration_seconds.labels(category=task_category).observe(duration)
-                _smart_worker_active.dec()
+                _release_active_metric()
             return
     except Exception as e:
         _last_failure_reason = str(e)[:500]
-        print(f"[{datetime.now()}] ❌ Error processing task {task_id}: {e}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"[{datetime.now()}] ❌ Error processing task {task_id}: {e}")
         import traceback
 
         traceback.print_exc()
         if _PROMETHEUS_AVAILABLE:
             _smart_worker_tasks_total.labels(status="failed").inc()
-            _smart_worker_active.dec()
+            _release_active_metric()
         # Возвращаем задачу в pending при ошибке
         async with pool.acquire() as conn:
             await conn.execute(
@@ -1509,6 +1721,7 @@ DESC: {task_description}
                 metadata={"execution_mode": "failure", "error": _last_failure_reason},
             )
         except Exception as j_err:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Journaling failed for failure {task_id}: {j_err}")
     finally:
         # Очищаем предпочтительный источник и модель
@@ -1526,6 +1739,7 @@ DESC: {task_description}
                 await asyncio.wait_for(heartbeat_task, timeout=1.0)
             except (asyncio.CancelledError, asyncio.TimeoutError):
                 pass
+        _release_active_metric()
 
     if not (report and isinstance(report, str) and len(report.strip()) > 5):
         # Если агент полностью не отвечает, создаем минимальный ответ и завершаем задачу
@@ -1605,7 +1819,7 @@ DESC: {task_description}
                     last_error_text,
                     attempt_count,
                 )
-                print(
+                logger.info(
                     f"[{datetime.now()}] ⚠️ Task {task_id} failed after {attempt_count} attempts, escalated to board (reason: {last_error_text[:80]}...)"
                 )
                 final_result = f"""Задача: {task_title}
@@ -1627,6 +1841,8 @@ DESC: {task_description}
                 "deferred_to_human": deferred,
                 "board_escalated": not bool(rule_result),
                 "last_error": last_error_text[:500],
+                "task_contract_version": "smart_worker_v1",
+                "task_contract_output_schema": "free_text",
                 **rule_meta_patch,
             }
             # Soft rule-fallback must not look like a clean KPI success.
@@ -1635,6 +1851,15 @@ DESC: {task_description}
                 meta_payload["quality_degraded"] = True
                 meta_payload["failed_requires_intervention"] = True
                 meta_payload["kpi_success"] = False
+                meta_payload["auto_fallback_reason"] = "rule_fallback_cancelled"
+                meta_payload["manual_cancel_reason"] = "policy_rule_fallback"
+            if final_status == "cancelled":
+                # Keep all policy-cancelled paths explicitly classified for KPI hygiene.
+                meta_payload.setdefault("quality_degraded", True)
+                meta_payload.setdefault("failed_requires_intervention", True)
+                meta_payload.setdefault("kpi_success", False)
+                meta_payload.setdefault("auto_fallback_reason", "rule_fallback_cancelled")
+                meta_payload.setdefault("manual_cancel_reason", "policy_rule_fallback")
             meta_extra = json.dumps(meta_payload)
             async with pool.acquire() as conn:
                 if assignee_id:
@@ -1666,7 +1891,7 @@ DESC: {task_description}
                         final_status,
                         meta_extra,
                     )
-            print(
+            logger.info(
                 f"[{datetime.now()}] {'✅' if final_status == 'completed' else '⚠️'} "
                 f"Task {task_id} AUTO-FINISHED → {final_status} after {attempt_count} attempts "
                 f"(mode={exec_mode}, board_escalated={not bool(rule_result)})."
@@ -1684,11 +1909,12 @@ DESC: {task_description}
                     metadata={"execution_mode": exec_mode, "auto_completed": True},
                 )
             except Exception as j_err:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Journaling failed for auto-complete {task_id}: {j_err}")
 
             if _PROMETHEUS_AVAILABLE:
                 _smart_worker_tasks_total.labels(status="completed").inc()
-                _smart_worker_active.dec()
+                _release_active_metric()
         else:
             # [SWISS-CLOCK] Exponential backoff with jitter (AWS best practice — предотвращает thundering herd)
             # base_delay зависит от причины: LLM недоступен → 120s (CB recovery), иначе → 90s
@@ -1729,12 +1955,12 @@ DESC: {task_description}
                     task_id,
                     json.dumps(meta_pending),
                 )
-            print(
+            logger.info(
                 f"[{datetime.now()}] ⚠️ Task {task_id} FAILED (attempt {attempt_count}/{MAX_ATTEMPTS}, reason: {last_error_text[:60]}...). Reverted to pending (retry after {retry_delay_sec}s)."
             )
             if _PROMETHEUS_AVAILABLE:
                 _smart_worker_tasks_total.labels(status="retry").inc()
-                _smart_worker_active.dec()
+                _release_active_metric()
 
     # Останавливаем heartbeat в любом случае
     heartbeat_stopped = True
@@ -1747,7 +1973,8 @@ DESC: {task_description}
 
 
 async def main():
-    print(f"[{datetime.now()}] 🚀 AUTONOMOUS SMART WORKER v4.0 (PARALLEL) starting...")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"[{datetime.now()}] 🚀 AUTONOMOUS SMART WORKER v4.0 (PARALLEL) starting...")
     pool = await get_pool()
 
     # [SINGULARITY 25.0] Reset Ollama global slots counter on startup.
@@ -1758,7 +1985,8 @@ async def main():
 
         await _StartupRM().reset_ollama_slots()
     except Exception as _rst_err:
-        print(f"[{datetime.now()}] ⚠️ [STARTUP] Ollama slots reset failed: {_rst_err}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"[{datetime.now()}] ⚠️ [STARTUP] Ollama slots reset failed: {_rst_err}")
 
     # Конфигурация параллельной обработки (Backend/SRE: пул достаточен при динамическом N — max_size по потолку)
     MAX_CONCURRENT_TASKS = int(os.getenv("SMART_WORKER_MAX_CONCURRENT", "10"))
@@ -1769,7 +1997,7 @@ async def main():
         "yes",
     )
 
-    print(
+    logger.info(
         f"[{datetime.now()}] ⚡ Parallel processing: max {MAX_CONCURRENT_TASKS} concurrent, batch size: {BATCH_SIZE}, adaptive={ADAPTIVE_CONCURRENCY}"
     )
 
@@ -1797,6 +2025,7 @@ async def main():
                 )
                 await client.hset(RUNTIME_WORKER_HEARTBEAT_KEY, report_name, payload)
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Global heartbeat failed: {e}")
             await asyncio.sleep(30)
 
@@ -1809,8 +2038,10 @@ async def main():
         learner = get_corporation_learner()
         # Запускаем в фоне
         asyncio.create_task(learner.start_continuous_learning(interval_hours=6))
-        print(f"[{datetime.now()}] 🧠 [SINGULARITY 10.0] Система самообучения запущена")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"[{datetime.now()}] 🧠 [SINGULARITY 10.0] Система самообучения запущена")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Could not start corporation learning: {e}")
 
     # Интервал сброса зависших in_progress: по умолчанию 15 мин (раньше 1 ч — из‑за этого при 10 зависших только 5 pending обрабатывались за цикл, ~5 задач/час)
@@ -1892,7 +2123,7 @@ async def main():
             if stuck_result and stuck_result.startswith("UPDATE"):
                 n = stuck_result.split()[-1]
                 if n != "0":
-                    print(
+                    logger.info(
                         f"[{datetime.now()}] 🔄 Вернуто в очередь зависших задач (>{effective_stuck_minutes} мин): {n}"
                     )
 
@@ -1933,7 +2164,7 @@ async def main():
             if rag_stuck_result and rag_stuck_result.startswith("UPDATE"):
                 n = rag_stuck_result.split()[-1]
                 if n != "0":
-                    print(
+                    logger.info(
                         f"[{datetime.now()}] 🔁 [RAG-LOOP GUARD] Сброшено задач без LLM-вызова (>{effective_llm_stuck_minutes} мин): {n}"
                     )
             rag_loop_breaker_result = await conn.execute(
@@ -1944,7 +2175,8 @@ async def main():
                     metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
                         'auto_fallback_reason', 'rag_loop_no_llm_call_exhausted',
                         'failed_requires_intervention', true,
-                        'diagnostic_path', 'progress_guard_manual_triage'
+                        'diagnostic_path', 'progress_guard_manual_triage',
+                        'manual_cancel_reason', 'policy_rag_loop_cap'
                     )
                 WHERE status = 'pending'
                   AND COALESCE(metadata->>'reset_reason', '') = 'rag_loop_no_llm_call'
@@ -1963,7 +2195,7 @@ async def main():
             if rag_loop_breaker_result and rag_loop_breaker_result.startswith("UPDATE"):
                 n = rag_loop_breaker_result.split()[-1]
                 if n != "0":
-                    print(
+                    logger.info(
                         f"[{datetime.now()}] 🧯 [RAG-LOOP BREAKER] Переведено в cancelled/manual triage: {n}"
                     )
 
@@ -2003,7 +2235,7 @@ async def main():
             if hard_stuck_result and hard_stuck_result.startswith("UPDATE"):
                 n = hard_stuck_result.split()[-1]
                 if n != "0":
-                    print(
+                    logger.info(
                         f"[{datetime.now()}] ⛑️ [HARD CAP] Сброшено долгих in_progress задач (>{effective_hard_inprogress_minutes} мин): {n}"
                     )
             hard_cap_complete_result = await conn.execute(
@@ -2016,7 +2248,11 @@ async def main():
                     metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
                         'auto_fallback_reason', 'hard_in_progress_runtime_cap_recovered',
                         'recovered_by', 'smart_worker_watchdog',
-                        'recovered_at', NOW()::text
+                        'recovered_at', NOW()::text,
+                        'manual_cancel_reason', '',
+                        'failed_requires_intervention', false,
+                        'task_contract_version', 'smart_worker_v1',
+                        'task_contract_output_schema', 'free_text'
                     )
                 WHERE status = 'pending'
                   AND COALESCE(metadata->>'reset_reason', '') = 'hard_in_progress_runtime_cap'
@@ -2030,7 +2266,7 @@ async def main():
             if hard_cap_complete_result and hard_cap_complete_result.startswith("UPDATE"):
                 n = hard_cap_complete_result.split()[-1]
                 if n != "0":
-                    print(
+                    logger.info(
                         f"[{datetime.now()}] ✅ [HARD CAP] Восстановлено в completed по готовому result: {n}"
                     )
             curiosity_defer_result = await conn.execute(
@@ -2055,7 +2291,7 @@ async def main():
             if curiosity_defer_result and curiosity_defer_result.startswith("UPDATE"):
                 n = curiosity_defer_result.split()[-1]
                 if n != "0":
-                    print(
+                    logger.info(
                         f"[{datetime.now()}] ⏭️ [HARD CAP] Curiosity tasks deferred instead of failed: {n}"
                     )
 
@@ -2088,7 +2324,7 @@ async def main():
             if delegation_defer_result and delegation_defer_result.startswith("UPDATE"):
                 n = delegation_defer_result.split()[-1]
                 if n != "0":
-                    print(
+                    logger.info(
                         f"[{datetime.now()}] ⏭️ [HARD CAP] Delegation tasks deferred before final fail: {n}"
                     )
 
@@ -2112,7 +2348,7 @@ async def main():
             if hard_fail_result and hard_fail_result.startswith("UPDATE"):
                 n = hard_fail_result.split()[-1]
                 if n != "0":
-                    print(
+                    logger.info(
                         f"[{datetime.now()}] 🧯 [HARD CAP] Переведено в failed после исчерпания попыток: {n}"
                     )
             delegation_manual_result = await conn.execute(
@@ -2124,7 +2360,8 @@ async def main():
                     metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
                         'auto_fallback_reason', 'hard_in_progress_runtime_cap_delegation_manual_triage',
                         'failed_requires_intervention', true,
-                        'diagnostic_path', 'delegation_manual_triage'
+                        'diagnostic_path', 'delegation_manual_triage',
+                        'manual_cancel_reason', 'policy_delegation_hard_cap'
                     )
                 WHERE status = 'pending'
                   AND COALESCE(metadata->>'reset_reason', '') = 'hard_in_progress_runtime_cap'
@@ -2139,7 +2376,7 @@ async def main():
             if delegation_manual_result and delegation_manual_result.startswith("UPDATE"):
                 n = delegation_manual_result.split()[-1]
                 if n != "0":
-                    print(
+                    logger.info(
                         f"[{datetime.now()}] 🧭 [HARD CAP] Delegation moved to manual triage (cancelled): {n}"
                     )
 
@@ -2150,7 +2387,14 @@ async def main():
                 SET status = 'completed',
                     updated_at = NOW(),
                     retry_after = NULL,
-                    completed_at = COALESCE(completed_at, NOW())
+                    completed_at = COALESCE(completed_at, NOW()),
+                    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                        'auto_fallback_reason', 'work_item_timeout_ok_recovered',
+                        'manual_cancel_reason', '',
+                        'failed_requires_intervention', false,
+                        'task_contract_version', 'smart_worker_v1',
+                        'task_contract_output_schema', 'free_text'
+                    )
                 WHERE status IN ('pending', 'in_progress', 'cancelled')
                   AND COALESCE(metadata->>'source', '') = 'victoria_monster_delegation'
                   AND (
@@ -2163,11 +2407,44 @@ async def main():
             if timeout_ok_result and timeout_ok_result.startswith("UPDATE"):
                 n = timeout_ok_result.split()[-1]
                 if n != "0":
-                    print(
+                    logger.info(
                         f"[{datetime.now()}] ✅ [TIMEOUT CAP] Delegation with OK result → completed: {n}"
                     )
 
             # Kill zombie delegation tasks stuck in work_item_timeout retry storms.
+            # Keep explicit SQL guard: !~* '^(ОК|OK)\\b' (regression sentinel).
+            timeout_recover_result = await conn.execute(
+                """
+                UPDATE tasks
+                SET status = 'completed',
+                    updated_at = NOW(),
+                    retry_after = NULL,
+                    completed_at = COALESCE(completed_at, NOW()),
+                    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                        'auto_fallback_reason', 'work_item_timeout_recovered_with_result',
+                        'recovered_by', 'smart_worker_watchdog',
+                        'recovered_at', NOW()::text,
+                        'manual_cancel_reason', '',
+                        'failed_requires_intervention', false,
+                        'task_contract_version', 'smart_worker_v1',
+                        'task_contract_output_schema', 'free_text'
+                    )
+                WHERE status IN ('pending', 'in_progress', 'cancelled')
+                  AND COALESCE(metadata->>'source', '') = 'victoria_monster_delegation'
+                  AND COALESCE(metadata->>'reset_reason', '') = 'work_item_timeout'
+                  AND COALESCE((metadata->>'attempt_count')::int, 0) >= $1::int
+                  AND COALESCE(result, '') <> ''
+                  AND completed_at IS NULL
+                """,
+                WORK_ITEM_TIMEOUT_MAX_ATTEMPTS,
+            )
+            if timeout_recover_result and timeout_recover_result.startswith("UPDATE"):
+                n = timeout_recover_result.split()[-1]
+                if n != "0":
+                    logger.info(
+                        f"[{datetime.now()}] ✅ [TIMEOUT CAP] Delegation with non-empty result → completed: {n}"
+                    )
+
             timeout_cap_result = await conn.execute(
                 """
                 UPDATE tasks
@@ -2181,13 +2458,15 @@ async def main():
                     metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
                         'auto_fallback_reason', 'work_item_timeout_exhausted',
                         'failed_requires_intervention', true,
-                        'diagnostic_path', 'work_item_timeout_manual_triage'
+                        'diagnostic_path', 'work_item_timeout_manual_triage',
+                        'manual_cancel_reason', 'policy_timeout_cap'
                     )
                 WHERE status IN ('pending', 'in_progress')
                   AND COALESCE(metadata->>'source', '') = 'victoria_monster_delegation'
                   AND COALESCE(metadata->>'reset_reason', '') = 'work_item_timeout'
                   AND COALESCE((metadata->>'attempt_count')::int, 0) >= $1::int
                   AND COALESCE((metadata->>'failed_requires_intervention')::boolean, false) = false
+                  AND COALESCE(result, '') = ''
                   AND COALESCE(result, '') !~* '^(ОК|OK)\\b'
                   AND completed_at IS NULL
                 """,
@@ -2196,7 +2475,7 @@ async def main():
             if timeout_cap_result and timeout_cap_result.startswith("UPDATE"):
                 n = timeout_cap_result.split()[-1]
                 if n != "0":
-                    print(
+                    logger.info(
                         f"[{datetime.now()}] 🧭 [TIMEOUT CAP] Delegation cancelled after "
                         f"work_item_timeout x{WORK_ITEM_TIMEOUT_MAX_ATTEMPTS}: {n}"
                     )
@@ -2208,7 +2487,7 @@ async def main():
                     max_requeues_per_task=AUTO_REQUEUE_MAX_PER_TASK,
                 )
                 if restored_n > 0:
-                    print(
+                    logger.info(
                         f"[{datetime.now()}] ♻️ [AUTO_REQUEUE_DELEGATION] Restored tasks: {restored_n}"
                     )
 
@@ -2224,14 +2503,24 @@ async def main():
 
     if WATCHDOG_BACKGROUND_ENABLED:
         asyncio.create_task(_watchdog_loop())
-        print(
+        logger.info(
             f"[{datetime.now()}] 🛡️ Watchdog loop started (interval={WATCHDOG_INTERVAL_SEC}s, llm_stuck={LLM_STUCK_MINUTES}m/{BACKLOG_LLM_STUCK_MINUTES}m under backlog)"
         )
     else:
-        print(f"[{datetime.now()}] 🛡️ Watchdog background loop disabled; using inline watchdog path")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"[{datetime.now()}] 🛡️ Watchdog background loop disabled; using inline watchdog path")
 
     while True:
         try:
+            if _PROMETHEUS_AVAILABLE:
+                try:
+                    async with pool.acquire() as _metrics_conn:
+                        _active_now = await _metrics_conn.fetchval(
+                            "SELECT COUNT(*) FROM tasks WHERE status = 'in_progress'"
+                        )
+                    _smart_worker_active.set(int(_active_now or 0))
+                except Exception:
+                    pass
             # Вернуть зависшие in_progress (> N мин) в pending, чтобы воркер их подхватил
             async with pool.acquire() as conn:
                 pending_now = await conn.fetchval(
@@ -2271,7 +2560,7 @@ async def main():
                 if stuck_result and stuck_result.startswith("UPDATE"):
                     n = stuck_result.split()[-1]
                     if n != "0":
-                        print(
+                        logger.info(
                             f"[{datetime.now()}] 🔄 Вернуто в очередь зависших задач (>{effective_stuck_minutes} мин): {n}"
                         )
 
@@ -2314,7 +2603,7 @@ async def main():
                 if rag_stuck_result and rag_stuck_result.startswith("UPDATE"):
                     n = rag_stuck_result.split()[-1]
                     if n != "0":
-                        print(
+                        logger.info(
                             f"[{datetime.now()}] 🔁 [RAG-LOOP GUARD] Сброшено задач без LLM-вызова (>{effective_llm_stuck_minutes} мин): {n}"
                         )
                 rag_loop_breaker_result = await conn.execute(
@@ -2325,7 +2614,8 @@ async def main():
                         metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
                             'auto_fallback_reason', 'rag_loop_no_llm_call_exhausted',
                             'failed_requires_intervention', true,
-                            'diagnostic_path', 'progress_guard_manual_triage'
+                            'diagnostic_path', 'progress_guard_manual_triage',
+                            'manual_cancel_reason', 'policy_rag_loop_cap'
                         )
                     WHERE status = 'pending'
                       AND COALESCE(metadata->>'reset_reason', '') = 'rag_loop_no_llm_call'
@@ -2344,7 +2634,7 @@ async def main():
                 if rag_loop_breaker_result and rag_loop_breaker_result.startswith("UPDATE"):
                     n = rag_loop_breaker_result.split()[-1]
                     if n != "0":
-                        print(
+                        logger.info(
                             f"[{datetime.now()}] 🧯 [RAG-LOOP BREAKER] Переведено в cancelled/manual triage: {n}"
                         )
 
@@ -2356,7 +2646,7 @@ async def main():
                         max_requeues_per_task=AUTO_REQUEUE_MAX_PER_TASK,
                     )
                     if restored_n > 0:
-                        print(
+                        logger.info(
                             f"[{datetime.now()}] ♻️ [AUTO_REQUEUE_DELEGATION] Restored tasks: {restored_n}"
                         )
 
@@ -2391,12 +2681,12 @@ async def main():
                                     or 0
                                 )
                             if pending_probe > 0 and in_progress_probe == 0:
-                                print(
+                                logger.info(
                                     f"[{datetime.now()}] ⚠️ BACKPRESSURE soft-bypass: overloaded, but queue has pending={pending_probe} and no in_progress. Taking probe batch."
                                 )
                                 is_overloaded = False
                         if is_overloaded:
-                            print(
+                            logger.info(
                                 f"[{datetime.now()}] ⏸️ BACKPRESSURE: {overload_reason}. Ожидание 10 сек..."
                             )
                             await asyncio.sleep(10)
@@ -2404,6 +2694,7 @@ async def main():
                 except ImportError:
                     pass  # Функция не реализована, продолжить без проверки
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Backpressure check failed: {e}")
 
             # ═══════════════════════════════════════════════════════════════════════════════
@@ -2439,13 +2730,14 @@ async def main():
                         and in_progress_count >= max(1, MAX_CONCURRENT_TASKS)
                         and int(stale_in_progress or 0) == 0
                     ):
-                        print(
+                        logger.info(
                             f"[{datetime.now()}] ⏸️ BACKPRESSURE: pending={pending_count}/{max_pending}, "
                             f"in_progress={in_progress_count}, stale_in_progress={stale_in_progress}. Waiting 10s..."
                         )
                         await asyncio.sleep(10)
                         continue
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Pending tasks backpressure check failed: {e}")
 
             # Используем LEFT JOIN чтобы обрабатывать задачи даже если эксперт не найден
@@ -2499,7 +2791,7 @@ async def main():
                             n_max=MAX_CONCURRENT_TASKS, n_min=1
                         )
                         # Логируем метрики раз в цикл (SRE: метрики для алертов)
-                        print(
+                        logger.info(
                             f"[{datetime.now()}] 📊 Adaptive N={effective_n} (max={MAX_CONCURRENT_TASKS}) | "
                             f"host RAM={adaptive_metrics.get('host_ram_percent', '?')}% CPU={adaptive_metrics.get('host_cpu_percent', '?')}% | "
                             f"MLX {adaptive_metrics.get('mlx_active', '?')}/{adaptive_metrics.get('mlx_max', '?')} "
@@ -2521,14 +2813,14 @@ async def main():
                     if pending_count >= burst_threshold and burst_max > effective_n:
                         prev_n = effective_n
                         effective_n = min(burst_max, len(tasks))
-                        print(
+                        logger.info(
                             f"[{datetime.now()}] ⚡ BURST MODE: pending={pending_count} "
                             f"-> concurrency {prev_n}→{effective_n}"
                         )
                 except Exception as e:
                     logger.debug("Burst mode check failed: %s", e)
 
-                print(
+                logger.info(
                     f"[{datetime.now()}] Found {len(tasks)} pending tasks. Processing in parallel (max {effective_n} concurrent)..."
                 )
 
@@ -2592,7 +2884,7 @@ async def main():
                     else:
                         ollama_tasks.append(task)
 
-                print(
+                logger.info(
                     f"[{datetime.now()}] 📊 Интеллектуальное распределение: MLX={len(mlx_tasks)}, Ollama={len(ollama_tasks)}"
                 )
 
@@ -2717,7 +3009,7 @@ async def main():
                                 f"{src}/{model or 'auto'}:{len(gt)}"
                                 for (src, model), gt in sorted_groups
                             )
-                            print(
+                            logger.info(
                                 f"[{datetime.now()}] 📦 Блоки (source/модель: кол-во): {blocks_desc}"
                             )
                         # Чередование: MLX и Ollama одновременно; при pairing — тяжёлый на одном, лёгкий на другом
@@ -2730,13 +3022,14 @@ async def main():
                                 for (_src, _model), group_tasks in sorted_groups:
                                     if i < len(group_tasks):
                                         all_tasks_to_process.append(group_tasks[i])
-                            print(
+                            logger.info(
                                 f"[{datetime.now()}] 📦 Чередование (MLX и Ollama одновременно, heavy/light pairing)"
                             )
                         else:
                             for (src, model), group_tasks in sorted_groups:
                                 all_tasks_to_process.extend(group_tasks)
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"Batch by model failed: {e}, using flat order")
                         all_tasks_to_process = mlx_tasks + ollama_tasks
                 else:
@@ -2763,6 +3056,7 @@ async def main():
                         rest = [t for t in all_tasks_to_process if t not in first]
                         all_tasks_to_process = first + rest
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"Heavy/light reorder failed: {e}")
 
                 # Непрерывный пул: семафор на effective_n
@@ -2829,7 +3123,7 @@ async def main():
                                 if kind == "batch"
                                 else [str(payload.get("id"))]
                             )
-                            print(
+                            logger.info(
                                 f"[{datetime.now()}] ⏱️ Work item timeout ({WORK_ITEM_TIMEOUT_SEC}s). ids={','.join(ids)}"
                             )
                             timeout_meta = {
@@ -2844,6 +3138,11 @@ async def main():
                                         UPDATE tasks
                                         SET
                                             status = CASE
+                                                WHEN COALESCE(metadata->>'source', '') = 'victoria_monster_delegation'
+                                                 AND COALESCE((metadata->>'attempt_count')::int, 0) + 1
+                                                     >= $3::int
+                                                 AND COALESCE(NULLIF(TRIM(result), ''), '') <> ''
+                                                THEN 'completed'
                                                 WHEN COALESCE(metadata->>'source', '') = 'victoria_monster_delegation'
                                                  AND COALESCE((metadata->>'attempt_count')::int, 0) + 1
                                                      >= $3::int
@@ -2867,6 +3166,14 @@ async def main():
                                                 )
                                                 ELSE result
                                             END,
+                                            completed_at = CASE
+                                                WHEN COALESCE(metadata->>'source', '') = 'victoria_monster_delegation'
+                                                 AND COALESCE((metadata->>'attempt_count')::int, 0) + 1
+                                                     >= $3::int
+                                                 AND COALESCE(NULLIF(TRIM(result), ''), '') <> ''
+                                                THEN COALESCE(completed_at, NOW())
+                                                ELSE completed_at
+                                            END,
                                             updated_at = NOW(),
                                             metadata = jsonb_set(
                                                 COALESCE(metadata, '{}'::jsonb) || $2::jsonb
@@ -2874,10 +3181,20 @@ async def main():
                                                     WHEN COALESCE(metadata->>'source', '') = 'victoria_monster_delegation'
                                                      AND COALESCE((metadata->>'attempt_count')::int, 0) + 1
                                                          >= $3::int
+                                                     AND COALESCE(NULLIF(TRIM(result), ''), '') <> ''
+                                                    THEN jsonb_build_object(
+                                                        'auto_fallback_reason', 'work_item_timeout_recovered_with_result',
+                                                        'recovered_by', 'smart_worker_timeout_handler',
+                                                        'recovered_at', NOW()::text
+                                                    )
+                                                    WHEN COALESCE(metadata->>'source', '') = 'victoria_monster_delegation'
+                                                     AND COALESCE((metadata->>'attempt_count')::int, 0) + 1
+                                                         >= $3::int
                                                     THEN jsonb_build_object(
                                                         'auto_fallback_reason', 'work_item_timeout_exhausted',
                                                         'failed_requires_intervention', true,
-                                                        'diagnostic_path', 'work_item_timeout_manual_triage'
+                                                        'diagnostic_path', 'work_item_timeout_manual_triage',
+                                                        'manual_cancel_reason', 'policy_timeout_cap'
                                                     )
                                                     ELSE '{}'::jsonb
                                                 END,
@@ -2896,7 +3213,7 @@ async def main():
                                         WORK_ITEM_TIMEOUT_MAX_ATTEMPTS,
                                     )
                                     if row and row["status"] == "cancelled":
-                                        print(
+                                        logger.info(
                                             f"[{datetime.now()}] 🧭 [TIMEOUT CAP] id={task_id} "
                                             f"cancelled after attempt={row['attempt_count']}"
                                         )
@@ -2905,13 +3222,16 @@ async def main():
                     *[process_work_item(w) for w in work_items], return_exceptions=True
                 )
 
-                print(f"[{datetime.now()}] ✅ Completed: {len(tasks)} tasks processed")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"[{datetime.now()}] ✅ Completed: {len(tasks)} tasks processed")
             else:
-                print(f"[{datetime.now()}] No pending tasks found. Waiting...")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"[{datetime.now()}] No pending tasks found. Waiting...")
 
             await asyncio.sleep(5)  # Уменьшили задержку, так как обрабатываем быстрее
         except Exception as e:
-            print(f"[{datetime.now()}] Main loop error: {e}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"[{datetime.now()}] Main loop error: {e}")
             import traceback
 
             traceback.print_exc()
@@ -2926,6 +3246,45 @@ if __name__ == "__main__":
     run_as_metrics_only = "--metrics-only" in sys.argv
 
     async def metrics_handler(request):
+        try:
+            try:
+                from app.redis_manager import _queue_depth as _qd
+                from app.redis_manager import redis_manager as _rm
+            except ImportError:
+                from redis_manager import _queue_depth as _qd
+                from redis_manager import redis_manager as _rm
+            try:
+                _pool = await get_pool()
+                async with _pool.acquire() as _conn:
+                    _in_progress = await _conn.fetchval(
+                        "SELECT COUNT(*) FROM tasks WHERE status='in_progress'"
+                    )
+                if _PROMETHEUS_AVAILABLE:
+                    _smart_worker_active.set(int(_in_progress or 0))
+            except Exception:
+                pass
+            for _q in ("expert_tasks", "expert_tasks:overflow"):
+                _d = await _rm.get_queue_depth(_q)
+                if _PROMETHEUS_AVAILABLE:
+                    _qd.labels(queue_name=_q).set(_d)
+            for _stream in ("expert_tasks", "expert_tasks:overflow"):
+                try:
+                    _client = await _rm.get_client()
+                    _groups = await _client.xinfo_groups(f"stream:{_stream}")
+                except Exception:
+                    continue
+                for _g in _groups or []:
+                    _gname = _g.get("name")
+                    if isinstance(_gname, bytes):
+                        _gname = _gname.decode("utf-8", errors="ignore")
+                    _smart_worker_group_lag.labels(
+                        stream_name=_stream, group_name=str(_gname)
+                    ).set(int(_g.get("lag") or 0))
+                    _smart_worker_group_pending.labels(
+                        stream_name=_stream, group_name=str(_gname)
+                    ).set(int(_g.get("pending") or 0))
+        except Exception:
+            pass
         from prometheus_client import REGISTRY, generate_latest
 
         metrics = generate_latest(REGISTRY)
@@ -2943,6 +3302,7 @@ if __name__ == "__main__":
     def run_metrics_only(port=8002):
         """Запуск только HTTP сервера для метрик (без воркера)."""
         app = start_metrics_server(port)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📊 [METRICS] Starting metrics server on port {port}")
         web.run_app(app, host="0.0.0.0", port=port, print=lambda x: None)
 
@@ -2956,6 +3316,7 @@ def run_worker_with_metrics(port=8002):
         await metrics_runner.setup()
         metrics_site = web.TCPSite(metrics_runner, "0.0.0.0", port)
         await metrics_site.start()
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📊 [METRICS] Metrics server started on port {port}")
         try:
             await main()
@@ -2973,6 +3334,45 @@ if __name__ == "__main__":
     run_as_metrics_only = "--metrics-only" in sys.argv
 
     async def metrics_handler(request):
+        try:
+            try:
+                from app.redis_manager import _queue_depth as _qd
+                from app.redis_manager import redis_manager as _rm
+            except ImportError:
+                from redis_manager import _queue_depth as _qd
+                from redis_manager import redis_manager as _rm
+            try:
+                _pool = await get_pool()
+                async with _pool.acquire() as _conn:
+                    _in_progress = await _conn.fetchval(
+                        "SELECT COUNT(*) FROM tasks WHERE status='in_progress'"
+                    )
+                if _PROMETHEUS_AVAILABLE:
+                    _smart_worker_active.set(int(_in_progress or 0))
+            except Exception:
+                pass
+            for _q in ("expert_tasks", "expert_tasks:overflow"):
+                _d = await _rm.get_queue_depth(_q)
+                if _PROMETHEUS_AVAILABLE:
+                    _qd.labels(queue_name=_q).set(_d)
+            for _stream in ("expert_tasks", "expert_tasks:overflow"):
+                try:
+                    _client = await _rm.get_client()
+                    _groups = await _client.xinfo_groups(f"stream:{_stream}")
+                except Exception:
+                    continue
+                for _g in _groups or []:
+                    _gname = _g.get("name")
+                    if isinstance(_gname, bytes):
+                        _gname = _gname.decode("utf-8", errors="ignore")
+                    _smart_worker_group_lag.labels(
+                        stream_name=_stream, group_name=str(_gname)
+                    ).set(int(_g.get("lag") or 0))
+                    _smart_worker_group_pending.labels(
+                        stream_name=_stream, group_name=str(_gname)
+                    ).set(int(_g.get("pending") or 0))
+        except Exception:
+            pass
         try:
             from prometheus_client import REGISTRY, generate_latest
 
@@ -3003,6 +3403,7 @@ if __name__ == "__main__":
     def run_metrics_only(port=8002):
         """Запуск только HTTP сервера для метрик (без воркера)."""
         app = start_metrics_server(port)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📊 [METRICS] Starting metrics server on port {port}")
         web.run_app(app, host="0.0.0.0", port=port, print=lambda x: None)
 
@@ -3015,6 +3416,7 @@ if __name__ == "__main__":
             await metrics_runner.setup()
             metrics_site = web.TCPSite(metrics_runner, "0.0.0.0", port)
             await metrics_site.start()
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📊 [METRICS] Metrics server started on port {port}")
             try:
                 await main()

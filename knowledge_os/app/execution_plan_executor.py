@@ -45,6 +45,7 @@ class ExecutionPlanExecutor:
             action = step.get("action")
             description = step.get("description", "")
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"[EXECUTION_PLAN] Шаг {i}/{len(plan)}: {action} - {description}")
 
             try:
@@ -67,6 +68,7 @@ class ExecutionPlanExecutor:
                     break
 
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.exception(f"[EXECUTION_PLAN] Ошибка на шаге {i}")
                 results.append(
                     {

@@ -63,7 +63,7 @@ class ExtendedThinkingEngine:
 
     def __init__(
         self,
-        model_name: str = "victoria-wisdom-v3.5",  # Самая мощная reasoning модель (Wisdom Era)
+        model_name: str = "victoria-wisdom-24k",  # Самая мощная reasoning модель (Wisdom Era)
         thinking_budget: int = 15000,  # [SINGULARITY 14.1] Увеличен бюджет до 15к
         max_steps: int = 12,  # [SINGULARITY 14.1] Увеличено кол-во шагов
         use_intelligent_routing: bool = True,  # Использовать интеллектуальный роутинг
@@ -104,6 +104,7 @@ class ExtendedThinkingEngine:
                     f"✅ ExtendedThinkingEngine инициализирован с интеллектуальным роутингом: URL={self.llm_url}, базовая модель={self.model_name}"
                 )
             except (ImportError, Exception) as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Intelligent router недоступен ({e}), используем базовую модель")
                 self.use_intelligent_routing = False
                 self.model_router = None
@@ -124,6 +125,7 @@ class ExtendedThinkingEngine:
         context: Optional[str] = None,
         use_iterative: bool = True,
         category: Optional[str] = None,
+        timeout_seconds: float = 180.0,
     ) -> ExtendedThinkingResult:
         """
         Расширенное рассуждение для сложной задачи
@@ -132,16 +134,38 @@ class ExtendedThinkingEngine:
             prompt: Запрос пользователя
             context: Дополнительный контекст
             use_iterative: Использовать ли итеративное рассуждение
+            timeout_seconds: Максимальное время на все рассуждение (по умолчанию 3 мин)
 
         Returns:
             Результат с финальным ответом и шагами рассуждения
         """
         start_time = datetime.now(timezone.utc)
 
-        if use_iterative:
-            return await self._iterative_thinking(prompt, context, category)
-        else:
-            return await self._single_pass_thinking(prompt, context, category)
+        try:
+            if use_iterative:
+                result = await asyncio.wait_for(
+                    self._iterative_thinking(prompt, context, category),
+                    timeout=timeout_seconds,
+                )
+            else:
+                result = await asyncio.wait_for(
+                    self._single_pass_thinking(prompt, context, category),
+                    timeout=timeout_seconds,
+                )
+            return result
+        except asyncio.TimeoutError:
+            elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
+            logger.warning(
+                f"⏱ [EXTENDED_THINKING] Timeout после {elapsed:.1f}s (лимит {timeout_seconds}s)"
+            )
+            # Возвращаем частичный результат если есть
+            return ExtendedThinkingResult(
+                final_answer=f"⚠️ Рассуждение прервано по таймауту ({timeout_seconds}с). Попробуйте упростить задачу.",
+                thinking_steps=[],
+                total_tokens_used=0,
+                thinking_time_seconds=elapsed,
+                confidence=0.3,
+            )
 
     async def _get_available_models(self) -> List[str]:
         """
@@ -175,12 +199,14 @@ class ExtendedThinkingEngine:
                     models_data = response.json()
                     models = models_data.get("models", [])
                     available = [m.get("name") for m in models if m.get("exists", True)]
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"📋 Доступно моделей в MLX: {len(available)}")
 
                     # Обновляем кэш
                     _models_cache = {"data": available, "timestamp": current_time}
                     return available
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Не удалось получить список моделей: {e}")
             # Если есть кэш, используем его даже если истек
             if _models_cache["data"]:
@@ -191,6 +217,7 @@ class ExtendedThinkingEngine:
         # ВАЖНО: tinyllama исключена - используется только для внутренней коммуникации агентов
         # Тяжёлые 70B/104B удалены из-за Apple Silicon Metal limits
         fallback_models = [
+            "victoria-wisdom-24k",
             "victoria-wisdom-v3.5",
             "qwen3-coder:30b",
             "phi3.5:3.8b",
@@ -271,6 +298,7 @@ class ExtendedThinkingEngine:
                         f"🧠 [DUAL-CHANNEL] Скрытые рассуждения сохранены для сессии {session_id}"
                     )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Ошибка сохранения скрытых рассуждений: {e}")
 
         elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
@@ -410,6 +438,7 @@ class ExtendedThinkingEngine:
         self, prompt: str, thinking_steps: List[ThinkingStep], category: Optional[str] = None
     ) -> str:
         """[SINGULARITY 14.2] Incremental Assembly of the final report"""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🧱 [INCREMENTAL] Assembling final answer from {len(thinking_steps)} steps...")
 
         from task_orchestration.task_decomposer import TaskDecomposer
@@ -438,6 +467,7 @@ class ExtendedThinkingEngine:
 
         # 3. Generate each section (Reduce phase)
         for i, section in enumerate(sections):
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📝 [SECTION] Generating section {i + 1}/{len(sections)}: {section}")
 
             section_prompt = f"""### ROLE: Technical Writer
@@ -619,6 +649,7 @@ class ExtendedThinkingEngine:
                         return data.get("response", "")
                     elif response.status_code == 429:
                         # Rate limit - пробуем подождать или другой сервер
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.warning(f"⚠️ [RATE LIMIT] Сервер {llm_url} перегружен (429)")
                         if llm_url == urls_to_try[-1]:
                             # Если это последний сервер, ждем и пробуем еще раз
@@ -639,6 +670,7 @@ class ExtendedThinkingEngine:
                         continue
 
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Ошибка при обращении к {llm_url}: {e}")
                     continue
 

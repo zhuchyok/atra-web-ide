@@ -89,6 +89,7 @@ class ReCAPFramework:
         Returns:
             Результат с планом и выполнением
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 ReCAP: Начинаю решение задачи: {goal[:80]}")
         context = dict(initial_context) if initial_context else {}
         revision_count = 0
@@ -127,6 +128,7 @@ class ReCAPFramework:
         high_level_response = await self._generate_response(high_level_prompt)
         high_level_steps = self._parse_planning_steps(high_level_response, PlanningLevel.HIGH_LEVEL)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📋 High-level: {len(high_level_steps)} шагов")
 
         # 2. Mid-level planning для каждого high-level шага
@@ -140,6 +142,7 @@ class ReCAPFramework:
             mid_level_steps.extend(mid_steps)
             hl_step.dependencies = [s.step_id for s in mid_steps]
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📋 Mid-level: {len(mid_level_steps)} шагов")
 
         # 3. Low-level planning для каждого mid-level шага
@@ -153,6 +156,7 @@ class ReCAPFramework:
             low_level_steps.extend(low_steps)
             ml_step.dependencies = [s.step_id for s in low_steps]
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📋 Low-level: {len(low_level_steps)} шагов")
 
         return ReCAPPlan(
@@ -326,6 +330,7 @@ class ReCAPFramework:
 
     async def _execute_step(self, step: PlanStep, context: Dict) -> Any:
         """Выполнить один шаг плана"""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔄 Выполнение шага {step.step_id}: {step.description[:50]}")
 
         # Строим промпт для выполнения
@@ -500,9 +505,11 @@ class ReCAPFramework:
                 if response.status_code == 200:
                     return response.json().get("response", "")
                 else:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"Ошибка генерации: {response.status_code}")
                     return ""
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка запроса к модели: {e}")
             return ""
 
@@ -515,12 +522,17 @@ async def main():
         "Создай систему мониторинга производительности для веб-приложения"
     )
 
-    print("Результат ReCAP:")
-    print(f"Цель: {result['goal']}")
-    print(f"High-level шагов: {len(result['plan'].high_level_steps)}")
-    print(f"Mid-level шагов: {len(result['plan'].mid_level_steps)}")
-    print(f"Low-level шагов: {len(result['plan'].low_level_steps)}")
-    print(f"\nФинальный результат:\n{result['final_result']}")
+    logger.info("Результат ReCAP:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Цель: {result['goal']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"High-level шагов: {len(result['plan'].high_level_steps)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Mid-level шагов: {len(result['plan'].mid_level_steps)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Low-level шагов: {len(result['plan'].low_level_steps)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\nФинальный результат:\n{result['final_result']}")
 
 
 if __name__ == "__main__":

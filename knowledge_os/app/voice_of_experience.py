@@ -67,6 +67,7 @@ class VoiceOfExperience:
             return warning_text
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [EXPERIENCE] Error retrieving experience: {e}")
             return ""
 
@@ -74,6 +75,7 @@ class VoiceOfExperience:
         """
         Logs a new failure to the Knowledge OS as a 'Lesson Learned'.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"📝 [EXPERIENCE] Logging new failure for future avoidance: {task_title}")
 
         try:
@@ -102,6 +104,7 @@ class VoiceOfExperience:
             await conn.close()
             logger.info("✅ [EXPERIENCE] Failure logged successfully.")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [EXPERIENCE] Error logging failure: {e}")
 
 
@@ -114,6 +117,6 @@ if __name__ == "__main__":
         await exp.log_failure("Update Docker Tunnels", "SSH Connection timed out on port 5900")
         # Тестовый запрос предупреждения
         warn = await exp.get_warnings("Restarting tunnels for VNC")
-        print(warn)
+        logger.info(warn)
 
     asyncio.run(test())

@@ -99,6 +99,7 @@ TONE: CONSULTANT (Professional & Balanced)
         persona = self.analyze_persona_needs(query, context)
         modifier = self.get_persona_modifier(persona)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🎭 [PERSONALITY] Adapted to persona: {persona.value}")
 
         return f"{system_prompt}\n\n{modifier}"

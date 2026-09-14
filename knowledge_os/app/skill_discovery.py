@@ -5,6 +5,7 @@ Skill Discovery - Поиск библиотек/API и генерация нов
 """
 
 import asyncio
+import inspect
 import json
 import logging
 import os
@@ -14,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import httpx
+
 try:
     from app.event_bus import Event, EventType, get_event_bus
 except ImportError:
@@ -62,6 +64,7 @@ class SkillDiscovery:
                 )
                 return None
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка подключения к БД: {e}")
                 return None
 
@@ -96,8 +99,10 @@ class SkillDiscovery:
                     # В реальности нужен более сложный парсинг
                     pass
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Ошибка поиска в PyPI: {e}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Ошибка поиска в PyPI: {e}")
 
         return []
@@ -215,29 +220,31 @@ metadata: {metadata_json}
         # Инжект вызова библиотеки при наличии api_info.function (реализация логики skill)
         injected_logic = ""
         if api_info and api_info.get("function"):
-            func_name = api_info.get("function")
-            lib_mod = (api_info.get("library") or library_name).replace("-", "_")
+            func_name = re.sub(r'[^a-zA-Z0-9_]', '', str(api_info.get("function", "")))
+            lib_mod = re.sub(r'[^a-zA-Z0-9_]', '', (api_info.get("library") or library_name).replace("-", "_"))
             injected_logic = f'''
         import importlib
         import asyncio
+import inspect
         mod = importlib.import_module("{lib_mod}")
         fn = getattr(mod, "{func_name}", None)
         if callable(fn):
-            result = await fn(**kwargs) if asyncio.iscoroutinefunction(fn) else fn(**kwargs)
+            result = await fn(**kwargs) if inspect.iscoroutinefunction(fn) else fn(**kwargs)
             return {{"success": True, "result": result}}
         return {{"success": False, "error": "Функция {func_name} не найдена или не callable", "skill": "{skill_name}"}}
 '''
         # Страховка: при отсутствии api_info.function — ищем стандартные точки входа (run/execute/skill_handler)
         lib_mod = (api_info.get("library") if api_info else None) or library_name
-        lib_mod = lib_mod.replace("-", "_")
+        lib_mod = re.sub(r'[^a-zA-Z0-9_]', '', lib_mod.replace("-", "_"))
         fallback_logic = f'''
         import importlib
         import asyncio
+import inspect
         _mod = importlib.import_module("{lib_mod}")
         for _entry in ("skill_handler", "run", "execute"):
             _fn = getattr(_mod, _entry, None)
             if callable(_fn):
-                _res = await _fn(**kwargs) if asyncio.iscoroutinefunction(_fn) else _fn(**kwargs)
+                _res = await _fn(**kwargs) if inspect.iscoroutinefunction(_fn) else _fn(**kwargs)
                 return {{"success": True, "result": _res}}
         return {{"success": False, "error": "Нет точки входа (skill_handler/run/execute). Задайте api_info.function при генерации.", "skill": "{skill_name}"}}
 '''
@@ -264,6 +271,7 @@ try:
         handler_code += '''    LIBRARY_AVAILABLE = True
 except ImportError:
     LIBRARY_AVAILABLE = False
+    # TODO: Convert f-string to %s formatting for performance
     logger.warning(f"⚠️ Библиотека {library_name} не установлена")
 
 
@@ -287,6 +295,7 @@ async def skill_handler(**kwargs) -> Dict[str, Any]:
         # Логика: api_info.function → вызов указанной функции; иначе — поиск стандартных точек входа (run/execute/skill_handler)
         {injected_logic if injected_logic else fallback_logic}
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка выполнения skill {skill_name}: {{e}}")
         return {{
             "success": False,
@@ -368,8 +377,10 @@ Metadata:
                     meta_kn,
                 )
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"💾 Skill сохранен в базу знаний: {skill.name}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка сохранения skill в БД: {e}")
 
     async def discover_skill(
@@ -385,6 +396,7 @@ Metadata:
         Returns:
             Созданный skill или None
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔍 Поиск skill: {skill_description}")
 
         # Извлекаем ключевые слова для поиска
@@ -406,6 +418,7 @@ Metadata:
                 break
 
         if not library_info and not api_info:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Не найдено библиотек/API для: {skill_description}")
             return None
 
@@ -435,6 +448,7 @@ Metadata:
         # Сохраняем handler
         (skill_dir / "handler.py").write_text(handler_code, encoding="utf-8")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Skill создан: {skill_name} в {skill_dir}")
 
         # Загружаем skill в реестр
@@ -461,6 +475,7 @@ Metadata:
             )
             await self.event_bus.publish(event)
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🎉 Skill обнаружен и добавлен: {skill_name}")
             return skill
 
@@ -509,8 +524,10 @@ Metadata:
         skill = await self.discover_skill(skill_description, task_context)
 
         if skill:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Skill успешно создан: {skill.name}")
         else:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Не удалось создать skill для: {skill_description}")
 
 
@@ -534,9 +551,12 @@ async def main():
     skill = await discovery.discover_skill("отправка email через Gmail API")
 
     if skill:
-        print(f"✅ Skill создан: {skill.name}")
-        print(f"   Описание: {skill.description}")
-        print(f"   Путь: {skill.skill_path}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"✅ Skill создан: {skill.name}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Описание: {skill.description}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Путь: {skill.skill_path}")
 
     await event_bus.stop()
 

@@ -101,6 +101,7 @@ class ModelSpecializer:
 
             if model_name not in self.ensemble.model_specialization[task_type]:
                 self.ensemble.model_specialization[task_type].insert(0, model_name)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"📚 Обучение: {model_name} добавлена в специализацию для {task_type}")
 
     def get_specialization_report(self) -> Dict[str, Any]:

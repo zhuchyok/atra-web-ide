@@ -95,6 +95,7 @@ class EnhancedScoutResearcher:
         try:
             with DDGS() as ddgs:
                 ddg_results = list(ddgs.text(query, max_results=max_results))
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"🔍 DuckDuckGo для '{query}': найдено {len(ddg_results)} результатов")
                 for res in ddg_results:
                     all_results.append(
@@ -107,6 +108,7 @@ class EnhancedScoutResearcher:
                         }
                     )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка DuckDuckGo поиска для '{query}': {e}")
             import traceback
 
@@ -141,8 +143,10 @@ class EnhancedScoutResearcher:
                                 }
                             )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"⚠️ Ошибка вариации поиска '{var_query}': {e}")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📊 Итого для '{query}': собрано {len(all_results)} уникальных результатов")
         return all_results
 
@@ -298,7 +302,7 @@ class EnhancedScoutResearcher:
         # Пробуем сначала MLX (более мощная модель)
         models_to_try = [
             (MLX_API_URL, "phi3.5:3.8b", "MLX"),
-            (MLX_API_URL, "qwen2.5-coder:32b", "MLX"),
+            (MLX_API_URL, "qwen3-coder:30b", "MLX"),
             (OLLAMA_URL, "glm-4.7-flash:q8_0", "Ollama"),
             (OLLAMA_URL, "phi3.5:3.8b", "Ollama"),
         ]
@@ -307,6 +311,7 @@ class EnhancedScoutResearcher:
         for api_url, model_name, source in models_to_try:
             try:
                 async with httpx.AsyncClient(timeout=180.0) as client:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🧠 Пробую {source} модель {model_name} для глубокого анализа...")
                     response = await client.post(
                         f"{api_url}/api/generate",
@@ -349,18 +354,22 @@ class EnhancedScoutResearcher:
                         continue
             except httpx.TimeoutException as e:
                 last_error = f"Timeout при обращении к {source} {model_name}: {e}"
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⏱️ {last_error}, пробую следующую модель...")
                 continue
             except httpx.ConnectError as e:
                 last_error = f"Не удалось подключиться к {source} {model_name}: {e}"
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"🔌 {last_error}, пробую следующую модель...")
                 continue
             except Exception as e:
                 last_error = f"Ошибка при использовании {source} {model_name}: {e}"
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"❌ {last_error}, пробую следующую модель...")
                 continue
 
         # Если все модели недоступны, возвращаем базовый анализ
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Все модели недоступны. Последняя ошибка: {last_error}")
         return {
             "analysis": f"⚠️ Глубокий анализ через LLM недоступен (все модели не отвечают).\n\nПоследняя ошибка: {last_error}\n\n**Собранные данные:**\n{data_summary[:2000]}",
@@ -429,8 +438,10 @@ class EnhancedScoutResearcher:
                         res["category"] = category
                         category_results.append(res)
                     completed_queries += 1
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ [{completed_queries}/{total_queries}] {category}: {query}")
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"Ошибка поиска '{query}': {e}")
             return category_results
 
@@ -442,6 +453,7 @@ class EnhancedScoutResearcher:
         for category_results in category_results_list:
             all_results.extend(category_results)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Собрано {len(all_results)} результатов из всех источников")
 
         if len(all_results) == 0:
@@ -454,6 +466,7 @@ class EnhancedScoutResearcher:
 
         # Извлекаем структурированную информацию
         competitors = self.extract_competitor_info(all_results, business_name, locations)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Найдено {len(competitors)} конкурентов")
 
         if len(competitors) == 0 and len(all_results) > 0:

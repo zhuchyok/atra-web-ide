@@ -74,7 +74,7 @@ async def manage_pnl():
 
     try:
         await pool.close()
-    except:
+    except Exception:
         pass
 
 

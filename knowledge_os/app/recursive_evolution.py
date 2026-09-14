@@ -50,6 +50,7 @@ class RecursiveEvolutionEngine:
         """
         Запускает рекурсивный цикл эволюции для конкретной задачи.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"⚗️ Starting evolution for task: {task_description[:50]}...")
 
         # 0. Global Scout: Поиск мировых практик перед началом
@@ -65,6 +66,7 @@ class RecursiveEvolutionEngine:
         )
 
         for gen in range(1, iterations + 1):
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🧬 Generation {gen}/{iterations}...")
 
             # 1. Mutation: Агенты в лабораториях предлагают улучшения на базе LLM
@@ -102,6 +104,7 @@ Provide a concise summary of 3-5 'Giant's Knowledge' patterns that should be app
             result = await run_smart_agent_async(prompt, expert_name="Виктория")
             return result
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"⚠️ Scout failed: {e}")
             return "No world practices found."
 
@@ -140,7 +143,7 @@ Provide a concise summary of 3-5 'Giant's Knowledge' patterns that should be app
 Output ONLY the mutated python code block.
 """
             # [SINGULARITY 28.2] Используем микро-модель для быстрых итераций мутаций
-            tasks.append(run_smart_agent_async(prompt, expert_name="Игорь", model="smollm2:360m"))
+            tasks.append(run_smart_agent_async(prompt, expert_name="Даниил", model="smollm2:360m"))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 

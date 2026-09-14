@@ -23,6 +23,7 @@ async def has_execution_backlog(conn) -> bool:
         )
         return (pending or 0) > 0 or (in_progress or 0) > 0
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Backlog check failed: {e}")
         return True
 
@@ -65,6 +66,7 @@ async def prioritize_tasks(conn, victoria_id: str) -> int:
                 )
                 updated += 1
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Prioritize failed: {e}")
     return updated
 

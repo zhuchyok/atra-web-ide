@@ -57,10 +57,10 @@ FALLBACK_ALIASES: Dict[str, str] = {
     "вова": "Владимир",
     "дмитрий": "Дмитрий",
     "дима": "Дмитрий",
-    "мария": "Мария",
-    "маша": "Мария",
-    "максим": "Максим",
-    "макс": "Максим",
+    "леонид": "Леонид",
+    "лёня": "Леонид",
+    "инна": "Инна",
+    "иночка": "Инна",
 }
 
 # Латинские имена агентов → кириллица в БД. Используется везде: task_distribution,
@@ -91,25 +91,21 @@ STANDARD_DIMINUTIVES: Dict[str, List[str]] = {
     "Виктория": ["вика", "викуся", "викторияа"],
     "Владимир": ["вова", "володя", "влад"],
     "Дмитрий": ["дима", "димон", "митя"],
-    "Мария": ["маша", "маруся", "машенька"],
-    "Максим": ["макс", "максик"],
-    "Сергей": ["серёжа", "серж", "сергейя"],
-    "Елена": ["лена", "леночка"],
+    "Леонид": ["лёня", "леон"],
     "Анна": ["аня", "анечка", "нюра"],
     "Алексей": ["лёша", "алёша", "лёха"],
-    "Павел": ["паша", "пашка"],
-    "Игорь": ["игорёк", "гоша"],
     "Вероника": ["veronica"],
-    "Роман": ["рома", "ромка"],
-    "Ольга": ["оля", "олечка"],
-    "Татьяна": ["таня", "танюша"],
-    "Екатерина": ["катя", "катерина", "катюша"],
-    "Андрей": ["андрюша", "андрейка"],
-    "Никита": ["никитос", "ник"],
+    "Даниил": ["даня", "данил"],
+    "Дмитрий": ["дима", "димка"],
     "Дарья": ["даша", "дашенька"],
-    "Юлия": ["юля", "юлечка"],
-    "Артём": ["тёма", "артёмка"],
-    "Глеб": ["глебушка"],
+    "Владимир": ["вова", "володя"],
+    "Макс": ["максим", "максик"],
+    "Инна": ["иночка"],
+    "Виталий": ["виталь", "виталик"],
+    "Георгий": ["гена", "георг"],
+    "Леонид": ["лёня"],
+    "София": ["соня", "софийка"],
+    "Александр Нейман": ["алекс", "нейман"],
 }
 
 
@@ -345,15 +341,18 @@ async def extract_expert_from_message(
 if __name__ == "__main__":
 
     async def test():
-        print("=" * 60)
-        print("🔍 ТЕСТ ExpertAliasManager")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("🔍 ТЕСТ ExpertAliasManager")
+        logger.info("=" * 60)
 
         manager = await get_alias_manager()
 
-        print(f"\n📊 Статус: {'FALLBACK' if manager.using_fallback else 'DB'}")
-        print(f"📋 Эксперты: {manager.get_all_expert_names()}")
-        print(f"🔗 Алиасов: {len(manager._aliases)}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"\n📊 Статус: {'FALLBACK' if manager.using_fallback else 'DB'}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"📋 Эксперты: {manager.get_all_expert_names()}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"🔗 Алиасов: {len(manager._aliases)}")
 
         # Тестовые случаи
         test_cases = [
@@ -364,14 +363,17 @@ if __name__ == "__main__":
             "Макс, напиши код",
         ]
 
-        print("\n" + "=" * 60)
-        print("🧪 ТЕСТОВЫЕ СЛУЧАИ:")
-        print("=" * 60)
+        logger.info("\n" + "=" * 60)
+        logger.info("🧪 ТЕСТОВЫЕ СЛУЧАИ:")
+        logger.info("=" * 60)
 
         for case in test_cases:
             expert, msg = await extract_expert_from_message(case)
-            print(f"\n   Вход: '{case}'")
-            print(f"   Эксперт: {expert}")
-            print(f"   Сообщение: '{msg}'")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n   Вход: '{case}'")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Эксперт: {expert}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Сообщение: '{msg}'")
 
     asyncio.run(test())

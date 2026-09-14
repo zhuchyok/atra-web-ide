@@ -81,6 +81,7 @@ class CodeDocumentationExtractor:
                 "functions": functions,
             }
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error extracting docs from {module_path}: {e}")
             return {}
 
@@ -394,7 +395,7 @@ async def register():
                 "email": "user@example.com"
             }
         )
-        print(response.json())
+        logger.info(response.json())
 ```
 
 ### Шаг 2: Вход
@@ -427,7 +428,7 @@ async def create_first_knowledge(token: str):
                 "confidence_score": 1.0
             }
         )
-        print(response.json())
+        logger.info(response.json())
 ```
 
 ## Туториал 2: Работа с графом знаний
@@ -570,6 +571,7 @@ class DocumentationGenerator:
             f.write(self._generate_index(generated_files))
         generated_files["index"] = str(index_path)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Generated {len(generated_files)} documentation files")
         return generated_files
 
@@ -632,6 +634,8 @@ class DocumentationGenerator:
 if __name__ == "__main__":
     generator = DocumentationGenerator()
     files = generator.generate_all_docs()
-    print(f"✅ Documentation generated in {len(files)} files:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"✅ Documentation generated in {len(files)} files:")
     for name, path in files.items():
-        print(f"  - {name}: {path}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"  - {name}: {path}")

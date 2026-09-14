@@ -74,9 +74,11 @@ def run_cursor_agent(prompt: str, timeout: int = 600) -> Optional[str]:
         )
         return result.stdout.strip()
     except subprocess.TimeoutExpired:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Cursor agent timeout after {timeout}s")
         return None
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Cursor agent error: {e}")
         return None
 
@@ -133,6 +135,7 @@ class StreamingWorker:
 
         @self.task_consumer.on_event(EventType.TASK_ASSIGNED)
         async def handle_task_assigned(event: TaskEvent, raw_data: Dict) -> bool:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📋 Task assigned: {event.title} -> {event.assignee_name}")
             return True  # Just acknowledge
 
@@ -143,12 +146,14 @@ class StreamingWorker:
 
         @self.knowledge_consumer.on_event(EventType.INSIGHT_CROSS_DOMAIN)
         async def handle_insight(event: KnowledgeEvent, raw_data: Dict) -> bool:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"💡 New cross-domain insight received: {event.content[:100]}...")
             return True
 
     async def _process_task(self, event: TaskEvent) -> bool:
         """Обрабатывает задачу из stream."""
         task_id = event.task_id
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔄 Processing task: {event.title} (ID: {task_id})")
 
         try:
@@ -167,10 +172,12 @@ class StreamingWorker:
             )
 
             if not task:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"Task {task_id} not found in database")
                 return True  # ACK anyway - task may have been deleted
 
             if task["status"] != "pending":
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"Task {task_id} already processed (status: {task['status']})")
                 return True
 
@@ -202,6 +209,7 @@ class StreamingWorker:
 Ответь в формате экспертного отчета.
 """
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🤖 Calling AI for task {task_id}...")
             report = run_cursor_agent(prompt)
 
@@ -256,6 +264,7 @@ class StreamingWorker:
                         result=report[:500],
                     )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Task {task_id} completed by {task['assignee']}")
                 return True
             else:
@@ -277,15 +286,18 @@ class StreamingWorker:
                         )
                     )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"❌ Task {task_id} failed, reverted to pending")
                 return False  # Не ACKаем - будет retry
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error processing task {task_id}: {e}")
             return False
 
     async def _process_new_knowledge(self, event: KnowledgeEvent) -> bool:
         """Обрабатывает событие создания нового знания."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📚 New knowledge in domain '{event.domain_name}': {event.content[:100]}...")
 
         # Здесь можно добавить логику:
@@ -297,6 +309,7 @@ class StreamingWorker:
 
     async def start(self):
         """Запускает worker."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 StreamingWorker '{self.worker_id}' starting...")
 
         # Инициализируем инфраструктуру

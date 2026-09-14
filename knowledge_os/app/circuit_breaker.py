@@ -4,11 +4,12 @@ Circuit Breaker для защиты от каскадных сбоев.
 """
 
 import asyncio
+import inspect
 import json
 import logging
 import os
-import time
 import random
+import time
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, Optional
@@ -100,6 +101,7 @@ class CircuitBreaker:
             self.state = CircuitState.CLOSED
             self.failure_count = 0
             self.success_count = 0
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ [CIRCUIT BREAKER {self.name}] Восстановлен, переход в CLOSED")
             asyncio.create_task(self._log_event("state_change", old_state.value, self.state.value))
         elif self.state == CircuitState.CLOSED:
@@ -176,6 +178,7 @@ class CircuitBreaker:
                 # Пробуем восстановление
                 old_state = self.state
                 self.state = CircuitState.HALF_OPEN
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🔄 [CIRCUIT BREAKER {self.name}] Пробуем восстановление (HALF_OPEN)")
                 asyncio.create_task(
                     self._log_event("recovery_attempt", old_state.value, self.state.value)
@@ -194,7 +197,7 @@ class CircuitBreaker:
 
         # Выполняем функцию
         try:
-            if asyncio.iscoroutinefunction(func):
+            if inspect.iscoroutinefunction(func):
                 result = await func(*args, **kwargs)
             else:
                 result = func(*args, **kwargs)
@@ -268,6 +271,7 @@ class CircuitBreaker:
         """Отправляет Telegram алерт при критическом событии. Дедупликация: не старше 10 минут."""
         try:
             from datetime import timezone as _tz
+
             # Не отправляем алерт если событие старше 10 минут
             _now = datetime.now(_tz.utc)
             if self.last_failure_time:
@@ -302,6 +306,7 @@ class CircuitBreaker:
                 await client.post(
                     url, data={"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
                 )
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📨 [CIRCUIT BREAKER {self.name}] Telegram алерт отправлен")
         except Exception as e:
             logger.warning(

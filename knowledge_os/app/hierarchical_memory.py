@@ -74,6 +74,7 @@ class HierarchicalMemoryManager:
 
                 pruned_count += 1
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✂️ [PRUNING] Archived {pruned_count} inactive knowledge nodes.")
             return pruned_count
         finally:
@@ -107,6 +108,7 @@ class HierarchicalMemoryManager:
                 node_id,
             )
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✨ [RESUSCITATION] Restored knowledge node: {node_id}")
             return True
         finally:

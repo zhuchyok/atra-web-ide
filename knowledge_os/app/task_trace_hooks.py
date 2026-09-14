@@ -54,6 +54,7 @@ def log_model_selection(
         )
 
         if context:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"   Контекст: {json.dumps(context, ensure_ascii=False, indent=2)}")
 
         # Пытаемся логировать через tracer (если доступен)
@@ -64,9 +65,11 @@ def log_model_selection(
                 )
             except Exception as tracer_error:
                 # Логируем ошибку, но не прерываем выполнение
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка при логировании в tracer: {tracer_error}", exc_info=True)
     except Exception as e:
         # Критическая ошибка - логируем, но не прерываем выполнение
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Критическая ошибка при логировании выбора модели: {e}", exc_info=True)
 
 
@@ -75,7 +78,9 @@ def log_prompt(who: str, stage: str, prompt: str, model: str = None):
     if _global_tracer:
         _global_tracer.log_prompt(who, stage, prompt, model)
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.debug(f"💬 [PROMPT] {who} ({stage}) → Модель: {model or 'N/A'}")
+    # TODO: Convert f-string to %s formatting for performance
     logger.debug(f"   Промпт ({len(prompt)} символов):\n{prompt[:500]}...")
 
 
@@ -84,8 +89,10 @@ def log_decision(who: str, decision: str, reason: str, data: dict = None):
     if _global_tracer:
         _global_tracer.log_decision(who, decision, reason, data)
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"🎯 [DECISION] {who}: {decision} | Причина: {reason}")
     if data:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"   Данные: {json.dumps(data, ensure_ascii=False, indent=2)}")
 
 
@@ -94,4 +101,5 @@ def log_stage(stage_name: str, data: dict):
     if _global_tracer:
         _global_tracer.log_stage(stage_name, data)
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"📋 [STAGE] {stage_name}: {json.dumps(data, ensure_ascii=False, indent=2)}")

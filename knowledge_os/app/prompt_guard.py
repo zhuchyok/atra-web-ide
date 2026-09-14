@@ -150,6 +150,7 @@ Answer:"""
                             "severity": 0.8,
                         }
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"[PromptGuard] LLM check failed: {e}")
         return None
 

@@ -41,16 +41,17 @@ async def process_with_local_model(
                 result = response.json()
                 return result.get("response", "")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Ошибка локальной модели: {e}")
     return ""
 
 
 async def perform_research():
     """Автономное веб-исследование для экспертов с обработкой локальными моделями (без токенов)"""
-    print("🌐 Starting Autonomous Web Research (без токенов)...")
+    logger.info("🌐 Starting Autonomous Web Research (без токенов)...")
 
     if not DDGS_AVAILABLE:
-        print("⚠️ duckduckgo-search не установлен. Установите: pip install duckduckgo-search")
+        logger.info("⚠️ duckduckgo-search не установлен. Установите: pip install duckduckgo-search")
         return
 
     pool = await get_pool()
@@ -68,13 +69,14 @@ async def perform_research():
                 response = await client.get(f"{node['url']}/api/tags")
                 if response.status_code == 200:
                     available_node = node
-                    print(f"✅ Используем локальную модель на {node['name']} (0 токенов)")
+                    # TODO: Convert f-string to %s formatting for performance
+                    logger.info(f"✅ Используем локальную модель на {node['name']} (0 токенов)")
                     break
         except:
             continue
 
     if not available_node:
-        print("⚠️ Нет доступных локальных моделей, сохраняем результаты без обработки")
+        logger.info("⚠️ Нет доступных локальных моделей, сохраняем результаты без обработки")
 
     async with pool.acquire() as conn:
         # Получаем экспертов, которым нужно обновить знания
@@ -84,7 +86,8 @@ async def perform_research():
 
         for expert in experts:
             query = f"latest trends and best practices 2025 in {expert['role']} for {expert['department']}"
-            print(f"🔍 Expert {expert['name']} researching: {query}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"🔍 Expert {expert['name']} researching: {query}")
 
             try:
                 # Шаг 1: Веб-поиск (без токенов)
@@ -92,7 +95,8 @@ async def perform_research():
                     results = list(ddgs.text(query, max_results=3))
 
                 if not results:
-                    print(f"⚠️ No results found for {expert['name']}")
+                    # TODO: Convert f-string to %s formatting for performance
+                    logger.info(f"⚠️ No results found for {expert['name']}")
                     continue
 
                 # Шаг 2: Обработка локальной моделью (без токенов)
@@ -116,7 +120,7 @@ async def perform_research():
                     Создай структурированное резюме с ключевыми выводами для эксперта.
                     """
 
-                    print("🤖 Обработка результатов локальной моделью (0 токенов)...")
+                    logger.info("🤖 Обработка результатов локальной моделью (0 токенов)...")
                     analyzed_content = await process_with_local_model(
                         analysis_prompt, node_url=available_node["url"], model="phi3.5:3.8b"
                     )
@@ -126,7 +130,7 @@ async def perform_research():
                             f"📚 АНАЛИЗ ВЕБ-ИССЛЕДОВАНИЯ (обработано локальной моделью, 0 токенов):\n\n{analyzed_content}\n\n📎 ИСТОЧНИКИ:\n"
                             + "\n".join([f"- {res['title']}: {res['href']}" for res in results])
                         )
-                        print(
+                        logger.info(
                             f"✅ Результаты обработаны локальной моделью ({len(analyzed_content)} символов)"
                         )
                     else:
@@ -196,12 +200,13 @@ async def perform_research():
                         json.dumps(metadata),
                     )
 
-                print(
+                logger.info(
                     f"✅ Research for {expert['name']} completed. {len(results)} insights added (0 токенов использовано!)"
                 )
 
             except Exception as e:
-                print(f"❌ Research error for {expert['name']}: {e}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"❌ Research error for {expert['name']}: {e}")
                 import traceback
 
                 traceback.print_exc()

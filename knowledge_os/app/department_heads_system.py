@@ -27,27 +27,33 @@ logger = logging.getLogger(__name__)
 # Department Heads — отделы из configs/experts/employees.md (58 сотрудников, 27 отделов)
 DEPARTMENT_HEADS = {
     "Leadership": "Виктория",
-    "Backend": "Игорь",
-    "ML/AI": "Дмитрий",
-    "DevOps/Infra": "Сергей",
-    "Risk Management": "Мария",
-    "Strategy/Data": "Максим",
-    "Frontend": "Андрей",
+    "Backend": "Даниил",
+    "ML/AI": "Александр Нейман",
+    "DevOps/Infra": "Макс",
+    "Risk Management": "Леонид",
+    "Strategy/Data": "Инна",
+    "Frontend": "София",
     "Security": "Алексей",
-    "Database": "Роман",
-    "Performance": "Ольга",
+    "Database": "Владимир",
+    "Performance": "Виталий",
     "QA": "Анна",
-    "Architecture": "Александр",
-    "Documentation": "Татьяна",
-    "Monitoring": "Елена",
-    "Web/Frontend": "София",
-    "Trading": "Павел",
+    "Architecture": "Адриан",
+    "Documentation": "Ирина",
+    "Monitoring": "Георгий",
+    "Trading": "Виктор",
     "Marketing": "Дарья",
     "Product": "Анастасия",
-    "Legal": "Юлия",
-    "HR": "Алла",
     "Support": "Зоя",
     "Development": "Вероника",
+    "AI Coordination": "Alex",
+    "Multi-Agent Systems": "Алекс",
+    "Knowledge Management": "Оливер",
+    "Agent Architecture": "Артур",
+    "Competitive Intelligence": "Натан",
+    "Business Strategy": "Михаил Гребенюк",
+    "Finance & Accounting": "Виктор_M&A",
+    "Marketing & Growth": "Дмитрий_Ad",
+    "Management": "Владимир_CEO",
 }
 
 # Маппинг ключевых слов к департаментам (определение отдела по задаче)
@@ -162,6 +168,7 @@ class DepartmentHeadsSystem:
         # Проверяем ключевые слова для каждого отдела
         for department, keywords in self.department_keywords.items():
             if any(keyword in goal_lower for keyword in keywords):
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🎯 Определен отдел '{department}' для задачи: {goal[:50]}...")
                 return department
 
@@ -272,6 +279,7 @@ class DepartmentHeadsSystem:
                 await conn.close()
 
                 if head:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ Department Head '{head_name}' найден в БД: {head['role']}")
                     return {
                         "id": head["id"],
@@ -323,6 +331,7 @@ class DepartmentHeadsSystem:
             return []
 
         try:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔌 Подключаюсь к БД для получения экспертов отдела '{department}'...")
             logger.debug(
                 f"🔌 DATABASE_URL: {self.db_url[:50]}..."
@@ -349,6 +358,7 @@ class DepartmentHeadsSystem:
                     f"✅ Получено {len(experts)} экспертов из отдела '{department}': {[e['name'] for e in experts]}"
                 )
             else:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ В отделе '{department}' не найдено экспертов в БД")
 
             return [
@@ -362,12 +372,15 @@ class DepartmentHeadsSystem:
                 for expert in experts
             ]
         except asyncpg.exceptions.InvalidPasswordError as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка аутентификации БД: {e}")
             return []
         except asyncpg.exceptions.ConnectionDoesNotExistError as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка подключения к БД: {e}")
             return []
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка получения экспертов отдела '{department}': {e}", exc_info=True)
             return []
 
@@ -385,6 +398,7 @@ class DepartmentHeadsSystem:
         Returns:
             Результат координации
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🏢 Координация задачи через отдел '{department}': {goal[:50]}...")
 
         # Получаем Department Head
@@ -408,13 +422,16 @@ class DepartmentHeadsSystem:
 
     async def _handle_simple_task(self, goal: str, department: str, head: Dict) -> Dict[str, Any]:
         """Обработка простой задачи - один эксперт"""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"👥 Получаю экспертов отдела '{department}' для простой задачи...")
         experts = await self.get_department_experts(department, limit=5)
 
         if not experts:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Нет экспертов в отделе '{department}' в БД")
             # Пробуем использовать Department Head как эксперта
             if head and head.get("name"):
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🔄 Использую Department Head '{head['name']}' как эксперта")
                 return {
                     "success": True,
@@ -457,6 +474,7 @@ class DepartmentHeadsSystem:
         logger.info(
             f"✅ Сложная задача координируется через '{head['name']}' (Head отдела '{department}')"
         )
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📋 Эксперты отдела ({len(experts)}): {[e['name'] for e in experts[:5]]}")
 
         return {
@@ -481,6 +499,7 @@ class DepartmentHeadsSystem:
         logger.info(
             f"✅ Критическая задача - Swarm из {len(swarm_experts)} экспертов отдела '{department}'"
         )
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🐝 Swarm эксперты: {[e['name'] for e in swarm_experts]}")
 
         return {

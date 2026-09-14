@@ -17,21 +17,23 @@ logger = logging.getLogger(__name__)
 # ─── Phase 1: Prompt Preparation ─────────────────────────────────────────
 
 async def load_memory_crystals(project_context: Optional[str] = None) -> str:
-    """Load memory crystals from DB."""
+    """Load memory crystals from DB (compact top-3)."""
     try:
         from ai_core import _get_db_pool
         pool = await _get_db_pool()
         if pool:
             async with pool.acquire() as conn:
                 rows = await conn.fetch(
-                    "SELECT crystal_type, content FROM memory_crystals WHERE project_context = $1 ORDER BY created_at DESC LIMIT 10",
+                    "SELECT crystal_type, content FROM memory_crystals WHERE project_context = $1 ORDER BY created_at DESC LIMIT 3",
                     project_context or "atra-web-ide",
                 )
                 if rows:
-                    text = "\n".join(f"[{r['crystal_type'].upper()}] {r['content']}" for r in rows)
-                    logger.info(f"💎 [MEMORY CRYSTALS] Loaded {len(rows)} crystals")
-                    return f"💎 ПАМЯТЬ ПРОЕКТА (MEMORY CRYSTALS):\n{text}\n"
+                    text = "\n".join(f"[{r['crystal_type'].upper()}] {r['content'][:200]}" for r in rows)
+                    # TODO: Convert f-string to %s formatting for performance
+                    logger.info(f"💎 [MEMORY CRYSTALS] Loaded {len(rows)} crystals (compact)")
+                    return f"💎 ПАМЯТЬ ПРОЕКТА:\n{text}\n"
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Memory crystals load failed: {e}")
     return ""
 
@@ -52,17 +54,9 @@ def check_threats(prompt: str) -> Tuple[bool, List[str]]:
 
 
 def inject_anti_hallucination(prompt: str, expert_name: str, is_discussion: bool = False) -> str:
-    """Add anti-hallucination instructions for Victoria."""
+    """Add anti-hallucination instructions."""
     if not is_discussion and expert_name.lower() in ("виктория", "victoria"):
-        instruction = """
-### [CRITICAL: ANTI-HALLUCINATION]
-Ты маленький помощник. Большая модель (Brain) планирует, ты только выполняешь.
-ПРАВИЛА:
-1. НИКОГДА не выдумывай факты, файлы, директории
-2. Если не знаешь — отвечай 'Не знаю' или 'Нужно уточнить'
-3. Не притворяйся, что помнишь разговор
-4. Выполняй ТОЛЬКО то, что сказано в запросе
-"""
+        instruction = "### ПРАВИЛА: Отвечай строго по фактам, без выдуманных путей и несуществующих команд."
         return instruction + "\n" + prompt
     return prompt
 
@@ -96,50 +90,53 @@ async def inject_context_enrichment(
         pool = await _get_db_pool()
         if pool:
             async with pool.acquire() as conn:
-                # Meta-Strategies
+                # Meta-Strategies (compact top-2)
                 rows = await conn.fetch(
-                    "SELECT content FROM knowledge_nodes WHERE metadata->>'type' = 'meta_wisdom' AND is_verified = TRUE ORDER BY created_at DESC LIMIT 3"
+                    "SELECT content FROM knowledge_nodes WHERE metadata->>'type' = 'meta_wisdom' AND is_verified = TRUE ORDER BY created_at DESC LIMIT 2"
                 )
                 if rows:
-                    texts = "\n".join(f"- {r['content']}" for r in rows)
-                    result["meta_wisdom"] = f"\n### 🏛 CORPORATE META-STRATEGIES (WISDOM):\n{texts}\n"
-                    logger.info(f"🏛 [WISDOM] Injected {len(rows)} meta-strategies")
+                    texts = "\n".join(f"- {r['content'][:150]}" for r in rows)
+                    result["meta_wisdom"] = f"\n### 🏛 СТРАТЕГИИ:\n{texts}\n"
+                    # TODO: Convert f-string to %s formatting for performance
+                    logger.info(f"🏛 [WISDOM] Injected {len(rows)} meta-strategies (compact)")
 
-                # Mentorship
+                # Mentorship (compact top-1)
                 rows = await conn.fetch(
-                    "SELECT content FROM knowledge_nodes WHERE metadata->>'type' = 'mentorship_note' AND metadata->>'target_expert' = $1 ORDER BY created_at DESC LIMIT 2",
+                    "SELECT content FROM knowledge_nodes WHERE metadata->>'type' = 'mentorship_note' AND metadata->>'target_expert' = $1 ORDER BY created_at DESC LIMIT 1",
                     expert_name,
                 )
                 if rows:
-                    texts = "\n".join(f"- {r['content']}" for r in rows)
-                    result["mentorship"] = f"\n### 🎓 MENTORSHIP FOR {expert_name}:\n{texts}\n"
+                    texts = "\n".join(f"- {r['content'][:150]}" for r in rows)
+                    result["mentorship"] = f"\n### 🎓 НАСТАВНИЧЕСТВО ДЛЯ {expert_name}:\n{texts}\n"
 
-        # Experience & Success
+        # Experience & Success (compact)
         try:
             from experience_retriever import get_experience_context
             exp = await get_experience_context(user_part, expert_name)
             if exp:
-                result["experience"] = exp
+                result["experience"] = exp[:300]
         except Exception:
             pass
         try:
             from success_retriever import get_success_context
             suc = await get_success_context(user_part, expert_name=expert_name)
             if suc:
-                result["experience"] += suc
+                result["experience"] += "\n" + suc[:300]
         except Exception:
             pass
 
-        # Expert DNA
+        # Expert DNA (compact)
         try:
             from expert_dna_manager import get_expert_dna_manager
             dna = await get_expert_dna_manager().get_expert_dna(expert_name)
             if dna:
-                result["experience"] = dna + "\n" + result["experience"]
-                logger.info(f"🧬 [EXPERT DNA] Injected for {expert_name}")
+                result["experience"] = dna[:400] + "\n" + result["experience"]
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"🧬 [EXPERT DNA] Injected for {expert_name} (compact)")
         except Exception:
             pass
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Context enrichment failed: {e}")
     return result
 
@@ -309,6 +306,7 @@ async def run_smart_agent_async_v2(
     response = clean_response(response)
     response = strip_think_blocks(response)
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"[V2] {expert_name} → {source} ({len(response)} chars, {time.time()-start:.1f}s)")
     return response
 

@@ -85,6 +85,7 @@ class ModelHealthManager:
         Выполнить warmup модели после перезапуска.
         Отправляет несколько тестовых запросов для прогрева.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔥 [WARMUP] Прогрев модели {model_name}...")
 
         success_count = 0
@@ -101,8 +102,10 @@ class ModelHealthManager:
                         result = response.json()
                         if result.get("response"):
                             success_count += 1
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.debug(f"✅ [WARMUP] {model_name}: '{query}' - OK")
                         else:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.warning(f"⚠️ [WARMUP] {model_name}: '{query}' - Empty response")
                     else:
                         logger.warning(
@@ -110,6 +113,7 @@ class ModelHealthManager:
                         )
 
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [WARMUP] {model_name}: '{query}' - Error: {e}")
 
             # Небольшая задержка между запросами
@@ -134,6 +138,7 @@ class ModelHealthManager:
         Note: Ollama автоматически управляет моделями, поэтому мы просто
         проверяем доступность и выполняем warmup.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔄 [RESTART] Перезапуск модели {model_name}...")
 
         # Проверяем, что модель доступна
@@ -141,6 +146,7 @@ class ModelHealthManager:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(f"{self.ollama_url}/api/tags")
                 if response.status_code != 200:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ [RESTART] Ollama недоступен для {model_name}")
                     return False
 
@@ -149,9 +155,11 @@ class ModelHealthManager:
                 model_exists = any(m.get("name") == model_name for m in models)
 
                 if not model_exists:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ [RESTART] Модель {model_name} не найдена в списке")
                     return False
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [RESTART] Ошибка проверки модели {model_name}: {e}")
             return False
 
@@ -162,6 +170,7 @@ class ModelHealthManager:
             # Обновляем счетчик перезапусков
             self.model_restart_count[model_name] = self.model_restart_count.get(model_name, 0) + 1
             self.model_statuses[model_name] = ModelHealthStatus.HEALTHY
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ [RESTART] Модель {model_name} перезапущена и прогрета")
             return True
         else:
@@ -179,6 +188,7 @@ class ModelHealthManager:
         if status == ModelHealthStatus.HEALTHY:
             return True
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ [AUTO RECOVER] Модель {model_name} в состоянии {status.value}: {error}")
 
         # Пробуем перезапустить и прогреть
@@ -200,12 +210,15 @@ class ModelHealthManager:
         # Обновляем приоритет узла в зависимости от статуса
         if status == ModelHealthStatus.HEALTHY:
             # Модель здорова - можно использовать
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"✅ [ROUTER UPDATE] Модель {model_name} помечена как здоровая")
         elif status == ModelHealthStatus.DEGRADED:
             # Модель деградирована - снижаем приоритет
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [ROUTER UPDATE] Модель {model_name} помечена как деградированная")
         elif status == ModelHealthStatus.UNHEALTHY:
             # Модель нездорова - исключаем из роутинга
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [ROUTER UPDATE] Модель {model_name} помечена как нездоровая")
 
     def get_model_status(self, model_name: str) -> Dict:
@@ -229,6 +242,7 @@ class ModelHealthManager:
             model_names: Список моделей для мониторинга
             check_interval: Интервал проверки в секундах
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔍 [MONITOR] Запущен мониторинг моделей: {', '.join(model_names)}")
 
         while True:
@@ -243,6 +257,7 @@ class ModelHealthManager:
                         await self.auto_recover_model(model_name)
 
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ [MONITOR] Ошибка проверки модели {model_name}: {e}")
 
             await asyncio.sleep(check_interval)

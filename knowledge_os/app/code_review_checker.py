@@ -95,6 +95,7 @@ class CodeReviewChecker:
                         {"file": file_path, "issues": structure.get("issues", [])}
                     )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"⚠️ [CODE REVIEW] Ошибка проверки {file_path}: {e}")
 
         # Предложения по переиспользованию
@@ -104,6 +105,7 @@ class CodeReviewChecker:
                 if analysis.get("recommendations"):
                     results["reuse_suggestions"] = analysis["recommendations"]
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"⚠️ [CODE REVIEW] Ошибка анализа кодовой базы: {e}")
 
         logger.info(

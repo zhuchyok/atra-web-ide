@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import docker
+
 try:
     from app.event_bus import Event, EventType, get_event_bus
 except ImportError:
@@ -26,6 +27,7 @@ class LogMonitor:
         try:
             self.client = docker.from_env()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [LOG_MONITOR] Failed to connect to Docker: {e}")
             self.client = None
 
@@ -61,6 +63,7 @@ class LogMonitor:
         while self.running:
             try:
                 container = self.client.containers.get(container_name)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"👀 [LOG_MONITOR] Tailing logs for {container_name}")
 
                 # Using stream=True to tail logs efficiently
@@ -82,6 +85,7 @@ class LogMonitor:
                 )
                 await asyncio.sleep(10)
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [LOG_MONITOR] Error monitoring {container_name}: {e}")
                 await asyncio.sleep(5)
 

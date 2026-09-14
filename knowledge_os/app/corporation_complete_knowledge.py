@@ -399,6 +399,7 @@ class CorporationCompleteKnowledge:
                         try:
                             embedding = await get_embedding(content)
                         except Exception as e:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.debug(f"Ошибка создания эмбеддинга: {e}")
 
                     metadata = item.get("metadata", {})
@@ -417,6 +418,7 @@ class CorporationCompleteKnowledge:
                     if inserted:
                         saved_count += 1
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Сохранено {saved_count} полных знаний корпорации в базу знаний")
             finally:
                 if pool is not None:
@@ -432,6 +434,7 @@ class CorporationCompleteKnowledge:
                     if temp_pool is not None:
                         await temp_pool.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка сохранения знаний: {e}", exc_info=True)
 
         return saved_count
@@ -484,12 +487,17 @@ async def main():
     extractor = CorporationCompleteKnowledge()
     result = await extractor.extract_all()
 
-    print("\n✅ Извлечение всех знаний корпорации завершено:")
-    print(f"   - Систем: {result['systems_count']}")
-    print(f"   - Данных: {result['data_count']}")
-    print(f"   - Логики: {result['logic_count']}")
-    print(f"   - Всего: {result['total_extracted']}")
-    print(f"   - Сохранено в БД: {result['saved_to_db']}")
+    logger.info("\n✅ Извлечение всех знаний корпорации завершено:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Систем: {result['systems_count']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Данных: {result['data_count']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Логики: {result['logic_count']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Всего: {result['total_extracted']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Сохранено в БД: {result['saved_to_db']}")
 
 
 if __name__ == "__main__":

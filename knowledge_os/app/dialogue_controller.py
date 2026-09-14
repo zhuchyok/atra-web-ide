@@ -25,7 +25,7 @@ class DialogueController:
         self.event_bus = event_bus
         self.active_dialogues: Dict[str, Dict[str, Any]] = {}
         self.consensus_agent = ConsensusAgent(
-            model_name=os.getenv("VICTORIA_MODEL", "victoria-wisdom-v3.5:latest")
+            model_name=os.getenv("VICTORIA_MODEL", "victoria-wisdom-24k:latest")
         )
 
     def start(self):
@@ -66,6 +66,7 @@ class DialogueController:
 
         # [SINGULARITY 24.3] Идемпотентность: не обрабатываем один и тот же диалог дважды
         if dialogue_id in self.active_dialogues:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Dialogue {dialogue_id} already active, skipping")
             return
 
@@ -73,6 +74,7 @@ class DialogueController:
             logger.warning("Empty query in DIALOGUE_REQUEST")
             return
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"💬 New dialogue request [{dialogue_id}]: {query[:50]}...")
 
         # 1. Выбор экспертов
@@ -104,6 +106,7 @@ class DialogueController:
                     correlation_id=event.event_id,
                 )
             )
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"📤 Sent dialogue request to expert: {expert}")
 
         # [SINGULARITY 24.3] Fix 1: Таймаут сбора ответов — если эксперты не ответили за N секунд,
@@ -148,6 +151,7 @@ class DialogueController:
 
         # [SINGULARITY 24.3] Проверка на пустой ответ
         if not response_text or len(response_text.strip()) < 5:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [DIALOGUE] Empty or too short response from {expert_name}, ignoring")
             return
 
@@ -179,22 +183,22 @@ class DialogueController:
 
         # Базовая логика по ключевым словам
         if any(w in query_lower for w in ["код", "python", "api", "backend", "ошибка"]):
-            experts.add("Игорь")
+            experts.add("Даниил")
         if any(w in query_lower for w in ["база", "sql", "postgres", "данные"]):
-            experts.add("Роман")
+            experts.add("Владимир")
         if any(w in query_lower for w in ["нейросеть", "модель", "mlx", "ollama", "ai"]):
             experts.add("Дмитрий")
         if any(w in query_lower for w in ["тест", "баг", "качество", "qa"]):
             experts.add("Анна")
         if any(w in query_lower for w in ["дизайн", "интерфейс", "фронтенд", "svelte"]):
-            experts.add("Елена")
+            experts.add("София")
 
-        # Если ничего не подошло или для веса - добавляем Игоря и Дмитрия как универсалов
+        # Если ничего не подошло или для веса - добавляем Даниила и Дмитрия как универсалов
         if not experts:
-            experts.update(["Игорь", "Дмитрий"])
+            experts.update(["Даниил", "Дмитрий"])
         elif len(experts) < 2:
-            if "Игорь" not in experts:
-                experts.add("Игорь")
+            if "Даниил" not in experts:
+                experts.add("Даниил")
             else:
                 experts.add("Дмитрий")
 
@@ -205,7 +209,7 @@ class DialogueController:
             selected = [name for name in experts if name in live_experts]
             if len(selected) < 2:
                 # Prefer operationally reliable experts first, then any remaining live workers.
-                fallback_priority = ["Виктория", "Анна", "Роман", "Игорь", "Дмитрий", "Максим"]
+                fallback_priority = ["Виктория", "Анна", "Владимир", "Даниил", "Дмитрий", "Макс"]
                 for name in fallback_priority:
                     if name in live_experts and name not in selected:
                         selected.append(name)
@@ -240,6 +244,7 @@ class DialogueController:
                     live.append(str(name))
             return [n for n in live if n]
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"Failed to read live experts from Redis: {e}")
             return []
 
@@ -250,6 +255,7 @@ class DialogueController:
             return
 
         dialogue["status"] = "consensus"
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🤝 [DIALOGUE] Starting consensus for {dialogue_id}")
 
         # [SINGULARITY 24.3] Fix 1b: Если ответов нет — пропускаем ConsensusAgent (он тоже требует LLM)
@@ -289,7 +295,7 @@ class DialogueController:
             timeout_sec = float(os.getenv("EVENTBUS_CONSENSUS_TIMEOUT_SEC", "90"))
             max_iter = int(os.getenv("EVENTBUS_CONSENSUS_MAX_ITER", "1"))
             agent = ConsensusAgent(
-                model_name=os.getenv("VICTORIA_MODEL", "victoria-wisdom-v3.5:latest"),
+                model_name=os.getenv("VICTORIA_MODEL", "victoria-wisdom-24k:latest"),
                 max_iterations=max_iter,
             )
             cons = await asyncio.wait_for(
@@ -394,6 +400,7 @@ class DialogueController:
                 score,
             )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [DIALOGUE] Consensus failed for {dialogue_id}: {e}")
             fallback_answer = "\n\n".join(
                 [f"**{n}**: {r}" for n, r in dialogue["responses"].items()]

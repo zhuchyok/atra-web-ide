@@ -38,7 +38,7 @@ class MCTSPlanner:
 
     def __init__(
         self,
-        model_name: str = "victoria-wisdom-v3.5",
+        model_name: str = "victoria-wisdom-24k",
         exploration_weight: float = 1.41,
         max_iterations: int = 10,
         max_depth: int = 5,
@@ -53,6 +53,7 @@ class MCTSPlanner:
         """
         Generates an optimized plan using MCTS.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🌳 [MCTS] Starting tree search for goal: {goal[:100]}...")
 
         self.root = MCTSNode(
@@ -60,6 +61,7 @@ class MCTSPlanner:
         )
 
         for i in range(self.max_iterations):
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔄 [MCTS] Iteration {i + 1}/{self.max_iterations}")
 
             # 1. Selection
@@ -77,6 +79,7 @@ class MCTSPlanner:
 
         # Extract the best path
         best_path = self._get_best_path()
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ [MCTS] Optimized plan found with {len(best_path)} steps.")
         return [n.action for n in best_path if n.node_id != "root"]
 
@@ -127,6 +130,7 @@ class MCTSPlanner:
                     node.children.append(child)
                 return random.choice(node.children) if node.children else node
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"MCTS Expansion failed: {e}")
         return node
 

@@ -71,6 +71,7 @@ class ELKHandler(logging.Handler):
                 host, port = host_port.split(":")
                 self._redis_flag_client = Redis(host=host, port=int(port), decode_responses=True)
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Failed to init ELK Redis flag client: {e}")
 
     def _should_drop_noncritical(self) -> bool:
@@ -96,6 +97,7 @@ class ELKHandler(logging.Handler):
                 timeout=5.0, limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
             )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to init ELK client: {e}")
 
     def emit(self, record: logging.LogRecord):
@@ -160,6 +162,7 @@ class ELKHandler(logging.Handler):
                     if self._log_buffer:
                         await self._flush_buffer()
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Error in ELK flush loop: {e}")
 
         try:
@@ -178,6 +181,7 @@ class ELKHandler(logging.Handler):
                 thread = threading.Thread(target=run_loop, daemon=True)
                 thread.start()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Failed to start ELK flush loop: {e}")
 
     async def _flush_buffer(self):
@@ -212,13 +216,16 @@ class ELKHandler(logging.Handler):
             )
             response.raise_for_status()
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"✅ Sent {len(logs_to_send)} logs to Elasticsearch")
         except httpx.HTTPError as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Failed to send logs to Elasticsearch: {e}")
             # Возвращаем логи в буфер при ошибке (ограничиваем размер)
             if len(self._log_buffer) < self.batch_size * 2:
                 self._log_buffer = logs_to_send + self._log_buffer
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Unexpected error sending logs to Elasticsearch: {e}")
 
     def flush(self):
@@ -285,5 +292,6 @@ def create_elk_handler(
         handler.setLevel(log_level)
         return handler
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"Failed to create ELK handler: {e}")
         return None

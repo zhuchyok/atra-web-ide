@@ -4,6 +4,7 @@ ReAct Agent Framework - Reasoning + Acting для Victoria и Veronica
 """
 
 import asyncio
+import inspect
 import logging
 import os
 import time
@@ -74,7 +75,7 @@ class ReActAgent:
     def __init__(
         self,
         agent_name: str = "Виктория",
-        model_name: str = "victoria-wisdom-v3.5:latest",  # Основная модель Виктории; qwq:32b слишком тяжёлая и блокирует Ollama для других запросов
+        model_name: str = "victoria-wisdom-24k:latest",  # Основная модель Виктории; qwq:32b слишком тяжёлая и блокирует Ollama для других запросов
         ollama_url: str = None,
         max_iterations: int = 10,
         system_prompt: Optional[str] = None,
@@ -114,6 +115,7 @@ class ReActAgent:
             self.skill_registry = get_skill_registry()
             logger.info("✅ Skill Registry подключен к ReActAgent")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Skill Registry недоступен: {e}")
 
         # Инициализация Sandbox Manager
@@ -126,6 +128,7 @@ class ReActAgent:
             logger.info("✅ SandboxManager подключен к ReActAgent")
         except Exception as e:
             self.sandbox_manager = None
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ SandboxManager недоступен: {e}")
 
         # SafeFileWriter для create_file/write_file (бэкапы, проверка путей)
@@ -137,6 +140,7 @@ class ReActAgent:
             self.file_writer = SafeFileWriter()
         except Exception as e:
             self.file_writer = None
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ SafeFileWriter недоступен, используется прямая запись: {e}")
 
         logger.info(
@@ -147,15 +151,18 @@ class ReActAgent:
         """
         Think - рассуждение о текущей ситуации
         """
-        print("DEBUG_PRINT: think() called")
+        logger.info("DEBUG_PRINT: think() called")
         # Строим промпт для рассуждения
         prompt = self._build_think_prompt(goal, context)
-        print(f"DEBUG_PRINT: think prompt built, length: {len(prompt)}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"DEBUG_PRINT: think prompt built, length: {len(prompt)}")
 
         # Генерируем рассуждение через модель
         thought = await self._generate_response(prompt)
-        print(f"DEBUG_PRINT: think response received, length: {len(thought) if thought else 0}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"DEBUG_PRINT: think response received, length: {len(thought) if thought else 0}")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🤔 [{self.agent_name}] Think: {thought[:100] if thought else 'None'}...")
 
         return thought
@@ -166,38 +173,83 @@ class ReActAgent:
         Фильтрует список доступных инструментов на основе цели задачи для повышения точности.
         """
         goal_lower = goal.lower()
-        
+
         # Если инструментов мало, отдаем все
         if len(all_tools) <= 5:
             return all_tools
-            
+
         relevant = []
-        
+
         # Группы инструментов
-        fs_tools = ["read_file", "write_file", "edit_file", "list_files", "grep_search", "batch_read", "batch_grep", "apply_patch", "create_file"]
+        fs_tools = [
+            "read_file",
+            "write_file",
+            "edit_file",
+            "list_files",
+            "grep_search",
+            "batch_read",
+            "batch_grep",
+            "apply_patch",
+            "create_file",
+        ]
         web_tools = ["web_search", "fetch_url", "searxng_search", "google_search"]
-        system_tools = ["execute_command", "get_server_status", "restart_service", "docker_ps", "get_logs"]
-        
+        system_tools = [
+            "execute_command",
+            "get_server_status",
+            "restart_service",
+            "docker_ps",
+            "get_logs",
+        ]
+
         # Логика фильтрации
-        is_fs_task = any(kw in goal_lower for kw in ["файл", "код", "директори", "папк", "read", "write", "edit", "patch", "аудит", "file"])
-        is_web_task = any(kw in goal_lower for kw in ["найти в сети", "поиск", "интернет", "url", "сайт", "web", "search"])
-        is_system_task = any(kw in goal_lower for kw in ["сервер", "процесс", "docker", "контейнер", "restart", "status", "command", "log"])
-        
+        is_fs_task = any(
+            kw in goal_lower
+            for kw in [
+                "файл",
+                "код",
+                "директори",
+                "папк",
+                "read",
+                "write",
+                "edit",
+                "patch",
+                "аудит",
+                "file",
+            ]
+        )
+        is_web_task = any(
+            kw in goal_lower
+            for kw in ["найти в сети", "поиск", "интернет", "url", "сайт", "web", "search"]
+        )
+        is_system_task = any(
+            kw in goal_lower
+            for kw in [
+                "сервер",
+                "процесс",
+                "docker",
+                "контейнер",
+                "restart",
+                "status",
+                "command",
+                "log",
+            ]
+        )
+
         if is_fs_task:
             relevant.extend([t for t in fs_tools if t in all_tools])
         if is_web_task:
             relevant.extend([t for t in web_tools if t in all_tools])
         if is_system_task:
             relevant.extend([t for t in system_tools if t in all_tools])
-            
+
         # Всегда добавляем базовые инструменты
         base_tools = ["finish", "ask_question", "think", "delegate_task"]
         relevant.extend([t for t in base_tools if t in all_tools])
-        
+
         # Если ничего не подошло, отдаем все (fallback)
         if not relevant:
             return all_tools
-            
+
         # Удаляем дубликаты
         return list(set(relevant))
 
@@ -233,7 +285,9 @@ class ReActAgent:
 
         # [SINGULARITY 21.34] Progressive Tool Disclosure
         available_tools = self._get_relevant_tools(self.initial_goal or "", available_tools)
-        logger.info(f"🎯 [PROGRESSIVE DISCLOSURE] Filtered to {len(available_tools)} relevant tools")
+        logger.info(
+            f"🎯 [PROGRESSIVE DISCLOSURE] Filtered to {len(available_tools)} relevant tools"
+        )
 
         # [SILENT THOUGHT] Внутренний аудит перед действием
         silent_audit_prompt = f"""Ты - Виктория. Перед тем как выбрать инструмент, проведи внутренний аудит.
@@ -249,8 +303,10 @@ class ReActAgent:
 """
         try:
             silent_audit = await self._generate_response(silent_audit_prompt, max_tokens=100)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🤫 [SILENT THOUGHT] Audit: {silent_audit.strip()}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Silent thought failed: {e}")
 
         # Строим промпт для выбора действия
@@ -262,6 +318,7 @@ class ReActAgent:
         # Парсим действие из ответа
         action, action_input = self._parse_action(response, available_tools)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🎯 [{self.agent_name}] Act: {action} with {action_input}")
 
         return action, action_input
@@ -273,6 +330,7 @@ class ReActAgent:
         # Формируем наблюдение
         observation = f"Действие '{action}' выполнено. Результат: {str(result)[:500]}"
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"👀 [{self.agent_name}] Observe: {observation[:100]}...")
 
         return observation
@@ -304,6 +362,7 @@ class ReActAgent:
         # Генерируем рефлексию
         reflection = await self._generate_response(prompt)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"💭 [{self.agent_name}] Reflect: {reflection[:100]}...")
 
         return reflection
@@ -312,34 +371,41 @@ class ReActAgent:
         """
         Запустить полный ReAct цикл
         """
-        print(f"DEBUG_PRINT: run() started for goal: {goal[:50]}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"DEBUG_PRINT: run() started for goal: {goal[:50]}")
         self.memory.goal = goal
         self.memory.current_state = ReActState.THINK
         self.memory.iteration = 0
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 [{self.agent_name}] Начинаю ReAct цикл для: {goal[:80]}")
 
         while self.memory.iteration < self.memory.max_iterations:
             self.memory.iteration += 1
-            print(f"DEBUG_PRINT: Iteration {self.memory.iteration}, state: {self.memory.current_state}")
+            logger.info(
+                f"DEBUG_PRINT: Iteration {self.memory.iteration}, state: {self.memory.current_state}"
+            )
 
             try:
                 # 1. Think
                 if self.memory.current_state == ReActState.THINK:
-                    print("DEBUG_PRINT: Entering think state")
+                    logger.info("DEBUG_PRINT: Entering think state")
                     thought = await self.think(goal, context)
-                    print(f"DEBUG_PRINT: Think finished, thought length: {len(thought) if thought else 0}")
+                    logger.info(
+                        f"DEBUG_PRINT: Think finished, thought length: {len(thought) if thought else 0}"
+                    )
                     step = ReActStep(state=ReActState.THINK, thought=thought)
                     self.memory.steps.append(step)
                     self.memory.current_state = ReActState.ACT
-                    print("DEBUG_PRINT: State changed to ACT")
+                    logger.info("DEBUG_PRINT: State changed to ACT")
 
                 # 2. Act
                 elif self.memory.current_state == ReActState.ACT:
-                    print("DEBUG_PRINT: Entering act state")
+                    logger.info("DEBUG_PRINT: Entering act state")
                     last_step = self.memory.steps[-1]
                     action, action_input = await self.act(last_step.thought)
-                    print(f"DEBUG_PRINT: Act finished, action: {action}")
+                    # TODO: Convert f-string to %s formatting for performance
+                    logger.info(f"DEBUG_PRINT: Act finished, action: {action}")
 
                     # Проверяем, не финальное ли это действие
                     if action == "finish":
@@ -380,6 +446,7 @@ class ReActAgent:
                     try:
                         result = await self._execute_action(action, action_input)
                     except Exception as action_exc:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.warning(f"⚠️ Action {action} failed: {action_exc}")
                         result = f"Error executing {action}: {str(action_exc)}"
 
@@ -422,6 +489,7 @@ class ReActAgent:
                 import traceback
 
                 error_details = traceback.format_exc()
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [{self.agent_name}] Ошибка в ReAct цикле: {e}\n{error_details}")
                 self.memory.current_state = ReActState.ERROR
                 break
@@ -690,7 +758,9 @@ class ReActAgent:
 
         # ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ для отладки
         try:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔍 [ПАРСИНГ] Полный ответ модели (первые 500 символов): {response[:500]}")
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔍 [ПАРСИНГ] Длина ответа: {len(response)} символов")
         except Exception:
             pass
@@ -721,7 +791,7 @@ class ReActAgent:
             # We look for something that looks like a JSON object or array
             # Starting with { or [ and ending with } or ]
             json_blocks = re.findall(r"([\{\[].*[\}\]])", response_clean, re.DOTALL)
-            
+
             # If still not found, fallback to greedier match
             if not json_blocks:
                 json_blocks = re.findall(r"([\{\[].*)", response_clean, re.DOTALL)
@@ -762,7 +832,7 @@ class ReActAgent:
                                 balance_square += 1
                             elif char == "]":
                                 balance_square -= 1
-                            
+
                             if balance_curly == 0 and balance_square == 0:
                                 last_valid_index = i
                                 break
@@ -782,11 +852,11 @@ class ReActAgent:
                             )
 
                     action_data = json.loads(block_to_parse)
-                    
+
                     # Если это список, берем первый элемент (если он есть)
                     if isinstance(action_data, list) and action_data:
                         action_data = action_data[0]
-                    
+
                     if not isinstance(action_data, dict):
                         continue
 
@@ -801,9 +871,11 @@ class ReActAgent:
                         return "finish", {"output": out or "(пустой ответ)"}
 
                     if action and action in available_tools:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"✅ Парсинг действия (улучшенный баланс): {action}")
                         return action, action_input if isinstance(action_input, dict) else {}
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"⚠️ Ошибка парсинга блока: {e}")
                     continue
 
@@ -852,9 +924,11 @@ class ReActAgent:
                         return "finish", {"output": out or "(пустой ответ)"}
 
                     if action in available_tools:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"✅ Парсинг действия (полный JSON): {action}")
                         return action, action_input if isinstance(action_input, dict) else {}
                 except json.JSONDecodeError as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ [ПАРСИНГ] Ошибка парсинга полного JSON: {e}")
 
         # Fallback 1: Ищем action и input отдельно (самый простой поиск)
@@ -883,6 +957,7 @@ class ReActAgent:
                 if input_match:
                     try:
                         action_input = json.loads(input_match.group(1))
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"✅ Парсинг действия (простой fallback): {action}")
                         return action, action_input if isinstance(action_input, dict) else {}
                     except Exception:
@@ -907,11 +982,13 @@ class ReActAgent:
         except Exception:
             pass
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ Не удалось распарсить действие из ответа: {response_clean[:200]}...")
         return "finish", {"output": f"Ошибка парсинга ответа модели. Ответ: {response_clean[:500]}"}
 
     async def _execute_action(self, action: str, action_input: Dict) -> Any:
         """Выполнить действие с реальными инструментами"""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔧 [{self.agent_name}] Выполняю действие: {action}")
 
         # Python-код: запись во временный файл + выполнение
@@ -974,6 +1051,7 @@ class ReActAgent:
             if not command:
                 return "Error: command не указан"
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"💻 [SYSTEM] Выполнение системной команды: {command}")
             try:
                 import subprocess
@@ -988,9 +1066,11 @@ class ReActAgent:
                     executable="/bin/zsh",
                 )
                 output = f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nEXIT CODE: {result.returncode}"
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [SYSTEM] Команда выполнена (code {result.returncode})")
                 return output
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [SYSTEM] Ошибка выполнения команды: {e}")
                 return f"Error executing command: {str(e)}"
 
@@ -1062,6 +1142,7 @@ class ReActAgent:
                             )
                             applied_count += 1
                         else:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.warning(f"⚠️ Блок SEARCH не найден в {file_path}")
 
                 if applied_count > 0:
@@ -1091,6 +1172,7 @@ class ReActAgent:
                 "исследования",
             ]
             if any(kw in query for kw in ai_keywords):
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🧠 [AI RESEARCH] Перехват search_knowledge для AI тематики: {query}")
                 try:
                     import asyncpg
@@ -1117,18 +1199,20 @@ class ReActAgent:
                         finally:
                             await conn.close()
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"AI Research search_knowledge fallback error: {e}")
 
         if self.skill_registry:
             skill = self.skill_registry.get_skill(action)
             if skill and skill.handler:
                 try:
-                    if asyncio.iscoroutinefunction(skill.handler):
+                    if inspect.iscoroutinefunction(skill.handler):
                         result = await skill.handler(**action_input)
                     else:
                         result = skill.handler(**action_input)
                     return result
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ Ошибка выполнения skill {action}: {e}")
                     return f"Error: {str(e)}"
 
@@ -1200,6 +1284,7 @@ class ReActAgent:
                 return f"STDOUT:\n{out}" + (f"\nSTDERR:\n{err}" if err.strip() else "")
             return f"Error: Неизвестное действие '{action}'"
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка выполнения действия {action}: {e}")
             return f"Error: {str(e)}"
 
@@ -1215,17 +1300,20 @@ class ReActAgent:
         # [SINGULARITY 21.15] Определение типа задачи для выбора между Мозгом (MLX) и Руками (Ollama)
         # Если в промпте есть "ТВОЕ РАССУЖДЕНИЕ" или "ВЫБЕРИ действие", это шаг исполнения (руки).
         # Если промпт про стратегию или архитектуру — это мозг.
-        is_reasoning_task = any(kw in prompt.lower() for kw in ["стратегия", "архитектура", "план", "анализ"])
-        
+        is_reasoning_task = any(
+            kw in prompt.lower() for kw in ["стратегия", "архитектура", "план", "анализ"]
+        )
+
         # [SINGULARITY 21.25] Принудительное использование Ollama если указано в промпте
         force_ollama = "[force_ollama]" in prompt or "preferred_source: ollama" in prompt.lower()
         if force_ollama:
             logger.info("⚡ [REACT] Принудительное использование Ollama (force_ollama)")
             is_reasoning_task = False
-        
+
         # [SINGULARITY 21.6] Force Wisdom 30B for all steps if configured
         _force_model = os.getenv("VICTORIA_FORCE_STEP_MODEL")
         if _force_model:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🎯 [GOD MODE] Forcing model {_force_model} for ReAct step")
             models_to_try = [_force_model]
         else:
@@ -1233,16 +1321,17 @@ class ReActAgent:
             if not hasattr(self, "_models_to_try_cache"):
                 # По умолчанию используем модель, переданную в конструктор
                 self._models_to_try_cache = [self.model_name]
-                
+
                 # Попытка добавить альтернативные модели (Ollama)
                 try:
                     import httpx
+
                     # Не блокируем инициализацию долгим сканированием, просто добавляем базовые
                     # В будущем здесь можно сделать асинхронное сканирование
                     pass
                 except Exception:
                     pass
-            
+
             models_to_try = self._models_to_try_cache
 
         # Таймаут на LLM вызов
@@ -1261,10 +1350,10 @@ class ReActAgent:
                     urls = [u for u in [self.ollama_url, self.mlx_url] if u]
 
                 for llm_url in urls:
-
                     if not llm_url:
                         continue
                     try:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"🔍 [GENERATE] Пробую модель {model} на {llm_url}...")
                         response = await client.post(
                             f"{llm_url}/api/generate",
@@ -1285,15 +1374,21 @@ class ReActAgent:
                                 )
                                 return result
                         elif response.status_code == 503:
-                            logger.warning(f"⚠️ [GENERATE] 503 Service Unavailable на {llm_url}, пробуем следующую URL...")
+                            logger.warning(
+                                f"⚠️ [GENERATE] 503 Service Unavailable на {llm_url}, пробуем следующую URL..."
+                            )
                             continue
                         elif response.status_code == 404:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.warning(f"⚠️ [GENERATE] 404 на {llm_url} модель={model}")
                             continue
                     except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.WriteTimeout) as e:
-                        logger.warning(f"⏱️ [GENERATE] Таймаут на {llm_url} ({repr(e)}), пробуем следующую URL...")
+                        logger.warning(
+                            f"⏱️ [GENERATE] Таймаут на {llm_url} ({repr(e)}), пробуем следующую URL..."
+                        )
                         continue
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.warning(f"⚠️ [GENERATE] Ошибка модели {model}: {repr(e)}")
                         continue
 
@@ -1329,7 +1424,8 @@ class ReActAgent:
 async def main():
     agent = ReActAgent(agent_name="Виктория", model_name="phi3.5:3.8b")
     result = await agent.run("Привет")
-    print(f"Результат: {result['status']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Результат: {result['status']}")
 
 
 if __name__ == "__main__":

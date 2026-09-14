@@ -57,10 +57,16 @@ class SwarmOrchestrator:
         """Run parallel expert consultations and synthesize a final decision."""
         logger.info("🐝 Assembling Swarm: %s", expert_names)
 
+        try:
+            from cursor_method import CURSOR_METHOD_PROMPT
+        except ImportError:
+            from app.cursor_method import CURSOR_METHOD_PROMPT
+
         # 1. Run parallel experts
         tasks = []
         for name in expert_names:
             prompt = (
+                f"{CURSOR_METHOD_PROMPT}"
                 f"ВЫ - {name}. Проанализируйте следующую проблему и дайте свое "
                 f"экспертное заключение: {task_description}"
             )
@@ -70,8 +76,10 @@ class SwarmOrchestrator:
 
         # 2. Consensus Synthesis
         synthesis_prompt = (
+            f"{CURSOR_METHOD_PROMPT}"
             "ВЫ - ВИКТОРИЯ, ВЕРХОВНЫЙ КООРДИНАТОР.\n"
-            "ЗАДАЧА: Сформируйте финальное решение на основе мнений ваших Директоров.\n\n"
+            "ЗАДАЧА: Сформируйте финальное решение на основе мнений ваших Директоров.\n"
+            "Не говори «готово» без доказательства.\n\n"
             f"ЗАДАЧА СВОРМА: {task_description}\n\n"
             "МНЕНИЯ ЭКСПЕРТОВ:"
         )
@@ -113,7 +121,7 @@ class SwarmOrchestrator:
                 logger.info("🚨 Repeated failure: %s. Triggering Swarm War-Room.", query)
 
                 # Experts for the War-Room
-                war_room_experts = ["Дмитрий", "Мария", "Максим"]
+                war_room_experts = ["Дмитрий", "Леонид", "Инна"]
 
                 decision = await self.assemble_swarm(
                     f"Повторяющийся сбой на запрос: {query}", war_room_experts, domain

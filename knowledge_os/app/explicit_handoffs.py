@@ -85,6 +85,7 @@ class Handoff:
             try:
                 import jsonschema
                 jsonschema.validate(instance=self.context, schema=self.validation_schema)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Handoff {self.handoff_id} validated against full contract.")
             except ImportError:
                 # Simple validation if jsonschema is missing
@@ -92,10 +93,12 @@ class Handoff:
                 for field in required:
                     if field not in self.context:
                         self.error = f"Contract violation: missing required field '{field}'"
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.warning(f"❌ Handoff {self.handoff_id} contract violation: {self.error}")
                         raise ValueError(self.error)
             except Exception as e:
                 self.error = f"Contract validation failed: {e}"
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Handoff {self.handoff_id} contract violation: {e}")
                 raise ValueError(self.error)
         elif "contract" in self.context:
@@ -103,9 +106,11 @@ class Handoff:
             try:
                 import jsonschema
                 jsonschema.validate(instance=self.context, schema=self.context["contract"])
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Handoff {self.handoff_id} validated against inline contract.")
             except Exception as e:
                 self.error = f"Inline contract validation failed: {e}"
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Handoff {self.handoff_id} inline contract violation: {e}")
                 raise ValueError(self.error)
 
@@ -190,6 +195,7 @@ class HandoffManager:
             raise ValueError(f"Invalid handoff: {handoff.error}")
 
         self.handoffs[handoff_id] = handoff
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📋 Создан handoff: {from_agent} → {to_agent} ({handoff_id})")
 
         return handoff
@@ -205,11 +211,13 @@ class HandoffManager:
             return False
 
         if handoff.status != HandoffStatus.PENDING:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Handoff {handoff_id} уже не в статусе PENDING")
             return False
 
         handoff.status = HandoffStatus.IN_PROGRESS
         handoff.started_at = datetime.now(timezone.utc)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"▶️ Handoff {handoff_id} начат")
         return True
 
@@ -230,6 +238,7 @@ class HandoffManager:
         self.handoff_history.append(handoff)
         del self.handoffs[handoff_id]
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Handoff {handoff_id} завершен")
         return True
 
@@ -247,6 +256,7 @@ class HandoffManager:
         self.handoff_history.append(handoff)
         del self.handoffs[handoff_id]
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Handoff {handoff_id} провален: {error}")
         return True
 
@@ -306,7 +316,7 @@ _DETERMINISTIC_ROUTES: List[Dict] = [
     },
     {
         "keywords": ["deploy", "деплой", "docker", "kubernetes", "k8s", "nginx", "CI/CD", "restart", "rollout"],
-        "expert": "Сергей",
+        "expert": "Макс",
         "reason": "DevOps задача — автоматический handoff к DevOps",
         "priority": HandoffPriority.HIGH,
     },
@@ -318,7 +328,7 @@ _DETERMINISTIC_ROUTES: List[Dict] = [
     },
     {
         "keywords": ["метрики", "backtest", "sharpe", "drawdown", "аналитик", "отчёт", "отчет", "статистик"],
-        "expert": "Максим",
+        "expert": "Инна",
         "reason": "Аналитика — автоматический handoff к дата-аналитику",
         "priority": HandoffPriority.MEDIUM,
     },
@@ -376,4 +386,3 @@ def detect_deterministic_handoff(
             return handoff
 
     return None
-    return _handoff_manager

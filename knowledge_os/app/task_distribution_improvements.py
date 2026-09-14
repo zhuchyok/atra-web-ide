@@ -130,6 +130,7 @@ def get_load_balancer() -> Optional[LoadBalancer]:
         try:
             _load_balancer = LoadBalancer()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Не удалось создать LoadBalancer: {e}")
             return None
     return _load_balancer
@@ -169,6 +170,7 @@ def get_metrics_collector() -> Optional[MetricsCollector]:
             if not hasattr(_metrics_collector, "get_metrics_summary"):
                 _metrics_collector.get_metrics_summary = lambda: {}
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Не удалось создать MetricsCollector: {e}")
             return None
     return _metrics_collector

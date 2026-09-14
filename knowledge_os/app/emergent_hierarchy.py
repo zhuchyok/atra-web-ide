@@ -154,10 +154,10 @@ class EmergentHierarchy:
         """Найти эксперта в домене"""
         # Упрощенная логика - можно улучшить
         domain_mapping = {
-            "database": ["Роман", "Игорь"],
-            "backend": ["Игорь", "Сергей"],
-            "development": ["Игорь", "Вероника"],
-            "testing": ["Анна", "Игорь"],
+            "database": ["Владимир", "Даниил"],
+            "backend": ["Даниил", "Макс"],
+            "development": ["Даниил", "Вероника"],
+            "testing": ["Анна", "Даниил"],
         }
 
         experts = domain_mapping.get(domain, [])

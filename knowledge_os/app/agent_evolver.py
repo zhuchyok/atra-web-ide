@@ -72,6 +72,7 @@ class AgentEvolver:
         Returns:
             Список вопросов для исследования
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"❓ [{self.agent_name}] Генерирую вопросы для исследования...")
 
         questions = []
@@ -117,6 +118,7 @@ class AgentEvolver:
             questions.append(question)
             self.questions.append(question)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ [{self.agent_name}] Сгенерировано {len(questions)} вопросов")
 
         return questions
@@ -137,6 +139,7 @@ class AgentEvolver:
         Returns:
             План навигации с приоритетными направлениями
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🧭 [{self.agent_name}] Планирую навигацию в пространстве задач...")
 
         # Анализируем текущее положение
@@ -150,11 +153,13 @@ class AgentEvolver:
                 # Тупик
                 if current_path not in self.navigation_state.dead_ends:
                     self.navigation_state.dead_ends.append(current_path)
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"   ⚠️ Обнаружен тупик: {current_path}")
             elif quality > 0.7:
                 # Перспективное направление
                 if current_path not in self.navigation_state.promising_directions:
                     self.navigation_state.promising_directions.append(current_path)
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"   ✅ Перспективное направление: {current_path}")
 
         # Определяем следующие шаги
@@ -221,6 +226,7 @@ class AgentEvolver:
         Returns:
             Атрибуция успеха/неудачи к конкретным действиям
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🎯 [{self.agent_name}] Анализирую атрибуцию успеха...")
 
         success = task_result.get("success", False)
@@ -314,12 +320,14 @@ async def main():
     questions = await evolver.self_question(
         context="Разработка новой функции", task="Создать систему метакогнитивного обучения"
     )
-    print(f"Вопросы: {len(questions)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Вопросы: {len(questions)}")
 
     # Self-Navigating
     task_space = {"paths": ["approach1", "approach2", "approach3", "approach4"]}
     navigation = await evolver.self_navigate(task_space)
-    print(f"Навигация: {navigation['next_steps']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Навигация: {navigation['next_steps']}")
 
     # Self-Attributing
     task_result = {"success": True, "quality": 0.85, "task_id": "task-001"}
@@ -329,7 +337,8 @@ async def main():
         {"type": "validation", "result": "partial"},
     ]
     attribution = await evolver.self_attributing(task_result, actions)
-    print(f"Атрибуция: {attribution['lessons']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Атрибуция: {attribution['lessons']}")
 
 
 if __name__ == "__main__":

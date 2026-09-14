@@ -145,11 +145,13 @@ class KnowledgeTranslator:
                     0.9,
                 )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Translated knowledge {knowledge_id} to {target_language}")
                 return translated_text
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error translating knowledge: {e}")
             return None
 
@@ -176,9 +178,11 @@ class KnowledgeTranslator:
                 if response.status_code == 200:
                     return response.json().get("translated_text")
                 else:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"Translation API error: {response.status_code}")
                     return None
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Translation error: {e}")
             return None
 
@@ -212,6 +216,7 @@ class KnowledgeTranslator:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error getting translation: {e}")
             return None
 
@@ -262,6 +267,7 @@ class UILocalizer:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error getting UI translation: {e}")
             return key
 
@@ -293,6 +299,7 @@ class UILocalizer:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error setting UI translation: {e}")
             return False
 
@@ -341,6 +348,7 @@ class MultilingualSearch:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error in multilingual search: {e}")
             return []
 
@@ -371,6 +379,7 @@ async def run_auto_translation_cycle():
                 lang,
             )
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"Translating {len(knowledge_to_translate)} knowledge nodes to {lang}")
 
             for knowledge in knowledge_to_translate:
@@ -379,6 +388,7 @@ async def run_auto_translation_cycle():
 
         logger.info("✅ Auto-translation cycle completed")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Auto-translation error: {e}")
     finally:
         await conn.close()

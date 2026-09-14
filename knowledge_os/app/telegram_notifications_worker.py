@@ -6,7 +6,7 @@
 
 Переменные окружения (обязательные для отправки):
   TELEGRAM_BOT_TOKEN или TG_TOKEN — токен бота
-  TELEGRAM_USER_ID или CHAT_ID — chat_id получателя (для личного чата = user id)
+  TELEGRAM_CHAT_ID или TELEGRAM_USER_ID или CHAT_ID — chat_id получателя (для личного чата = user id)
 """
 
 import asyncio
@@ -27,7 +27,7 @@ logger = logging.getLogger("telegram_notifications")
 
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TG_TOKEN", "")
-CHAT_ID = os.getenv("TELEGRAM_USER_ID") or os.getenv("CHAT_ID", "")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or os.getenv("TELEGRAM_USER_ID") or os.getenv("CHAT_ID", "")
 TG_PROXY = os.getenv("TG_PROXY") or os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY", "")
 NTFY_URL = os.getenv("NTFY_URL", "https://ntfy.sh/atra_victoria_curator")
 TG_FORCE_NTFY_PRIMARY = os.getenv("TG_FORCE_NTFY_PRIMARY", "false").lower() in (
@@ -158,6 +158,7 @@ async def main():
     if not TG_TOKEN or not CHAT_ID:
         logger.warning(
             "TELEGRAM_BOT_TOKEN (или TG_TOKEN) и TELEGRAM_USER_ID (или CHAT_ID) не заданы. "
+            "Также поддерживается TELEGRAM_CHAT_ID. "
             "Уведомления и отчёты в Telegram не будут отправляться. "
             "Задайте их в .env или в docker-compose для сервиса telegram-notifications."
         )

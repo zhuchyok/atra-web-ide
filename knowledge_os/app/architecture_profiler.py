@@ -35,6 +35,7 @@ class ArchitectureProfiler:
             try:
                 self._pool = await asyncpg.create_pool(self.db_url, min_size=1, max_size=20)
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Failed to create profiler DB pool: {e}")
         return self._pool
 
@@ -79,6 +80,7 @@ class ArchitectureProfiler:
                     metadata,
                 )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Profiler failed to log metric: {e}")
 
     async def get_hot_spots(self, limit: int = 5) -> list[dict[str, Any]]:
@@ -134,6 +136,7 @@ class ArchitectureProfiler:
                         break
                 return spots
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to get hot spots: {e}")
             return []
 

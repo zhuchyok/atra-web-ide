@@ -87,6 +87,7 @@ class TreeOfThoughts:
         Returns:
             Результат с лучшим путем
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🌳 ToT: Начинаю решение проблемы: {problem[:80]}")
 
         # 1. Создаем корневую мысль
@@ -344,9 +345,11 @@ class TreeOfThoughts:
                 if response.status_code == 200:
                     return response.json().get("response", "")
                 else:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"Ошибка генерации: {response.status_code}")
                     return ""
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка запроса к модели: {e}")
             return ""
 
@@ -357,12 +360,17 @@ async def main():
 
     result = await tot.solve("Как оптимизировать производительность веб-приложения?")
 
-    print("Результат Tree of Thoughts:")
-    print(f"  Финальный ответ: {result.final_answer[:200]}...")
-    print(f"  Уверенность: {result.confidence:.2f}")
-    print(f"  Всего мыслей: {result.total_thoughts}")
-    print(f"  Глубина исследования: {result.exploration_depth}")
-    print(f"  Длина лучшего пути: {len(result.best_path)}")
+    logger.info("Результат Tree of Thoughts:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Финальный ответ: {result.final_answer[:200]}...")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Уверенность: {result.confidence:.2f}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Всего мыслей: {result.total_thoughts}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Глубина исследования: {result.exploration_depth}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Длина лучшего пути: {len(result.best_path)}")
 
 
 if __name__ == "__main__":

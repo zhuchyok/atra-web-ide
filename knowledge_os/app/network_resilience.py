@@ -71,6 +71,7 @@ class NetworkResilience:
             return False
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Ошибка проверки интернета: {e}")
             self.internet_available = False
             return False
@@ -91,6 +92,7 @@ class NetworkResilience:
     def set_local_only_mode(self, enabled: bool):
         """Включает/выключает режим только локальных моделей"""
         self.local_only_mode = enabled
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🌐 Режим только локальных моделей: {'включен' if enabled else 'выключен'}")
 
 
@@ -123,14 +125,17 @@ def network_aware(func: Callable) -> Callable:
             ConnectionError,
         ) as e:
             # Сетевая ошибка - проверяем интернет
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"🌐 Сетевая ошибка в {func.__name__}: {e}")
             await _network_resilience.check_internet()
 
             if not _network_resilience.is_internet_available():
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Интернет недоступен, {func.__name__} не может выполниться")
                 raise ConnectionError(f"Интернет недоступен: {e}")
 
             # Интернет доступен, но была ошибка - пробуем еще раз
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔄 Повторная попытка {func.__name__} после проверки интернета")
             return await func(*args, **kwargs)
 
@@ -160,6 +165,7 @@ async def safe_http_request(
         await _network_resilience.ensure_internet_check()
 
     if not _network_resilience.is_internet_available() and not is_local:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ Интернет недоступен, пропускаем запрос к {url}")
         return None
 
@@ -183,6 +189,7 @@ async def safe_http_request(
             OSError,
             ConnectionError,
         ) as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"🌐 Сетевая ошибка (попытка {attempt + 1}/{max_retries}): {e}")
 
             if attempt < max_retries - 1:
@@ -191,6 +198,7 @@ async def safe_http_request(
                 if not _network_resilience.is_internet_available() and not url.startswith(
                     ("http://localhost", "http://127.0.0.1", "http://host.docker.internal")
                 ):
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ Интернет недоступен, прекращаем попытки для {url}")
                     return None
 
@@ -198,6 +206,7 @@ async def safe_http_request(
                 delay = 2**attempt
                 await asyncio.sleep(delay)
             else:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Не удалось выполнить запрос к {url} после {max_retries} попыток")
                 return None
 

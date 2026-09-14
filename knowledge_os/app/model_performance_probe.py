@@ -15,13 +15,14 @@ import asyncio
 import logging
 import os
 import time
-from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
 try:
     import asyncpg
+
     ASYNCPG_AVAILABLE = True
 except ImportError:
     asyncpg = None
@@ -52,6 +53,7 @@ def _margin_factor_for_model(model_name: str) -> float:
 @dataclass
 class ModelMetrics:
     """Метрики модели: измеренные и с запасом."""
+
     model_name: str
     source: str  # 'ollama' | 'mlx'
     base_url: Optional[str] = None
@@ -73,10 +75,11 @@ def _apply_margin(value: Optional[float], margin: float) -> Optional[float]:
     return round(value * margin, 2)
 
 
-async def _ollama_loaded_models(base_url: str) -> List[str]:
+async def _ollama_loaded_models(base_url: str) -> list[str]:
     """Список загруженных моделей в Ollama (/api/ps)."""
     try:
         import httpx
+
         async with httpx.AsyncClient(timeout=5.0) as client:
             r = await client.get(f"{base_url.rstrip('/')}/api/ps")
             if r.status_code != 200:
@@ -106,7 +109,9 @@ async def _ollama_probe(
     base_url = base_url.rstrip("/")
     # У каждой модели свой коэффициент запаса (тяжёлые — больше, лёгкие — меньше)
     margin = margin_factor if margin_factor is not None else _margin_factor_for_model(model_name)
-    metrics = ModelMetrics(model_name=model_name, source="ollama", base_url=base_url, margin_factor=margin)
+    metrics = ModelMetrics(
+        model_name=model_name, source="ollama", base_url=base_url, margin_factor=margin
+    )
 
     async with httpx.AsyncClient(timeout=PROBE_TIMEOUT_LOAD_SEC + 30) as client:
         # 1) Выгрузить модель если загружена (keep_alive=0)
@@ -115,7 +120,13 @@ async def _ollama_probe(
             t0 = time.perf_counter()
             await client.post(
                 f"{base_url}/api/generate",
-                json={"model": model_name, "prompt": "x", "stream": False, "keep_alive": 0, "num_predict": 1},
+                json={
+                    "model": model_name,
+                    "prompt": "x",
+                    "stream": False,
+                    "keep_alive": 0,
+                    "num_predict": 1,
+                },
             )
             # Ждём выгрузки (poll /api/ps)
             for _ in range(int(PROBE_TIMEOUT_UNLOAD_SEC)):
@@ -190,9 +201,6 @@ async def _ollama_probe(
                 metrics.processing_sec_per_1k_with_margin = _apply_margin(15.0, margin)
 
         return metrics
-    except Exception as e:
-        logger.warning("Probe failed for %s (%s): %s", model_name, base_url, e)
-        return None
 
 
 async def save_metrics(metrics: ModelMetrics, db_url: str = DB_URL) -> bool:
@@ -202,7 +210,8 @@ async def save_metrics(metrics: ModelMetrics, db_url: str = DB_URL) -> bool:
     try:
         conn = await asyncpg.connect(db_url)
         try:
-            await conn.execute("""
+            await conn.execute(
+                """
                 INSERT INTO model_performance_metrics (
                     model_name, source, base_url,
                     load_time_sec, unload_time_sec, deploy_time_sec, processing_sec_per_1k_tokens,
@@ -248,12 +257,12 @@ async def save_metrics(metrics: ModelMetrics, db_url: str = DB_URL) -> bool:
 
 
 async def get_metrics_for_models(
-    model_names: List[str],
+    model_names: list[str],
     source: str,
     db_url: str = DB_URL,
-) -> Dict[str, ModelMetrics]:
+) -> dict[str, ModelMetrics]:
     """Загрузить из БД метрики по списку моделей. Возвращает dict[model_name] -> ModelMetrics."""
-    result: Dict[str, ModelMetrics] = {}
+    result: dict[str, ModelMetrics] = {}
     if not ASYNCPG_AVAILABLE or not model_names:
         return result
     try:
@@ -278,16 +287,36 @@ async def get_metrics_for_models(
                         model_name=row["model_name"],
                         source=row["source"],
                         base_url=row["base_url"],
-                        load_time_sec=float(row["load_time_sec"]) if row["load_time_sec"] is not None else None,
-                        unload_time_sec=float(row["unload_time_sec"]) if row["unload_time_sec"] is not None else None,
-                        deploy_time_sec=float(row["deploy_time_sec"]) if row["deploy_time_sec"] is not None else None,
-                        processing_sec_per_1k_tokens=float(row["processing_sec_per_1k_tokens"]) if row["processing_sec_per_1k_tokens"] is not None else None,
-                        load_time_sec_with_margin=float(row["load_time_sec_with_margin"]) if row["load_time_sec_with_margin"] is not None else None,
-                        unload_time_sec_with_margin=float(row["unload_time_sec_with_margin"]) if row["unload_time_sec_with_margin"] is not None else None,
-                        deploy_time_sec_with_margin=float(row["deploy_time_sec_with_margin"]) if row["deploy_time_sec_with_margin"] is not None else None,
-                        processing_sec_per_1k_with_margin=float(row["processing_sec_per_1k_with_margin"]) if row["processing_sec_per_1k_with_margin"] is not None else None,
+                        load_time_sec=float(row["load_time_sec"])
+                        if row["load_time_sec"] is not None
+                        else None,
+                        unload_time_sec=float(row["unload_time_sec"])
+                        if row["unload_time_sec"] is not None
+                        else None,
+                        deploy_time_sec=float(row["deploy_time_sec"])
+                        if row["deploy_time_sec"] is not None
+                        else None,
+                        processing_sec_per_1k_tokens=float(row["processing_sec_per_1k_tokens"])
+                        if row["processing_sec_per_1k_tokens"] is not None
+                        else None,
+                        load_time_sec_with_margin=float(row["load_time_sec_with_margin"])
+                        if row["load_time_sec_with_margin"] is not None
+                        else None,
+                        unload_time_sec_with_margin=float(row["unload_time_sec_with_margin"])
+                        if row["unload_time_sec_with_margin"] is not None
+                        else None,
+                        deploy_time_sec_with_margin=float(row["deploy_time_sec_with_margin"])
+                        if row["deploy_time_sec_with_margin"] is not None
+                        else None,
+                        processing_sec_per_1k_with_margin=float(
+                            row["processing_sec_per_1k_with_margin"]
+                        )
+                        if row["processing_sec_per_1k_with_margin"] is not None
+                        else None,
                         margin_factor=float(row["margin_factor"] or DEFAULT_MARGIN_FACTOR),
-                        last_probed_at=row["last_probed_at"].isoformat() if row.get("last_probed_at") else None,
+                        last_probed_at=row["last_probed_at"].isoformat()
+                        if row.get("last_probed_at")
+                        else None,
                     )
         finally:
             await conn.close()
@@ -297,20 +326,20 @@ async def get_metrics_for_models(
 
 
 async def probe_new_models_if_needed(
-    ollama_models: List[str],
-    mlx_models: List[str],
+    ollama_models: list[str],
+    mlx_models: list[str],
     ollama_url: str,
     mlx_url: str,
     db_url: str = DB_URL,
     margin_factor: float = DEFAULT_MARGIN_FACTOR,
     max_probes_per_run: int = 2,
-) -> Dict[str, ModelMetrics]:
+) -> dict[str, ModelMetrics]:
     """
     Для моделей, по которым ещё нет записей в model_performance_metrics (или они старые),
     запускает probe и сохраняет результат с запасом.
     Ограничение: max_probes_per_run моделей за один вызов (чтобы не блокировать сканер).
     """
-    results: Dict[str, ModelMetrics] = {}
+    results: dict[str, ModelMetrics] = {}
     # Пока probe только для Ollama (MLX сложнее — свой API)
     existing = await get_metrics_for_models(ollama_models, "ollama", db_url)
     to_probe = [m for m in ollama_models if m not in existing][:max_probes_per_run]
@@ -358,7 +387,7 @@ def get_timeout_estimate_with_metrics(
 
 def get_timeout_estimate_from_metrics_dict(
     max_tokens: int,
-    metrics_dict: Optional[Dict[str, Any]] = None,
+    metrics_dict: Optional[dict[str, Any]] = None,
     fallback_load_sec: float = 60.0,
     fallback_inference_sec_per_1k: float = 30.0,
     margin_sec: float = 30.0,
@@ -367,7 +396,10 @@ def get_timeout_estimate_from_metrics_dict(
     Таймаут по словарю метрик (результат get_model_metrics). У каждой модели свои значения.
     """
     if not metrics_dict:
-        return max(60.0, fallback_load_sec + (max_tokens / 1000.0) * fallback_inference_sec_per_1k + margin_sec)
+        return max(
+            60.0,
+            fallback_load_sec + (max_tokens / 1000.0) * fallback_inference_sec_per_1k + margin_sec,
+        )
     load_sec = metrics_dict.get("load_time_sec_with_margin")
     if load_sec is None:
         load_sec = fallback_load_sec

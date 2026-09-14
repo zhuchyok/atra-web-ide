@@ -28,6 +28,7 @@ class UIUXAuditAgent:
         """
         Perform a visual audit of a screenshot against Apple HIG and Google Material standards.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🎨 [UI/UX AUDIT] Starting cognitive audit for project: {project_context}")
 
         # 1. Load design standards
@@ -82,6 +83,7 @@ class UIUXAuditAgent:
             }
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [UI/UX AUDIT] Audit failed: {e}")
             return {"status": "error", "message": str(e)}
 

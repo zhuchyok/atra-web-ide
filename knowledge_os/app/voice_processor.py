@@ -13,7 +13,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-TG_TOKEN = os.getenv("TG_TOKEN", "8422371257:AAEwgSCvSv637QqDsi-EAayVYj8dsENsLbU")
+TG_TOKEN = os.getenv("TG_TOKEN", "")
 
 
 class VoiceProcessor:
@@ -51,6 +51,7 @@ class VoiceProcessor:
                 # Используем локальную модель (если доступна)
                 return await self._transcribe_with_local(file_path)
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [VOICE PROCESSOR] Ошибка распознавания речи: {e}")
             return None
 
@@ -79,6 +80,7 @@ class VoiceProcessor:
                         )
                         return None
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [VOICE PROCESSOR] Ошибка OpenAI API: {e}")
             return None
 
@@ -110,6 +112,7 @@ class VoiceProcessor:
         except ImportError:
             pass
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [VOICE PROCESSOR] faster-whisper error: {e}")
 
         # Fallback to openai-whisper if available.
@@ -136,6 +139,7 @@ class VoiceProcessor:
                 )
                 self._local_warned_missing = True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [VOICE PROCESSOR] openai-whisper error: {e}")
 
         return None
@@ -190,6 +194,7 @@ class VoiceProcessor:
                                 tmp_file.write(download_res.content)
                                 return tmp_file.name
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [VOICE PROCESSOR] Ошибка скачивания файла: {e}")
             return None
 

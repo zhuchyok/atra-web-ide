@@ -73,6 +73,7 @@ class WisdomInjectionEngine:
                     )
                     continue
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"💡 [WISDOM] Injecting new SOP: {title}")
 
                 # Формируем процедуру на основе контента
@@ -91,6 +92,7 @@ class WisdomInjectionEngine:
                     #    test_scenario = f"{test_scenario}\n\n### [АВТО-ТЕСТ]\n{test_case}"
                     pass
                 except Exception as te:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Test generation failed: {te}")
 
                 await SystemTools.generate_sop_skill(
@@ -116,6 +118,7 @@ class WisdomInjectionEngine:
             logger.info("✅ [WISDOM] Injection cycle completed.")
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [WISDOM] Injection failed: {e}")
 
 

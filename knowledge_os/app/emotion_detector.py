@@ -290,6 +290,7 @@ class EmotionDetector:
                 )
                 return str(emotion_log_id) if emotion_log_id else None
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Error logging emotion: {e}")
                 return None
 
@@ -355,7 +356,10 @@ if __name__ == "__main__":
 
     for query in test_queries:
         result = detector.detect_emotion(query)
-        print(f"Query: {query}")
-        print(f"Emotion: {result.detected_emotion} (confidence: {result.confidence:.2f})")
-        print(f"Tone: {result.tone}")
-        print()
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"Query: {query}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"Emotion: {result.detected_emotion} (confidence: {result.confidence:.2f})")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"Tone: {result.tone}")
+        logger.info()

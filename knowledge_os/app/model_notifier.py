@@ -98,8 +98,10 @@ class ModelNotifier:
                     if response.status_code == 200:
                         logger.info("✅ Виктория уведомлена о новых моделях")
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"Не удалось уведомить Викторию: {e}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка уведомления Виктории: {e}")
 
     async def _notify_veronica(self, notification: Dict):
@@ -123,8 +125,10 @@ class ModelNotifier:
                     if response.status_code == 200:
                         logger.info("✅ Вероника уведомлена о новых моделях")
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"Не удалось уведомить Веронику: {e}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка уведомления Вероники: {e}")
 
     async def _save_notification_to_db(self, notification: Dict):
@@ -171,6 +175,7 @@ class ModelNotifier:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка сохранения уведомления: {e}")
 
     def _determine_category(self, model_name: str, details: Dict) -> str:

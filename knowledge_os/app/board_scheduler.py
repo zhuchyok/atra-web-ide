@@ -39,6 +39,7 @@ async def main():
 
     while True:
         try:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🏛 Starting scheduled Board Meeting at {get_msk_now()} MSK...")
             await asyncio.wait_for(run_board_meeting(), timeout=meeting_timeout)
             logger.info(
@@ -50,6 +51,7 @@ async def main():
                 meeting_timeout,
             )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Error in Board Meeting: {e}")
 
         await asyncio.sleep(interval)

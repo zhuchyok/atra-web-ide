@@ -70,9 +70,11 @@ class ParallelRequestProcessor:
                         return (source.name, result)
                     return (source.name, None)
                 except asyncio.TimeoutError:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"⏱️ [PARALLEL] {source.name} timeout ({source.timeout}s)")
                     return (source.name, None)
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"⚠️ [PARALLEL] {source.name} failed: {e}")
                     return (source.name, None)
 
@@ -86,14 +88,17 @@ class ParallelRequestProcessor:
         # Обрабатываем результаты
         for result in results:
             if isinstance(result, Exception):
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [PARALLEL] Source failed with exception: {result}")
                 continue
 
             source_name, response = result
             if response:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [PARALLEL] {source_name} responded in {duration:.2f}s")
                 return (source_name, response)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ [PARALLEL] All sources failed after {duration:.2f}s")
         return (None, None)
 
@@ -144,6 +149,7 @@ class ParallelRequestProcessor:
                 try:
                     return await handler(**request)
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ [PARALLEL BATCH] Request failed: {e}")
                     return None
 

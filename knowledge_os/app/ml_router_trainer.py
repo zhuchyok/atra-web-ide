@@ -132,11 +132,13 @@ class MLRouterTrainer:
                     optimal_route = row["actual_route_used"] or row["selected_route"]
                     labels.append(optimal_route)
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [ML TRAINER] Загружено {len(features_list)} образцов для обучения")
                 return features_list, labels
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [ML TRAINER] Ошибка загрузки данных: {e}")
             return [], []
 
@@ -175,6 +177,7 @@ class MLRouterTrainer:
             logger.error("❌ scikit-learn не установлен, обучение невозможно")
             return False
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 [ML TRAINER] Начало обучения модели (данные за {days} дней)...")
 
         # Загружаем данные
@@ -202,6 +205,7 @@ class MLRouterTrainer:
         y_pred = self.model.predict(X_test)
         accuracy = accuracy_score(y_test, y_pred)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ [ML TRAINER] Модель обучена, accuracy: {accuracy:.2%}")
         logger.info(
             f"📊 [ML TRAINER] Classification report:\n{classification_report(y_test, y_pred)}"
@@ -211,8 +215,10 @@ class MLRouterTrainer:
         try:
             with open(self.model_path, "wb") as f:
                 pickle.dump(self.model, f)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"💾 [ML TRAINER] Модель сохранена в {self.model_path}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [ML TRAINER] Ошибка сохранения модели: {e}")
             return False
 
@@ -232,12 +238,15 @@ class MLRouterTrainer:
             if os.path.exists(self.model_path):
                 with open(self.model_path, "rb") as f:
                     self.model = pickle.load(f)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [ML TRAINER] Модель загружена из {self.model_path}")
                 return True
             else:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [ML TRAINER] Модель не найдена: {self.model_path}")
                 return False
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [ML TRAINER] Ошибка загрузки модели: {e}")
             return False
 
@@ -296,6 +305,7 @@ class MLRouterTrainer:
             prediction = self.model.predict(X)[0]
             return prediction
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [ML TRAINER] Ошибка предсказания: {e}")
             return None
 

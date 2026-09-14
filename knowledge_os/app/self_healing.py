@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 # Config
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
-TG_TOKEN = os.getenv("TG_TOKEN", "8422371257:AAEwgSCvSv637QqDsi-EAayVYj8dsENsLbU")
+TG_TOKEN = os.getenv("TG_TOKEN", "")
 CHAT_ID = os.getenv("CHAT_ID", "556251171")
 
 # Настройки self-healing
@@ -48,6 +48,7 @@ class SelfHealingManager:
                 response = await client.get(f"{node_url}/api/tags")
                 return response.status_code == 200
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Node {node_url} health check failed: {e}")
             return False
 
@@ -91,6 +92,7 @@ class SelfHealingManager:
         if node_url in self.last_restart:
             time_since_restart = (datetime.now() - self.last_restart[node_url]).total_seconds()
             if time_since_restart < self.restart_cooldown:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"⏳ Node {node_url} в cooldown, пропускаем перезапуск")
                 return False
 
@@ -124,6 +126,7 @@ class SelfHealingManager:
                 logger.info("✅ Ollama запущен напрямую на MacBook")
                 return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка перезапуска Ollama на MacBook: {e}")
             return False
 
@@ -161,6 +164,7 @@ class SelfHealingManager:
                 )
                 return False
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка перезапуска Ollama на сервере: {e}")
             return False
 
@@ -187,10 +191,12 @@ class SelfHealingManager:
                     timeout=10.0,
                 )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to send Telegram alert: {e}")
 
     async def heal_node(self, node_url: str, node_name: str) -> bool:
         """Попытка исправить узел"""
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"🛠️ [SELF-HEALING] Попытка исправить узел {node_name} ({node_url})")
 
         # Перезапускаем узел
@@ -223,6 +229,7 @@ class SelfHealingManager:
                                     f"🔥 [SELF-HEALING] Модель {model_name} прогрета после перезапуска"
                                 )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Warmup после перезапуска не удался: {e}")
 
             # Отправляем уведомление
@@ -231,6 +238,7 @@ class SelfHealingManager:
                 "high",
             )
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ [SELF-HEALING] Узел {node_name} исправлен")
             return True
         else:
@@ -238,6 +246,7 @@ class SelfHealingManager:
                 f"❌ Не удалось перезапустить узел {node_name}. Требуется ручное вмешательство.",
                 "high",
             )
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SELF-HEALING] Не удалось исправить узел {node_name}")
             return False
 
@@ -268,6 +277,7 @@ class SelfHealingManager:
 
                 # Проверяем, нужно ли перезапускать
                 if self.should_restart(node_url):
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ [SELF-HEALING] Узел {node_name} требует перезапуска")
                     healed = await self.heal_node(node_url, node_name)
                     node["healed"] = healed

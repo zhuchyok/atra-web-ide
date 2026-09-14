@@ -251,6 +251,7 @@ class ExpertMetricsCollector:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error collecting metrics for expert {expert_id}: {e}")
             return None
 
@@ -271,6 +272,7 @@ class ExpertMetricsCollector:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error collecting all metrics: {e}")
             return []
 
@@ -447,6 +449,7 @@ class ExpertEvolver:
                         status="promoted",
                     )
 
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✨ Expert {expert['name']} evolved to v{new_version}")
 
                     # Сохраняем событие эволюции (по возможности с embedding — VERIFICATION §5, WHATS_NOT_DONE §4)
@@ -505,6 +508,7 @@ class ExpertEvolver:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error evolving expert {expert_id}: {e}")
             return False
 
@@ -677,6 +681,7 @@ class ExpertEvolver:
                     finally:
                         await conn.close()
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"Error removing expert {metrics.expert_id}: {e}")
 
         return removed
@@ -763,6 +768,7 @@ class ExpertEvolver:
                         expert_id,
                     )
 
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🎯 Expert {expert['name']} specialized in {best_domain}")
                     return True
 
@@ -770,6 +776,7 @@ class ExpertEvolver:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error specializing expert {expert_id}: {e}")
             return False
 
@@ -915,6 +922,7 @@ async def run_enhanced_evolution_cycle(expert_name: Optional[str] = None):
         logger.warning("No experts found for evolution")
         return
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"Collected metrics for {len(metrics_list)} experts")
 
     evolved_count = 0
@@ -1018,8 +1026,11 @@ async def run_enhanced_evolution_cycle(expert_name: Optional[str] = None):
                 await conn.close()
 
     logger.info("✅ Evolution cycle completed:")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   - Evolved: {evolved_count}")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   - Specialized: {specialized_count}")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   - Removed: {removed_count}")
 
 

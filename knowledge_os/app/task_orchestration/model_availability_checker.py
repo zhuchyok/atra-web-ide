@@ -28,7 +28,7 @@ class ModelAvailabilityChecker:
         return model is not None
 
     async def get_available_model(self, category: str, priority: str = "mlx") -> Optional[str]:
-        """Return model name (e.g. mlx:qwen2.5-coder:32b) or None."""
+        """Return model name (e.g. mlx:qwen3-coder:30b) or None."""
         return await self._registry.get_available_model(category, priority=priority)
 
     async def check_service_responds(self, url: str, timeout: float = 3.0) -> bool:

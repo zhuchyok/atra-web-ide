@@ -157,6 +157,7 @@ class SuccessRetriever:
                             time_saved_sec,
                         )
                 except Exception as ae:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"Audit log error: {ae}")
 
                 successes = []
@@ -185,6 +186,7 @@ class SuccessRetriever:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Success retrieval error: {e}")
             return ""
 

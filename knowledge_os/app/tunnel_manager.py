@@ -130,10 +130,12 @@ class TunnelManager:
                 stderr = (
                     self.tunnel_process.stderr.read().decode() if self.tunnel_process.stderr else ""
                 )
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ SSH tunnel не запустился: {stderr}")
                 return False
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка создания tunnel: {e}")
             return False
 
@@ -236,5 +238,6 @@ async def ensure_tunnel():
             logger.warning("⚠️ Не удалось создать SSH tunnel автоматически")
             return False
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка создания SSH tunnel: {e}")
         return False

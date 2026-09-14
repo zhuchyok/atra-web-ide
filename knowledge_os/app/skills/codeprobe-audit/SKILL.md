@@ -6,6 +6,7 @@ description: Мультиагентный аудит кода - 9 специал
 # CodeProbe - Multi-Agent Code Audit
 
 ## Когда использовать
+
 - Комплексный аудит PR
 - Проверка безопасности
 - Анализ архитектуры
@@ -15,6 +16,7 @@ description: Мультиагентный аудит кода - 9 специал
 ## 9 Агентов
 
 ### 1. Security Agent (`/codeprobe security`)
+
 - SQL injection
 - XSS (cross-site scripting)
 - Hardcoded secrets
@@ -22,6 +24,7 @@ description: Мультиагентный аудит кода - 9 специал
 - CSRF tokens
 
 ### 2. SOLID Agent (`/codeprobe solid`)
+
 - Single Responsibility (SRP)
 - Open/Closed (OCP)
 - Liskov Substitution (LSP)
@@ -29,39 +32,46 @@ description: Мультиагентный аудит кода - 9 специал
 - Dependency Inversion (DIP)
 
 ### 3. Architecture Agent (`/codeprobe architecture`)
+
 - Circular dependencies
 - Layer violations
 - God objects
 - Modular structure
 
 ### 4. Performance Agent (`/codeprobe performance`)
+
 - N+1 queries
 - Memory leaks
 - Rendering issues
 - Index usage
 
 ### 5. Error Handling Agent (`/codeprobe error-handling`)
+
 - Unhandled exceptions
 - Missing error boundaries
 - Retry logic
 
 ### 6. Test Quality Agent (`/codeprobe test-quality`)
+
 - Coverage gaps
 - Mock usage
 - Test isolation
 
 ### 7. Code Smells Agent (`/codeprobe code-smells`)
+
 - Dead code
 - Duplication
 - Deep nesting
 - Long methods
 
 ### 8. Design Patterns Agent (`/codeprobe design-patterns`)
+
 - Anti-patterns
 - Pattern usage
 - Appropriate patterns
 
 ### 9. Framework Agent (`/codeprobe framework`)
+
 - Framework conventions
 - Best practices
 - Configuration issues
@@ -99,14 +109,14 @@ description: Мультиагентный аудит кода - 9 специал
 
 ## Priority Weights
 
-| Category | Weight |
-|----------|--------|
-| Security | 20% |
-| SOLID | 15% |
-| Architecture | 15% |
-| Error Handling | 12% |
-| Performance | 12% |
-| Test Quality | 10% |
-| Code Smells | 8% |
-| Design Patterns | 4% |
-| Framework | 4% |
+| Category        | Weight |
+| --------------- | ------ |
+| Security        | 20%    |
+| SOLID           | 15%    |
+| Architecture    | 15%    |
+| Error Handling  | 12%    |
+| Performance     | 12%    |
+| Test Quality    | 10%    |
+| Code Smells     | 8%     |
+| Design Patterns | 4%     |
+| Framework       | 4%     |

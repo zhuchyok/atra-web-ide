@@ -76,9 +76,11 @@ class KnowledgeArchiver:
             archived_count = row["count"] if row else 0
             conn.close()
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📦 [ARCHIVER] Архивировано {archived_count} сессий (старше {days} дней)")
             return archived_count
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [ARCHIVER] Ошибка архивации сессий: {e}")
             return 0
 
@@ -118,6 +120,7 @@ class KnowledgeArchiver:
 
             return archived_count
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [ARCHIVER] Ошибка архивации планов: {e}")
             return 0
 
@@ -146,10 +149,12 @@ class KnowledgeArchiver:
             conn.close()
 
             if archived_count > 0:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"📦 [ARCHIVER] Архивировано {archived_count} устаревших планов")
 
             return archived_count
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [ARCHIVER] Ошибка архивации устаревших планов: {e}")
             return 0
 
@@ -189,10 +194,12 @@ class KnowledgeArchiver:
                             f"📉 [ARCHIVER] Summary сжат с {len(summary)} до {len(compressed_summary)} символов"
                         )
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"⚠️ [ARCHIVER] Ошибка сжатия summary: {e}")
 
             return summary
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [ARCHIVER] Ошибка создания summary: {e}")
             return ""
 
@@ -238,13 +245,16 @@ class KnowledgeArchiver:
                             if summary:
                                 compressed[plan_id] = summary
                         except Exception as e:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.debug(f"⚠️ [ARCHIVER] Ошибка сжатия плана {plan_id}: {e}")
                             compressed[plan_id] = markdown[:200] + "..."
                     else:
                         compressed[plan_id] = markdown
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"⚠️ [ARCHIVER] Ошибка обработки плана {plan_id}: {e}")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📦 [ARCHIVER] Сжато {len(compressed)} планов")
 
         return compressed
@@ -267,4 +277,5 @@ class KnowledgeArchiver:
 
             logger.info("✅ [ARCHIVER] Периодическая архивация завершена")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [ARCHIVER] Ошибка периодической архивации: {e}")

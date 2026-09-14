@@ -118,6 +118,7 @@ class SkillLoader:
                 self.observer = Observer()
                 self.handler = None
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка создания Observer: {e}")
                 self.observer = None
                 self.handler = None
@@ -136,11 +137,13 @@ class SkillLoader:
         # Отслеживаемые директории
         self.watched_dirs: Set[str] = set()
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Skill Loader инициализирован (watch: {self.watch_enabled})")
 
     async def load_all_skills(self):
         """Загрузить все skills из реестра"""
         self.skill_registry.load_skills()
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📦 Загружено skills: {len(self.skill_registry.skills)}")
 
     async def reload_skill(self, skill_dir: str):
@@ -148,6 +151,7 @@ class SkillLoader:
         try:
             skill_path = Path(skill_dir)
             if not (skill_path / "SKILL.md").exists():
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ SKILL.md не найден: {skill_dir}")
                 return
 
@@ -166,10 +170,13 @@ class SkillLoader:
                 event_type = EventType.SKILL_UPDATED if old_skill else EventType.SKILL_ADDED
                 await self._publish_skill_event(event_type, skill)
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🔄 Skill перезагружен: {skill.name}")
             else:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Не удалось перезагрузить skill: {skill_dir}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка перезагрузки skill {skill_dir}: {e}", exc_info=True)
 
     def _determine_source(self, skill_path: Path) -> SkillSource:
@@ -242,6 +249,7 @@ class SkillLoader:
                 if self.observer is not None and self.handler is not None:
                     self.observer.schedule(self.handler, watch_dir, recursive=True)
                 self.watched_dirs.add(watch_dir)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"👁️ Мониторинг skills: {watch_dir}")
 
             if dirs_to_watch:
@@ -252,6 +260,7 @@ class SkillLoader:
             else:
                 logger.warning("⚠️ Нет директорий для мониторинга skills")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка запуска Skills Watcher: {e}", exc_info=True)
             self.running = False
 
@@ -268,6 +277,7 @@ class SkillLoader:
             self.watched_dirs.clear()
             logger.info("🛑 Skills Watcher остановлен")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка остановки Skills Watcher: {e}")
 
     def is_watching(self) -> bool:
@@ -296,10 +306,12 @@ async def main():
 
     # Подписываемся на события skills
     async def handle_skill_added(event: Event):
-        print(f"➕ Skill добавлен: {event.payload.get('skill_name')}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"➕ Skill добавлен: {event.payload.get('skill_name')}")
 
     async def handle_skill_updated(event: Event):
-        print(f"🔄 Skill обновлен: {event.payload.get('skill_name')}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"🔄 Skill обновлен: {event.payload.get('skill_name')}")
 
     event_bus.subscribe(EventType.SKILL_ADDED, handle_skill_added)
     event_bus.subscribe(EventType.SKILL_UPDATED, handle_skill_updated)
@@ -314,13 +326,14 @@ async def main():
     await loader.start_watcher()
 
     # Ждем события
-    print("⏳ Мониторинг skills (нажмите Ctrl+C для остановки)...")
+    logger.info("⏳ Мониторинг skills (нажмите Ctrl+C для остановки)...")
     try:
         await asyncio.sleep(60)
     except KeyboardInterrupt:
         pass
 
-    print(f"\n📊 Статистика: {loader.get_stats()}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n📊 Статистика: {loader.get_stats()}")
 
     await loader.stop_watcher()
     await event_bus.stop()

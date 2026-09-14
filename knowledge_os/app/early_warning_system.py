@@ -93,6 +93,7 @@ class EarlyWarningSystem:
             conn = await asyncpg.connect(self.db_url)
             return conn
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [EARLY WARNING] Ошибка подключения к БД: {e}")
             return None
 
@@ -164,6 +165,7 @@ class EarlyWarningSystem:
                         },
                     )
 
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ [EARLY WARNING] {warning.description}")
                     return warning
 
@@ -173,6 +175,7 @@ class EarlyWarningSystem:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [EARLY WARNING] Ошибка предсказания Win Rate: {e}")
             return None
 
@@ -255,6 +258,7 @@ class EarlyWarningSystem:
                         },
                     )
 
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ [EARLY WARNING] {warning.description}")
                     return warning
 
@@ -264,6 +268,7 @@ class EarlyWarningSystem:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [EARLY WARNING] Ошибка предсказания переобучения: {e}")
             return None
 
@@ -342,6 +347,7 @@ class EarlyWarningSystem:
                         },
                     )
 
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ [EARLY WARNING] {warning.description}")
                     return warning
 
@@ -351,6 +357,7 @@ class EarlyWarningSystem:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [EARLY WARNING] Ошибка предсказания ликвидности: {e}")
             return None
 
@@ -425,6 +432,7 @@ class EarlyWarningSystem:
                 # Обновляем кэш
                 self._warning_cache[warning.warning_id] = warning
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [EARLY WARNING] Сохранено предупреждение {warning.warning_id}")
                 return True
 
@@ -432,6 +440,7 @@ class EarlyWarningSystem:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [EARLY WARNING] Ошибка сохранения предупреждения: {e}")
             return False
 
@@ -515,6 +524,7 @@ class EarlyWarningSystem:
             return critical_warnings
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [EARLY WARNING] Ошибка эскалации: {e}")
             return []
 

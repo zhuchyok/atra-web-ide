@@ -120,6 +120,7 @@ async def self_reflect(prompt: str, response: str) -> str:
 
     # Fix if issues found
     if issues:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ Self-reflection found issues: {issues}")
         # Don't modify response, just return with flag
         # Full modification would require calling LLM
@@ -183,10 +184,12 @@ async def run_quality_pipeline(
     issues = []
     metadata = {}
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"🚀 [QUALITY PIPELINE] Starting with config: {cfg}")
 
     for iteration in range(cfg.max_iterations):
         iterations = iteration + 1
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔄 [QUALITY] Iteration {iteration + 1}/{cfg.max_iterations}")
 
         # 1. Self-reflection
@@ -196,9 +199,11 @@ async def run_quality_pipeline(
 
         # 2. Confidence check
         confidence = await check_confidence(response, prompt)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📊 Confidence: {confidence:.2f}")
 
         if confidence >= cfg.confidence_threshold:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Confidence PASS ({confidence:.2f} >= {cfg.confidence_threshold})")
             break
 
@@ -207,6 +212,7 @@ async def run_quality_pipeline(
             ensemble_result = await ensemble_check(prompt, response)
             issues.extend(ensemble_result.get("issues", []))
             metadata["ensemble"] = ensemble_result
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔍 Ensemble: {ensemble_result.get('verdict', 'UNKNOWN')}")
 
         # 4. Fact check - only if ensemble failed
@@ -215,6 +221,7 @@ async def run_quality_pipeline(
             if not fact_result.get("verified", True):
                 issues.extend(fact_result.get("errors", []))
             metadata["fact_check"] = fact_result
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔍 Fact-check: {'PASS' if fact_result.get('verified') else 'FAIL'}")
 
         # If we're past max iterations, stop

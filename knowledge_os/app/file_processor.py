@@ -56,12 +56,14 @@ class FileProcessor:
             Словарь с извлеченным текстом и метаданными или None при ошибке
         """
         if not os.path.exists(file_path):
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [FILE PROCESSOR] Файл не найден: {file_path}")
             return None
 
         file_ext = Path(file_path).suffix.lower()
 
         if file_ext not in self.supported_formats:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [FILE PROCESSOR] Неподдерживаемый формат: {file_ext}")
             return None
 
@@ -76,6 +78,7 @@ class FileProcessor:
 
             return result
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [FILE PROCESSOR] Ошибка обработки файла {file_path}: {e}")
             return None
 
@@ -108,6 +111,7 @@ class FileProcessor:
 
             return {"text": full_text, "page_count": len(text_parts), "format": "pdf"}
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [FILE PROCESSOR] Ошибка обработки PDF: {e}")
             return None
 
@@ -125,9 +129,11 @@ class FileProcessor:
                     text = f.read()
                 return {"text": text, "line_count": len(text.split("\n")), "format": "text"}
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [FILE PROCESSOR] Ошибка чтения текстового файла: {e}")
                 return None
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [FILE PROCESSOR] Ошибка обработки текстового файла: {e}")
             return None
 

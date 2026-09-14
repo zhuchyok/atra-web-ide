@@ -85,6 +85,7 @@ class MultiAgentDebate:
         """
         Run a multi-round debate on a specific topic.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🗣️ [DEBATE] Starting debate on: {topic[:100]}...")
 
         history = []
@@ -102,6 +103,7 @@ class MultiAgentDebate:
             )
 
         for r in range(1, rounds + 1):
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔄 [DEBATE] Round {r}/{rounds}")
             round_responses = []
 
@@ -127,6 +129,7 @@ class MultiAgentDebate:
             # Update context for next round
             new_round_text = "\n\n" + "\n".join(round_responses)
             if extractor and len(current_context) + len(new_round_text) > 8000:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🔄 [DEBATE] Round {r} context too long, summarizing history...")
                 round_summary = await extractor.extract_facts(
                     new_round_text, context_description=f"Debate round {r} summary"
@@ -143,11 +146,7 @@ class MultiAgentDebate:
         incomplete_n = sum(1 for h in history if h.get("incomplete"))
         quality_degraded = incomplete_n > 0 or synth_incomplete
         reasons = sorted(
-            {
-                str(h.get("reason") or "")
-                for h in history
-                if h.get("incomplete") and h.get("reason")
-            }
+            {str(h.get("reason") or "") for h in history if h.get("incomplete") and h.get("reason")}
         )
         if synth_incomplete and synth_reason:
             reasons.append(synth_reason)
@@ -282,9 +281,7 @@ Refine your own position to reach the best possible solution.
                 "error",
             )
 
-    async def _synthesize_decision(
-        self, topic: str, history: List[Dict]
-    ) -> tuple[str, bool, str]:
+    async def _synthesize_decision(self, topic: str, history: List[Dict]) -> tuple[str, bool, str]:
         history_text = "\n".join([f"{h['expert']}: {h['opinion']}" for h in history])
         if len(history_text) > 5000:
             history_text = history_text[:5000]
@@ -319,9 +316,7 @@ If some opinions are marked INCOMPLETE, do not invent their positions.
                 )
 
             result = await asyncio.wait_for(
-                generate_dialogue(
-                    synthesis_prompt, expert_name="Виктория", model_hint="fast"
-                ),
+                generate_dialogue(synthesis_prompt, expert_name="Виктория", model_hint="fast"),
                 timeout=float(os.getenv("DEBATE_SYNTHESIS_TIMEOUT_SEC", "20")),
             )
             if result.ok and not is_incomplete_text(result.text):

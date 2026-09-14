@@ -197,6 +197,7 @@ class TelegramAlerter:
                     f"⚠️ [TELEGRAM ALERT] Timeout при отправке (попытка {attempt + 1}/{retry_count})"
                 )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [TELEGRAM ALERT] Ошибка отправки: {e}")
 
             if attempt < retry_count - 1:
@@ -212,6 +213,7 @@ class TelegramAlerter:
             }
         )
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ [TELEGRAM ALERT] Не удалось отправить алерт после {retry_count} попыток")
         # Fallback to ntfy to avoid silent alert loss.
         return await self._send_ntfy_fallback(

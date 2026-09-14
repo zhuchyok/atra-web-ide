@@ -3101,13 +3101,13 @@ Q: "покажи файлы в текущей директории" → План
             # Маппинг категорий на модели из PLAN.md
             model_map = {
                 "backend": [
-                    "qwen2.5-coder:32b",
+                    "qwen3-coder:30b",
                     "phi3.5:3.8b",
                     "qwen2.5:3b",
                     "tinyllama:1.1b-chat",
                 ],
                 "frontend": [
-                    "qwen2.5-coder:32b",
+                    "qwen3-coder:30b",
                     "phi3.5:3.8b",
                     "qwen2.5:3b",
                     "tinyllama:1.1b-chat",
@@ -3115,10 +3115,10 @@ Q: "покажи файлы в текущей директории" → План
                 "ml": ["victoria-wisdom-24k:latest", "glm-4.7-flash:latest", "phi3.5:3.8b"],
                 "devops": ["glm-4.7-flash:latest", "phi3.5:3.8b", "qwen2.5:3b"],
                 "security": ["victoria-wisdom-24k:latest", "glm-4.7-flash:latest", "phi3.5:3.8b"],
-                "database": ["qwen2.5-coder:32b", "phi3.5:3.8b", "qwen2.5:3b"],
-                "performance": ["qwen2.5-coder:32b", "phi3.5:3.8b"],
+                "database": ["qwen3-coder:30b", "phi3.5:3.8b", "qwen2.5:3b"],
+                "performance": ["qwen3-coder:30b", "phi3.5:3.8b"],
                 "general": [
-                    "qwen2.5-coder:32b",
+                    "qwen3-coder:30b",
                     "phi3.5:3.8b",
                     "qwen2.5:3b",
                     "tinyllama:1.1b-chat",

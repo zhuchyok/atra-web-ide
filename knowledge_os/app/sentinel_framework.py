@@ -37,10 +37,12 @@ class ExpertSentinel:
             self.event_bus.subscribe(event_type, self.handle_event)
 
         self.is_running = True
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🛡️ Sentinel [{self.expert_name}] запущен (Dept: {self.department})")
 
     async def handle_event(self, event: Event):
         """Диспетчер обработки событий."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"🔔 Sentinel {self.expert_name} получил событие: {event.event_type.value}")
 
         # Логика принятия решения (Reflexive Layer - 1.2B model logic simulation)
@@ -59,12 +61,12 @@ class ExpertSentinel:
             path = event.payload.get("file_path", "")
             return any(ext in path for ext in [".py", ".js", ".svelte", ".ts"])
 
-        # Роман реагирует на события БД
-        if self.expert_name == "Роман" and event.event_type == EventType.PERFORMANCE_DEGRADED:
+        # Владимир реагирует на события БД
+        if self.expert_name == "Владимир" and event.event_type == EventType.PERFORMANCE_DEGRADED:
             return event.payload.get("metric") in ["db_connections", "slow_queries"]
 
-        # Максим реагирует на ошибки безопасности
-        if self.expert_name == "Максим" and event.event_type == EventType.ERROR_DETECTED:
+        # Алексей реагирует на ошибки безопасности
+        if self.expert_name == "Алексей" and event.event_type == EventType.ERROR_DETECTED:
             return (
                 "security" in str(event.payload).lower()
                 or "injection" in str(event.payload).lower()
@@ -105,15 +107,16 @@ class ExpertSentinel:
                 )
             )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SENTINEL] Ошибка постановки задачи для {self.expert_name}: {e}")
 
     def _generate_task_description(self, event: Event) -> str:
         """Генерация промпта для воркера на основе события."""
         if self.expert_name == "Анна":
             return f"АВТО-ТЕСТ: Обнаружены изменения в {event.payload.get('file_path')}. Запусти тесты в Песочнице и проверь регрессию."
-        if self.expert_name == "Роман":
+        if self.expert_name == "Владимир":
             return f"АВТО-ОПТИМИЗАЦИЯ БД: Метрика {event.payload.get('metric')} = {event.payload.get('value')}. Проверь индексы и нагрузку."
-        if self.expert_name == "Максим":
+        if self.expert_name == "Алексей":
             return f"АВТО-АУДИТ БЕЗОПАСНОСТИ: Зафиксирована аномалия: {event.payload}. Проверь логи на предмет атаки."
         return f"Автономная задача по событию {event.event_type.value}"
 
@@ -122,9 +125,9 @@ async def init_all_sentinels():
     """Инициализация роя стражей."""
     sentinels = [
         ExpertSentinel("Анна", "QA", [EventType.FILE_CREATED, EventType.FILE_MODIFIED]),
-        ExpertSentinel("Роман", "Database", [EventType.PERFORMANCE_DEGRADED]),
-        ExpertSentinel("Максим", "Security", [EventType.ERROR_DETECTED, EventType.SYSTEM_EVENT]),
-        ExpertSentinel("Елена", "Docs", [EventType.KNOWLEDGE_UPDATED]),
+        ExpertSentinel("Владимир", "Database", [EventType.PERFORMANCE_DEGRADED]),
+        ExpertSentinel("Алексей", "Security", [EventType.ERROR_DETECTED, EventType.SYSTEM_EVENT]),
+        ExpertSentinel("Ирина", "Docs", [EventType.KNOWLEDGE_UPDATED]),
     ]
 
     for s in sentinels:

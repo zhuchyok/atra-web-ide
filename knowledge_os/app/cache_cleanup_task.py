@@ -69,6 +69,7 @@ class CacheCleanupTask:
                 deleted_rows = int(deleted_count.split()[-1]) if deleted_count else 0
 
                 if deleted_rows > 0:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🧹 [CACHE CLEANUP] Удалено {deleted_rows} устаревших записей")
                 else:
                     logger.debug("✅ [CACHE CLEANUP] Устаревших записей не найдено")
@@ -77,6 +78,7 @@ class CacheCleanupTask:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [CACHE CLEANUP] Ошибка очистки кэша: {e}")
             return 0
 
@@ -96,6 +98,7 @@ class CacheCleanupTask:
                 try:
                     await self.cleanup_expired_cache()
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ [CACHE CLEANUP] Ошибка в цикле очистки: {e}")
 
                 await asyncio.sleep(self.cleanup_interval)

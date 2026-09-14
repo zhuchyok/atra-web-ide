@@ -183,8 +183,10 @@ async def create_task_safe(
         )
 
         if task_id:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Задача создана: {title} (ID: {task_id})")
         else:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⏭️ Пропуск дубликата задачи: {title} (context: {project_context})")
 
         return task_id

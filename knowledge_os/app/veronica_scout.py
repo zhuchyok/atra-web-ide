@@ -81,6 +81,7 @@ class VeronicaScout:
 
     async def run_scouting_cycle(self, max_targets: Optional[int] = None):
         """Запуск цикла разведки. max_targets=1 keeps MLX load bounded (nightly)."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🕵️ [SCOUT] Начало цикла глобальной разведки: {datetime.now(timezone.utc)}")
         if max_targets is None:
             max_targets = int(os.getenv("SCOUT_MAX_TARGETS", str(len(self.targets))))
@@ -90,6 +91,7 @@ class VeronicaScout:
         all_insights = []
         for target in targets:
             try:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🔍 [SCOUT] Исследование цели: {target}")
                 result = await self.researcher.research_and_analyze(
                     target, category="research", use_web=True
@@ -109,8 +111,10 @@ class VeronicaScout:
                     preview = ((result or {}).get("analysis") or "")[:80]
                     logger.warning("⚠️ [SCOUT] Пропуск пустого/ошибочного анализа: %s", preview)
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [SCOUT] Ошибка при исследовании {target}: {e}")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ [SCOUT] Цикл разведки завершен. Собрано инсайтов: {len(all_insights)}")
         return all_insights
 
@@ -167,6 +171,7 @@ class VeronicaScout:
                 payload["metadata"]["file_path"],
             )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SCOUT] Ошибка сохранения в БД: {e}")
 
 
@@ -176,6 +181,7 @@ async def start_scout_daemon(interval_hours: int = 6):
     while True:
         logger.info("🐢 [SCOUT] Запуск цикла разведки в фоновом режиме (не спеша)...")
         await scout.run_scouting_cycle(max_targets=int(os.getenv("SCOUT_MAX_TARGETS", "1")))
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"💤 [SCOUT] Сон на {interval_hours} часов до следующего цикла...")
         await asyncio.sleep(interval_hours * 3600)
 

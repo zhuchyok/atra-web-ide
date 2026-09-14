@@ -77,9 +77,26 @@ async def _auto_requeue_delegation(conn, max_rows: int, max_requeues_per_task: i
             WITH candidate AS (
                 SELECT t.id, t.title, COALESCE(t.project_context, 'default') AS pc
                 FROM tasks t
-                WHERE t.status IN ('cancelled', 'failed')
-                  AND t.metadata->>'source' = 'victoria_monster_delegation'
-                  AND COALESCE((t.metadata->>'failed_requires_intervention')::boolean, false) = false
+                -- Requeue failed delegation tasks + system rule-fallback cancellations.
+                -- Human/manual cancellations remain terminal and are not resurrected.
+                WHERE t.metadata->>'source' = 'victoria_monster_delegation'
+                  AND (
+                      (
+                        t.status = 'failed'
+                        AND COALESCE(t.metadata->>'manual_cancel_reason', '') = ''
+                      )
+                      OR (
+                        t.status = 'cancelled'
+                        AND COALESCE(t.metadata->>'manual_cancel_reason', '') = 'policy_rule_fallback'
+                        AND COALESCE(t.metadata->>'auto_fallback_reason', '') = 'rule_fallback_cancelled'
+                      )
+                  )
+                  -- Respect explicit/manual cancel decisions (human or tooling cleanup)
+                  -- except system rule-fallback cancellations that are intentionally auto-retriable.
+                  AND (
+                      COALESCE((t.metadata->>'failed_requires_intervention')::boolean, false) = false
+                      OR COALESCE(t.metadata->>'manual_cancel_reason', '') = 'policy_rule_fallback'
+                  )
                   AND COALESCE(t.metadata->>'diagnostic_path', '') NOT IN (
                       'delegation_manual_triage',
                       'progress_guard_manual_triage',

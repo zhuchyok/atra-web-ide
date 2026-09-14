@@ -79,12 +79,12 @@ class OrganizationalStructure:
                     {
                         "id": 1,
                         "name": "Backend",
-                        "manager": {"id": 1, "name": "Игорь"},
+                        "manager": {"id": 1, "name": "Даниил"},
                         "subdepartments": [
                             {
                                 "id": 2,
                                 "name": "API Development",
-                                "manager": {"id": 1, "name": "Игорь"},
+                                "manager": {"id": 1, "name": "Даниил"},
                                 "employees": [...]
                             }
                         ],
@@ -113,6 +113,7 @@ class OrganizationalStructure:
                             "SELECT COUNT(DISTINCT COALESCE(department, 'General')) FROM experts"
                         )
                 except Exception as pool_error:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"Ошибка пула быстрой проверки: {pool_error}, используем кэш")
                     return self._structure_cache
 
@@ -130,6 +131,7 @@ class OrganizationalStructure:
                 self._last_expert_count = current_expert_count
                 self._last_department_count = current_dept_count
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"ℹ️ Не удалось проверить изменения в БД: {e}, используем кэш")
 
         # Проверяем кэш (только если не было изменений)
@@ -137,6 +139,7 @@ class OrganizationalStructure:
             if self._cache_timestamp:
                 age = (datetime.now() - self._cache_timestamp).total_seconds()
                 if age < self._cache_ttl:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"✅ Используем кэшированную структуру (возраст: {age:.1f}с)")
                     return self._structure_cache
 
@@ -208,11 +211,11 @@ class OrganizationalStructure:
                         manager = None
                         for emp in employees:
                             if emp["is_manager"] or emp["name"] in [
-                                "Игорь",
+                                "Даниил",
                                 "Дмитрий",
-                                "Сергей",
-                                "Мария",
-                                "Максим",
+                                "Макс",
+                                "Леонид",
+                                "Инна",
                             ]:
                                 manager = {
                                     "id": emp["id"],
@@ -284,9 +287,11 @@ class OrganizationalStructure:
                         "Выполните: psql -f knowledge_os/db/migrations/add_experts_organizational_columns.sql "
                         "или запустите Enhanced Orchestrator."
                     ) from pool_error
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка пула структуры: {pool_error}, используем fallback")
                 return self._get_fallback_structure()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка получения структуры: {e}", exc_info=True)
             return self._get_fallback_structure()
 
@@ -305,56 +310,42 @@ class OrganizationalStructure:
                 {
                     "id": "Backend",
                     "name": "Backend",
-                    "manager": {"id": 1, "name": "Игорь", "role": "Backend Developer"},
+                    "manager": {"id": 1, "name": "Даниил", "role": "Backend Lead"},
                     "employees": [
                         {
                             "id": 1,
-                            "name": "Игорь",
-                            "role": "Backend Developer",
+                            "name": "Даниил",
+                            "role": "Backend Lead",
                             "is_manager": True,
                             "department": "Backend",
                         },
                         {
                             "id": 2,
-                            "name": "Даниил",
-                            "role": "Principal Backend Architect",
-                            "is_manager": False,
-                            "department": "Backend",
-                        },
-                        {
-                            "id": 11,
-                            "name": "Роман",
-                            "role": "Database Engineer",
-                            "is_manager": False,
-                            "department": "Backend",
-                        },
-                        {
-                            "id": 17,
-                            "name": "Никита",
-                            "role": "Full-stack Developer",
+                            "name": "Денис",
+                            "role": "Backend Engineer",
                             "is_manager": False,
                             "department": "Backend",
                         },
                     ],
-                    "employee_count": 4,
+                    "employee_count": 2,
                     "subdepartments": [],
                 },
                 {
                     "id": "ML/AI",
                     "name": "ML/AI",
-                    "manager": {"id": 3, "name": "Дмитрий", "role": "ML Engineer"},
+                    "manager": {"id": 3, "name": "Александр Нейман", "role": "AI/ML Systems Lead"},
                     "employees": [
                         {
                             "id": 3,
-                            "name": "Дмитрий",
+                            "name": "Александр Нейман",
                             "role": "ML Engineer",
                             "is_manager": True,
                             "department": "ML/AI",
                         },
                         {
                             "id": 6,
-                            "name": "Максим",
-                            "role": "Data Analyst",
+                            "name": "Инна",
+                            "role": "Data Science Lead",
                             "is_manager": False,
                             "department": "ML/AI",
                         },
@@ -365,70 +356,49 @@ class OrganizationalStructure:
                 {
                     "id": "Frontend",
                     "name": "Frontend",
-                    "manager": {"id": 4, "name": "Андрей", "role": "Frontend Developer"},
+                    "manager": {"id": 4, "name": "София", "role": "UI/UX Designer"},
                     "employees": [
                         {
                             "id": 4,
-                            "name": "Андрей",
-                            "role": "Frontend Developer",
+                            "name": "София",
+                            "role": "UI/UX Designer",
                             "is_manager": True,
                             "department": "Frontend",
                         },
-                        {
-                            "id": 5,
-                            "name": "София",
-                            "role": "UI/UX Designer",
-                            "is_manager": False,
-                            "department": "Frontend",
-                        },
                     ],
-                    "employee_count": 2,
+                    "employee_count": 1,
                     "subdepartments": [],
                 },
                 {
                     "id": "DevOps/Infra",
                     "name": "DevOps/Infra",
-                    "manager": {"id": 7, "name": "Сергей", "role": "DevOps Engineer"},
+                    "manager": {"id": 7, "name": "Макс", "role": "DevOps Lead & SRE"},
                     "employees": [
                         {
                             "id": 7,
-                            "name": "Сергей",
-                            "role": "DevOps Engineer",
+                            "name": "Макс",
+                            "role": "DevOps Lead & SRE",
                             "is_manager": True,
                             "department": "DevOps/Infra",
                         },
-                        {
-                            "id": 8,
-                            "name": "Елена",
-                            "role": "Monitor",
-                            "is_manager": False,
-                            "department": "DevOps/Infra",
-                        },
                     ],
-                    "employee_count": 2,
+                    "employee_count": 1,
                     "subdepartments": [],
                 },
                 {
                     "id": "QA",
                     "name": "QA",
-                    "manager": {"id": 5, "name": "Анна", "role": "QA Engineer"},
+                    "manager": {"id": 6, "name": "Анна", "role": "QA Lead"},
                     "employees": [
                         {
-                            "id": 5,
+                            "id": 6,
                             "name": "Анна",
-                            "role": "QA Engineer",
+                            "role": "QA Lead",
                             "is_manager": True,
                             "department": "QA",
                         },
-                        {
-                            "id": 21,
-                            "name": "Артем",
-                            "role": "Code Reviewer",
-                            "is_manager": False,
-                            "department": "QA",
-                        },
                     ],
-                    "employee_count": 2,
+                    "employee_count": 1,
                     "subdepartments": [],
                 },
                 {
@@ -450,11 +420,11 @@ class OrganizationalStructure:
                 {
                     "id": "Risk Management",
                     "name": "Risk Management",
-                    "manager": {"id": 10, "name": "Мария", "role": "Risk Manager"},
+                    "manager": {"id": 10, "name": "Леонид", "role": "Risk Manager"},
                     "employees": [
                         {
                             "id": 10,
-                            "name": "Мария",
+                            "name": "Леонид",
                             "role": "Risk Manager",
                             "is_manager": True,
                             "department": "Risk Management",
@@ -466,11 +436,11 @@ class OrganizationalStructure:
                 {
                     "id": "Performance",
                     "name": "Performance",
-                    "manager": {"id": 12, "name": "Ольга", "role": "Performance Engineer"},
+                    "manager": {"id": 12, "name": "Виталий", "role": "Performance Engineer"},
                     "employees": [
                         {
                             "id": 12,
-                            "name": "Ольга",
+                            "name": "Виталий",
                             "role": "Performance Engineer",
                             "is_manager": True,
                             "department": "Performance",
@@ -482,12 +452,12 @@ class OrganizationalStructure:
                 {
                     "id": "Documentation",
                     "name": "Documentation",
-                    "manager": {"id": 13, "name": "Татьяна", "role": "Technical Writer"},
+                    "manager": {"id": 13, "name": "Ирина", "role": "Documentation Lead"},
                     "employees": [
                         {
                             "id": 13,
-                            "name": "Татьяна",
-                            "role": "Technical Writer",
+                            "name": "Ирина",
+                            "role": "Documentation Lead",
                             "is_manager": True,
                             "department": "Documentation",
                         }
@@ -501,48 +471,34 @@ class OrganizationalStructure:
                     "manager": {
                         "id": 18,
                         "name": "Дарья",
-                        "role": "SEO & AI Visibility Specialist",
+                        "role": "SEO & Marketing Lead",
                     },
                     "employees": [
                         {
                             "id": 18,
                             "name": "Дарья",
-                            "role": "SEO & AI Visibility Specialist",
+                            "role": "SEO & Marketing Lead",
                             "is_manager": True,
                             "department": "Marketing",
                         },
-                        {
-                            "id": 19,
-                            "name": "Марина",
-                            "role": "Content Manager",
-                            "is_manager": False,
-                            "department": "Marketing",
-                        },
                     ],
-                    "employee_count": 2,
+                    "employee_count": 1,
                     "subdepartments": [],
                 },
                 {
                     "id": "Trading",
                     "name": "Trading",
-                    "manager": {"id": 9, "name": "Павел", "role": "Trading Strategy Developer"},
+                    "manager": {"id": 9, "name": "Виктор", "role": "Chief Trading Strategist"},
                     "employees": [
                         {
                             "id": 9,
-                            "name": "Павел",
-                            "role": "Trading Strategy Developer",
+                            "name": "Виктор",
+                            "role": "Chief Trading Strategist",
                             "is_manager": True,
                             "department": "Trading",
                         },
-                        {
-                            "id": 14,
-                            "name": "Екатерина",
-                            "role": "Financial Analyst",
-                            "is_manager": False,
-                            "department": "Trading",
-                        },
                     ],
-                    "employee_count": 2,
+                    "employee_count": 1,
                     "subdepartments": [],
                 },
                 {
@@ -563,13 +519,13 @@ class OrganizationalStructure:
                 },
                 {
                     "id": "Legal",
-                    "name": "Legal",
-                    "manager": {"id": 20, "name": "Юлия", "role": "Legal Counsel"},
+                    "name": "Legal & Compliance",
+                    "manager": {"id": 20, "name": "Алексей", "role": "Security & Compliance Engineer"},
                     "employees": [
                         {
                             "id": 20,
-                            "name": "Юлия",
-                            "role": "Legal Counsel",
+                            "name": "Алексей",
+                            "role": "Security & Compliance Engineer",
                             "is_manager": True,
                             "department": "Legal",
                         }

@@ -44,11 +44,13 @@ class AutonomousPolicyEnforcer:
                     "execution_priority": "high" if score > 0.7 else "normal",
                 }
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🛡️ [POLICY] Applied policy for {expert_name} (Score: {score})")
                 return policy
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Policy enforcement error: {e}")
             return self._default_policy()
 

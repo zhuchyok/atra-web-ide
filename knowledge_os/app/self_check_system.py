@@ -391,6 +391,7 @@ class SelfCheckSystem:
                     return True
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SELF-CHECK] Ошибка автоматического исправления {check.name}: {e}")
 
         return False
@@ -438,6 +439,7 @@ class SelfCheckSystem:
                     description,
                     metadata,
                 )
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"📋 [SELF-CHECK] Создана задача на восстановление: {check.name}")
             finally:
                 await conn.close()
@@ -488,6 +490,7 @@ class SelfCheckSystem:
                 if check.fix_attempts < 3:
                     fixed = await self.auto_fix_component(check)
                     if fixed:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"✅ [SELF-CHECK] {check.name} автоматически исправлен")
                 # Если auto_fix не сработал — создаём задачу в БД для SRE
                 if not check.auto_fixed and check.status in [
@@ -527,6 +530,7 @@ class SelfCheckSystem:
         }
 
         if unhealthy_count > 0 and self.alert_on_critical:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"🚨 [SELF-CHECK] КРИТИЧНО: {unhealthy_count} компонентов нездоровы!")
 
         logger.info(
@@ -567,6 +571,7 @@ class SelfCheckSystem:
             except asyncio.CancelledError:
                 break
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [SELF-CHECK] Ошибка в цикле мониторинга: {e}")
                 await asyncio.sleep(10)
 

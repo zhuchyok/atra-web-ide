@@ -85,6 +85,7 @@ class EpisodicMemoryManager:
                     json.dumps(metadata or {}),
                 )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🧠 [EPISODIC MEMORY] Saved {episode_type} for {user_key}")
             finally:
                 await conn.close()

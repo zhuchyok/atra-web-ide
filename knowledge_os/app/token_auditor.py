@@ -8,6 +8,7 @@ import re
 
 logger = logging.getLogger(__name__)
 
+
 class TokenAuditor:
     """Аудитор эффективности токенов."""
 
@@ -26,14 +27,15 @@ class TokenAuditor:
 
     def apply_chain_of_density(self, text: str, iterations: int = 3) -> str:
         """
-        [SINGULARITY 21.33] Chain of Density (CoD): 
+        [SINGULARITY 21.33] Chain of Density (CoD):
         Делает текст более информативным, заменяя общие фразы на конкретные сущности.
         """
         if not text or len(text) < 100:
             return text
-            
+
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🧬 [CoD] Applying Chain of Density (iterations={iterations})")
-        # В реальности CoD требует вызова LLM, здесь мы реализуем логику 
+        # В реальности CoD требует вызова LLM, здесь мы реализуем логику
         # подготовки инструкций для модели, чтобы она сама применяла CoD.
         cod_instruction = f"""
         ### [SYSTEM: CHAIN OF DENSITY ENABLED]
@@ -67,11 +69,14 @@ class TokenAuditor:
         new_len = len(cleaned_prompt)
         if original_len > new_len:
             tokens_saved = (original_len - new_len) // 4
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"[TOKEN AUDIT] Saved ~{tokens_saved} tokens by removing redundancies")
 
         return cleaned_prompt
 
+
 _auditor = TokenAuditor()
+
 
 def audit_efficiency(prompt: str) -> str:
     """Выполняет аудит эффективности промпта."""

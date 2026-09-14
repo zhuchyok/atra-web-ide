@@ -156,12 +156,14 @@ class MetricsCollector:
                         json.dumps(metric.metadata) if metric.metadata else None,
                     )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"✅ Сохранено {len(self._metrics_buffer)} метрик в БД")
                 self._metrics_buffer.clear()
                 self._last_save_time = time.time()
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка сохранения метрик в БД: {e}")
 
     async def get_metrics_stats(
@@ -202,6 +204,7 @@ class MetricsCollector:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка получения статистики метрик: {e}")
 
         return {}

@@ -281,6 +281,7 @@ _Примечание: Полный AI-доклад недоступен из-з
             send_telegram_msg(full_msg)
             logger.info("✅ Упрощенный доклад Виктории отправлен (fallback)")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка генерации отчета: {e}", exc_info=True)
             # Отправляем минимальный отчет даже при ошибке
             error_report = f"""💰 *Финансовая аналитика (за 24ч):*

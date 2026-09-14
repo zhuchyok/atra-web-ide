@@ -20,6 +20,7 @@ class ContainerIsolationManager:
             self._ensure_quarantine()
         except Exception as e:
             self.client = None
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ IsolationManager error: {e}")
 
     def _ensure_quarantine(self):
@@ -29,6 +30,7 @@ class ContainerIsolationManager:
             self.client.networks.get(self.quarantine_net)
         except docker.errors.NotFound:
             self.client.networks.create(self.quarantine_net, driver="bridge", internal=True)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🛡️ Создана сеть карантина: {self.quarantine_net}")
 
     async def isolate_container(self, container_name: str, severity: str):
@@ -40,6 +42,7 @@ class ContainerIsolationManager:
             container = self.client.containers.get(container_name)
 
             if severity == "critical":
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"☣️ [QUARANTINE] Изоляция агрессора: {container_name}")
                 # Отключаем от всех сетей и переводим в карантин
                 for net_name in container.attrs["NetworkSettings"]["Networks"].keys():
@@ -47,11 +50,13 @@ class ContainerIsolationManager:
                 self.client.networks.get(self.quarantine_net).connect(container)
 
             elif severity == "high":
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"📉 [THROTTLING] Ограничение ресурсов: {container_name}")
                 # Троттлинг до 10% CPU
                 container.update(cpu_period=100000, cpu_quota=10000)
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка при изоляции {container_name}: {e}")
 
 

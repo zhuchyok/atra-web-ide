@@ -4,8 +4,11 @@
 Provides zero-latency RAG and knowledge retrieval.
 """
 
+import asyncio
 import logging
 import os
+import fcntl
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Optional
 
@@ -17,6 +20,24 @@ logger = logging.getLogger(__name__)
 LANCE_DB_PATH = os.getenv("LANCE_DB_PATH", "/app/data/lancedb")
 TABLE_NAME = "knowledge_nodes"
 EMBEDDING_DIM = 768  # nomic-embed-text
+LOCK_FILE = f"{LANCE_DB_PATH}.lock"
+
+
+@contextmanager
+def _process_file_lock(exclusive: bool = True):
+    """Inter-process lock for safe multi-container LanceDB operations."""
+    os.makedirs(os.path.dirname(LOCK_FILE), exist_ok=True)
+    lock_fd = open(LOCK_FILE, "a+")
+    flags = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
+    try:
+        fcntl.flock(lock_fd.fileno(), flags)
+        yield
+    finally:
+        try:
+            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+            lock_fd.close()
+        except Exception:
+            pass
 
 
 class LanceDBService:
@@ -32,8 +53,9 @@ class LanceDBService:
     def __init__(self):
         if self._db is None:
             os.makedirs(LANCE_DB_PATH, exist_ok=True)
-            self._db = lancedb.connect(LANCE_DB_PATH)
-            self._init_table()
+            with _process_file_lock(exclusive=True):
+                self._db = lancedb.connect(LANCE_DB_PATH)
+                self._init_table()
 
     def _schema(self):
         return pa.schema(
@@ -54,8 +76,10 @@ class LanceDBService:
                 self._table = self._db.open_table(TABLE_NAME)
             else:
                 self._table = self._db.create_table(TABLE_NAME, schema=self._schema())
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [LANCEDB] Table '{TABLE_NAME}' created.")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [LANCEDB] Initialization error: {e}")
             self._recover_corrupt_db()
 
@@ -91,7 +115,7 @@ class LanceDBService:
             if filter:
                 query = query.where(filter)
 
-            results = query.to_list()
+            results = await asyncio.to_thread(query.to_list)
 
             # Convert to standard format
             formatted = []
@@ -116,11 +140,12 @@ class LanceDBService:
                 )
             return formatted
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [LANCEDB] Search error: {e}")
             return []
 
     async def upsert_batch(self, nodes: list[dict]):
-        """Upserts a batch of nodes."""
+        """Upserts a batch of nodes with file lock."""
         if not self._table:
             return
 
@@ -140,10 +165,13 @@ class LanceDBService:
                     }
                 )
 
-            # Append mode prevents clobbering previous vectors on every batch.
-            self._table.add(data)
-            logger.info(f"💾 [LANCEDB] Upserted {len(data)} nodes.")
+            # File lock protects against concurrent process manifest corruption
+            with _process_file_lock(exclusive=True):
+                self._table.add(data)
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"💾 [LANCEDB] Upserted {len(data)} nodes safely.")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [LANCEDB] Upsert error: {e}")
 
 

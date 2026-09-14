@@ -54,6 +54,7 @@ class ExpertDNAManager:
                 # 1. [SINGULARITY 21.18] Priority: Dynamic DB Overrides
                 if dynamic_override:
                     dna_parts.append(f"\n### ⚡️ DYNAMIC DNA OVERRIDE (DB):\n{dynamic_override}")
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🚀 [EXPERT DNA] Applied dynamic override for {expert_name}")
 
                 # 2. Fallback: Load rule file content if exists
@@ -67,6 +68,7 @@ class ExpertDNAManager:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error loading expert DNA for {expert_name}: {e}")
             return ""
 
@@ -96,6 +98,7 @@ class ExpertDNAManager:
                         self._rules_cache[filename] = content
                         return content
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"Failed to read rule file {path}: {e}")
 
         return None

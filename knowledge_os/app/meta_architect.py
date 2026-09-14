@@ -181,6 +181,7 @@ class MetaArchitect:
         [SINGULARITY 10.0+] Safety Verification via GraphRAG (Impact Analysis).
         Verifies if the mutation is safe to deploy in shadow mode.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🛡️ [SAFETY] Verifying mutation safety for {module_name}.{function_name}...")
 
         # 1. Analyze mutated code for signature changes
@@ -194,10 +195,12 @@ class MetaArchitect:
 
             tree = ast.parse(mutated_code)
             mutated_function = None
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"AST: Searching for {function_name} in mutated code...")
             for node in ast.walk(tree):
                 if isinstance(node, ast.FunctionDef):
                     current_name = node.name
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"AST: Found function {current_name}")
                     if current_name == function_name or (
                         "." in function_name and function_name.split(".")[-1] == current_name
@@ -281,7 +284,7 @@ class MetaArchitect:
                 audit_prompt,
                 expert_name="Виктория",
                 category="safety_audit",
-                model="victoria-wisdom-v3.5",
+                model="victoria-wisdom-24k",
             )
 
             try:
@@ -294,10 +297,12 @@ class MetaArchitect:
                     "recommendation": audit_result.get("recommendation", "abort"),
                 }
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Failed to parse safety audit JSON: {e}")
                 return {"score": 0.0, "risks": [f"Audit parsing error: {e}"]}
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Safety verification failed: {e}")
             return {"score": 0.0, "risks": [str(e)]}
 
@@ -469,6 +474,7 @@ class MetaArchitect:
                     hypothesis_json = hypothesis_json.split("```json")[1].split("```")[0].strip()
                 hypothesis = json.loads(hypothesis_json)
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Failed to parse hypothesis JSON: {e}")
                 continue
 
@@ -487,6 +493,8 @@ class MetaArchitect:
 ```python
 {fn_source}
 ```
+
+Учитывайте зависимости и логические связи, указанные в контексте GraphRAG.
 
 ВЕРНИТЕ ТОЛЬКО ПОЛНЫЙ ИСПРАВЛЕННЫЙ КОД ЭТОЙ ФУНКЦИИ (с def/async def).
 Используйте только валидный Python. Не возвращайте весь файл.
@@ -595,6 +603,7 @@ class MetaArchitect:
             with open(mutation_path, "w", encoding="utf-8") as f:
                 f.write(full_mutated)
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🧬 [MUTATION] Created mutated version: {mutation_path}")
 
             # [SINGULARITY 10.0+] Автоматический деплой в Shadow для A/B тестирования
@@ -602,10 +611,12 @@ class MetaArchitect:
                 tm = get_traffic_mirror()
                 if tm:
                     await tm.register_shadow(spot["module_name"], mutation_path)
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🛡️ [SHADOW] Mutation {mutation_id} deployed for A/B testing.")
                 else:
                     logger.warning("TrafficMirror not available for shadow deployment.")
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Failed to deploy shadow mutation: {e}")
 
             # Log to knowledge nodes
@@ -633,6 +644,7 @@ class MetaArchitect:
                 node_meta,
             )
             await conn.close()
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🧬 [MUTATION] Created mutated version: {mutation_path}")
 
     async def recursive_learning_loop(self):
@@ -701,9 +713,12 @@ class MetaArchitect:
                                 f"🔄 [HOT-SWAP] Successfully promoted mutation to {original_module}.py"
                             )
                         else:
+                            # TODO: Convert f-string to %s formatting for performance
                             logger.warning(f"⚠️ [HOT-SWAP] Promotion failed for {original_module}")
                     except Exception as e:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.error(f"Failed to trigger hot-swap: {e}")
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"🔄 [HOT-SWAP] Promoting mutation to {original_module}.py")
         if not ASYNCPG_AVAILABLE:
             logger.error("❌ asyncpg is not installed. Repair cycle aborted.")

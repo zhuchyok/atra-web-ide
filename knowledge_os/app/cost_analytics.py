@@ -1,8 +1,9 @@
 import asyncio
 import uuid
+from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Optional
-from collections import defaultdict
+
 import aiohttp
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel

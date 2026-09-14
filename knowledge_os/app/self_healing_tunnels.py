@@ -42,11 +42,14 @@ async def check_and_heal_tunnels():
                 )
                 # Run restart command
                 subprocess.Popen(tunnel["restart_script"], shell=True)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [SELF-HEALING] Restart command sent for '{tunnel['name']}'")
             else:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🟢 [SELF-HEALING] Tunnel '{tunnel['name']}' is healthy.")
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SELF-HEALING] Error checking tunnel '{tunnel['name']}': {e}")
 
 

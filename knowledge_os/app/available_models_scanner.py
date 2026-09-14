@@ -31,6 +31,8 @@ _PROBE_NEW_MODELS = os.getenv("MODEL_PROBE_ON_SCAN", "true").lower() in ("true",
 # Приоритет для OLLAMA (порт 11434) - по мощности
 # ВАЖНО: victoria-wisdom-v3.5:latest — мозг и руки Виктории (всегда приоритет №1), дообучаем и заменяем в будущем
 OLLAMA_BEST_FIRST: List[str] = [
+    "victoria-wisdom-24k:latest",  # Primary Victoria model
+    "victoria-wisdom-24k",
     "victoria-wisdom-v3.5:latest",  # 30B Wisdom Era (мозг и руки) - ПРИОРИТЕТ №1
     "victoria-wisdom-v3.5",
     "qwen3.5:35b",  # 35B Coding/Reasoning - резерв для сложных задач
@@ -48,6 +50,7 @@ OLLAMA_BEST_FIRST: List[str] = [
 
 # Приоритет для MLX (порт 11435)
 MLX_BEST_FIRST: List[str] = [
+    "victoria-wisdom-24k",  # Local exported model - PRIMARY
     "victoria-wisdom-v3.5",  # Local exported model - ПРИОРИТЕТ №1
     "phi3.5:3.8b",  # 3.8B light
     "qwen2.5:3b",  # 3B light
@@ -60,24 +63,32 @@ MLX_BEST_FIRST: List[str] = [
 OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
     "fast": ["tinyllama:1.1b-chat", "gemma3n:e4b", "lfm2.5-thinking:1.2b"],
     "default": [
+        "victoria-wisdom-24k:latest",
+        "victoria-wisdom-24k",
         "victoria-wisdom-v3.5:latest",
         "victoria-wisdom-v3.5",
         "gemma3n:e4b",
         "tinyllama:1.1b-chat",
     ],
     "general": [
+        "victoria-wisdom-24k:latest",
+        "victoria-wisdom-24k",
         "victoria-wisdom-v3.5:latest",
         "victoria-wisdom-v3.5",
         "gemma3n:e4b",
         "tinyllama:1.1b-chat",
     ],
     "coding": [
+        "victoria-wisdom-24k:latest",
+        "victoria-wisdom-24k",
         "victoria-wisdom-v3.5:latest",
         "victoria-wisdom-v3.5",
         "qwen3.5:35b",
         "qwen3-coder:30b",
     ],
     "reasoning": [
+        "victoria-wisdom-24k:latest",
+        "victoria-wisdom-24k",
         "victoria-wisdom-v3.5:latest",
         "victoria-wisdom-v3.5",
         "deepseek-r1:32b",
@@ -85,6 +96,8 @@ OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
         "qwen3.5:35b",
     ],
     "complex": [
+        "victoria-wisdom-24k:latest",
+        "victoria-wisdom-24k",
         "victoria-wisdom-v3.5:latest",
         "victoria-wisdom-v3.5",
         "qwen3.5:35b",
@@ -93,7 +106,7 @@ OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
     ],
     "vision": ["moondream:latest", "minicpm-v:latest"],
     "thinking": ["lfm2.5-thinking:1.2b", "tinyllama:1.1b-chat"],
-    "vip": ["victoria-wisdom-v3.5:latest", "victoria-wisdom-v3.5"],
+    "vip": ["victoria-wisdom-24k:latest", "victoria-wisdom-24k"],
     "fallback": ["deepseek-r1:32b", "qwq:32b", "glm-4.7-flash:latest"],
 }
 
@@ -449,6 +462,7 @@ async def scan_and_select_models(
             if is_ok:
                 working_ollama.append(m)
             else:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"🚨 [CORRUPTION] Модель {m} повреждена. Исключаем.")
         except Exception:
             working_ollama.append(m)

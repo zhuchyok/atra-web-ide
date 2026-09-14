@@ -184,6 +184,7 @@ class AnomalyDetector:
                     detected_at=current_time,
                 )
                 alerts.append(alert)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"🔄 [ANOMALY] Expert injection blocked: {injection_reason}")
                 await self._log_alert(alert)
             return False, alerts if alerts else None
@@ -250,6 +251,7 @@ class AnomalyDetector:
             return True, alert
         elif is_repeated and is_internal_request:
             # Логируем, но не блокируем внутренние запросы
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"🔄 [ANOMALY] Пропускаем внутренний запрос (repeat_count={repeat_count})")
 
         # 3. Проверка на резкий рост запросов (DDoS)
@@ -322,10 +324,12 @@ class AnomalyDetector:
                     alert.detected_at,
                 )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"🚨 [ANOMALY DETECTOR] {alert.anomaly_type}: {alert.description}")
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Не удалось сохранить аномалию в БД: {e}")
 
     async def get_anomaly_stats(self, hours: int = 24) -> Dict[str, Any]:
@@ -359,6 +363,7 @@ class AnomalyDetector:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка получения статистики аномалий: {e}")
             return {}
 

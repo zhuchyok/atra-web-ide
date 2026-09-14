@@ -103,14 +103,17 @@ class FileChangeHandler(FileSystemEventHandler):
             # Публикуем в event loop (из потока watchdog может не быть running loop — используем переданный loop)
             if self._loop and self._loop.is_running():
                 asyncio.run_coroutine_threadsafe(self.event_bus.publish(event), self._loop)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"📢 Событие {event_type.value} для файла: {src_path}")
             else:
                 try:
                     asyncio.create_task(self.event_bus.publish(event))
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.debug(f"📢 Событие {event_type.value} для файла: {src_path}")
                 except RuntimeError:
                     logger.debug("Нет running event loop для публикации (вызов из другого потока)")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка публикации события для {src_path}: {e}")
 
     def on_created(self, event: FileSystemEvent):
@@ -167,6 +170,7 @@ class FileWatcher:
             if path.exists():
                 valid_paths.append(str(path))
             else:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Путь не существует, пропускаем: {path}")
 
         self.watched_paths = set(valid_paths)
@@ -174,6 +178,7 @@ class FileWatcher:
         if not self.watched_paths:
             logger.warning("⚠️ Нет валидных путей для мониторинга")
         else:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ File Watcher инициализирован: {len(self.watched_paths)} путей")
 
     async def start(self):
@@ -195,6 +200,7 @@ class FileWatcher:
             # Регистрируем наблюдателей для каждого пути
             for watch_path in self.watched_paths:
                 self.observer.schedule(self.handler, watch_path, recursive=self.recursive)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"👁️ Мониторинг: {watch_path} (recursive={self.recursive})")
 
             # Запускаем observer
@@ -202,6 +208,7 @@ class FileWatcher:
             self.running = True
             logger.info("🚀 File Watcher запущен")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка запуска File Watcher: {e}", exc_info=True)
             self.running = False
 
@@ -216,6 +223,7 @@ class FileWatcher:
             self.running = False
             logger.info("🛑 File Watcher остановлен")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка остановки File Watcher: {e}")
 
     def is_running(self) -> bool:
@@ -245,10 +253,12 @@ async def main():
 
     # Подписываемся на события файлов
     async def handle_file_created(event: Event):
-        print(f"📁 Файл создан: {event.payload.get('file_path')}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"📁 Файл создан: {event.payload.get('file_path')}")
 
     async def handle_file_modified(event: Event):
-        print(f"✏️ Файл изменен: {event.payload.get('file_path')}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"✏️ Файл изменен: {event.payload.get('file_path')}")
 
     event_bus.subscribe(EventType.FILE_CREATED, handle_file_created)
     event_bus.subscribe(EventType.FILE_MODIFIED, handle_file_modified)
@@ -259,7 +269,7 @@ async def main():
     await watcher.start()
 
     # Ждем события
-    print("⏳ Ожидание изменений файлов (нажмите Ctrl+C для остановки)...")
+    logger.info("⏳ Ожидание изменений файлов (нажмите Ctrl+C для остановки)...")
     try:
         await asyncio.sleep(30)
     except KeyboardInterrupt:

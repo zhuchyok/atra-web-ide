@@ -88,6 +88,7 @@ async def get_corporation_knowledge_context(query: str, limit: int = 5) -> str:
         finally:
             await conn.close()
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Ошибка получения контекста знаний корпорации: {e}")
         return ""
 
@@ -122,11 +123,13 @@ async def ensure_knowledge_base_accessible():
                 WHERE metadata->>'source' = 'corporation_knowledge_system'
             """)
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ База знаний доступна. Узлов знаний корпорации: {count}")
             return True
         finally:
             await conn.close()
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ База знаний недоступна: {e}")
         return False
 

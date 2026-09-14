@@ -107,7 +107,7 @@ class AutonomousSentinel:
                     "Проанализируй логи и предложи долгосрочное решение "
                     "(мониторинг, алерты, ресурсы)."
                 ),
-                expert_name="Елена",
+                expert_name="Георгий",
                 category="reasoning",
             )
         finally:
@@ -116,6 +116,7 @@ class AutonomousSentinel:
     async def handle_error_detected(self, event: Event):
         """Remediation for system errors."""
         error_msg = event.payload.get("error", "")
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"🚨 [SENTINEL] Error detected: {error_msg[:100]}...")
 
         # Trigger Autonomous Tool Creator if it looks like a missing capability
@@ -148,6 +149,7 @@ class AutonomousSentinel:
                 # Если все еще критично, делаем экстренную очистку
                 await mmm.emergency_memory_cleanup()
             except Exception as mem_err:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Sentinel memory remediation failed: {mem_err}")
 
         if component == "knowledge_graph":
@@ -161,6 +163,7 @@ class AutonomousSentinel:
         if not file_path.endswith(".py"):
             return
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔍 [SENTINEL] Code Guard: Scanning modified file {file_path}")
 
         # Run autonomous audit

@@ -21,6 +21,7 @@ class ContainerMetricsCollector:
             logger.info("✅ MetricsCollector: Подключен к Docker")
         except Exception as e:
             self.client = None
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ MetricsCollector: Ошибка Docker: {e}")
 
     async def collect_all_metrics(self) -> List[Dict[str, Any]]:
@@ -77,6 +78,7 @@ class ContainerMetricsCollector:
                     }
                 )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Ошибка сбора метрик для {container.name}: {e}")
 
         return metrics

@@ -35,18 +35,18 @@ class CollectiveBrainstorming:
         self.history: List[BrainstormingMessage] = []
         base_experts = [
             {
-                "name": "Игорь",
+                "name": "Даниил",
                 "role": "Backend & Infrastructure Architect",
                 "focus": "scalability, database, security, performance",
             },
             {
                 "name": "Анна",
-                "role": "Frontend & UX Specialist",
-                "focus": "user interaction, state management, Svelte, UI/UX",
+                "role": "QA Lead",
+                "focus": "testing, quality, reliability",
             },
             {
-                "name": "Елена",
-                "role": "QA & Security Engineer",
+                "name": "София",
+                "role": "UI/UX Designer",
                 "focus": "testing, edge cases, vulnerabilities, stability",
             },
             {
@@ -71,6 +71,7 @@ class CollectiveBrainstorming:
 
     async def run_session(self) -> Dict[str, Any]:
         """Runs the brainstorming cycle and returns API-compatible payload."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🧠 [BRAINSTORMING] Starting session on: {self.topic}")
 
         await self._run_phase(
@@ -134,6 +135,7 @@ class CollectiveBrainstorming:
         }
 
     async def _run_phase(self, phase_name: str, phase_instruction: str):
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🌀 [BRAINSTORMING] Phase: {phase_name}")
 
         tasks = [

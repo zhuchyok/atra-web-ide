@@ -86,6 +86,7 @@ class ExperienceRetriever:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Experience retrieval error: {e}")
             return ""
 

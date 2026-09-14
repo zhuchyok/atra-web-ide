@@ -32,11 +32,13 @@ async def check_and_fix_stuck_tasks(conn) -> int:
                 WHERE status = 'in_progress'
                 AND updated_at < NOW() - INTERVAL '1 day'
             """)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Автоматически исправлено {stuck_count} застрявших задач")
             return stuck_count
 
         return 0
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка при проверке застрявших задач: {e}")
         return 0
 
@@ -51,12 +53,14 @@ async def check_and_assign_unassigned_tasks(conn) -> int:
         """)
 
         if unassigned_count > 10:  # Если много задач без экспертов
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"⚠️ Найдено {unassigned_count} задач без экспертов, требуется назначение")
             # Возвращаем количество для обработки в orchestrator
             return unassigned_count
 
         return 0
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка при проверке неназначенных задач: {e}")
         return 0
 
@@ -93,6 +97,7 @@ async def check_migration_errors(conn) -> List[str]:
             errors.append("Обнаружены проблемные foreign keys в adaptive_learning_logs")
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка при проверке миграций: {e}")
 
     return errors
@@ -118,9 +123,11 @@ async def check_db_connections(conn) -> Dict[str, any]:
                 issues.append(
                     f"Высокое использование подключений: {active_connections}/{max_connections} ({usage_percent:.1f}%)"
                 )
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Высокое использование подключений к БД: {usage_percent:.1f}%")
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Не удалось проверить подключения: {e}")
 
     return {
@@ -144,6 +151,7 @@ async def auto_fix_all_errors(conn) -> Dict[str, any]:
         db_check = await check_db_connections(conn)
         if db_check["issues"]:
             results["db_connection_issues"] = db_check["issues"]
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Проблемы с подключениями: {db_check['issues']}")
 
         # 2. Исправляем застрявшие задачи
@@ -161,9 +169,11 @@ async def auto_fix_all_errors(conn) -> Dict[str, any]:
             or results["migration_errors"]
             or results["db_connection_issues"]
         ):
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔧 Автоматическое исправление: {results}")
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка в auto_fix_all_errors: {e}")
         results["warnings"].append(str(e))
 

@@ -2,9 +2,10 @@
 """Simple worker for Victoria"""
 
 import asyncio
-import redis
 import json
+
 import aiohttp
+import redis
 
 
 async def worker():

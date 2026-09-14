@@ -18,6 +18,7 @@ class ParallelOrchestrator:
         Runs multiple specialized agents in parallel.
         subtasks: [{"expert": "Mark", "prompt": "..."}, ...]
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"⚡ Parallel Orchestration: Running {len(subtasks)} subtasks...")
 
         tasks = []
@@ -66,6 +67,7 @@ class ParallelOrchestrator:
             )
             return final_answer
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Parallel decomposition error: {e}")
             # Fallback to normal execution
             return await run_smart_agent_async(

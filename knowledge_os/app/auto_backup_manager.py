@@ -66,6 +66,7 @@ class AutoBackupManager:
 
         try:
             # Создаем бэкап через pg_dump
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"💾 Создание бэкапа: {backup_path}")
 
             # Парсим DATABASE_URL
@@ -143,10 +144,12 @@ class AutoBackupManager:
 
                         return str(backup_path)
                     else:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.error(f"❌ Бэкап создан, но файл пустой: {backup_path}")
                         if backup_path.exists():
                             backup_path.unlink()
                 else:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ Ошибка создания бэкапа: {result.stderr}")
 
             else:
@@ -159,6 +162,7 @@ class AutoBackupManager:
             if backup_path.exists():
                 backup_path.unlink()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка создания бэкапа: {e}")
             if backup_path.exists():
                 backup_path.unlink()
@@ -176,9 +180,11 @@ class AutoBackupManager:
 
             if len(backups) > self.max_backups:
                 for old_backup in backups[self.max_backups :]:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🗑️ Удаление старого бэкапа: {old_backup}")
                     old_backup.unlink()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Ошибка ротации бэкапов: {e}")
 
     async def restore_backup(self, backup_path: str) -> bool:
@@ -193,10 +199,12 @@ class AutoBackupManager:
         """
         backup_file = Path(backup_path)
         if not backup_file.exists():
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Файл бэкапа не найден: {backup_path}")
             return False
 
         try:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔄 Восстановление из бэкапа: {backup_path}")
 
             # Парсим DATABASE_URL (аналогично create_backup)
@@ -251,9 +259,11 @@ class AutoBackupManager:
                 )
 
                 if result.returncode == 0:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ База данных восстановлена из бэкапа: {backup_path}")
                     return True
                 else:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ Ошибка восстановления: {result.stderr}")
                     return False
             else:
@@ -261,6 +271,7 @@ class AutoBackupManager:
                 return False
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка восстановления из бэкапа: {e}")
             return False
 
@@ -302,6 +313,7 @@ class AutoBackupManager:
                 await asyncio.sleep(3600)
 
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка в мониторинге бэкапов: {e}")
                 await asyncio.sleep(3600)
 

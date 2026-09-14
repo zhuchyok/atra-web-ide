@@ -96,6 +96,7 @@ class BatchProcessor:
         requests = self.batch_queue[: self.batch_size]
         self.batch_queue = self.batch_queue[self.batch_size :]
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📦 [BATCH] Processing {len(requests)} requests in batch")
 
         # Объединяем похожие запросы
@@ -124,6 +125,7 @@ class BatchProcessor:
                     if not request.callback.done():
                         request.callback.set_result("Ошибка обработки batch")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [BATCH] Error processing batch: {e}")
             # Возвращаем ошибку всем запросам
             for request in requests:

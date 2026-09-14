@@ -85,6 +85,7 @@ class PromptABTesting:
             conn = await asyncpg.connect(self.db_url)
             return conn
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [AB TEST] Ошибка подключения к БД: {e}")
             return None
 
@@ -105,7 +106,7 @@ class PromptABTesting:
         try:
             # Генерируем ID на основе текста и версии
             variant_key = f"{prompt_text}:{version}"
-            variant_id = hashlib.md5(variant_key.encode()).hexdigest()[:16]
+            variant_id = hashlib.md5(variant_key.encode('utf-8')).hexdigest()[:16]
 
             variant = PromptVariant(
                 variant_id=variant_id,
@@ -147,6 +148,7 @@ class PromptABTesting:
                 # Обновляем кэш
                 self._variant_cache[variant_id] = variant
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [AB TEST] Создан вариант промпта {variant_id} (версия {version})")
                 return variant_id
 
@@ -154,6 +156,7 @@ class PromptABTesting:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [AB TEST] Ошибка создания варианта промпта: {e}")
             return ""
 
@@ -183,7 +186,7 @@ class PromptABTesting:
         try:
             # Генерируем test_id
             test_key = f"{test_name}:{variant_a_id}:{variant_b_id}"
-            test_id = hashlib.md5(test_key.encode()).hexdigest()[:16]
+            test_id = hashlib.md5(test_key.encode('utf-8')).hexdigest()[:16]
 
             test_config = {
                 "test_id": test_id,
@@ -242,6 +245,7 @@ class PromptABTesting:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [AB TEST] Ошибка запуска теста: {e}")
             return ""
 
@@ -291,6 +295,7 @@ class PromptABTesting:
                 return test_config["variant_b_id"]
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [AB TEST] Ошибка выбора варианта: {e}")
             return None
 
@@ -346,6 +351,7 @@ class PromptABTesting:
                         datetime.now(timezone.utc),
                     )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"📊 [AB TEST] Записаны метрики для {variant_id} в тесте {test_id}")
                 return True
 
@@ -353,6 +359,7 @@ class PromptABTesting:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [AB TEST] Ошибка записи метрик: {e}")
             return False
 
@@ -504,6 +511,7 @@ class PromptABTesting:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [AB TEST] Ошибка анализа теста: {e}")
             return None
 
@@ -553,6 +561,7 @@ class PromptABTesting:
                 await conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [AB TEST] Ошибка получения активных тестов: {e}")
             return []
 

@@ -190,7 +190,7 @@ class ReportGenerator:
                     models = await scan_and_select_models()
                     report_lines.append(f"- **Модели Ollama:** {len(models.ollama_models)} активны")
                     report_lines.append(f"- **Модели MLX:** {len(models.mlx_models)} активны")
-                    if "victoria-wisdom-v3.5" in models.mlx_models:
+                    if "victoria-wisdom-24k" in models.mlx_models:
                         report_lines.append("  - ✅ Victoria Wisdom v3.5 (35B MoE, MLX) доступна")
                 except Exception as me:
                     report_lines.append(f"- ⚠️ Ошибка сканирования моделей: {me}")
@@ -210,7 +210,9 @@ class ReportGenerator:
                 if stats:
                     report_lines.append("## 📈 Статистика задач (последние 24ч)")
                     report_lines.append(f"- Всего задач за 24ч: {stats['total_requests'] or 0}")
-                    report_lines.append(f"- Задач за последний час: {stats['requests_last_hour'] or 0}")
+                    report_lines.append(
+                        f"- Задач за последний час: {stats['requests_last_hour'] or 0}"
+                    )
                     report_lines.append(f"- Завершено успешно: {stats['completed_today'] or 0}")
                     report_lines.append(f"- Ошибок: {stats['failed_today'] or 0}\n")
 
@@ -285,6 +287,7 @@ class ReportGenerator:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [REPORT GENERATOR] Ошибка генерации ежедневного отчета: {e}")
             report_lines.append(f"⚠️ Ошибка генерации отчета: {e}")
 
@@ -330,6 +333,7 @@ class ReportGenerator:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [REPORT GENERATOR] Ошибка генерации еженедельного отчета: {e}")
             report_lines.append(f"⚠️ Ошибка генерации отчета: {e}")
 
@@ -351,6 +355,7 @@ class ReportGenerator:
                 report_text, priority="low", source=f"Report Generator ({report_type})"
             )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [REPORT GENERATOR] Ошибка отправки отчета: {e}")
 
     async def start_periodic_reports(self):
@@ -366,6 +371,7 @@ class ReportGenerator:
             daily_report = await self.generate_daily_report()
             await self.send_report_to_telegram(daily_report, "startup")
         except Exception as se:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [REPORT GENERATOR] Ошибка стартового отчета: {se}")
 
         while True:
@@ -398,6 +404,7 @@ class ReportGenerator:
                 await asyncio.sleep(3600)
 
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [REPORT GENERATOR] Ошибка в периодической генерации отчетов: {e}")
                 await asyncio.sleep(3600)
 

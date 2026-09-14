@@ -96,6 +96,7 @@ class IsolatedContext:
         if not self.memory or len(str(self.memory)) <= max_chars:
             return
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✂️ [PRUNING] Обрезка контекста для задачи: '{task_description[:50]}...'")
 
         # Извлекаем ключевые слова из задачи
@@ -136,6 +137,7 @@ class IsolatedContext:
         # Объединяем и восстанавливаем хронологию
         final_memory = pruned + keep_always
         self.memory = sorted(final_memory, key=lambda x: x.get("timestamp", ""))
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ [PRUNING] Контекст обрезан: {len(final_memory)} сообщений оставлено")
 
 
@@ -160,6 +162,7 @@ class ContextManager:
             return
         oldest_key = min(self.contexts.keys(), key=lambda k: self.contexts[k].last_accessed)
         del self.contexts[oldest_key]
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"🗑️ [MEMORY] Evicted context {oldest_key} (max {MAX_CONTEXTS})")
 
     def get_context(
@@ -183,6 +186,7 @@ class ContextManager:
             self.contexts[key] = IsolatedContext(
                 agent_name=agent_name, project_context=project_context, context_type=context_type
             )
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"✅ Создан изолированный контекст: {key}")
 
         return self.contexts[key]
@@ -192,6 +196,7 @@ class ContextManager:
         key = self._get_key(agent_name, project_context)
         if key in self.contexts:
             del self.contexts[key]
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"🗑️ Удален контекст: {key}")
 
     def clear_all_contexts(
@@ -205,12 +210,14 @@ class ContextManager:
             keys_to_delete = [k for k in self.contexts.keys() if k.startswith(f"{agent_name}:")]
             for key in keys_to_delete:
                 del self.contexts[key]
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"🗑️ Удалены все контексты агента: {agent_name}")
         elif project_context:
             # Очистить все контексты проекта
             keys_to_delete = [k for k in self.contexts.keys() if k.endswith(f":{project_context}")]
             for key in keys_to_delete:
                 del self.contexts[key]
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"🗑️ Удалены все контексты проекта: {project_context}")
         else:
             # Очистить все

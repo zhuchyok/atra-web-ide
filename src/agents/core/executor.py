@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 VICTORIA_DEBUG = os.getenv("VICTORIA_DEBUG", "false").lower() in ("true", "1", "yes")
 
 # Мировая практика: только эти инструменты существуют. Любой другой = отклоняем и просим повторить.
-ALLOWED_TOOLS = {"finish", "read_file", "list_directory", "run_terminal_cmd", "ssh_run", "write_file"}
+ALLOWED_TOOLS = {"finish", "read_file", "list_directory", "run_terminal_cmd", "ssh_run", "write_file", "apply_patch", "grep_search"}
 
 # === MODEL FALLBACK CONFIGURATION ===
 # Ordered list of fallback models from smallest to largest
@@ -965,7 +965,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                     "[LLM_PARSE] Invalid format detected: tool_execution/final_output"
                 )
                 return AgentFinish(
-                    output='Используй только формат: {"thought": "...", "tool": "один из: finish, read_file, list_directory, run_terminal_cmd, ssh_run, write_file", "tool_input": {...}}. Других полей нет.',
+                    output='Используй только формат: {"thought": "...", "tool": "один из: finish, read_file, list_directory, run_terminal_cmd, ssh_run, write_file, apply_patch, grep_search", "tool_input": {...}}. Других полей нет.',
                     thought=thought,
                 )
 
@@ -985,6 +985,17 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                     f"[LLM_PARSE] Detected tool: '{tool_name}', thought: '{thought[:50]}...'"
                 )
 
+                # [FIX] Blocked-tool check ДОЖНЁН идти ДО unknown-tool return —
+                # ранее blocked-логика была unreachable (после return).
+                if blocked_tools and tool_name in blocked_tools:
+                    logger.warning(
+                        f"[LLM_PARSE] Blocked tool '{tool_name}' rejected (cycle prevention)"
+                    )
+                    allowed = sorted(ALLOWED_TOOLS - set(blocked_tools))
+                    return AgentFinish(
+                        output=f"Инструмент {tool_name} заблокирован из-за цикла. Используй только: {', '.join(allowed)}. Ответь JSON с tool: finish или другим доступным инструментом.",
+                        thought=thought,
+                    )
                 if tool_name not in ALLOWED_TOOLS:
                     bad = (
                         raw_tool
@@ -995,35 +1006,26 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                     )
                     logger.warning(f"[LLM_PARSE] Unknown tool '{bad}' rejected")
                     return AgentFinish(
-                        output=f'Доступны только: finish, read_file, list_directory, run_terminal_cmd, ssh_run, write_file. Ты указал: {bad}. Ответь одним JSON с tool: finish и tool_input: {{"output": "твой краткий ответ"}}.',
+                        output=f'Доступны только: finish, read_file, list_directory, run_terminal_cmd, ssh_run, write_file, apply_patch, grep_search. Ты указал: {bad}. Ответь одним JSON с tool: finish и tool_input: {{"output": "твой краткий ответ"}}.',
                         thought=thought,
                     )
-                    if blocked_tools and tool_name in blocked_tools:
-                        logger.warning(
-                            f"[LLM_PARSE] Blocked tool '{tool_name}' rejected (cycle prevention)"
-                        )
-                        allowed = sorted(ALLOWED_TOOLS - set(blocked_tools))
-                        return AgentFinish(
-                            output=f"Инструмент {tool_name} заблокирован из-за цикла. Используй только: {', '.join(allowed)}. Ответь JSON с tool: finish или другим доступным инструментом.",
-                            thought=thought,
-                        )
-                    if data["tool"] == "finish" or (data.get("tool") == "" and not tool_input):
-                        out = (
-                            (tool_input.get("output") if tool_input else None)
-                            or thought
-                            or "Готово"
-                        )
-                        logger.info(f"[LLM_PARSE] Returning AgentFinish: {str(out)[:100]}...")
-                        return AgentFinish(
-                            output=out if isinstance(out, str) else str(out), thought=thought
-                        )
-                    if tool_input is not None:
-                        logger.info(
-                            f"[LLM_PARSE] Returning AgentAction: tool={tool_name}, input={str(tool_input)[:100]}"
-                        )
-                        return AgentAction(
-                            tool=tool_name, tool_input=data["tool_input"], thought=thought
-                        )
+                if data["tool"] == "finish" or (data.get("tool") == "" and not tool_input):
+                    out = (
+                        (tool_input.get("output") if tool_input else None)
+                        or thought
+                        or "Готово"
+                    )
+                    logger.info(f"[LLM_PARSE] Returning AgentFinish: {str(out)[:100]}...")
+                    return AgentFinish(
+                        output=out if isinstance(out, str) else str(out), thought=thought
+                    )
+                if tool_input is not None:
+                    logger.info(
+                        f"[LLM_PARSE] Returning AgentAction: tool={tool_name}, input={str(tool_input)[:100]}"
+                    )
+                    return AgentAction(
+                        tool=tool_name, tool_input=data["tool_input"], thought=thought
+                    )
 
                 # Ищем инструмент во вложенных полях (action, next_step, step)
                 for key in ["action", "next_step", "step"]:

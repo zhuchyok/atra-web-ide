@@ -81,6 +81,7 @@ class CorporationSelfLearning:
                     "analysis_time": datetime.now().isoformat(),
                 }
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error analyzing errors: {e}")
             return {}
 
@@ -142,6 +143,7 @@ class CorporationSelfLearning:
                     "analysis_time": datetime.now().isoformat(),
                 }
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error analyzing performance: {e}")
             return {}
 
@@ -230,18 +232,23 @@ class CorporationSelfLearning:
                         AND (metadata->>'last_error' = 'timeout' OR updated_at < NOW() - INTERVAL '30 minutes');
                     """)
                     if res != "UPDATE 0":
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"🛡️ [SELF-HEALING] Автоматически сброшено зависших задач: {res}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SELF-HEALING] Ошибка при автоочистке: {e}")
         for improvement in improvements:
             try:
                 if improvement["type"] == "model_downgrade":
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🔄 [LEARNING] Применяем улучшение: {improvement['action']}")
                     applied.append(improvement)
                 elif improvement["type"] == "model_optimization":
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🔧 [LEARNING] Оптимизируем модель: {improvement['model']}")
                     applied.append(improvement)
                 elif improvement["type"] == "error_pattern_fix":
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🛠️ [LEARNING] Исправляем паттерн ошибок: {improvement['pattern']}")
                     applied.append(improvement)
                 elif improvement["type"] == "quality_improvement":
@@ -253,12 +260,14 @@ class CorporationSelfLearning:
                 if improvement in applied:
                     self._improvements_applied += 1
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Error applying improvement: {e}")
                 failed.append(improvement)
         return {"applied": applied, "failed": failed, "total": len(improvements)}
 
     async def run_learning_cycle(self):
         self._learning_cycles += 1
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔄 [SELF-LEARNING] Запуск цикла обучения #{self._learning_cycles}")
         try:
             error_analysis = await self.analyze_errors(hours=24)
@@ -270,6 +279,7 @@ class CorporationSelfLearning:
                 f"📈 [LEARNING] Проанализировано моделей: {len(performance_analysis.get('model_metrics', []))}"
             )
             improvements = await self.generate_improvements(error_analysis, performance_analysis)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"💡 [LEARNING] Сгенерировано улучшений: {len(improvements)}")
 
             if improvements:
@@ -291,8 +301,10 @@ class CorporationSelfLearning:
                 await self.apply_improvements([])
 
             await self.save_learning_results(error_analysis, performance_analysis, improvements)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ [SELF-LEARNING] Цикл обучения #{self._learning_cycles} завершен")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SELF-LEARNING] Ошибка в цикле обучения: {e}")
 
     async def save_learning_results(
@@ -339,6 +351,7 @@ class CorporationSelfLearning:
                 await self.run_learning_cycle()
                 await asyncio.sleep(interval_hours * 3600)
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [SELF-LEARNING] Ошибка в непрерывном обучении: {e}")
                 await asyncio.sleep(3600)
 

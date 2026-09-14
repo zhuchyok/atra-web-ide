@@ -167,7 +167,7 @@ class EnhancedOrchestratorV2Swarm(EnhancedOrchestratorV2):
 
                 consensus_agents = get_all_expert_names(max_count=8)
             except ImportError:
-                consensus_agents = ["Виктория", "Вероника", "Игорь", "Сергей", "Дмитрий"]
+                consensus_agents = ["Виктория", "Вероника", "Даниил", "Макс", "Дмитрий"]
             result = await self.consensus_agent.reach_consensus(
                 agents=consensus_agents,
                 question=question,

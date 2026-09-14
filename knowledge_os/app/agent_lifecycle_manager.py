@@ -72,6 +72,7 @@ class AgentLifecycleManager:
         Returns:
             Зарегистрированная версия
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📝 Регистрирую агента: {agent_name} ({agent_id})")
 
         # Вычисляем хеш кода если путь указан
@@ -81,6 +82,7 @@ class AgentLifecycleManager:
                 with open(code_path, "rb") as f:
                     code_hash = hashlib.sha256(f.read()).hexdigest()[:16]
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"Не удалось вычислить хеш кода: {e}")
 
         # Определяем версию
@@ -116,6 +118,7 @@ class AgentLifecycleManager:
             "versions": [v.version for v in self.registered_agents[agent_id]],
         }
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Агент зарегистрирован: {agent_name} v{new_version}")
 
         return agent_version
@@ -131,6 +134,7 @@ class AgentLifecycleManager:
         Returns:
             Результаты валидации
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔍 Валидирую агента: {agent_id} v{version}")
 
         # Находим версию
@@ -176,9 +180,11 @@ class AgentLifecycleManager:
         if validation_results["valid"]:
             agent_version.status = AgentStatus.VALIDATED
             agent_version.validation_results = validation_results
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Агент валидирован: {agent_id} v{version}")
         else:
             agent_version.status = AgentStatus.FAILED
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"❌ Агент не прошел валидацию: {agent_id} v{version}")
 
         return validation_results
@@ -194,6 +200,7 @@ class AgentLifecycleManager:
         Returns:
             True если деплой успешен
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 Деплою агента: {agent_id} v{version}")
 
         # Проверяем валидацию
@@ -201,6 +208,7 @@ class AgentLifecycleManager:
         agent_version = next((v for v in agent_versions if v.version == version), None)
 
         if not agent_version:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Версия {version} не найдена для агента {agent_id}")
             return False
 
@@ -217,9 +225,11 @@ class AgentLifecycleManager:
             agent_version.status = AgentStatus.DEPLOYED
             agent_version.deployed_at = datetime.now(timezone.utc).isoformat()
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Агент успешно задеплоен: {agent_id} v{version}")
             return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Ошибка деплоя: {e}")
             agent_version.status = AgentStatus.FAILED
             return False
@@ -258,6 +268,7 @@ class AgentLifecycleManager:
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(registry_data, f, ensure_ascii=False, indent=2)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"💾 Реестр сохранен в {filepath}")
 
 
@@ -282,11 +293,13 @@ async def main():
 
     # Валидация
     validation = await manager.validate_agent("victoria-001", version.version)
-    print(f"Валидация: {validation}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Валидация: {validation}")
 
     # Деплой
     deployed = await manager.deploy_agent("victoria-001", version.version)
-    print(f"Деплой: {deployed}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Деплой: {deployed}")
 
     # Сохранение реестра
     manager.save_registry("agent_registry.json")

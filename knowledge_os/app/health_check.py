@@ -80,6 +80,7 @@ class HealthCheck:
             await conn.close()
             return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [HEALTH CHECK] БД недоступна: {e}")
             return False
 
@@ -90,6 +91,7 @@ class HealthCheck:
                 response = await client.get(f"{SERVER_LLM_URL}/api/tags")
                 return response.status_code == 200
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [HEALTH CHECK] Локальные модели недоступны: {e}")
             return False
 
@@ -101,6 +103,7 @@ class HealthCheck:
             await conn.close()
             return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [HEALTH CHECK] Кэш недоступен: {e}")
             return False
 

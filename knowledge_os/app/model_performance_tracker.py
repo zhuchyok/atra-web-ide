@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 # Иерархия моделей от простых к сложным
 MODEL_HIERARCHY = {
     "fast": ["phi3.5:3.8b", "glm-4.7-flash:q8_0"],
-    "coding": ["phi3.5:3.8b", "qwen2.5-coder:32b", "glm-4.7-flash:q8_0"],
+    "coding": ["phi3.5:3.8b", "qwen3-coder:30b", "glm-4.7-flash:q8_0"],
     "reasoning": ["phi3.5:3.8b", "glm-4.7-flash:q8_0"],
     "default": ["phi3.5:3.8b", "glm-4.7-flash:q8_0"],
 }
@@ -64,6 +64,7 @@ class ModelPerformanceTracker:
                     quality_score,
                 )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Error recording model performance: {e}")
 
     async def get_model_stats(self, category: str, hours: int = 24) -> Dict[str, Dict]:
@@ -102,6 +103,7 @@ class ModelPerformanceTracker:
                     }
                 return stats
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Error getting model stats: {e}")
             return {}
 
@@ -192,6 +194,7 @@ class ModelPerformanceTracker:
 
                 return False, None
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Error checking model upgrade: {e}")
             return False, None
 

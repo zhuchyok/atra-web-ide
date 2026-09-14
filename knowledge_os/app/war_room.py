@@ -135,6 +135,7 @@ class WarRoomManager:
         session.status = "resolved"
 
         await self._finalize_session_in_db(session)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ [WAR ROOM] Сессия {session.session_id} завершена. План готов.")
 
     async def _save_session_to_db(self, session: WarRoomSession):

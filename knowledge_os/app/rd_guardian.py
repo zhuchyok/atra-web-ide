@@ -58,6 +58,7 @@ async def main():
     )
 
     for i in range(cycles):
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"Cycle {i + 1}/18 started")
         report = await check_status()
         await notifier.notify(f"📊 Мониторинг ({i + 1}/18)", report, priority="low")

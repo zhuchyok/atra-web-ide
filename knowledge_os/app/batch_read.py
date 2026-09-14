@@ -36,9 +36,11 @@ async def batch_read_files(
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(rust_url, json=payload)
             if response.status_code == 200:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🚀 [RUST BATCH_READ] Successfully read {len(file_paths)} files.")
                 return response.json().get("results", [])
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ Rust Batch Read failed, falling back to Python: {e}")
 
     # Fallback на Python реализацию (старый код)
@@ -94,6 +96,7 @@ async def batch_read_files(
                     "error": "Binary file or encoding error",
                 }
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.exception(f"Error reading {file_path}")
                 return {"path": file_path, "content": None, "status": "error", "error": str(e)}
 
@@ -138,6 +141,7 @@ async def batch_grep_files(
                 )
                 return response.json().get("results", [])
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ Rust Batch Grep failed, falling back to Python: {e}")
 
     import re
@@ -198,6 +202,7 @@ async def batch_grep_files(
                 }
 
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.exception(f"Error grepping {file_path}")
                 return {
                     "path": file_path,

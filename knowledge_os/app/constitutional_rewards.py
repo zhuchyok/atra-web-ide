@@ -7,8 +7,8 @@ import json
 import logging
 import os
 import uuid
-from typing import Any, Dict, List, Optional
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 try:
     from app.db_pool import get_pool
@@ -22,56 +22,41 @@ PENALTIES = {
     "hallucination": {
         "score": -0.5,
         "description": "Выдумывание фактов (галлюцинации)",
-        "constitution_violation": "C5 (Constitutional Honesty)"
+        "constitution_violation": "C5 (Constitutional Honesty)",
     },
     "ignored_data": {
         "score": -0.3,
         "description": "Игнорирование данных из Knowledge OS",
-        "constitution_violation": "C1 (Data-Driven)"
+        "constitution_violation": "C1 (Data-Driven)",
     },
     "security_risk": {
         "score": -0.4,
         "description": "Предложение небезопасного решения",
-        "constitution_violation": "C2 (Security First)"
+        "constitution_violation": "C2 (Security First)",
     },
     "slow_response": {
         "score": -0.1,
         "description": "Медленный ответ (>30 сек)",
-        "constitution_violation": "C4 (Scalability)"
+        "constitution_violation": "C4 (Scalability)",
     },
     "ignored_constitution": {
         "score": -0.3,
         "description": "Игнорирование принципов Конституции",
-        "constitution_violation": "C5 (Constitutional Honesty)"
-    }
+        "constitution_violation": "C5 (Constitutional Honesty)",
+    },
 }
 
 # Rewards for good behavior
 REWARDS = {
     "constitutional_compliance": {
         "score": 0.3,
-        "description": "Следование принципам Digital Constitution"
+        "description": "Следование принципам Digital Constitution",
     },
-    "self_correction": {
-        "score": 0.2,
-        "description": "Самостоятельное исправление ошибки"
-    },
-    "helped_user": {
-        "score": 0.5,
-        "description": "Успешно помог пользователю"
-    },
-    "used_rag": {
-        "score": 0.2,
-        "description": "Использовал RAG для поиска знаний"
-    },
-    "security_check": {
-        "score": 0.3,
-        "description": "Проверил безопасность решения"
-    },
-    "data_driven": {
-        "score": 0.2,
-        "description": "Использовал данные, а не предположения"
-    }
+    "self_correction": {"score": 0.2, "description": "Самостоятельное исправление ошибки"},
+    "helped_user": {"score": 0.5, "description": "Успешно помог пользователю"},
+    "used_rag": {"score": 0.2, "description": "Использовал RAG для поиска знаний"},
+    "security_check": {"score": 0.3, "description": "Проверил безопасность решения"},
+    "data_driven": {"score": 0.2, "description": "Использовал данные, а не предположения"},
 }
 
 
@@ -80,17 +65,13 @@ class ConstitutionalRewards:
     [SINGULARITY 28.X] Constitutional Rewards System.
     Evaluates agent actions and applies rewards/penalties.
     """
-    
+
     def __init__(self):
         self.penalties = PENALTIES
         self.rewards = REWARDS
 
     async def evaluate_and_score(
-        self,
-        interaction_id: str,
-        expert_name: str,
-        response: str,
-        context: Dict[str, Any]
+        self, interaction_id: str, expert_name: str, response: str, context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Evaluate an interaction and calculate reward/penalty score.
@@ -105,7 +86,11 @@ class ConstitutionalRewards:
             response_lower = response.lower()
 
             # Check for penalties
-            if "верни" in response_lower or "я думаю" in response_lower or "вероятно" in response_lower:
+            if (
+                "верни" in response_lower
+                or "я думаю" in response_lower
+                or "вероятно" in response_lower
+            ):
                 # Possible hallucination
                 if "не уверен" not in response_lower and "нужно уточнить" not in response_lower:
                     applied_penalties.append("hallucination")
@@ -139,8 +124,9 @@ class ConstitutionalRewards:
 
             # Log to database
             reward_id = str(uuid.uuid4())
-            await conn.execute("""
-                INSERT INTO interaction_rewards 
+            await conn.execute(
+                """
+                INSERT INTO interaction_rewards
                 (id, interaction_id, expert_name, total_score, rewards, penalties, created_at)
                 VALUES ($1, $2, $3, $4, $5, $6, NOW())
             """,
@@ -149,7 +135,7 @@ class ConstitutionalRewards:
                 expert_name,
                 total_score,
                 json.dumps(applied_rewards),
-                json.dumps(applied_penalties)
+                json.dumps(applied_penalties),
             )
 
             return {
@@ -158,15 +144,16 @@ class ConstitutionalRewards:
                 "total_score": total_score,
                 "rewards": applied_rewards,
                 "penalties": applied_penalties,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
             }
 
     async def get_expert_compliance_stats(self, expert_name: str, days: int = 7) -> Dict[str, Any]:
         """Get compliance statistics for an expert."""
         pool = await get_pool()
         async with pool.acquire() as conn:
-            stats = await conn.fetchrow("""
-                SELECT 
+            stats = await conn.fetchrow(
+                """
+                SELECT
                     COUNT(*) as total_interactions,
                     SUM(total_score) as total_score,
                     AVG(total_score) as avg_score,
@@ -175,33 +162,41 @@ class ConstitutionalRewards:
                 FROM interaction_rewards
                 WHERE expert_name = $1
                 AND created_at > NOW() - INTERVAL '1 day' * $2
-            """, expert_name, days)
+            """,
+                expert_name,
+                days,
+            )
 
-            return dict(stats) if stats else {
-                "total_interactions": 0,
-                "total_score": 0,
-                "avg_score": 0,
-                "positive_count": 0,
-                "negative_count": 0
-            }
+            return (
+                dict(stats)
+                if stats
+                else {
+                    "total_interactions": 0,
+                    "total_score": 0,
+                    "avg_score": 0,
+                    "positive_count": 0,
+                    "negative_count": 0,
+                }
+            )
 
     def get_constitution_context(self) -> str:
         """Get formatted Constitution for prompt injection."""
         lines = ["### ⚖️ Digital Constitution Rewards:"]
-        
+
         lines.append("\n**Награды (+):**")
         for name, reward in self.rewards.items():
             lines.append(f"- {name}: +{reward['score']} — {reward['description']}")
-        
+
         lines.append("\n**Штрафы (-):**")
         for name, penalty in self.penalties.items():
             lines.append(f"- {name}: {penalty['score']} — {penalty['description']}")
-        
+
         return "\n".join(lines)
 
 
 # Singleton
 _constitutional_rewards = None
+
 
 def get_constitutional_rewards() -> ConstitutionalRewards:
     """Get singleton instance."""

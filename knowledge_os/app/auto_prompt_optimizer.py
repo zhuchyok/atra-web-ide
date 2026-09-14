@@ -134,6 +134,7 @@ class AutoPromptOptimizer:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка анализа диалогов: {e}")
             return []
 
@@ -194,6 +195,7 @@ class AutoPromptOptimizer:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка анализа негативного feedback: {e}")
             return []
 
@@ -409,10 +411,12 @@ class AutoPromptOptimizer:
                     performance_after,
                 )
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ [PROMPT OPTIMIZER] Улучшение для {expert_name} сохранено в БД")
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ [PROMPT OPTIMIZER] Не удалось сохранить улучшение: {e}")
 
 

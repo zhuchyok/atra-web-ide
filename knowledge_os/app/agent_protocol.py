@@ -97,6 +97,7 @@ class AgentProtocol:
             )
             return response is not None
         except asyncio.TimeoutError:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⏱️ PING timeout для {target_agent}")
             return False
 
@@ -165,6 +166,7 @@ class AgentProtocol:
             )
             return response
         except asyncio.TimeoutError:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⏱️ ASK timeout для {target_agent}")
             return None
 
@@ -204,6 +206,7 @@ class AgentProtocol:
             self.capabilities.metadata = metadata
 
         # Уведомляем других агентов (через discovery mechanism)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ [{self.agent_name}] Зарегистрированы возможности: {capabilities}")
 
     async def handle_message(self, message: AgentMessage) -> Optional[Dict]:
@@ -220,6 +223,7 @@ class AgentProtocol:
                 response = await handler(message)
                 return response
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка обработки сообщения: {e}")
                 return {"error": str(e)}
         else:
@@ -250,6 +254,7 @@ class AgentProtocol:
     def register_handler(self, verb: ProtocolVerb, handler: callable):
         """Зарегистрировать обработчик для глагола"""
         self.message_handlers[verb] = handler
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"✅ Зарегистрирован обработчик для {verb.value}")
 
     async def _send_message(self, message: AgentMessage):
@@ -264,6 +269,7 @@ class AgentProtocol:
                 if message.requires_response and response is not None:
                     self._complete_request(message.message_id, response)
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ [{self.agent_name}] Ошибка доставки → {message.to_agent}: {e}")
                 if message.requires_response:
                     self._complete_request(message.message_id, {"error": str(e)})
@@ -321,6 +327,7 @@ _agent_registry: Dict[str, AgentProtocol] = {}
 def register_agent(agent_name: str, protocol: AgentProtocol):
     """Зарегистрировать агента в глобальном реестре"""
     _agent_registry[agent_name] = protocol
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"✅ Агент {agent_name} зарегистрирован в реестре")
 
 
@@ -351,18 +358,21 @@ async def main():
     # Примеры использования
     # PING
     is_available = await victoria_protocol.ping("Вероника")
-    print(f"Veronica доступна: {is_available}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Veronica доступна: {is_available}")
 
     # TELL
     await victoria_protocol.tell("Вероника", {"task": "Выполни задачу X"})
 
     # ASK
     answer = await victoria_protocol.ask("Вероника", "Какой статус задачи?")
-    print(f"Ответ: {answer}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Ответ: {answer}")
 
     # OBSERVE
     status = await victoria_protocol.observe("Вероника")
-    print(f"Статус Veronica: {status}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Статус Veronica: {status}")
 
 
 if __name__ == "__main__":

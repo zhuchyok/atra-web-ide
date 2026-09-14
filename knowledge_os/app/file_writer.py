@@ -72,6 +72,7 @@ class SafeFileWriter:
                     error_msg = f"ОШИБКА ВАЛИДАЦИИ КОДА: {validation.get('error')}"
                     if validation.get("line"):
                         error_msg += f" (строка {validation.get('line')})"
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"SafeFileWriter: {error_msg} в {filepath}")
                     return {
                         "error": error_msg,

@@ -121,6 +121,7 @@ class TaskDistributionSystem:
             self.escalator = get_escalator()
             self.metrics_collector = get_metrics_collector()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Не удалось загрузить улучшения: {e}")
             self.validator = None
             self.retry_manager = None
@@ -188,6 +189,7 @@ class TaskDistributionSystem:
             )
             return assignments
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка распределения из плана: {e}", exc_info=True)
             return []
 
@@ -219,6 +221,7 @@ class TaskDistributionSystem:
 
             return assignments
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка распределения задач: {e}", exc_info=True)
             return []
 
@@ -232,13 +235,10 @@ class TaskDistributionSystem:
 
             # Fail-safe: не запускаем refresh знаний на каждый парсинг задачи.
             # Это вызывало шторм эмбеддингов и деградацию latency.
-            refresh_enabled = (
-                os.getenv("TASK_DISTRIBUTION_REFRESH_CORP_KNOWLEDGE", "false").lower()
-                in ("1", "true", "yes")
-            )
-            refresh_interval = int(
-                os.getenv("TASK_DISTRIBUTION_REFRESH_INTERVAL_SEC", "1800")
-            )
+            refresh_enabled = os.getenv(
+                "TASK_DISTRIBUTION_REFRESH_CORP_KNOWLEDGE", "false"
+            ).lower() in ("1", "true", "yes")
+            refresh_interval = int(os.getenv("TASK_DISTRIBUTION_REFRESH_INTERVAL_SEC", "1800"))
             if refresh_enabled:
                 async with _CORP_REFRESH_LOCK:
                     global _CORP_REFRESH_LAST_TS
@@ -299,6 +299,7 @@ class TaskDistributionSystem:
                 }
             ]
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка парсинга промпта: {e}", exc_info=True)
             return [
                 {
@@ -318,6 +319,7 @@ class TaskDistributionSystem:
             # Получаем эксперта из БД
             expert = await self._get_expert_by_name(assignment.employee_name)
             if not expert:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Эксперт '{assignment.employee_name}' не найден")
                 assignment.status = TaskStatus.FAILED
                 assignment.result = f"Эксперт '{assignment.employee_name}' не найден в БД"
@@ -346,6 +348,7 @@ class TaskDistributionSystem:
 
             return assignment
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка выполнения задачи {assignment.task_id}: {e}", exc_info=True)
             assignment.status = TaskStatus.FAILED
             assignment.result = f"Ошибка выполнения: {str(e)}"
@@ -359,6 +362,7 @@ class TaskDistributionSystem:
             # Получаем управляющего отдела
             manager = await self._get_department_manager(assignment.department)
             if not manager:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Управляющий для отдела '{assignment.department}' не найден")
                 # Используем Victoria как управляющего по умолчанию
                 manager = {"name": "Виктория", "role": "Team Lead"}
@@ -387,6 +391,7 @@ class TaskDistributionSystem:
                         )
                 except AttributeError as e:
                     # Если метод не существует, используем базовую проверку
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ Ошибка валидации: {e}, используем базовую проверку")
                     is_valid, score, feedback = await self._basic_validation(
                         assignment, original_requirements
@@ -403,6 +408,7 @@ class TaskDistributionSystem:
 
             return assignment
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка проверки задачи {assignment.task_id}: {e}", exc_info=True)
             assignment.status = TaskStatus.REJECTED
             return assignment
@@ -455,6 +461,7 @@ class TaskDistributionSystem:
             ]
 
             if not dept_assignments:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Нет утвержденных задач для отдела '{department}'")
                 return None
 
@@ -505,6 +512,7 @@ class TaskDistributionSystem:
                 / len(dept_assignments),
             )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка сбора задач отдела '{department}': {e}", exc_info=True)
             return None
 
@@ -547,6 +555,7 @@ class TaskDistributionSystem:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ Ошибка получения эксперта '{name}': {e}")
 
         return None
@@ -573,6 +582,7 @@ class TaskDistributionSystem:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ Ошибка получения управляющего отдела '{department}': {e}")
 
         return None
@@ -599,6 +609,7 @@ class TaskDistributionSystem:
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ Ошибка получения Department Head отдела '{department}': {e}")
 
         # Fallback через department_heads_system

@@ -203,6 +203,7 @@ async def log_ai_interaction(
             return str(log_id)
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Error logging AI interaction: {e}")
         import traceback
 
@@ -237,4 +238,5 @@ def log_ai_interaction_fire_and_forget(prompt: str, response: str, **kwargs) -> 
             # Если event loop не запущен, запускаем синхронно
             loop.run_until_complete(log_ai_interaction(prompt, response, **kwargs))
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Could not log interaction: {e}")

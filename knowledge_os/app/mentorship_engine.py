@@ -123,6 +123,7 @@ class MentorshipEngine:
         """
         Selects recently completed tasks and performs an audit.
         """
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🎓 [MENTORSHIP] Starting audit cycle for {limit} tasks...")
 
         conn = await asyncpg.connect(self.db_url)
@@ -237,6 +238,7 @@ class MentorshipEngine:
             )
             return
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔍 [AUDIT] Reviewing task: {title} (Expert: {expert_name})")
 
         # 2. Prepare the audit prompt
@@ -272,6 +274,7 @@ class MentorshipEngine:
             score = 7
 
         if not note:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to get mentorship note for task {task_id}")
             return
 

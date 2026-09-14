@@ -120,6 +120,7 @@ class LiquidityTaskGenerator:
         try:
             pool = await self.get_pool()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error getting pool: {e}")
             return []
 
@@ -167,7 +168,7 @@ class LiquidityTaskGenerator:
 
         try:
             await pool.close()
-        except:
+        except Exception:
             pass
         return candidates
 
@@ -184,6 +185,7 @@ class LiquidityTaskGenerator:
         try:
             pool = await self.get_pool()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Error getting pool: {e}")
             return None
 
@@ -200,10 +202,11 @@ class LiquidityTaskGenerator:
             )
 
             if existing_task:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Task already exists for knowledge {knowledge['id']}")
                 try:
                     await pool.close()
-                except:
+                except Exception:
                     pass
                 return None
 
@@ -327,11 +330,12 @@ class LiquidityTaskGenerator:
                     knowledge["id"],
                 )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Could not update metadata for knowledge {knowledge['id']}: {e}")
 
         try:
             await pool.close()
-        except:
+        except Exception:
             pass
         return str(task_id)
 
@@ -349,6 +353,7 @@ class LiquidityTaskGenerator:
             candidates = await self.analyze_high_liquidity_knowledge()
             stats["analyzed"] = len(candidates)
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📊 Found {len(candidates)} high-liquidity knowledge candidates")
 
             for knowledge in candidates:
@@ -359,6 +364,7 @@ class LiquidityTaskGenerator:
                     else:
                         stats["skipped"] += 1
                 except Exception as e:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ Error creating task for knowledge {knowledge['id']}: {e}")
                     stats["errors"] += 1
                     import traceback
@@ -366,6 +372,7 @@ class LiquidityTaskGenerator:
                     traceback.print_exc()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Error processing high-liquidity knowledge: {e}")
             stats["errors"] += 1
             import traceback
@@ -380,11 +387,15 @@ async def process_liquidity_tasks():
     generator = LiquidityTaskGenerator()
     stats = await generator.process_high_liquidity_knowledge()
 
-    print("\n📊 Статистика обработки ликвидности знаний:")
-    print(f"   Проанализировано: {stats['analyzed']}")
-    print(f"   Создано задач: {stats['tasks_created']}")
-    print(f"   Пропущено: {stats['skipped']}")
-    print(f"   Ошибок: {stats['errors']}")
+    logger.info("\n📊 Статистика обработки ликвидности знаний:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Проанализировано: {stats['analyzed']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Создано задач: {stats['tasks_created']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Пропущено: {stats['skipped']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Ошибок: {stats['errors']}")
 
     return stats
 

@@ -83,7 +83,7 @@ async def _generate_sql_from_question(question: str, llm_url: str) -> Optional[s
             }
         else:
             payload = {
-                "model": "qwen2.5-coder:32b",  # Лучшая для SQL
+                "model": "qwen3-coder:30b",  # Лучшая для SQL
                 "prompt": prompt,
                 "stream": False,
                 "options": {"num_predict": 300, "temperature": 0.1},
@@ -105,13 +105,16 @@ async def _generate_sql_from_question(question: str, llm_url: str) -> Optional[s
             kw in sql_upper
             for kw in ["INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE"]
         ):
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Попытка выполнить опасный SQL: {sql[:100]}")
             return None
         if not sql_upper.startswith("SELECT"):
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ SQL не начинается с SELECT: {sql[:100]}")
             return None
         return sql
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Ошибка генерации SQL: {e}")
         return None
 
@@ -166,6 +169,7 @@ async def _execute_sql(sql: str) -> Dict[str, Any]:
         finally:
             await conn.close()
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Ошибка выполнения SQL: {e}")
         return {"success": False, "error": str(e)}
 
@@ -234,6 +238,7 @@ async def query_corporation_data(question: str) -> Dict[str, Any]:
     Returns:
         Dict с ключами: answer (ответ), sql (SQL запрос), raw_data (сырые данные)
     """
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"📊 [CORP DATA TOOL] Вопрос: {question[:100]}...")
 
     # Запрос о показателях Mac Studio (память, CPU) — не SQL, а системные метрики
@@ -270,6 +275,7 @@ async def query_corporation_data(question: str) -> Dict[str, Any]:
     for llm_url in llm_urls:
         sql = await _generate_sql_from_question(question, llm_url)
         if sql:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ SQL сгенерирован через {llm_url}: {sql[:100]}...")
             break
 
@@ -584,6 +590,7 @@ async def query_system_metrics() -> Dict[str, Any]:
         result["success"] = True
         result["answer"] = answer
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"query_system_metrics: {e}")
         result["answer"] = f"Ошибка сбора метрик: {e}"
     return result
@@ -637,6 +644,7 @@ def is_data_question(question: str) -> bool:
         "проходит",
         "идет",
     ]
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"DEBUG is_data_question: q='{q}' action_verbs_match={has_word(q, action_verbs)}")
     if has_word(q, action_verbs):
         return False
@@ -761,9 +769,12 @@ if __name__ == "__main__":
             "сколько задач в статусе pending?",
         ]
         for q in questions:
-            print(f"\n❓ {q}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n❓ {q}")
             result = await query_corporation_data(q)
-            print(f"📊 SQL: {result.get('sql')}")
-            print(f"✅ Ответ: {result.get('answer')}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"📊 SQL: {result.get('sql')}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"✅ Ответ: {result.get('answer')}")
 
     asyncio.run(test())

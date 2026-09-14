@@ -7,7 +7,7 @@ import logging
 import sqlite3
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -43,56 +43,58 @@ class StrategySessionManager:
                 "SELECT name FROM sqlite_master WHERE type='table' AND name='strategy_sessions'"
             )
             if not cursor.fetchone():
-                logger.info("🔧 [SESSION MANAGER] Таблица strategy_sessions не найдена. Инициализация...")
+                logger.info(
+                    "🔧 [SESSION MANAGER] Таблица strategy_sessions не найдена. Инициализация..."
+                )
+                try:
+                    from db import Database
+                except ImportError:
                     try:
+                        import os
+                        import sys
+
+                        current_dir = os.path.dirname(os.path.abspath(__file__))
+                        project_root = os.path.dirname(os.path.dirname(current_dir))
+                        paths_to_add = [
+                            os.path.join(current_dir, "src/database"),
+                            os.path.join(os.path.dirname(current_dir), "src/database"),
+                            os.path.join(project_root, "knowledge_os/src/database"),
+                            os.path.join(project_root, "src/database"),
+                            "/app/knowledge_os/src/database",
+                            "/app/src/database",
+                        ]
+                        for p in paths_to_add:
+                            if os.path.exists(p) and p not in sys.path:
+                                sys.path.insert(0, p)
                         from db import Database
                     except ImportError:
                         try:
-                            import sys
-                            import os
-                            # Добавляем пути для поиска db.py (Knowledge OS структура)
-                            current_dir = os.path.dirname(os.path.abspath(__file__))
-                            project_root = os.path.dirname(os.path.dirname(current_dir)) # atra-web-ide
-                            
-                            paths_to_add = [
-                                os.path.join(current_dir, "src/database"),
-                                os.path.join(os.path.dirname(current_dir), "src/database"),
-                                os.path.join(project_root, "knowledge_os/src/database"),
-                                os.path.join(project_root, "src/database"),
-                                "/app/knowledge_os/src/database",
-                                "/app/src/database",
-                            ]
-                            
-                            for p in paths_to_add:
-                                if os.path.exists(p) and p not in sys.path:
-                                    sys.path.insert(0, p)
-                            
-                            from db import Database
+                            from src.database.db import Database
                         except ImportError:
                             try:
-                                from src.database.db import Database
+                                from knowledge_os.src.database.db import Database
                             except ImportError:
-                                try:
-                                    from knowledge_os.src.database.db import Database
-                                except ImportError:
-                                    # Последний шанс: пробуем импортировать через абсолютный путь в контейнере
-                                    import importlib.util
-                                    db_path_abs = "/app/knowledge_os/src/database/db.py"
-                                    if os.path.exists(db_path_abs):
-                                        spec = importlib.util.spec_from_file_location("db", db_path_abs)
-                                        module = importlib.util.module_from_spec(spec)
-                                        spec.loader.exec_module(module)
-                                        Database = module.Database
-                                    else:
-                                        raise ImportError("Could not find db.py in any known location")
-                    
+                                import importlib.util
+                                import os
+
+                                db_path_abs = "/app/knowledge_os/src/database/db.py"
+                                if not os.path.exists(db_path_abs):
+                                    raise ImportError("Could not find db.py in any known location")
+                                spec = importlib.util.spec_from_file_location("db", db_path_abs)
+                                module = importlib.util.module_from_spec(spec)
+                                spec.loader.exec_module(module)
+                                Database = module.Database  # noqa: N806
+
+                try:
                     db = Database(self.db_path)
                     db._init_tables()
                     logger.info("✅ [SESSION MANAGER] Таблицы стратегий инициализированы")
                 except Exception as e2:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ [SESSION MANAGER] Не удалось инициализировать таблицы: {e2}")
             conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SESSION MANAGER] Ошибка проверки таблиц: {e}")
 
     def _get_connection(self) -> sqlite3.Connection:
@@ -127,13 +129,15 @@ class StrategySessionManager:
             conn.commit()
             conn.close()
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ [SESSION MANAGER] Создана сессия: {session_id} ({title})")
             return session_id
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SESSION MANAGER] Ошибка создания сессии: {e}")
             raise
 
-    def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+    def get_session(self, session_id: str) -> Optional[dict[str, Any]]:
         """
         Получает информацию о сессии
 
@@ -154,6 +158,7 @@ class StrategySessionManager:
                 return dict(row)
             return None
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SESSION MANAGER] Ошибка получения сессии: {e}")
             return None
 
@@ -179,8 +184,10 @@ class StrategySessionManager:
             conn.commit()
             conn.close()
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"📝 [SESSION MANAGER] Обновлен статус сессии {session_id}: {status}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SESSION MANAGER] Ошибка обновления статуса: {e}")
             raise
 
@@ -216,6 +223,7 @@ class StrategySessionManager:
             )
             return question_id
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SESSION MANAGER] Ошибка добавления вопроса: {e}")
             raise
 
@@ -241,8 +249,10 @@ class StrategySessionManager:
             conn.commit()
             conn.close()
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"✅ [SESSION MANAGER] Записан ответ на вопрос {question_id}")
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SESSION MANAGER] Ошибка записи ответа: {e}")
             raise
 
@@ -289,10 +299,11 @@ class StrategySessionManager:
             )
             return plan_id
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SESSION MANAGER] Ошибка создания плана: {e}")
             raise
 
-    def get_plan(self, plan_id: str) -> Optional[Dict[str, Any]]:
+    def get_plan(self, plan_id: str) -> Optional[dict[str, Any]]:
         """
         Возвращает план по id.
 
@@ -312,6 +323,7 @@ class StrategySessionManager:
                 return None
             return dict(row)
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SESSION MANAGER] Ошибка получения плана: {e}")
             return None
 
@@ -358,9 +370,11 @@ class StrategySessionManager:
             affected = cursor.rowcount
             conn.close()
             if affected:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"📋 [SESSION MANAGER] План {plan_id} обновлён")
             return affected > 0
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SESSION MANAGER] Ошибка обновления плана: {e}")
             return False
 
@@ -440,6 +454,7 @@ class StrategySessionManager:
 
             return summary
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SESSION MANAGER] Ошибка получения summary: {e}")
             return ""
 
@@ -471,4 +486,5 @@ class StrategySessionManager:
                     f"📦 [SESSION MANAGER] Архивировано {archived_count} сессий (старше {days} дней)"
                 )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SESSION MANAGER] Ошибка архивации сессий: {e}")
