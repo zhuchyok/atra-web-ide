@@ -7946,7 +7946,9 @@ async def run_task(
                 )
 
         async def _bounded_background_run() -> None:
-            _async_timeout_sec = float(os.getenv("VICTORIA_ASYNC_HARD_TIMEOUT_SEC", "180"))
+            # [SUPER-AGENT] Многошаговые задачи (deep_analysis → Veronica → код) требуют
+            # >180s. Поднимаем дефолт до 600s, настраивается env'ом.
+            _async_timeout_sec = float(os.getenv("VICTORIA_ASYNC_HARD_TIMEOUT_SEC", "600"))
             try:
                 await asyncio.wait_for(task_coro, timeout=_async_timeout_sec)
             except asyncio.TimeoutError:
@@ -9994,3 +9996,79 @@ if __name__ == "__main__":
         workers=workers,
         timeout_keep_alive=timeout_keep_alive,
     )
+
+
+@app.post("/api/autonomous-code")
+async def autonomous_code(request: dict):
+    """
+    [SUPER-AGENT] Автономный цикл код → тест → отчёт в один запрос.
+    Тело: {"goal": "...", "file_path": "src/xxx.py"}.
+    Генерирует код через LLM (переиспользуем Veronica executor напрямую), сохраняет файл
+    и проверяет компилируемость (py_compile). Возвращает статус тест/файл.
+    """
+    goal = (request.get("goal") or "").strip()
+    file_path = (request.get("file_path") or "").strip()
+    if not goal:
+        raise HTTPException(status_code=400, detail="goal required")
+    workspace = os.getenv("WORKSPACE_ROOT") or os.getenv("PROJECT_ROOT") or "/app"
+
+    # 1. Генерация кода: используем Veronica контракт (HTTP /run к veronica-agent)
+    veronica_url = os.getenv("VERONICA_URL", "http://veronica-agent:8000")
+    try:
+        import aiohttp
+        async with aiohttp.ClientSession() as sess:
+            async with sess.post(
+                f"{veronica_url}/run",
+                json={"goal": f"Верни КАК ОТВЕТ только python-код для задачи: {goal}", "async_mode": False},
+                timeout=aiohttp.ClientTimeout(total=180),
+            ) as resp:
+                data = await resp.json(content_type=None)
+                code_result = str(data.get("output") or "")[:10000]
+    except Exception as e:
+        code_result = f"Delegation error: {e}"
+
+    code = ""
+    file_written = None
+    if code_result and "Delegation error" not in code_result:
+        try:
+            s_idx = code_result.find("def ")
+            block = code_result[s_idx:] if s_idx >= 0 else code_result
+            # Обрезаем после последней строки кода (не markdown)
+            lines = [
+                l.rstrip() for l in block.splitlines()
+                if not l.strip().startswith("@@") and not l.strip().startswith("//")
+            ]
+            while lines and not lines[-1].strip():
+                lines.pop()
+            code = "\n".join(lines)
+            if code and file_path:
+                target = os.path.join(workspace, file_path)
+                os.makedirs(os.path.dirname(target) or target, exist_ok=True)
+                with open(target, "w") as f:
+                    f.write(code + "\n")
+                file_written = target
+        except Exception as e:
+            code = f"extract error: {e}"
+
+    # 2. Компиляция как smoke-test (без ручного шага)
+    py_compile = await asyncio.create_subprocess_exec(
+        "python3", "-m", "py_compile", target if file_path and file_written else "/dev/null",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        cwd=workspace,
+    )
+    try:
+        stdout, _ = await asyncio.wait_for(py_compile.communicate(), timeout=30)
+        compile_out = (stdout.decode() or "").strip()[:2000]
+        compile_status = "passed" if py_compile.returncode == 0 else "failed"
+    except asyncio.TimeoutError:
+        compile_status = "timeout"
+        compile_out = ""
+
+    return {
+        "compile_status": compile_status,
+        "compile_output": compile_out,
+        "file_path": file_written or file_path,
+        "code_preview": (code[:1000]),
+        "source": ("veronica" if "Delegation error" not in code_result else "error"),
+    }
