@@ -10089,6 +10089,12 @@ async def autonomous_code(request: dict):
     def _extract_code(raw: str) -> str:
         if not raw or "Delegation error" in raw:
             return ""
+        # Veronica иногда возвращает код с литеральными \\n вместо переносов
+        if raw.count(chr(92) + "n") >= 3:
+            try:
+                raw = raw.encode().decode("unicode_escape")
+            except Exception:  # noqa: BLE001
+                pass
         block = raw
         if "```" in raw:
             fences = raw.split("```")
@@ -10120,7 +10126,15 @@ async def autonomous_code(request: dict):
         ]
         while lines and not lines[-1].strip():
             lines.pop()
-        return "\n".join(lines)
+        code_text = "\n".join(lines).strip()
+        # оборачивающие кавычки от лишнего escaping ("...") с ключом начала def/import
+        if len(code_text) > 10 and code_text[0] == code_text[-1] and code_text[0] in ('"', "'"):
+            code_text = code_text[1:-1]
+        else:
+            # хвостовые отдельные кавычки на строках (артефакт утечки JSON)
+            if code_text.endswith('"'):
+                code_text = code_text[: code_text.rfind('"')]
+        return code_text
 
     async def _run_stage(stage: str, cmd: list, timeout_s: float, cwd_: str | None = None):
         try:
@@ -10202,3 +10216,106 @@ async def autonomous_code(request: dict):
         "code_preview": code[:1000],
         "source": "veronica" if code and not code_result.startswith("Delegation error") else "error",
     }
+
+
+@app.post("/api/orchestrate-plan")
+async def orchestrate_plan(request: dict):
+    """
+    [SUPER-AGENT] Планировщик: цель → декомпозиция (LLM) → исполнение подзадач через
+    /api/autonomous-code → сводный отчёт. Тело: {"goal", "max_steps": 3}.
+    """
+    goal = (request.get("goal") or "").strip()
+    if not goal:
+        raise HTTPException(status_code=400, detail="goal required")
+    max_steps = max(1, min(int(request.get("max_steps", 3)), 5))
+
+    plan_prompt = (
+        f"Задача: {goal}. Составь план из {max_steps} шагов по написанию python-кода. "
+        "Ответь ТОЛЬКО JSON-массивом вида "
+        '[{"title": "...", "goal": "что должна делать функция одним предложением"}] '
+        "без пояснений. Каждый шаг — самостоятельная python-задача."
+    )
+    try:
+        from dialogue_llm import generate_dialogue
+        plan_res = await generate_dialogue(
+            plan_prompt,
+            expert_name="Виктория",
+            model_hint=os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k"),
+        )
+        plan_text = (plan_res.text if hasattr(plan_res, "text") else str(plan_res)) or ""
+    except Exception as e:  # noqa: BLE001
+        return {"status": "error", "detail": f"plan llm: {e}"}
+
+    import re as _re
+    # wisdom иногда возвращает строку с литеральными \\n
+    if plan_text.count(chr(92) + "n") >= 3:
+        try:
+            plan_text = plan_text.encode().decode("unicode_escape")
+        except Exception:  # noqa: BLE001
+            pass
+    t = _re.sub(r"```(?:json)?|```", "", plan_text).strip()
+    steps = []
+    # wisdom рвёт JSON: отдельные объекты валидны, Loot-массив может корежиться.
+    # Сканируем каждый '{...}' raw_decode-ом, берём валидные dict-ы с goal.
+    dec = json.JSONDecoder()
+    pos = t.find("{")
+    while pos >= 0 and pos < len(t) and len(steps) < max_steps:
+        try:
+            obj, end_pos = dec.raw_decode(t[pos:])
+            if isinstance(obj, dict) and obj.get("goal") and obj.get("title"):
+                steps.append({"title": str(obj["title"])[:120], "goal": str(obj["goal"])[:400]})
+        except Exception:  # noqa: BLE001
+            end_pos = 1
+        pos += max(end_pos, 1)
+        nxt = t.find("{", pos)
+        pos = nxt if nxt >= 0 else len(t)
+    first_exc = None
+    if not steps:
+        with open("/tmp/plan_debug.json", "w") as _df:
+            _df.write(plan_text)
+        return {"status": "error", "detail": f"plan parse failed raw_head={plan_text[:150]!r}"}
+
+    results = []
+    base_url = "http://localhost:8000"
+    try:
+        import aiohttp
+        async with aiohttp.ClientSession() as sess:
+            for i, st in enumerate(steps, 1):
+                slug = _re.sub(r"[^a-zA-Z0-9]", "_", str(st.get("title", f"step{i}")))[:24].lower() or f"step{i}"
+                fp = f"src/op{i}_{slug}.py"
+                try:
+                    async with sess.post(
+                        f"{base_url}/api/autonomous-code",
+                        json={"goal": st["goal"], "file_path": fp},
+                        timeout=aiohttp.ClientTimeout(total=300),
+                    ) as resp:
+                        res = await resp.json(content_type=None)
+                except Exception as e:  # noqa: BLE001
+                    res = {"final_status": "error", "error": str(e)[:200]}
+                results.append({
+                    "step": i,
+                    "title": st.get("title", ""),
+                    "file": fp,
+                    "status": res.get("final_status", res.get("compile_status")),
+                    "fix_iterations": res.get("fix_iterations"),
+                    "attempts": res.get("attempts", []),
+                })
+    except ImportError:
+        return {"status": "error", "detail": "aiohttp unavailable"}
+
+    summary = (
+        "Все шаги пройдены"
+        if results and all(r["status"] == "passed" for r in results)
+        else f"Пройдено {sum(1 for r in results if r.get('status') == 'passed')} из {len(results)}"
+    )
+    try:
+        await commit_experience({
+            "goal": f"[plan] {goal[:200]}",
+            "outcome": "passed" if summary.startswith("Все") else "partial",
+            "lesson": f"{len(steps)} шагов: " + "; ".join(f"{r['step']}:{r['status']}" for r in results),
+            "source": "/api/orchestrate-plan",
+        })
+    except Exception:  # noqa: BLE001
+        pass
+
+    return {"status": "ok", "plan_steps": steps, "results": results, "summary": summary}

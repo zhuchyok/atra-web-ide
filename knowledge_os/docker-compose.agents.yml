@@ -132,6 +132,8 @@ services:
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       REDIS_URL: unix:///data/redis/redis.sock
+      # Планировщику нужны длинные JSON-планы (default 280 обрезает ответы)
+      DIALOGUE_MAX_TOKENS: ${DIALOGUE_MAX_TOKENS:-1500}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       CHAT_ID: ${TELEGRAM_USER_ID}
       VERONICA_URL: http://veronica-agent:8000
