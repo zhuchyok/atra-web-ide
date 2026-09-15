@@ -10012,71 +10012,131 @@ async def autonomous_code(request: dict):
         raise HTTPException(status_code=400, detail="goal required")
     workspace = os.getenv("WORKSPACE_ROOT") or os.getenv("PROJECT_ROOT") or "/app"
 
-    # 1. Генерация кода: используем Veronica контракт (HTTP /run к veronica-agent)
+    # ── [SUPER-AGENT v2] Self-fix loop: генерация → py_compile → runtime smoke
+    #    → (ошибка? → трейсбек Veronica → пере-генерация, до max_fix_iters) ──
     veronica_url = os.getenv("VERONICA_URL", "http://veronica-agent:8000")
-    try:
-        import aiohttp
-        async with aiohttp.ClientSession() as sess:
-            async with sess.post(
-                f"{veronica_url}/run",
-                json={"goal": f"Верни КАК ОТВЕТ только python-код для задачи: {goal}", "async_mode": False},
-                timeout=aiohttp.ClientTimeout(total=180),
-            ) as resp:
-                data = await resp.json(content_type=None)
-                code_result = str(data.get("output") or "")[:10000]
-    except Exception as e:
-        code_result = f"Delegation error: {e}"
-
+    max_iters = max(0, int(request.get("max_fix_iters", 3)))
+    attempts = []
     code = ""
     file_written = None
-    if code_result and "Delegation error" not in code_result:
-        try:
-            # Страховка от markdown-фенсов: ```python … ```
-            if "```" in code_result:
-                fences = code_result.split("```")
-                # из пар: [ 'текст', 'lang\n код ...', ...] берём самый длинный обычный блок
-                candidates = [b.split("\n", 1)[-1] for b in fences] + [code_result]
-                block = max(candidates, key=lambda b: b.count("def ") + b.count("class "))
-            else:
-                block = code_result
-            s_idx = block.find("def ")
-            body = block[s_idx:] if s_idx >= 0 else block
-            # Обрезаем после последней строки кода (не markdown)
-            lines = [
-                l.rstrip() for l in body.splitlines()
-                if not l.strip().startswith("@@") and not l.strip().startswith("//")
-            ]
-            while lines and not lines[-1].strip():
-                lines.pop()
-            code = "\n".join(lines)
-            if code and file_path:
-                target = os.path.join(workspace, file_path)
-                os.makedirs(os.path.dirname(target) or target, exist_ok=True)
-                with open(target, "w") as f:
-                    f.write(code + "\n")
-                file_written = target
-        except Exception as e:
-            code = f"extract error: {e}"
+    fix_iterations = 0
+    prompt = f"Верни КАК ОТВЕТ только python-код (def/class, без markdown-фенсов) для задачи: {goal}"
 
-    # 2. Компиляция как smoke-test (без ручного шага)
-    py_compile = await asyncio.create_subprocess_exec(
-        "python3", "-m", "py_compile", target if file_path and file_written else "/dev/null",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-        cwd=workspace,
-    )
-    try:
-        stdout, _ = await asyncio.wait_for(py_compile.communicate(), timeout=30)
-        compile_out = (stdout.decode() or "").strip()[:2000]
-        compile_status = "passed" if py_compile.returncode == 0 else "failed"
-    except asyncio.TimeoutError:
-        compile_status = "timeout"
-        compile_out = ""
+    async def _ask_veronica(ask_prompt: str) -> str:
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as sess:
+                async with sess.post(
+                    f"{veronica_url}/run",
+                    json={"goal": f"{ask_prompt} [cat:{uuid.uuid4().hex[:8]} — служебный ярлык, не включай его в код], ""Не используй инструменты чтения/поиска — просто напиши и верни python-код.", "async_mode": False},
+                    timeout=aiohttp.ClientTimeout(total=180),
+                ) as resp:
+                    data = await resp.json(content_type=None)
+                    return str(data.get("output") or "")[:12000]
+        except Exception as e:  # noqa: BLE001
+            return f"Delegation error: {e}"
+
+    def _extract_code(raw: str) -> str:
+        if not raw or "Delegation error" in raw:
+            return ""
+        block = raw
+        if "```" in raw:
+            fences = raw.split("```")
+            candidates = [b.split("\n", 1)[-1] for b in fences] + [raw]
+            candidates = [c for c in candidates if c.strip()]
+            if not candidates:
+                candidates = [raw.lstrip("`\n phpoyt")]
+            block = max(
+                candidates,
+                key=lambda b: (
+                    b.count("def ") + b.count("class ")
+                    + b.count("import ") + b.count("if __name__") * 2,
+                    len(b),
+                ),
+            )
+        s_idx = block.find("def ")
+        s_idx = s_idx if s_idx >= 0 else block.find("class ")
+        if s_idx >= 0:
+            body = block[s_idx:]
+        else:
+            body = block
+            for lead in ("python", "py", ""):
+                body = body[len(lead) :] if body.startswith(lead) else body
+                body = body.lstrip("\n")
+        body = body.lstrip()
+        lines = [
+            ln.rstrip() for ln in body.splitlines()
+            if not ln.strip().startswith("@@") and not ln.strip().startswith("//") and not ln.strip().startswith("```")
+        ]
+        while lines and not lines[-1].strip():
+            lines.pop()
+        return "\n".join(lines)
+
+    async def _run_stage(stage: str, cmd: list, timeout_s: float, cwd_: str | None = None):
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+                cwd=cwd_ or workspace,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)
+            out = (stdout.decode() or "").strip()[:2000]
+            status = "passed" if proc.returncode == 0 else "failed"
+        except asyncio.TimeoutError:
+            status, out = "timeout", ""
+        attempts.append({"stage": stage, "status": status, "output": out})
+        return status, out
+
+    # === Цикл: gen → compile → runtime → fix ===
+    for it in range(1 + max_iters):
+        code_result = await _ask_veronica(prompt)
+        code = _extract_code(code_result)
+        if not code:
+            attempts.append({"stage": f"gen{it}", "status": "failed", "output": code_result[:400]})
+            break
+        if file_path and not file_written:
+            target = os.path.join(workspace, file_path)
+            os.makedirs(os.path.dirname(target) or target, exist_ok=True)
+            file_written = target
+        if file_written:
+            with open(file_written, "w") as f:
+                f.write(code + "\n")
+
+        # Stage 1: py_compile
+        c_status, c_out = await _run_stage(f"compile{it}", ["python3", "-m", "py_compile", file_written], 30)
+        if c_status != "passed":
+            prompt = (
+                f"Задача: {goal}\nТекущий код:\n{code}\n"
+                f"Ошибка компиляции:\n{c_out}\n"
+                "Верни КАК ОТВЕТ только исправленный полный python-код без фенсов."
+            )
+            fix_iterations = it + 1
+            continue
+
+        # Stage 2: runtime smoke (exec top-level)
+        if not request.get("skip_runtime_smoke"):
+            r_status, r_out = await _run_stage(f"runtime{it}", ["python3", file_written], 30, cwd_=workspace)
+            if r_status != "passed":
+                prompt = (
+                    f"Задача: {goal}\nТекущий код:\n{code}\n"
+                    f"Ошибка при запуске:\n{r_out}\n"
+                    "Верни КАК ОТВЕТ только исправленный полный python-код без фенсов. "
+                    "Код должен безопасно выполняться сам по себе (защита через if __name__ == '__main__' для ручного вызова)."
+                )
+                fix_iterations = it + 1
+                continue
+        break
+
+    final_stage = attempts[-1]["status"] if attempts else "no_attempts"
+    compile_status = "passed" if any(a["stage"].startswith("compile") and a["status"] == "passed" for a in attempts) else ("failed" if attempts else "skipped")
+    runtime_status = next((a["status"] for a in reversed(attempts) if a["stage"].startswith("runtime")), ("skipped" if request.get("skip_runtime_smoke") else "not_reached"))
 
     return {
         "compile_status": compile_status,
-        "compile_output": compile_out,
+        "runtime_status": runtime_status,
+        "final_status": "passed" if final_stage == "passed" else final_stage,
+        "fix_iterations": fix_iterations,
+        "attempts": attempts,
         "file_path": file_written or file_path,
-        "code_preview": (code[:1000]),
-        "source": ("veronica" if "Delegation error" not in code_result else "error"),
+        "code_preview": code[:1000],
+        "source": "veronica" if code and not code_result.startswith("Delegation error") else "error",
     }
