@@ -138,6 +138,7 @@ services:
       DIALOGUE_MAX_TOKENS: ${DIALOGUE_MAX_TOKENS:-1500}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       CHAT_ID: ${TELEGRAM_USER_ID}
+      GH_TOKEN: ${GH_TOKEN}
       VERONICA_URL: http://veronica-agent:8000
       USE_VICTORIA_ENHANCED: "true"
       VICTORIA_STALE_TASK_TIMEOUT_SEC: "4200"
@@ -213,6 +214,7 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       # Выделенный Ollama-инстанс для coder (11436) — не конкурирует с wisdom Victoria
       OLLAMA_EXECUTOR_BASE_URL: http://host.docker.internal:11436
+      GH_TOKEN: ${GH_TOKEN}
       OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"

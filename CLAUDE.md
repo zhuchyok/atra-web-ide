@@ -88,3 +88,6 @@ Multi-agent AI system with Victoria as team lead, 88 experts, PostgreSQL, Redis,
 - **Experience retrieval v3.4**: перед планом топ-3 релевантных опыts (tsvector по knowledge_nodes, kind=experience; фоллбек newest). Проверено E2E
 - **Гит-агент v3** (15.09): тулы git_branch_create/add/commit/push/pr_list/test_run — write-ready, зарегистрированы в Veronica (ALLOWED_TOOLS). `git_pr_create` делает честную underbox (gh недоступен в контейнере — host-only). TDD-loop в autonomous-code (`test_path`): тест генерится до кода, гоняется после runtime → fail-цепочка фикс-иттераций. Проверено E2E (`stage test0 passed`). `/api/self-review` — 5-пунктовая Victoria-оценка для PR (ревью для `src/tdd_impl.py` вернула Amber с понятными замечаниями)
 - **Multi-task dispatcher v4.1** (`/api/saga`): N целей → по очереди/параллельно через orchestrate-plan v3 (replan+sanity+experience) → сводный отчёт по каждой; failures изолированы. E2E: 3 цели → 3/3 цель passed (6 шагов, 128с, 0 ре-планов — plan痊愈)
+- **gh CLI внутри Victoria/Veronica контейнеров установлен** (GH_TOKEN env через compose, apt gh). `git_pr_create` теперь честный work-aware: `gh pr list` E2E из контейнера ✅; Dockerfile обновлён (gh в apt); минимум 2 рестарта пересоздали
+
+Известные ограничения:

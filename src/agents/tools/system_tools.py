@@ -532,7 +532,10 @@ class GitTools:
     @staticmethod
     def _gh_run(args: list, timeout: int = 30):
         env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
-        proc = subprocess.run(["gh", *args], capture_output=True, text=True, timeout=timeout, env=env)
+        proc = subprocess.run(
+            ["gh", *args], capture_output=True, text=True, timeout=timeout, env=env,
+            cwd=GitTools._resolve_repo() or os.getcwd(),
+        )
         out = (proc.stdout or proc.stderr or "").strip()
         return proc.returncode, out
 
