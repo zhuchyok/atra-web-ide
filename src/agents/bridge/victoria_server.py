@@ -10197,7 +10197,24 @@ async def autonomous_code(request: dict):
         attempts.append({"stage": stage, "status": status, "output": out})
         return status, out
 
-    # === Цикл: gen → compile → runtime → fix ===
+    # [v3 TDD] Если test_first — сначала генерируем тест-файл, цикл заканчивается его прогоном
+    test_path = (request.get("test_path") or "").strip()
+    if test_path:
+        test_goal = (
+            f"Напиши python-скрипт {test_path}, который VALIDATES задачу '«{goal}»' — импортирует "
+            "основной модуль (именно-файл), вызывает функцию и проверяет результат; печатает 'OK' если всё хорошо, "
+            "иначе печатает 'FAIL'. Тест самодостаточный."
+        )
+        test_code_res = await _ask_veronica(test_path)
+        test_code = _extract_code(test_code_res)
+        if test_code and test_path:
+            tp = os.path.join(workspace, test_path)
+            os.makedirs(os.path.dirname(tp) or tp, exist_ok=True)
+            with open(tp, "w") as f:
+                f.write(test_code + "\n")
+            attempts.append({"stage": "test_gen", "status": "passed", "output": f"{test_path} written"})
+
+    # === Цикл: gen → compile → runtime → test_run → fix ===
     for it in range(1 + max_iters):
         code_result = await _ask_veronica(prompt)
         code = _extract_code(code_result)
@@ -10257,6 +10274,20 @@ async def autonomous_code(request: dict):
                 )
                 fix_iterations = it + 1
                 continue
+
+        # Stage 3 [v3 TDD]: контроль по test_path, если задан
+        if test_path:
+            tp_abs = os.path.join(workspace, test_path)
+            if os.path.isfile(tp_abs):
+                t_status, t_out = await _run_stage(f"test{it}", ["python3", tp_abs], 60, cwd_=workspace)
+                if t_status != "passed":
+                    prompt = (
+                        f"Задача: {goal}\nТекущий код:\n{code}\n"
+                        f"Тесты {test_path} не прошли:\n{t_out}\n"
+                        "Верни КАК ОТВЕТ только исправленный полный python-код реализации."
+                    )
+                    fix_iterations = it + 1
+                    continue
         break
 
     final_stage = attempts[-1]["status"] if attempts else "no_attempts"
@@ -10612,3 +10643,34 @@ async def experience_cull(request: dict):
         return {"status": "ok", **stats}
     except Exception as e:  # noqa: BLE001
         return {"status": "error", "detail": str(e)[:300]}
+
+
+@app.post("/api/self-review")
+async def self_review(request: dict):
+    """
+    [v3 Гит-агент] PR self-review: Victoria берёт файл/код и отвечает на 5 вопросов
+    (безопасность, edge-cases, стиль, dead code, тесты). Тело: {"goal","file_path"}.
+    """
+    file_path = (request.get("file_path") or "").strip()
+    goal = (request.get("goal") or "").strip()
+    workspace = os.getenv("WORKSPACE_ROOT") or os.getenv("PROJECT_ROOT") or "/app"
+    fp = os.path.join(workspace, file_path)
+    if not file_path or not os.path.isfile(fp):
+        raise HTTPException(status_code=400, detail="file_path не найден")
+    code = ""
+    with open(fp, "r", encoding="utf-8", errors="ignore") as f:
+        code = f.read()[:6000]
+    q = (
+        f"Файл: {file_path}\nЗадача: {goal or '(не задана)'}\n\n"
+        f"Код:\n{code}\n\n"
+        "Проверь по 5 пунктам и ответь кратко списком «1)… 5)…»:\n"
+        "1) Безопасность: секреты/eval/exec/инъекции?\n"
+        "2) Edge cases: пустые/edge значения?\n"
+        "3) Стиль: читабельность и нейминг?\n"
+        "4) Мёртвый код или лишKaие зависимости?\n"
+        "5) Готов ли файл к отправке в PR (green/amber/red)?"
+    )
+    from dialogue_llm import generate_dialogue
+    res = await generate_dialogue(q, expert_name="Виктория", model_hint=os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k"))
+    text = (res.text if hasattr(res, "text") else str(res)) or ""
+    return {"status": "ok", "review": text[:2000]}

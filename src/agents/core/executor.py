@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 VICTORIA_DEBUG = os.getenv("VICTORIA_DEBUG", "false").lower() in ("true", "1", "yes")
 
 # Мировая практика: только эти инструменты существуют. Любой другой = отклоняем и просим повторить.
-ALLOWED_TOOLS = {"finish", "read_file", "list_directory", "run_terminal_cmd", "ssh_run", "write_file", "apply_patch", "grep_search", "web_search", "db_query", "git_status", "git_diff", "git_log"}
+ALLOWED_TOOLS = {"finish", "read_file", "list_directory", "run_terminal_cmd", "ssh_run", "write_file", "apply_patch", "grep_search", "web_search", "db_query", "git_status", "git_diff", "git_log", "git_branch_create", "git_add", "git_commit", "git_push", "git_pr_create", "git_pr_list", "git_test_run"}
 
 # === MODEL FALLBACK CONFIGURATION ===
 # Ordered list of fallback models from smallest to largest
