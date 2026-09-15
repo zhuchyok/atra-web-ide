@@ -10160,10 +10160,13 @@ async def autonomous_code(request: dict):
         ]
         while lines and not lines[-1].strip():
             lines.pop()
-        code_text = "\n".join(
-            (ln[: ln.rfind('"')] if ln.endswith('"') and ln.count('"') == 1 else ln)
-            for ln in lines
-        ).strip()
+        def _safe_unquote(ln: str) -> str:
+            # [SAFE] только whole-line обрамление "..." → снять пару; НЕ трогаем f-строки/частичные кавычки
+            if ln.strip().startswith('"') and ln.strip().endswith('"') and '" ' not in ln and 'f"' not in ln:
+                body = ln.strip()[1:-1]
+                return body if '"' not in body else ln
+            return ln
+        code_text = "\n".join(_safe_unquote(ln) for ln in lines).strip()
         # оборачивающие кавычки от лишнего escaping ("...") с ключом начала def/import
         if len(code_text) > 10 and code_text[0] == code_text[-1] and code_text[0] in ('"', "'"):
             code_text = code_text[1:-1]
@@ -10328,7 +10331,8 @@ async def orchestrate_plan(request: dict):
     base_prompt_tail = (
         f"Задача: {goal}. Составь план из {max_steps} шагов по написанию python-кода. "
         "Ответь ТОЛЬКО JSON-массивом вида "
-        '[{"title": "...", "goal": "что должна делать функция одним предложением"}] '
+        '[{"title": "...", "goal": "что должна делать функция одним предложением", "depends": []}] '
+        "Поле depends — номера шагов (int) от которых зависит текущий (пусто если независим). "
         "без пояснений. Каждый шаг — атомарная python-функция (def, БЕЗ классов и методов)."
     )
     try:
@@ -10353,23 +10357,77 @@ async def orchestrate_plan(request: dict):
         except Exception as e:  # noqa: BLE001
             return {"final_status": "error", "error": str(e)[:200]}
 
+    # [v3.3] Сeness-check Victoria: после успешного шага — быстрое LLM подтверждение «код решает подзадачу?»
+    async def _sanity_check(step_goal: str, fp: str) -> bool:
+        try:
+            if not os.path.isfile(os.path.join(os.getenv("WORKSPACE_ROOT", os.getenv("PROJECT_ROOT", "/workspace/atra-web-ide")), fp)):
+                return False
+            from dialogue_llm import generate_dialogue
+            sp = (
+                f"Подзадача: «{step_goal}». Файл: {fp}.\n"
+                "ОтвOhet строго одним словом: OK или NO (если код не решает подзадачу или по-видимому непригоден)."
+            )
+            res = await generate_dialogue_safe(sp)
+            t = (res or "").strip().upper()
+            ok = "OK" in t and "NO" not in t.replace("NOW", "")[:2]
+            return ok
+        except Exception:  # noqa: BLE001
+            return True  # fail-open
+
+    async def generate_dialogue_safe(prompt: str) -> str:
+        try:
+            from dialogue_llm import generate_dialogue
+            res = await generate_dialogue(prompt, expert_name="Виктория", model_hint=os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k"))
+            return (res.text if hasattr(res, "text") else str(res)) or ""
+        except Exception:  # noqa: BLE001
+            return ""
+
     results = []
     replans_used = 0
     replan_iters: list[dict] = []
     try:
         import aiohttp
         async with aiohttp.ClientSession() as sess:
-            # — базовый проход —
-            for i, st in enumerate(steps, 1):
+            # — v3.2: топологический порядок по depends → параллель по уровням —
+            sem = asyncio.Semaphore(2)  # не злить coder-инстанс очередями
+
+            async def _one(i: int, st: dict):
                 slug = _re.sub(r"[^a-zA-Z0-9]", "_", str(st.get("title", f"step{i}")))[:24].lower() or f"step{i}"
                 fp = f"src/op{i}_{slug}.py"
-                res = await _run_step(sess, fp, st["goal"])
+                async with sem:
+                    res = await _run_step(sess, fp, st["goal"])
+                status = res.get("final_status", res.get("compile_status"))
+                sanity_ok: bool | None = None
+                if status == "passed":
+                    # v3.3 Sanity-check Victoria: быстрая LLM-проверка, что код решает подзадачу
+                    sanity_ok = await _sanity_check(st.get("goal", ""), fp)
+                    if not sanity_ok:
+                        status = "sanity_failed"
                 results.append({
                     "step": i, "title": st.get("title", ""), "file": fp,
-                    "status": res.get("final_status", res.get("compile_status")),
+                    "depends": st.get("depends", []),
+                    "status": status,
+                    "sanity_ok": sanity_ok,
                     "fix_iterations": res.get("fix_iterations"),
                     "attempts": res.get("attempts", []),
                 })
+
+            pending = list(range(1, len(steps) + 1))
+            done_steps: set[int] = set()
+            while pending:
+                level = []
+                for i in pending:
+                    deps = [d for d in (steps[i - 1].get("depends") or []) if d in pending]
+                    if not deps:
+                        level.append(i)
+                if not level:
+                    level = [pending[0]]  # anti-deadlock: цикл в deps
+                for i in level:
+                    pending.remove(i)
+                batch = [(i, steps[i - 1]) for i in level]
+                await asyncio.gather(*(_one(i, st) for i, st in batch), return_exceptions=True)
+                done_steps.update(level)
+            results.sort(key=lambda r: r["step"])
             # — retry-проход (same files) —
             for k in [k for k, r in enumerate(results) if r["status"] != "passed"]:
                 st = steps[results[k]["step"] - 1]
@@ -10417,13 +10475,20 @@ async def orchestrate_plan(request: dict):
                     slug = _re.sub(r"[^a-zA-Z0-9]", "_", str(st.get("title", f"r{idx}")))[:24].lower()
                     fp = f"src/op{idx}_{slug}.py"
                     res = await _run_step(sess, fp, st["goal"])
+                    rstatus = res.get("final_status", res.get("compile_status"))
+                    rsanity_ok: bool | None = None
+                    if rstatus == "passed":
+                        rsanity_ok = await _sanity_check(st["goal"], fp)
+                        if not rsanity_ok:
+                            rstatus = "sanity_failed"
                     results.append({
                         "step": idx, "title": f"[replan] {st.get('title', '')}", "file": fp,
-                        "status": res.get("final_status", res.get("compile_status")),
+                        "status": rstatus,
+                        "sanity_ok": rsanity_ok,
                         "fix_iterations": res.get("fix_iterations"),
                         "attempts": res.get("attempts", []),
                     })
-                    if res.get("final_status") == "passed":
+                    if rstatus == "passed":
                         # помечаем замещённые шаги как superseded
                         for r in results[:-1]:
                             if r["status"] != "passed":
