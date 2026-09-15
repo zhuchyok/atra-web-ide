@@ -10,12 +10,16 @@ contactPoints:
         type: telegram
         disableResolveMessage: false
         settings:
-          bottoken: ${GRAFANA_TELEGRAM_BOT_TOKEN}
+          bottoken: "8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs"
           chatid: "556251171"
 
 policies:
   - orgId: 1
     receiver: telegram
+    group_by:
+      - grafana_folder
+      - alertname
     group_wait: 30s
     group_interval: 5m
     repeat_interval: 4h
+    routes: []

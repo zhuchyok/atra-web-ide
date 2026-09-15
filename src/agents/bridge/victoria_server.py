@@ -10031,11 +10031,19 @@ async def autonomous_code(request: dict):
     file_written = None
     if code_result and "Delegation error" not in code_result:
         try:
-            s_idx = code_result.find("def ")
-            block = code_result[s_idx:] if s_idx >= 0 else code_result
+            # Страховка от markdown-фенсов: ```python … ```
+            if "```" in code_result:
+                fences = code_result.split("```")
+                # из пар: [ 'текст', 'lang\n код ...', ...] берём самый длинный обычный блок
+                candidates = [b.split("\n", 1)[-1] for b in fences] + [code_result]
+                block = max(candidates, key=lambda b: b.count("def ") + b.count("class "))
+            else:
+                block = code_result
+            s_idx = block.find("def ")
+            body = block[s_idx:] if s_idx >= 0 else block
             # Обрезаем после последней строки кода (не markdown)
             lines = [
-                l.rstrip() for l in block.splitlines()
+                l.rstrip() for l in body.splitlines()
                 if not l.strip().startswith("@@") and not l.strip().startswith("//")
             ]
             while lines and not lines[-1].strip():

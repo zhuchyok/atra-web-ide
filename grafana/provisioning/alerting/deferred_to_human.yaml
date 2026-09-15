@@ -44,6 +44,14 @@ groups:
         noDataState: OK
         execErrState: Error
         for: 5m
+        contactPoints:
+          - orgId: 1
+            receivers:
+              - uid: telegram-receiver
+                type: telegram
+                settings:
+                  bottoken: "8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs"
+                  chatid: "556251171"
         dashboardUid: knowledge_os-tasks
         panelId: 1
         annotations:

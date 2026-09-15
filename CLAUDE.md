@@ -34,10 +34,12 @@ Multi-agent AI system with Victoria as team lead, 88 experts, PostgreSQL, Redis,
 ## Current State (Sept 2026)
 
 - Victoria model: `victoria-wisdom-24k` (switched from v3.5, 6x faster response)
+- Veronica model: `qwen3-coder:30b` (switched from qwen2.5-coder:14b)
 - All containers healthy, 0 pending tasks
 - Overflow routing fixed (dispatch_stream_for_expert checks is_overflow_expert)
+- Overflow pool: 5 workers (dynamic-1-5)
 - Docker VM: 24GB
-- Grafana alerts → Telegram ( AtlE bot `vikoria_atra_bot`, chat 556251171)
+- Grafana alerts → Telegram (AtlE bot `vikoria_atra_bot`, chat 556251171)
 - Alert `deferred-to-human-high`: `knowledge_os_tasks_deferred_new_24h_total > 10` (pipeline A→reduce→math)
 - Prometheus scrapes knowledge_rest:8002 (deferred metrics)
 - Old monitoring stack (atra-grafana, atra-prometheus, atra-kibana, atra-elasticsearch) остановлен (restart=no, volumes сохранены)
@@ -57,3 +59,5 @@ Multi-agent AI system with Victoria as team lead, 88 experts, PostgreSQL, Redis,
 
 - ~~Тулы (web_search/db_query/git) доступны в deep-пути; в quick-пути пока «подсказки команд»~~ ✅ DONE (00.14.09.2026: quick-route исполняет тулы до LLM через `_run_quick_tools_for_goal`)
 - ~~MLX сервер запускается вручную~~ ✅ DONE (launchd `com.atra.mlx-api-server`, preload wisdom-24k + phi3.5)
+- ~~Semantic cache freshness guard~~ ✅ DONE (env vars SEMANTIC_CACHE_ENFORCE_FRESHNESS=true, SEMANTIC_CACHE_FRESHNESS_SLA_SEC=900)
+- ~~Autonomous code endpoint~~ ✅ DONE (`/api/autonomous-code`: goal → Veronica → code → file → py_compile → result)

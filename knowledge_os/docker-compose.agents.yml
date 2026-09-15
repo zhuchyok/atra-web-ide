@@ -265,6 +265,8 @@ services:
       BRIDGE_CA_PATH: /certs/ca.crt
       ENABLE_METRICS: "true"
       METRICS_PORT: "8000"
+      SEMANTIC_CACHE_ENFORCE_FRESHNESS: ${SEMANTIC_CACHE_ENFORCE_FRESHNESS:-true}
+      SEMANTIC_CACHE_FRESHNESS_SLA_SEC: ${SEMANTIC_CACHE_FRESHNESS_SLA_SEC:-900}
       VICTORIA_STRATEGIST_MODEL: ${VICTORIA_STRATEGIST_MODEL:-victoria-wisdom-24k:latest}
       VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-victoria-wisdom-24k:latest}
       # Mac Docker Desktop: absolute host binds when orchestrator recreates dynamic workers
