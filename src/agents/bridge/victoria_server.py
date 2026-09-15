@@ -10674,3 +10674,80 @@ async def self_review(request: dict):
     res = await generate_dialogue(q, expert_name="Виктория", model_hint=os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k"))
     text = (res.text if hasattr(res, "text") else str(res)) or ""
     return {"status": "ok", "review": text[:2000]}
+
+
+@app.post("/api/saga")
+async def saga(request: dict):
+    """
+    [v4 Мультизадачный мозг] Пакетный dispatcher массива целей:
+      тело: {"goals": ["цель 1", "цель 2", ...], "max_steps": 3, "parallel": false}
+    Каждая цель проходит через /api/orchestrate-plan (со своим re-plan циклом).
+    Failures изолированы: упавшая цель не останавливает очередь.
+    Возвращает сводный отчёт по всем задачам + опыт commits.
+    """
+    goals = request.get("goals") or []
+    if isinstance(goals, str):
+        goals = [goals]
+    goals = [str(g).strip() for g in goals if str(g).strip()]
+    if not goals:
+        raise HTTPException(status_code=400, detail="goals required (list)")
+    max_steps = max(1, min(int(request.get("max_steps", 3)), 5))
+    max_replans = max(0, min(int(request.get("max_replans", 1)), 2))
+    parallel = bool(request.get("parallel", False))
+
+    base_url = "http://localhost:8000"
+
+    async def run_one(g: str) -> dict:
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as sess:
+                async with sess.post(
+                    f"{base_url}/api/orchestrate-plan",
+                    json={"goal": g, "max_steps": max_steps, "max_replans": max_replans},
+                    timeout=aiohttp.ClientTimeout(total=1800),
+                ) as resp:
+                    d = await resp.json(content_type=None)
+                return {
+                    "goal": g[:200],
+                    "status": ("passed" if str(d.get("summary", "")).startswith("Все") else "partial"),
+                    "summary": d.get("summary", ""),
+                    "steps": len(d.get("plan_steps") or []),
+                    "steps_passed": sum(1 for r in (d.get("results") or []) if r.get("status") == "passed"),
+                    "replans_used": d.get("replans_used", 0),
+                }
+        except Exception as e:  # noqa: BLE001
+            return {"goal": g[:200], "status": "error", "detail": str(e)[:200]}
+
+    try:
+        import aiohttp  # noqa: F401 — проверка наличия до исполнения
+        if parallel:
+            import asyncio
+            out = await asyncio.gather(*(run_one(g) for g in goals), return_exceptions=True)
+            results = []
+            for r in out:
+                if isinstance(r, Exception):
+                    results.append({"status": "error", "detail": str(r)[:200]})
+                else:
+                    results.append(r)
+        else:
+            results = []
+            for g in goals:
+                results.append(await run_one(g))
+    except ImportError:
+        return {"status": "error", "detail": "aiohttp unavailable"}
+
+    passed = sum(1 for r in results if r.get("status") == "passed")
+    summary = f"SAQA: {passed} из {len(results)} задач полностью пройдены"
+    try:
+        await commit_experience(
+            {
+                "goal": f"[saga] {len(goals)} целей: {'; '.join(g[:60] for g in goals[:5])}",
+                "outcome": "passed" if passed == len(results) else "partial",
+                "lesson": "; ".join(f"{i+1}:{r.get('status')}" for i, r in enumerate(results)),
+                "source": "/api/saga",
+            }
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
+    return {"status": "ok", "summary": summary, "results": results}
