@@ -10280,119 +10280,178 @@ async def autonomous_code(request: dict):
 @app.post("/api/orchestrate-plan")
 async def orchestrate_plan(request: dict):
     """
-    [SUPER-AGENT] Планировщик: цель → декомпозиция (LLM) → исполнение подзадач через
-    /api/autonomous-code → сводный отчёт. Тело: {"goal", "max_steps": 3}.
+    [SUPER-AGENT v3] Планировщик с ре-планированием: цель → декомпозиция (LLM) →
+    исполнение через /api/autonomous-code → при упавших шагах LLM-ре-декомпозиция
+    с контекстом ошибок → исполнение новых шагов → сводный отчёт.
+    Тело: {"goal", "max_steps": 3, "max_replans": 1}.
     """
     goal = (request.get("goal") or "").strip()
     if not goal:
         raise HTTPException(status_code=400, detail="goal required")
     max_steps = max(1, min(int(request.get("max_steps", 3)), 5))
+    max_replans = max(0, min(int(request.get("max_replans", 1)), 3))
 
-    plan_prompt = (
+    import re as _re
+
+    def _parse_steps(plan_text: str, limit: int | None = None) -> list:
+        if plan_text.count(chr(92) + "n") >= 3:
+            try:
+                plan_text = plan_text.encode().decode("unicode_escape")
+            except Exception:  # noqa: BLE001
+                pass
+        t = _re.sub(r"```(?:json)?|```", "", plan_text).strip()
+        out = []
+        dec = json.JSONDecoder()
+        pos = t.find("{")
+        lim = limit or max_steps
+        while pos >= 0 and pos < len(t) and len(out) < lim:
+            try:
+                obj, end_pos = dec.raw_decode(t[pos:])
+                if isinstance(obj, dict) and obj.get("goal") and obj.get("title"):
+                    out.append({"title": str(obj["title"])[:120], "goal": str(obj["goal"])[:400]})
+            except Exception:  # noqa: BLE001
+                end_pos = 1
+            pos += max(end_pos, 1)
+            nxt = t.find("{", pos)
+            pos = nxt if nxt >= 0 else len(t)
+        return out
+
+    async def _llm_plan(prompt: str) -> list:
+        from dialogue_llm import generate_dialogue
+        plan_res = await generate_dialogue(
+            prompt,
+            expert_name="Виктория",
+            model_hint=os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k"),
+        )
+        return _parse_steps((plan_res.text if hasattr(plan_res, "text") else str(plan_res)) or "")
+
+    base_prompt_tail = (
         f"Задача: {goal}. Составь план из {max_steps} шагов по написанию python-кода. "
         "Ответь ТОЛЬКО JSON-массивом вида "
         '[{"title": "...", "goal": "что должна делать функция одним предложением"}] '
         "без пояснений. Каждый шаг — атомарная python-функция (def, БЕЗ классов и методов)."
     )
     try:
-        from dialogue_llm import generate_dialogue
-        plan_res = await generate_dialogue(
-            plan_prompt,
-            expert_name="Виктория",
-            model_hint=os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k"),
-        )
-        plan_text = (plan_res.text if hasattr(plan_res, "text") else str(plan_res)) or ""
+        steps = await _llm_plan(base_prompt_tail)
     except Exception as e:  # noqa: BLE001
         return {"status": "error", "detail": f"plan llm: {e}"}
-
-    import re as _re
-    # wisdom иногда возвращает строку с литеральными \\n
-    if plan_text.count(chr(92) + "n") >= 3:
-        try:
-            plan_text = plan_text.encode().decode("unicode_escape")
-        except Exception:  # noqa: BLE001
-            pass
-    t = _re.sub(r"```(?:json)?|```", "", plan_text).strip()
-    steps = []
-    # wisdom рвёт JSON: отдельные объекты валидны, Loot-массив может корежиться.
-    # Сканируем каждый '{...}' raw_decode-ом, берём валидные dict-ы с goal.
-    dec = json.JSONDecoder()
-    pos = t.find("{")
-    while pos >= 0 and pos < len(t) and len(steps) < max_steps:
-        try:
-            obj, end_pos = dec.raw_decode(t[pos:])
-            if isinstance(obj, dict) and obj.get("goal") and obj.get("title"):
-                steps.append({"title": str(obj["title"])[:120], "goal": str(obj["goal"])[:400]})
-        except Exception:  # noqa: BLE001
-            end_pos = 1
-        pos += max(end_pos, 1)
-        nxt = t.find("{", pos)
-        pos = nxt if nxt >= 0 else len(t)
-    first_exc = None
     if not steps:
         with open("/tmp/plan_debug.json", "w") as _df:
-            _df.write(plan_text)
-        return {"status": "error", "detail": f"plan parse failed raw_head={plan_text[:150]!r}"}
+            _df.write(str(plan_res and getattr(plan_res, "text", ""))[:2000])
+        return {"status": "error", "detail": f"plan parse failed raw_head={str(plan_res)[:150]!r}"}
+
+    base_url = "http://localhost:8000"
+
+    async def _run_step(sess, fp: str, step_goal: str, max_fix: int = 3):
+        try:
+            async with sess.post(
+                f"{base_url}/api/autonomous-code",
+                json={"goal": step_goal, "file_path": fp, "max_fix_iters": max_fix},
+                timeout=aiohttp.ClientTimeout(total=300),
+            ) as resp:
+                return await resp.json(content_type=None)
+        except Exception as e:  # noqa: BLE001
+            return {"final_status": "error", "error": str(e)[:200]}
 
     results = []
-    base_url = "http://localhost:8000"
+    replans_used = 0
+    replan_iters: list[dict] = []
     try:
         import aiohttp
         async with aiohttp.ClientSession() as sess:
+            # — базовый проход —
             for i, st in enumerate(steps, 1):
                 slug = _re.sub(r"[^a-zA-Z0-9]", "_", str(st.get("title", f"step{i}")))[:24].lower() or f"step{i}"
                 fp = f"src/op{i}_{slug}.py"
-                try:
-                    async with sess.post(
-                        f"{base_url}/api/autonomous-code",
-                        json={"goal": st["goal"], "file_path": fp},
-                        timeout=aiohttp.ClientTimeout(total=300),
-                    ) as resp:
-                        res = await resp.json(content_type=None)
-                except Exception as e:  # noqa: BLE001
-                    res = {"final_status": "error", "error": str(e)[:200]}
+                res = await _run_step(sess, fp, st["goal"])
                 results.append({
-                    "step": i,
-                    "title": st.get("title", ""),
-                    "file": fp,
+                    "step": i, "title": st.get("title", ""), "file": fp,
                     "status": res.get("final_status", res.get("compile_status")),
                     "fix_iterations": res.get("fix_iterations"),
                     "attempts": res.get("attempts", []),
                 })
-        # Retry-проход: один повтор только для упавших шагов (трасббек высоче в prompt уже был у Veronica)
-        failed_idx = [k for k, r in enumerate(results) if r["status"] != "passed"]
-        for k in failed_idx:
-            st = steps[results[k]["step"] - 1]
-            slug = _re.sub(r"[^a-zA-Z0-9]", "_", str(st.get("title", "retry")))[:24].lower()
-            fp2 = results[k]["file"]
-            try:
-                async with sess.post(
-                    f"{base_url}/api/autonomous-code",
-                    json={"goal": st["goal"], "file_path": fp2, "max_fix_iters": 2},
-                    timeout=aiohttp.ClientTimeout(total=300),
-                ) as resp:
-                    res = await resp.json(content_type=None)
+            # — retry-проход (same files) —
+            for k in [k for k, r in enumerate(results) if r["status"] != "passed"]:
+                st = steps[results[k]["step"] - 1]
+                res = await _run_step(sess, results[k]["file"], st["goal"], max_fix=2)
                 if res.get("final_status") == "passed":
                     results[k]["status"] = "passed"
                     results[k]["fix_iterations"] = res.get("fix_iterations")
-            except Exception:  # noqa: BLE001
-                pass
+
+            # — ЧНОВОЕ В v3: ре-планирование при упавших шагах —
+            while (
+                max_replans > replans_used
+                and results
+                and any(r["status"] != "passed" for r in results)
+            ):
+                failed = [r for r in results if r["status"] != "passed"]
+                last_fail = failed[-1]
+                err_ctx = ""
+                for a in (last_fail.get("attempts") or [-1, -1][-1:]):
+                    pass
+                fs = last_fail
+                for a in reversed(fs.get("attempts") or []):
+                    if a.get("output"):
+                        err_ctx = a["output"][:600]
+                        break
+                context = (
+                    f"Изначальная цель: {goal}. "
+                    f"Некоторый план из {len(steps)} шагов: " + "; ".join(s.get("goal", "")[:120] for s in steps) + ". "
+                    f"Шаг {last_fail.get('step')} ({last_fail.get('title')}) упал после ретрай-цикла. "
+                    f"Успешно_codegen код в файлах op*.py для успешных шагов уже написан и работает. "
+                    f"Последняя ошибка: {err_ctx or '(нет вывода)'}\n"
+                    "Составь НОВЫЙ план исправления — 1-3 атомарных шага (def-функции без классов), "
+                    'ТОЛЬКО JSON: [{"title","goal"}]. Ре-план для замены упавших шагов.'
+                )
+                new_steps = []
+                try:
+                    new_steps = await _llm_plan(context)
+                except Exception:  # noqa: BLE001
+                    new_steps = []
+                if not new_steps:
+                    break
+                replans_used += 1
+                replan_iters.append({"replan": replans_used, "for_steps": [r.get("step") for r in failed], "new_goals": [s.get("goal", "")[:100] for s in new_steps]})
+                for st in new_steps:
+                    idx = len(results) + 1
+                    slug = _re.sub(r"[^a-zA-Z0-9]", "_", str(st.get("title", f"r{idx}")))[:24].lower()
+                    fp = f"src/op{idx}_{slug}.py"
+                    res = await _run_step(sess, fp, st["goal"])
+                    results.append({
+                        "step": idx, "title": f"[replan] {st.get('title', '')}", "file": fp,
+                        "status": res.get("final_status", res.get("compile_status")),
+                        "fix_iterations": res.get("fix_iterations"),
+                        "attempts": res.get("attempts", []),
+                    })
+                    if res.get("final_status") == "passed":
+                        # помечаем замещённые шаги как superseded
+                        for r in results[:-1]:
+                            if r["status"] != "passed":
+                                r["status"] = "superseded-by-replan"
+                        break
     except ImportError:
         return {"status": "error", "detail": "aiohttp unavailable"}
 
-    summary = (
-        "Все шаги пройдены"
-        if results and all(r["status"] == "passed" for r in results)
-        else f"Пройдено {sum(1 for r in results if r.get('status') == 'passed')} из {len(results)}"
-    )
+    core_ok = all(r["status"] in ("passed", "superseded-by-replan") for r in results)
+    passed_n = sum(1 for r in results if r["status"] == "passed")
+    summary = "Все шаги пройдены" if core_ok else f"Пройдено {passed_n} из {len(results)}"
     try:
         await commit_experience({
             "goal": f"[plan] {goal[:200]}",
             "outcome": "passed" if summary.startswith("Все") else "partial",
-            "lesson": f"{len(steps)} шагов: " + "; ".join(f"{r['step']}:{r['status']}" for r in results),
+            "lesson": f"{len(steps)}+{sum(1 for r in replan_iters and [True])} replans.x{n}: "
+                      + "; ".join(f"{r['step']}:{r['status']}" for r in results)
+                      + f" | replans_used={replans_used}",
             "source": "/api/orchestrate-plan",
         })
     except Exception:  # noqa: BLE001
         pass
 
-    return {"status": "ok", "plan_steps": steps, "results": results, "summary": summary}
+    return {
+        "status": "ok",
+        "plan_steps": steps,
+        "results": results,
+        "replans_used": replans_used,
+        "replan_iters": replan_iters,
+        "summary": summary,
+    }

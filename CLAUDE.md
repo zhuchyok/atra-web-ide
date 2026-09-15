@@ -82,3 +82,4 @@ Multi-agent AI system with Victoria as team lead, 88 experts, PostgreSQL, Redis,
 
 - **Guardian (pre-commit)**: smollm2:360m → 2-6с вместо прежних 30-90с, fail-open при ambiguous
 - **Опыт-цикл**: задача №1 категории — 17с (LLM+RAG); задача №2 той же категории — **3с (5.7x быстрее)** — semantic cache + experience-нода. Опыт сам пишется в knowledge_nodes при каждом autonomous-code/planner прогоне
+- **Вн v3 planner** (`2026-09-15`): Re-plan on failure проверен E2E (нарушенный шаг → LLM-ре-декомпозиция с err-контекстом → replaced, итог passed, replans_used=1)
