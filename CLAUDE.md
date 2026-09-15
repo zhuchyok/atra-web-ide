@@ -91,3 +91,10 @@ Multi-agent AI system with Victoria as team lead, 88 experts, PostgreSQL, Redis,
 - **gh CLI внутри Victoria/Veronica контейнеров установлен** (GH_TOKEN env через compose, apt gh). `git_pr_create` теперь честный work-aware: `gh pr list` E2E из контейнера ✅; Dockerfile обновлён (gh в apt); минимум 2 рестарта пересоздали
 
 Известные ограничения:
+
+## Замеры Super-Agent v2 (15.09.2026)
+
+- **Guardian (pre-commit)**: smollm2:360m → 2-6с вместо прежних 30-90с, fail-open при ambiguous
+- **Опыт-цикл**: задача №1 категории — 17с (LLM+RAG); задача №2 той же категории — **3с (5.7x быстрее)** — semantic cache + experience-нода. Опыт сам пишется в knowledge_nodes при каждом autonomous-code/planner прогоне
+- **Phase telemetry (v3.5 hardware-aware)**: autonomous-code возвращает `llm_ms/compile_ms/runtime_ms/test_ms` — телеметрия per phase. Target: llm ≤ 10s cold/3s warm; compile ≤ 100ms; кодer `num_ctx=8192` в direct generate (KV-cache 45.5GB → 20.2GB, освобождено 25GB unified)
+- **Цели по железу**: quick-route ≤ 5s, autonomous-code 10s cold/3s warm, план 5 шагов ≤ 60s warm/120s cold, сага ≤ 45с/цель. (Не п95 40-60s из чужого плана: qwen3-coder 30b + wisdom 24k занимают 42GB unified и работать параллельно 5 слотами не могут — ограничение Semaphore(2) верное)

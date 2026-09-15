@@ -10082,7 +10082,7 @@ async def autonomous_code(request: dict):
             "model": coder_model,
             "prompt": ask_prompt,
             "stream": False,
-            "options": {"temperature": 0.1, "num_predict": 700},
+            "options": {"temperature": 0.1, "num_predict": 700, "num_ctx": 8192},
         }
         async with aiohttp.ClientSession() as sess:
             async with sess.post(
@@ -10183,7 +10183,11 @@ async def autonomous_code(request: dict):
                 code_text = code_text[: code_text.rfind('"')]
         return code_text
 
+    phase_ms: dict = {}
+    import time as _time
+
     async def _run_stage(stage: str, cmd: list, timeout_s: float, cwd_: str | None = None):
+        t_start = _time.monotonic()
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
@@ -10194,6 +10198,8 @@ async def autonomous_code(request: dict):
             status = "passed" if proc.returncode == 0 else "failed"
         except asyncio.TimeoutError:
             status, out = "timeout", ""
+        phase_key = stage.split(str(max_iters))[-1] if str(max_iters) in stage else stage.rstrip("0123456789")
+        phase_ms[stage.rstrip("0123456789") + "_ms"] = round((_time.monotonic() - t_start) * 1000)
         attempts.append({"stage": stage, "status": status, "output": out})
         return status, out
 
@@ -10216,7 +10222,9 @@ async def autonomous_code(request: dict):
 
     # === Цикл: gen → compile → runtime → test_run → fix ===
     for it in range(1 + max_iters):
+        _t0_llm = _time.monotonic()
         code_result = await _ask_veronica(prompt)
+        llm_ms = round((_time.monotonic() - _t0_llm) * 1000)
         code = _extract_code(code_result)
         if not code:
             # одна пере-попытка генерации с упрощённым prompt Вероники
@@ -10315,6 +10323,8 @@ async def autonomous_code(request: dict):
         "file_path": file_written or file_path,
         "code_preview": code[:1000],
         "source": "veronica" if code and not code_result.startswith("Delegation error") else "error",
+        "phase_ms": phase_ms,
+        "llm_ms": llm_ms,
     }
 
 
