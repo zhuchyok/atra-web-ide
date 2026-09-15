@@ -10072,7 +10072,39 @@ async def autonomous_code(request: dict):
     fix_iterations = 0
     prompt = f"Верни КАК ОТВЕТ только python-код (def/class, без markdown-фенсов) для задачи: {goal}"
 
+    coder_url = os.getenv("OLLAMA_CODER_URL", "").strip()
+    coder_model = os.getenv("VERONICA_MODEL", "qwen3-coder:30b")
+
+    async def _direct_generate(ask_prompt: str) -> str:
+        """Прямой вызов coder-модели на выделенном Ollama-инстансе [SUPER-AGENT v2]."""
+        import aiohttp
+        payload = {
+            "model": coder_model,
+            "prompt": ask_prompt,
+            "stream": False,
+            "options": {"temperature": 0.1, "num_predict": 700},
+        }
+        async with aiohttp.ClientSession() as sess:
+            async with sess.post(
+                f"{coder_url.rstrip('/')}/api/generate",
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=180),
+            ) as resp:
+                data = await resp.json(content_type=None)
+                return str(data.get("response") or "")[:12000]
+
     async def _ask_veronica(ask_prompt: str) -> str:
+        # [SUPER-AGENT] выделенный coder-инстанс: прямой generate в обход ReAct-цикла
+        if coder_url:
+            try:
+                return await _direct_generate(
+                    f"Задача: {ask_prompt}\n"
+                    "Ответь ТОЛЬКО чистым python-кодом (без markdown, без пояснений).\n"
+                    "Файл самодостаточный: подними ВСЕ нужные imports (sys, subprocess, math, os — по потребности) сверху.\n"
+                    "Никаких фрагментов класса без строки `class X:` — начинай файл с импортов и потом def/class."
+                )
+            except Exception as e:  # noqa: BLE001
+                logging.debug("direct coder fallback: %s", e)
         try:
             import aiohttp
             async with aiohttp.ClientSession() as sess:
@@ -10089,8 +10121,10 @@ async def autonomous_code(request: dict):
     def _extract_code(raw: str) -> str:
         if not raw or "Delegation error" in raw:
             return ""
+        if "Обнаружен цикл повторяющихся действий" in raw:
+            return ""
         # Veronica иногда возвращает код с литеральными \\n вместо переносов
-        if raw.count(chr(92) + "n") >= 3:
+        if raw.count(chr(92) + "n") >= 2:
             try:
                 raw = raw.encode().decode("unicode_escape")
             except Exception:  # noqa: BLE001
@@ -10126,7 +10160,10 @@ async def autonomous_code(request: dict):
         ]
         while lines and not lines[-1].strip():
             lines.pop()
-        code_text = "\n".join(lines).strip()
+        code_text = "\n".join(
+            (ln[: ln.rfind('"')] if ln.endswith('"') and ln.count('"') == 1 else ln)
+            for ln in lines
+        ).strip()
         # оборачивающие кавычки от лишнего escaping ("...") с ключом начала def/import
         if len(code_text) > 10 and code_text[0] == code_text[-1] and code_text[0] in ('"', "'"):
             code_text = code_text[1:-1]
@@ -10155,8 +10192,14 @@ async def autonomous_code(request: dict):
         code_result = await _ask_veronica(prompt)
         code = _extract_code(code_result)
         if not code:
-            attempts.append({"stage": f"gen{it}", "status": "failed", "output": code_result[:400]})
-            break
+            # одна пере-попытка генерации с упрощённым prompt Вероники
+            retry_res = await _ask_veronica(
+                f"Напиши python-функцию по задаче '{goal[:200]}' совсем просто, миниатюрно, только код одной функции."
+            )
+            code = _extract_code(retry_res)
+            if not code:
+                attempts.append({"stage": f"gen{it}", "status": "failed", "output": code_result[:400]})
+                break
         if file_path and not file_written:
             target = os.path.join(workspace, file_path)
             os.makedirs(os.path.dirname(target) or target, exist_ok=True)
@@ -10164,6 +10207,22 @@ async def autonomous_code(request: dict):
         if file_written:
             with open(file_written, "w") as f:
                 f.write(code + "\n")
+
+        # Stage 0.5: авто-нормализация indent (qwen mixes 4/8/12 → re-rank to 4n)
+        def _normalize_indent(code_text: str) -> str:
+            lines = code_text.split("\n")
+            levels = sorted({len(ln) - len(ln.lstrip(" 	")) for ln in lines if ln.strip()})
+            rank = {lvl: i * 4 for i, lvl in enumerate(levels)}
+            def _map_indent(ln: str) -> str:
+                if not ln.strip():
+                    return ""
+                ind = len(ln) - len(ln.lstrip(" 	"))
+                return " " * rank.get(ind, ind) + ln.lstrip(" 	")
+            return "\n".join(_map_indent(ln) for ln in lines)
+
+        if file_written:
+            with open(file_written, "w") as f:
+                f.write(_normalize_indent(code) + "\n")
 
         # Stage 1: py_compile
         c_status, c_out = await _run_stage(f"compile{it}", ["python3", "-m", "py_compile", file_written], 30)
@@ -10233,7 +10292,7 @@ async def orchestrate_plan(request: dict):
         f"Задача: {goal}. Составь план из {max_steps} шагов по написанию python-кода. "
         "Ответь ТОЛЬКО JSON-массивом вида "
         '[{"title": "...", "goal": "что должна делать функция одним предложением"}] '
-        "без пояснений. Каждый шаг — самостоятельная python-задача."
+        "без пояснений. Каждый шаг — атомарная python-функция (def, БЕЗ классов и методов)."
     )
     try:
         from dialogue_llm import generate_dialogue
@@ -10300,6 +10359,24 @@ async def orchestrate_plan(request: dict):
                     "fix_iterations": res.get("fix_iterations"),
                     "attempts": res.get("attempts", []),
                 })
+        # Retry-проход: один повтор только для упавших шагов (трасббек высоче в prompt уже был у Veronica)
+        failed_idx = [k for k, r in enumerate(results) if r["status"] != "passed"]
+        for k in failed_idx:
+            st = steps[results[k]["step"] - 1]
+            slug = _re.sub(r"[^a-zA-Z0-9]", "_", str(st.get("title", "retry")))[:24].lower()
+            fp2 = results[k]["file"]
+            try:
+                async with sess.post(
+                    f"{base_url}/api/autonomous-code",
+                    json={"goal": st["goal"], "file_path": fp2, "max_fix_iters": 2},
+                    timeout=aiohttp.ClientTimeout(total=300),
+                ) as resp:
+                    res = await resp.json(content_type=None)
+                if res.get("final_status") == "passed":
+                    results[k]["status"] = "passed"
+                    results[k]["fix_iterations"] = res.get("fix_iterations")
+            except Exception:  # noqa: BLE001
+                pass
     except ImportError:
         return {"status": "error", "detail": "aiohttp unavailable"}
 

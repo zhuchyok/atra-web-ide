@@ -126,6 +126,8 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       POSTGRES_DIRECT_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      # Выделенный coder-инстанс для autonomous-code (обход ReAct)
+      OLLAMA_CODER_URL: http://host.docker.internal:11436
       # Optional dedicated endpoint/queue for heavy executor model (qwen3-coder)
       OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_NUM_PARALLEL: "5"
@@ -209,7 +211,8 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
+      # Выделенный Ollama-инстанс для coder (11436) — не конкурирует с wisdom Victoria
+      OLLAMA_EXECUTOR_BASE_URL: http://host.docker.internal:11436
       OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
