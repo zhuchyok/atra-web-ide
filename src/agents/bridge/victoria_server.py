@@ -9998,6 +9998,56 @@ if __name__ == "__main__":
     )
 
 
+@app.post("/api/commit-experience")
+async def commit_experience(request: dict):
+    """
+    [SUPER-AGENT] Авторепорт: goal → outcome lesson в knowledge_nodes (kind=experience).
+    Тело: {"goal", "outcome" ("passed|failed|partial"), "lesson", "source"}. Дедуп по хешу goal+outcome за 24ч.
+    """
+    goal = (request.get("goal") or "").strip()
+    outcome = (request.get("outcome") or "partial").strip()
+    lesson = (request.get("lesson") or "").strip()
+    source = (request.get("source") or "/api/commit-experience").strip()
+    if not goal or not lesson:
+        raise HTTPException(status_code=400, detail="goal and lesson required")
+    import hashlib
+    dedup_key = hashlib.sha1(f"{goal[:200]}|{outcome}".encode()).hexdigest()
+    dsn = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+    try:
+        conn = await asyncpg.connect(dsn=dsn)
+        try:
+            row = await conn.fetchrow(
+                """SELECT id FROM knowledge_nodes
+                   WHERE metadata @> $1::jsonb AND created_at > NOW() - INTERVAL '30 days' LIMIT 1""",
+                __import__("json").dumps({"dedup": dedup_key}),
+            )
+            if row:
+                return {"status": "duplicate", "node_id": str(row["id"])}
+            node_id = await conn.fetchval(
+                """INSERT INTO knowledge_nodes
+                   (content, metadata, confidence_score, source_ref)
+                   VALUES ($1, $2::jsonb, $3, $4) RETURNING id""",
+                f"[experience:{outcome}] {goal[:300]} => {lesson[:800]}",
+                __import__("json").dumps(
+                    {
+                        "kind": "experience",
+                        "dedup": dedup_key,
+                        "outcome": outcome,
+                        "source": source,
+                        "created_by": "super-agent-v2",
+                    }
+                ),
+                0.55,
+                source,
+            )
+        finally:
+            await conn.close()
+        logging.info("🧠 [EXPERIENCE] committed %s outcome=%s", str(node_id)[:8], outcome)
+        return {"status": "ok", "node_id": str(node_id), "dedup": dedup_key}
+    except Exception as e:  # noqa: BLE001
+        logging.warning("commit_experience failed: %s", e)
+        return {"status": "error", "detail": str(e)[:200]}
+
 @app.post("/api/autonomous-code")
 async def autonomous_code(request: dict):
     """
@@ -10129,6 +10179,18 @@ async def autonomous_code(request: dict):
     final_stage = attempts[-1]["status"] if attempts else "no_attempts"
     compile_status = "passed" if any(a["stage"].startswith("compile") and a["status"] == "passed" for a in attempts) else ("failed" if attempts else "skipped")
     runtime_status = next((a["status"] for a in reversed(attempts) if a["stage"].startswith("runtime")), ("skipped" if request.get("skip_runtime_smoke") else "not_reached"))
+
+    # [SUPER-AGENT] auto-experience: репортим исход урока в knowledge_nodes
+    try:
+        if file_written and attempts:
+            outcome = "passed" if final_stage == "passed" else ("failed" if fix_iterations >= max_iters else "partial")
+            lesson = (
+                f"{len(attempts)} попыток, {fix_iterations} автофиксов, финал={final_stage}. "
+                f"Стадии: " + "; ".join(f"{a['stage']}:{a['status']}" for a in attempts)
+            )
+            await commit_experience({"goal": goal, "outcome": outcome, "lesson": lesson, "source": "/api/autonomous-code"})
+    except Exception as e:  # noqa: BLE001
+        logging.debug("experience skip: %s", e)
 
     return {
         "compile_status": compile_status,
