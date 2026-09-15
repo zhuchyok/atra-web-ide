@@ -75,3 +75,8 @@ Multi-agent AI system with Victoria as team lead, 88 experts, PostgreSQL, Redis,
 - Veronica пишет в `/app/src` (mounted to host src/) — ок
 - Alertmanager dispatch path (10.2 катом): rule фёрится, local notifier получает; AM→Telegram dispatch в Калиальном runtime не стреляет (требует отдельную internal DS grafana для публикации — пробовалось, не победено). РАБОЧИЙ канал: `scripts/tg_deferred_alerts.py` (LaunchAgent `com.atra.tg-deferred-alerts`): Prometheus при каждом 5m опрашивает `knowledge_os_tasks_deferred_new_24h_total > 10` → telegram_alerter (дедуп 4h, state tmp/tg_deferred_alerts.state). Проверено: fetch ok, доставка бота honeok (msg 1943/1946)
 - pre-commit hook задаёт host URLs через env (.env: OLLAMA_BASE_URL, MLX_BASE_URL)
+
+## Замеры Super-Agent v2 (15.09.2026)
+
+- **Guardian (pre-commit)**: smollm2:360m → 2-6с вместо прежних 30-90с, fail-open при ambiguous
+- **Опыт-цикл**: задача №1 категории — 17с (LLM+RAG); задача №2 той же категории — **3с (5.7x быстрее)** — semantic cache + experience-нода. Опыт сам пишется в knowledge_nodes при каждом autonomous-code/planner прогоне
