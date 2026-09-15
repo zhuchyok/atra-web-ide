@@ -10095,16 +10095,23 @@ async def autonomous_code(request: dict):
 
     async def _ask_veronica(ask_prompt: str) -> str:
         # [SUPER-AGENT] выделенный coder-инстанс: прямой generate в обход ReAct-цикла
-        if coder_url:
-            try:
-                return await _direct_generate(
-                    f"Задача: {ask_prompt}\n"
-                    "Ответь ТОЛЬКО чистым python-кодом (без markdown, без пояснений).\n"
-                    "Файл самодостаточный: подними ВСЕ нужные imports (sys, subprocess, math, os — по потребности) сверху.\n"
-                    "Никаких фрагментов класса без строки `class X:` — начинай файл с импортов и потом def/class."
-                )
-            except Exception as e:  # noqa: BLE001
-                logging.debug("direct coder fallback: %s", e)
+        exp_lessons = []
+        try:
+            exp_lessons = await _fetch_experience_lessons(goal, 2)
+        except Exception:  # noqa: BLE001
+            pass
+        exp_block = ""
+        if exp_lessons:
+            exp_block = "\nПроверенный опыт: " + " | ".join(exp_lessons)
+        return await _direct_generate(
+            f"Задача: {ask_prompt}\n"
+            "Ответь ТОЛЬКО чистым python-кодом (без markdown, без пояснений).\n"
+            "Файл самодостаточный: подними ВСЕ нужные imports (sys, subprocess, math, os — по потребности) сверху.\n"
+            "Никаких фрагментов класса без строки `class X:` — начинай файл с импортов и потом def/class."
+            f"{exp_block}"
+        )
+
+    async def _ask_via_veronica_api(ask_prompt: str) -> str:
         try:
             import aiohttp
             async with aiohttp.ClientSession() as sess:
@@ -10548,3 +10555,60 @@ async def orchestrate_plan(request: dict):
         "replan_iters": replan_iters,
         "summary": summary,
     }
+
+
+@app.post("/api/experience-cull")
+async def experience_cull(request: dict):
+    """
+    [v3] Auto-curation опыта: удаляет из knowledge_nodes experiences, которые не стали знанием:
+      - outcome=failed|partial старше N дней (default 7)
+      - дубли dedup-ключей (оставляет последний)
+    Тело: {"min_age_days": 7, "dry_run": false}
+    """
+    import hashlib
+    dsn = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+    dry = bool(request.get("dry_run", False))
+    age = max(1, int(request.get("min_age_days", 7)))
+    try:
+        conn = await asyncpg.connect(dsn=dsn)
+        try:
+            stats: dict = {}
+            # 1. дубли dedup-ключей — остаём первый
+            rows = await conn.fetch(
+                """SELECT id, metadata->>'dedup' as dk, created_at FROM knowledge_nodes
+                   WHERE metadata @> '{"kind":"experience"}'::jsonb
+                   ORDER BY created_at DESC"""
+            )
+            seen: dict = {}
+            dup_ids = []
+            for r in rows:
+                dk = r["dk"]
+                if dk in seen:
+                    dup_ids.append(r["id"])
+                else:
+                    seen[dk] = r["id"]
+            stats["duplicates_removed"] = len(dup_ids) if not dry else len(dup_ids)
+            if not dry and dup_ids:
+                await conn.execute(
+                    "DELETE FROM knowledge_nodes WHERE id = ANY($1::uuid[])", dup_ids
+                )
+            # 2. failed/partial старше N дней
+            bad = await conn.fetch(
+                """SELECT id FROM knowledge_nodes
+                   WHERE metadata @> '{"kind":"experience"}'::jsonb
+                     AND metadata->>'outcome' IN ('failed','partial')
+                     AND created_at < NOW() - ($1::int * INTERVAL '1 day')""",
+                age,
+            )
+            stats["failed_partial_purged"] = len(bad)
+            if not dry and bad:
+                await conn.execute(
+                    "DELETE FROM knowledge_nodes WHERE id = ANY($1::uuid[])",
+                    [r["id"] for r in bad],
+                )
+        finally:
+            await conn.close()
+        stats["dry_run"] = dry
+        return {"status": "ok", **stats}
+    except Exception as e:  # noqa: BLE001
+        return {"status": "error", "detail": str(e)[:300]}
