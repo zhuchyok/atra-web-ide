@@ -85,3 +85,4 @@ Multi-agent AI system with Victoria as team lead, 88 experts, PostgreSQL, Redis,
 - **Вн v3 planner** (`2026-09-15`): Re-plan on failure проверен E2E (нарушенный шаг → LLM-ре-декомпозиция с err-контекстом → replaced, итог passed, replans_used=1)
 - **Topological deps**: plans use `depends` + parallel on independentНе steps with Semaphore(2) — but LLM often ignores field; planner разбивает по уровням стаб.
 - **sanity-check v3.3**: after each passed step — quick LLM "OK/NO" от Victoria поверх file (fail-open nếu model из-за недоступности), failed → status "sanity_failed" → replan Chain
+- **Experience retrieval v3.4**: перед планом топ-3 релевантных опыts (tsvector по knowledge_nodes, kind=experience; фоллбек newest). Проверено E2E

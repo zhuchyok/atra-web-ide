@@ -10280,14 +10280,37 @@ async def autonomous_code(request: dict):
     }
 
 
+async def _fetch_experience_lessons(goal_text: str, limit: int = 3) -> list:
+    """[v3.4] Top-3 релевантных опыта (kind=experience) из knowledge_nodes."""
+    try:
+        dsn = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+        conn = await asyncpg.connect(dsn=dsn)
+        try:
+            rows = await conn.fetch(
+                """SELECT content FROM knowledge_nodes
+                   WHERE metadata @> '{"kind":"experience"}'::jsonb
+                     AND content_tsvector @@ plainto_tsquery('simple', $1)
+                   ORDER BY ts_rank(content_tsvector, plainto_tsquery('simple', $1)) DESC, created_at DESC
+                   LIMIT $2""",
+                goal_text[:400], limit,
+            )
+            if not rows:
+                rows = await conn.fetch(
+                    """SELECT content FROM knowledge_nodes
+                       WHERE metadata @> '{"kind":"experience"}'::jsonb
+                       ORDER BY created_at DESC LIMIT $1""",
+                    limit,
+                )
+        finally:
+            await conn.close()
+        return [str(r["content"])[:300] for r in rows]
+    except Exception as e:  # noqa: BLE001
+        logging.debug("experience fetch failed: %s", e)
+        return []
+
+
 @app.post("/api/orchestrate-plan")
 async def orchestrate_plan(request: dict):
-    """
-    [SUPER-AGENT v3] Планировщик с ре-планированием: цель → декомпозиция (LLM) →
-    исполнение через /api/autonomous-code → при упавших шагах LLM-ре-декомпозиция
-    с контекстом ошибок → исполнение новых шагов → сводный отчёт.
-    Тело: {"goal", "max_steps": 3, "max_replans": 1}.
-    """
     goal = (request.get("goal") or "").strip()
     if not goal:
         raise HTTPException(status_code=400, detail="goal required")
@@ -10335,8 +10358,13 @@ async def orchestrate_plan(request: dict):
         "Поле depends — номера шагов (int) от которых зависит текущий (пусто если независим). "
         "без пояснений. Каждый шаг — атомарная python-функция (def, БЕЗ классов и методов)."
     )
+    lessons = await _fetch_experience_lessons(goal, 3)
+    lessons_block = (
+        ("Ранее полученный опыт (используй в плане):\n" + "\n".join(f"- {l}" for l in lessons))
+        if lessons else ""
+    )
     try:
-        steps = await _llm_plan(base_prompt_tail)
+        steps = await _llm_plan(base_prompt_tail + ("\n" + lessons_block if lessons_block else ""))
     except Exception as e:  # noqa: BLE001
         return {"status": "error", "detail": f"plan llm: {e}"}
     if not steps:
