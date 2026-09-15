@@ -73,5 +73,5 @@ Multi-agent AI system with Victoria as team lead, 88 experts, PostgreSQL, Redis,
 
 Известные ограничения:
 - Veronica пишет в `/app/src` (mounted to host src/) — ок
-- Alertmanager dispatch path: local notifier получает алерты, но получения Telegram от Graana не логируются — прямой bot проверен
+- Alertmanager dispatch path (10.2 катом): rule фёрится, local notifier получает; AM→Telegram dispatch в Калиальном runtime не стреляет (требует отдельную internal DS grafana для публикации — пробовалось, не победено). РАБОЧИЙ канал: `scripts/tg_deferred_alerts.py` (LaunchAgent `com.atra.tg-deferred-alerts`): Prometheus при каждом 5m опрашивает `knowledge_os_tasks_deferred_new_24h_total > 10` → telegram_alerter (дедуп 4h, state tmp/tg_deferred_alerts.state). Проверено: fetch ok, доставка бота honeok (msg 1943/1946)
 - pre-commit hook задаёт host URLs через env (.env: OLLAMA_BASE_URL, MLX_BASE_URL)
