@@ -215,6 +215,9 @@ services:
       # Coding-модель согласно developer_forced назначению оркестратора.
       # 32b не установлен в Ollama (fallback на wisdom по сканеру) — используем 14b.
       VERONICA_MODEL: ${VERONICA_MODEL:-qwen3-coder:30b}
+      # Workspace mapping: относительные пути write_file заносим в смонтированный проект
+      ATRA_CONTAINER_WORKSPACE: /app
+      ATRA_HOST_WORKSPACE: ${HOST_PROJECT_ROOT:-/Users/bikos/Documents/atra-web-ide}
     volumes:
       - ../data:/app/data
       - ../logs:/app/logs

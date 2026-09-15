@@ -43,6 +43,15 @@ class SystemTools:
             "ATRA_CONTAINER_WORKSPACE", "/workspace/atra-web-ide"
         ).rstrip("/")
 
+        # Bare relative paths (def write_file("foo.py")): resolve against
+        # the mounted src/ dir so files land on the host, not in container root
+        if not requested.startswith("/"):
+            src_root = os.path.join(container_workspace, "src")
+            if not os.path.isdir(src_root) and os.path.isdir("/app/src"):
+                src_root = "/app/src"
+            if os.path.isdir(src_root):
+                return os.path.join(src_root, requested)
+
         if host_workspace and requested.startswith(host_workspace):
             suffix = requested[len(host_workspace) :].lstrip("/")
             mapped = os.path.join(container_workspace, suffix) if suffix else container_workspace

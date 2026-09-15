@@ -31,6 +31,14 @@ if [ -f "$ROOT/.env" ]; then
   . "$ROOT/.env" 2>/dev/null || true
   set +a
 fi
+# Host networking: container DNS names don't resolve on the host itself
+if [ -z "${OLLAMA_BASE_URL:-}" ] || echo "${OLLAMA_BASE_URL}" | grep -q 'host.docker.internal\|localhost:6379'; then
+  export OLLAMA_BASE_URL="http://127.0.0.1:11434"
+  export OLLAMA_URL="http://127.0.0.1:11434"
+fi
+if [ -z "${MLX_BASE_URL:-}" ] || echo "${MLX_BASE_URL}" | grep -q 'host.docker.internal'; then
+  export MLX_BASE_URL="http://127.0.0.1:11435"
+fi
 if ! timeout 180 $ROOT/knowledge_os/.venv/bin/python scripts/git_guardian.py; then
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "❌ AI Audit failed! Commit rejected by Victoria."
