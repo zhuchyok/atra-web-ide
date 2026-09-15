@@ -61,3 +61,17 @@ Multi-agent AI system with Victoria as team lead, 88 experts, PostgreSQL, Redis,
 - ~~MLX сервер запускается вручную~~ ✅ DONE (launchd `com.atra.mlx-api-server`, preload wisdom-24k + phi3.5)
 - ~~Semantic cache freshness guard~~ ✅ DONE (env vars SEMANTIC_CACHE_ENFORCE_FRESHNESS=true, SEMANTIC_CACHE_FRESHNESS_SLA_SEC=900)
 - ~~Autonomous code endpoint~~ ✅ DONE (`/api/autonomous-code`: goal → Veronica → code → file → py_compile → result)
+
+## Super-Agent v2 (сент 2026) — ЗАВЕРШЕН
+
+1. **Self-fix loop** (`/api/autonomous-code` v2): py_compile → runtime smoke → трейсбек Veronica → 3 иттерации автофикса. Проверено E2E (iters, passed)
+2. **Опыт в knowledge_nodes**: `/api/commit-experience` (kind=experience, дедуп sha1 goal+outcome); autonomous-code и orchestrate-plan пишут опыт сами
+3. **Планировщик** (`/api/orchestrate-plan`): цель → LLM-декомпозиция `[{title,goal}]` (raw_decode-сканер переживает битые JSON) → исполнение через autonomous-code → сводный отчёт. `DIALOGUE_MAX_TOKENS=1500` в victoria-agent
+4. **Telegram alert test**: пряма доставка боту подтверждена (message_id 1943); contact point file-provisioned (bottoken REDACTED, chatid 556251171); policy default=telegram. Сквозной Grafana→Telegram route (unified alertmanager dispatch) — не подтверждён боем (time-box); fallback-канал — прямой bot. Alert rule `deferred-to-human-high` активна
+5. **Чистка**: 51 мусорный файл из src/ удалён (test/generated артефакты прошлых сессий); мусорные тестовые демо-скрипты физически снесены
+6. **Guardian**: `smollm2:360m` вместо phi3.5:3.8b (GIT_GUARDIAN_MODEL/DIALOGUE_*_MODEL в .env), fast pre-commit
+
+Известные ограничения:
+- Veronica пишет в `/app/src` (mounted to host src/) — ок
+- Alertmanager dispatch path: local notifier получает алерты, но получения Telegram от Graana не логируются — прямой bot проверен
+- pre-commit hook задаёт host URLs через env (.env: OLLAMA_BASE_URL, MLX_BASE_URL)
