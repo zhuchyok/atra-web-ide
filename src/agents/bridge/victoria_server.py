@@ -785,9 +785,70 @@ VICTORIA_REQUEST_DURATION = _create_metric(
     ["endpoint", "mode"],
     buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0),
 )
+VICTORIA_ASYNC_TTC = _create_metric(
+    "victoria_async_time_to_completed_seconds",
+    Histogram,
+    "Async /run time from 202 accept to terminal status",
+    ["status", "handoff_reason"],
+    buckets=(1.0, 2.5, 5.0, 8.0, 10.0, 15.0, 20.0, 30.0, 45.0, 60.0, 90.0, 120.0, 180.0, 300.0, 600.0),
+)
 VICTORIA_ACTIVE_REQUESTS = _create_metric(
     "victoria_active_requests", Gauge, "Number of active Victoria requests"
 )
+_async_ttc_samples: list[float] = []
+_ASYNC_TTC_SAMPLES_MAX = 200
+
+
+def _percentile(values: list[float], p: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    idx = min(len(ordered) - 1, max(0, int(round((len(ordered) - 1) * p))))
+    return float(ordered[idx])
+
+
+def _elapsed_seconds_from_store(store: dict) -> Optional[float]:
+    started_mono = store.get("started_monotonic")
+    if isinstance(started_mono, (int, float)):
+        return max(0.0, time.monotonic() - float(started_mono))
+    created_raw = store.get("created_at")
+    if not created_raw:
+        return None
+    try:
+        created_at = (
+            datetime.fromisoformat(created_raw) if isinstance(created_raw, str) else created_raw
+        )
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        return max(0.0, (datetime.now(timezone.utc) - created_at).total_seconds())
+    except Exception:
+        return None
+
+
+def _record_async_ttc(store: dict, status_final: str) -> Optional[float]:
+    """Record accept→terminal latency for async /run tasks. Returns duration seconds."""
+    if status_final not in ("completed", "failed", "cancelled"):
+        return None
+    duration = _elapsed_seconds_from_store(store)
+    if duration is None:
+        return None
+    duration = round(duration, 3)
+    store["duration_seconds"] = duration
+    reason = str(store.get("handoff_reason") or "unknown")[:64]
+    try:
+        VICTORIA_ASYNC_TTC.labels(status=status_final, handoff_reason=reason).observe(duration)
+    except Exception:
+        pass
+    _async_ttc_samples.append(duration)
+    if len(_async_ttc_samples) > _ASYNC_TTC_SAMPLES_MAX:
+        del _async_ttc_samples[: len(_async_ttc_samples) - _ASYNC_TTC_SAMPLES_MAX]
+    logger.info(
+        "[SLA] async time_to_completed=%.3fs status=%s handoff=%s",
+        duration,
+        status_final,
+        reason,
+    )
+    return duration
 
 # Лимит шагов агента. Для чата/Telegram клиенты передают max_steps=50 (VICTORIA_MAX_STEPS_CHAT / VICTORIA_MAX_STEPS)
 DEFAULT_MAX_STEPS = int(os.getenv("VICTORIA_MAX_STEPS", "500"))
@@ -3856,9 +3917,9 @@ async def _run_quick_tools_for_goal(goal: str) -> list:
     blocks = []
     directive_map = {
         "db_query": (DataTools.db_query, r"db_query"),
-        "git_log": (GitTools.git_log, r"git_log"),
-        "git_status": (GitTools.git_status, r"git_status"),
-        "git_diff": (GitTools.git_diff, r"git_diff"),
+        "git_log": (GitTools.git_log, r"git_log|git log|лог git|истори[яи]\s+git"),
+        "git_status": (GitTools.git_status, r"git_status|git status|статус\s+git|статус\s+гита|состояни[ея]\s+git|состояни[ея]\s+гита"),
+        "git_diff": (GitTools.git_diff, r"git_diff|git diff|дифф\s+git|разниц[ау]\s+git"),
         "web_search": (WebTools.web_search, r"web_search|найди в интернете|поищи в интернете|последние новости"),
     }
     g_lower = (goal or "").lower()
@@ -3872,6 +3933,13 @@ async def _run_quick_tools_for_goal(goal: str) -> list:
             m = re.search(r"(SELECT|WITH|EXPLAIN)[^;]{0,600}", goal, re.IGNORECASE)
             # Срезаем синтаксический хвост («FROM tasks.» → «FROM tasks»)
             arg = m.group(0).rstrip(" .;,«»()").rstrip(" .;") if m else ""
+            tail_stoppers = (" и покажи", " и выведи", " и дай", " затем ", " потом ")
+            arg_lower = arg.lower()
+            for stopper in tail_stoppers:
+                idx = arg_lower.find(stopper)
+                if idx > 0:
+                    arg = arg[:idx].rstrip(" .;,")
+                    break
         elif tool_name == "git_log":
             m = re.search(r"(\d+)\s*(?:коммит|commit)", g_lower)
             arg = int(m.group(1)) if m else 5
@@ -3884,11 +3952,55 @@ async def _run_quick_tools_for_goal(goal: str) -> list:
             )
             arg = (m.group(1) if m else goal)[:200]
         try:
-            res = await asyncio.wait_for(fn(arg), timeout=25)
+            if tool_name == "git_status":
+                res = await asyncio.wait_for(fn(), timeout=25)
+            else:
+                res = await asyncio.wait_for(fn(arg), timeout=25)
         except Exception as tool_err:
             res = f"{tool_name} error: {tool_err}"
         blocks.append(f"[{tool_name}]\n{str(res)[:1200]}")
     return blocks
+
+
+def _is_direct_tool_reply_candidate(goal: str) -> bool:
+    """Явная команда на вывод web/sql/git результата без аналитики."""
+    g = (goal or "").lower()
+    if not _has_explicit_tool_directive(goal):
+        return False
+    if len(g) > 500:
+        return False
+    analysis_markers = (
+        "проанализ",
+        "сравни",
+        "почему",
+        "объясни",
+        "сделай вывод",
+        "подробно",
+        "план",
+        "deep",
+    )
+    if any(m in g for m in analysis_markers):
+        return False
+    return True
+
+
+async def _try_direct_tool_reply(goal: str) -> Optional[Dict[str, Any]]:
+    """
+    Ultra-fast path: для явной tool-команды возвращает результат инструмента
+    без дополнительного LLM-шага.
+    """
+    if not _is_direct_tool_reply_candidate(goal):
+        return None
+    blocks = await _run_quick_tools_for_goal(goal)
+    if not blocks:
+        return None
+    return {
+        "output": "\n\n".join(blocks),
+        "knowledge": {
+            "strategy": "quick_tool_direct",
+            "metadata": {"source": "quick_tools_direct"},
+        },
+    }
 
 
 async def _try_corporation_data_quick_response(
@@ -4316,6 +4428,15 @@ _EXPLICIT_TOOL_DIRECTIVES = (
     "git_log",
     "git_status",
     "git_diff",
+    "git status",
+    "git diff",
+    "git log",
+    "статус git",
+    "статус гита",
+    "состояние git",
+    "состояние гита",
+    "дифф git",
+    "лог git",
     "поищи в интернете",
     "найди в интернете",
     "поиск в интернете",
@@ -4326,9 +4447,27 @@ _EXPLICIT_TOOL_DIRECTIVES = (
 
 
 def _has_explicit_tool_directive(goal: str) -> bool:
-    """Пользователь явно требует сетевой tool (web_search/'найди в интернете') — уточнения не нужны."""
+    """Пользователь явно требует tool-вызов (web/sql/git) — уточнения не нужны."""
     g = (goal or "").lower()
     return bool(g) and any(d in g for d in _EXPLICIT_TOOL_DIRECTIVES)
+
+
+def _is_analysis_heavy_goal(goal: str) -> bool:
+    """Признаки аналитической/долгой задачи, для которой безопасен ранний async handoff."""
+    g = (goal or "").lower()
+    if not g:
+        return False
+    markers = (
+        "проанализ",
+        "анализ",
+        "объясни почему",
+        "разбери",
+        "сравни",
+        "исследуй",
+        "подробно",
+        "пошагово",
+    )
+    return any(m in g for m in markers) and len(g) >= 20
 
 
 async def _select_strategy(
@@ -5377,13 +5516,23 @@ async def _run_task_background(
         max_steps = DEFAULT_MAX_STEPS
     if task_type is None:
         task_type = detect_task_type(goal, project_context)
+    _bg_optional_timeout = float(os.getenv("VICTORIA_BG_OPTIONAL_STEP_TIMEOUT_SEC", "8"))
 
     # [MULTI-AGENT] Проверка доступности экспертов через Lifecycle Manager
     available_experts = []
     if agent_lifecycle_instance:
         try:
-            available_experts = await agent_lifecycle_instance.get_available_agents()
+            available_experts = await asyncio.wait_for(
+                agent_lifecycle_instance.get_available_agents(),
+                timeout=_bg_optional_timeout,
+            )
             logger.info("[LIFECYCLE] Доступные эксперты: %d", len(available_experts))
+        except asyncio.TimeoutError:
+            logger.warning(
+                "[LIFECYCLE] get_available_agents timeout task_id=%s after %.1fs",
+                task_id[:8],
+                _bg_optional_timeout,
+            )
         except Exception as e:
             logger.debug("[LIFECYCLE] get_available_agents failed: %s", e)
 
@@ -5391,8 +5540,17 @@ async def _run_task_background(
     relevant_memory = []
     if collective_memory_instance:
         try:
-            relevant_memory = await collective_memory_instance.query_knowledge(goal)
+            relevant_memory = await asyncio.wait_for(
+                collective_memory_instance.query_knowledge(goal),
+                timeout=_bg_optional_timeout,
+            )
             logger.info("[MEMORY] Найдено релевантных записей: %d", len(relevant_memory))
+        except asyncio.TimeoutError:
+            logger.warning(
+                "[MEMORY] query_knowledge timeout task_id=%s after %.1fs",
+                task_id[:8],
+                _bg_optional_timeout,
+            )
         except Exception as e:
             logger.debug("[MEMORY] query_knowledge failed: %s", e)
 
@@ -5780,28 +5938,30 @@ async def _run_task_background(
                 clarification_text = "Victoria уточняет: " + (
                     "; ".join(questions) if questions else "Нужно уточнение."
                 )
-                await _sync_store()
                 store["status"] = "completed"
+                store["stage"] = "clarification"
                 store["output"] = clarification_text
                 store["knowledge"] = {
                     "needs_clarification": True,
                     "clarification_questions": questions,
                 }
                 store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                await _sync_store()
                 return
             restated_goal = understanding.get("restated") or goal
 
     # Ранний ответ для вопросов о данных (метрики Mac Studio, корпорация) — без лимита 500 шагов
     quick_data = await _try_corporation_data_quick_response(goal, correlation_id)
     if quick_data:
-        await _sync_store()
         store["status"] = "completed"
+        store["stage"] = "completed"
         store["output"] = quick_data["output"]
         store["knowledge"] = quick_data.get("knowledge") or {}
         if not isinstance(store["knowledge"], dict):
             store["knowledge"] = {}
         _inject_strategy_into_knowledge(store["knowledge"], strategy_result)
         store["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await _sync_store()
         if session_id:
             await _save_session_exchange(session_id, goal, quick_data.get("output") or "")
         logger.info(
@@ -5809,11 +5969,62 @@ async def _run_task_background(
         )
         return
     goal_for_exec = (restated_goal or goal).strip() or goal
+    # Fast analytical path: if user asked to analyze explicit tool output (git/sql/web),
+    # execute tools first and synthesize a short analysis without heavy enhanced/orchestration route.
+    if _is_analysis_heavy_goal(goal_for_exec) and _has_explicit_tool_directive(goal_for_exec):
+        try:
+            analysis_blocks = await _run_quick_tools_for_goal(goal_for_exec)
+            if analysis_blocks:
+                analysis_prompt = (
+                    "Проанализируй результаты инструментов и дай краткий практичный вывод:\n"
+                    "1) что важно, 2) риски/аномалии, 3) что делать дальше.\n\n"
+                    + "\n\n".join(analysis_blocks)
+                    + f"\n\nЗапрос пользователя: {goal_for_exec}"
+                )
+                quick_model = os.getenv("VICTORIA_STRATEGY_MODEL", "phi3.5:3.8b")
+                analysis_text, analysis_source = await _bg_try_generate(
+                    analysis_prompt,
+                    quick_model,
+                    timeout_sec=float(
+                        os.getenv("VICTORIA_TOOL_ANALYSIS_TIMEOUT_SEC", "75")
+                    ),
+                )
+                if analysis_text:
+                    store["status"] = "completed"
+                    store["stage"] = "completed"
+                    store["output"] = _normalize_output_for_user(analysis_text)
+                    store["knowledge"] = {
+                        "strategy": "tool_analysis_fast_path",
+                        "metadata": {
+                            "model_used": quick_model,
+                            "source": analysis_source,
+                            "correlation_id": correlation_id,
+                        },
+                    }
+                    _inject_strategy_into_knowledge(store["knowledge"], strategy_result)
+                    store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    await _sync_store()
+                    if session_id:
+                        await _save_session_exchange(
+                            session_id, goal_for_exec, store.get("output") or ""
+                        )
+                    logger.info(
+                        "[VICTORIA_CYCLE] background completed task_id=%s route=tool_analysis_fast_path",
+                        task_id,
+                    )
+                    return
+        except Exception as analysis_fast_err:
+            logger.warning(
+                "[VICTORIA_CYCLE] tool_analysis_fast_path failed task_id=%s: %s",
+                task_id[:8],
+                analysis_fast_err,
+            )
+
     if is_operational_execution_goal(goal_for_exec):
         fast_output = await _try_dashboard_operational_fastpath(agent, goal_for_exec)
         if fast_output:
-            await _sync_store()
             store["status"] = "completed"
+            store["stage"] = "completed"
             store["output"] = fast_output
             store["knowledge"] = {
                 "strategy": "quick_answer",
@@ -5823,6 +6034,7 @@ async def _run_task_background(
             }
             _inject_strategy_into_knowledge(store["knowledge"], strategy_result)
             store["updated_at"] = datetime.now(timezone.utc).isoformat()
+            await _sync_store()
             if session_id:
                 await _save_session_exchange(session_id, goal_for_exec, fast_output)
             logger.info(
@@ -5980,6 +6192,7 @@ async def _run_task_background(
         store["status"] = "running"
         store["stage"] = "running"
         store["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await _sync_store()
         logger.info(
             "[VICTORIA_CYCLE] background start task_id=%s goal_preview=%s",
             task_id,
@@ -6005,13 +6218,24 @@ async def _run_task_background(
         ) and not is_curator_standard_goal(goal or "")
         if prefer_veronica_bg and use_enhanced_actual:
             store["stage"] = "delegate_veronica"
+            store["updated_at"] = datetime.now(timezone.utc).isoformat()
+            await _sync_store()
 
             # [MULTI-AGENT] CollectiveMemory — запрос релевантного опыта ПЕРЕД делегацией
             relevant_memory = []
             if collective_memory_instance:
                 try:
-                    relevant_memory = await collective_memory_instance.query_knowledge(goal_for_exec)
+                    relevant_memory = await asyncio.wait_for(
+                        collective_memory_instance.query_knowledge(goal_for_exec),
+                        timeout=_bg_optional_timeout,
+                    )
                     logger.info("[MEMORY] Найдено релевантных записей (veronica): %d", len(relevant_memory))
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "[MEMORY] query_knowledge(veronica) timeout task_id=%s after %.1fs",
+                        task_id[:8],
+                        _bg_optional_timeout,
+                    )
                 except Exception as e:
                     logger.debug("[MEMORY] query_knowledge failed (veronica): %s", e)
 
@@ -6152,6 +6376,8 @@ async def _run_task_background(
                 logger.warning("Фоновая задача: не удалось создать VictoriaEnhanced: %s", e)
         if use_enhanced_actual and not veronica_tried_and_failed and enhanced is not None:
             store["stage"] = "enhanced_solve"
+            store["updated_at"] = datetime.now(timezone.utc).isoformat()
+            await _sync_store()
             logger.info("[TRACE] _run_task_background: before enhanced.solve task_id=%s", task_id)
             context_with_history = {}
             if chat_history:
@@ -6451,6 +6677,8 @@ async def _run_task_background(
             logger.info("[TRACE] _run_task_background: after enhanced.solve task_id=%s", task_id)
         else:
             store["stage"] = "agent_run"
+            store["updated_at"] = datetime.now(timezone.utc).isoformat()
+            await _sync_store()
             logger.info("[TRACE] _run_task_background: before agent.run task_id=%s", task_id)
             original_prompt = agent.executor.system_prompt
             agent.executor.system_prompt = original_prompt + "\n" + project_prompt
@@ -6607,6 +6835,7 @@ async def _run_task_background(
         raise
     finally:
         status_final = store.get("status") or "unknown"
+        _record_async_ttc(store, status_final)
         if redis_manager:
             # Синхронизируем финальное состояние
             await redis_manager.update_task_status(
@@ -6704,6 +6933,10 @@ async def get_run_status(task_id: str):
     logger.info(
         "[VICTORIA_CYCLE] GET /run/status/%s status=%s output_len=%s", task_id, status_val, len(out)
     )
+    duration_sec = rec.get("duration_seconds")
+    if not isinstance(duration_sec, (int, float)):
+        duration_sec = None
+    elapsed_sec = duration_sec if duration_sec is not None else _elapsed_seconds_from_store(rec)
     resp = {
         "task_id": task_id,
         "status": status_val,
@@ -6713,6 +6946,10 @@ async def get_run_status(task_id: str):
         "error": rec.get("error"),
         "correlation_id": rec.get("correlation_id"),
         "updated_at": rec.get("updated_at"),
+        "created_at": rec.get("created_at"),
+        "handoff_reason": rec.get("handoff_reason"),
+        "duration_seconds": duration_sec,
+        "elapsed_seconds": round(elapsed_sec, 3) if isinstance(elapsed_sec, (int, float)) else None,
     }
     # При clarify в фоне — дублируем clarification_questions в корень для совместимости с парсингом 200 needs_clarification
     if status_val == "completed" and knowledge.get("clarification_questions") is not None:
@@ -7132,6 +7369,9 @@ async def run_task_stream(body: TaskRequest, request: Request):
 
 async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
     """Build a deterministic fact answer for /run without LLM."""
+    # Tool directives (web/sql/git) must go through quick-tools, not fact-live probe.
+    if _has_explicit_tool_directive(goal or ""):
+        return None
     if not is_fact_seeking_question(goal or ""):
         return None
 
@@ -7346,6 +7586,26 @@ async def run_task(
         "[SYSTEM: TEAM_DISCUSSION_MODE]".lower() in goal_stripped.lower(),
         body.category,
     )
+
+    # Быстрый deterministic path до остальных quick/fact веток:
+    # явные web/sql/git команды отдаем напрямую без LLM.
+    if not is_discussion and not _stream_mode:
+        direct_tool_reply = await _try_direct_tool_reply(goal)
+        if direct_tool_reply is not None:
+            knowledge = direct_tool_reply.get("knowledge") or {}
+            metadata = knowledge.get("metadata") or {}
+            metadata = {
+                **metadata,
+                "model_used": "none",
+                "correlation_id": correlation_id,
+            }
+            knowledge = {**knowledge, "metadata": metadata}
+            return TaskResponse(
+                status="success",
+                output=_normalize_output_for_user(direct_tool_reply.get("output", "")),
+                knowledge=knowledge,
+                correlation_id=correlation_id,
+            )
 
     # [SINGULARITY 10.1] Фикс: если это режим обсуждения,
     # мы ОБЯЗАТЕЛЬНО идем по пути прямой генерации, чтобы не сработал Swarm.
@@ -7887,6 +8147,7 @@ async def run_task(
             "correlation_id": correlation_id,
             "handoff_reason": reason,
             "created_at": datetime.now(timezone.utc).isoformat(),
+            "started_monotonic": time.monotonic(),
             "updated_at": None,
         }
 
@@ -7993,6 +8254,26 @@ async def run_task(
             },
         )
 
+    # Latency guard: длинную аналитику без explicit async сразу уводим в background.
+    # Важно: эта ветка должна стоять ПОСЛЕ инициализации project_context/use_enhanced
+    # и определения _start_async_handoff.
+    early_async_enabled = os.getenv("VICTORIA_EARLY_ASYNC_FOR_ANALYSIS", "true").lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    if (
+        early_async_enabled
+        and not async_mode
+        and not is_discussion
+        and not _stream_mode
+        and _is_analysis_heavy_goal(goal)
+    ):
+        _handoff = await _start_async_handoff("early_async_analysis")
+        if _handoff is not None:
+            return _handoff
+
     def _is_sync_safe_candidate(text: str) -> bool:
         low = (text or "").lower()
         heavy_markers = (
@@ -8049,6 +8330,13 @@ async def run_task(
             "агент",
             "orchestrat",
             "decompos",
+            "проанализ",
+            "анализ",
+            "объясни",
+            "сравни",
+            "почему",
+            "разбери",
+            "исследуй",
         )
         return len(low) <= 700 and not any(m in low for m in heavy_markers)
 
@@ -9776,6 +10064,15 @@ async def metrics():
         "# HELP victoria_rag_slow_requests_total Number of RAG+ requests that exceeded latency thresholds\n"
         "# TYPE victoria_rag_slow_requests_total counter\n"
         f"victoria_rag_slow_requests_total {_rag_latency_slow_count}\n"
+        "# HELP victoria_async_ttc_p50_seconds Rolling p50 async time-to-completed (seconds)\n"
+        "# TYPE victoria_async_ttc_p50_seconds gauge\n"
+        f"victoria_async_ttc_p50_seconds {_percentile(_async_ttc_samples, 0.50):.6f}\n"
+        "# HELP victoria_async_ttc_p95_seconds Rolling p95 async time-to-completed (seconds)\n"
+        "# TYPE victoria_async_ttc_p95_seconds gauge\n"
+        f"victoria_async_ttc_p95_seconds {_percentile(_async_ttc_samples, 0.95):.6f}\n"
+        "# HELP victoria_async_ttc_samples Number of in-memory async TTC samples\n"
+        "# TYPE victoria_async_ttc_samples gauge\n"
+        f"victoria_async_ttc_samples {len(_async_ttc_samples)}\n"
     )
 
     # === RED Metrics from isolated registry ===
