@@ -8279,7 +8279,21 @@ async def run_task(
         async def _bounded_background_run() -> None:
             # [SUPER-AGENT] Многошаговые задачи (deep_analysis → Veronica → код) требуют
             # >180s. Поднимаем дефолт до 600s, настраивается env'ом.
-            _async_timeout_sec = float(os.getenv("VICTORIA_ASYNC_HARD_TIMEOUT_SEC", "600"))
+            # [v4.2-QUALITY] Watchdog per-handoff: analysis-heavy задачи (early_async_analysis)
+            # режем раньше (180с из VICTORIA_ASYNC_WATCHDOG_SEC), остальное — 600с hard.
+            _handoff_reason = str(task_data.get("handoff_reason") or "")
+            _wd_enabled = os.getenv("VICTORIA_ASYNC_WATCHDOG_SEC", "180")
+            _hard_timeout_sec = float(os.getenv("VICTORIA_ASYNC_HARD_TIMEOUT_SEC", "600"))
+            try:
+                _wd_sec = float(_wd_enabled)
+            except ValueError:
+                _wd_sec = 180.0
+            if _wd_enabled == "0" or _wd_sec <= 0:
+                _async_timeout_sec = _hard_timeout_sec
+            elif _handoff_reason == "early_async_analysis":
+                _async_timeout_sec = min(_wd_sec, _hard_timeout_sec)
+            else:
+                _async_timeout_sec = _hard_timeout_sec
             try:
                 await asyncio.wait_for(task_coro, timeout=_async_timeout_sec)
             except asyncio.TimeoutError:
