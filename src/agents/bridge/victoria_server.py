@@ -805,6 +805,17 @@ _ASYNC_TTC_REDIS_KEY = "victoria:async_ttc_samples"
 _ASYNC_INFLIGHT_REDIS_KEY = "victoria:async_inflight"
 
 
+async def _clear_async_inflight(task_id: str) -> None:
+    """Terminal /run must not linger in victoria:async_inflight (timeout path too)."""
+    if not redis_manager or not task_id:
+        return
+    try:
+        client = await redis_manager.get_client()
+        await client.hdel(_ASYNC_INFLIGHT_REDIS_KEY, task_id)
+    except Exception:
+        pass
+
+
 def _percentile(values: list[float], p: float) -> float:
     if not values:
         return 0.0
@@ -5607,7 +5618,7 @@ async def _run_task_background(
                 if status_now in ("queued", "processing", "running") and created:
                     await client.hset(_ASYNC_INFLIGHT_REDIS_KEY, task_id, str(created))
                 else:
-                    await client.hdel(_ASYNC_INFLIGHT_REDIS_KEY, task_id)
+                    await _clear_async_inflight(task_id)
             except Exception:
                 pass
 
@@ -5893,6 +5904,7 @@ async def _run_task_background(
                         result=quick_text,
                         metadata={"knowledge": knowledge, "stage": "completed"},
                     )
+                    await _clear_async_inflight(task_id)
                 else:
                     await _sync_store()
                     store["status"] = "completed"
@@ -5922,6 +5934,7 @@ async def _run_task_background(
                     result=clarification_text,
                     metadata={"knowledge": knowledge, "stage": "clarification"},
                 )
+                await _clear_async_inflight(task_id)
             else:
                 await _sync_store()
                 store["status"] = "completed"
@@ -5947,6 +5960,7 @@ async def _run_task_background(
                     result=output,
                     metadata={"knowledge": knowledge, "stage": "decline"},
                 )
+                await _clear_async_inflight(task_id)
             else:
                 await _sync_store()
                 store["status"] = "completed"
@@ -8327,6 +8341,7 @@ async def run_task(
                                 )
                             except Exception:
                                 pass
+                        await _clear_async_inflight(task_id)
                         await _push_ttc_sample(duration)
 
         _create_tracked_task(_bounded_background_run()).add_done_callback(_done_callback)
