@@ -9,7 +9,8 @@ x-dynamic-worker-env: &dynamic-worker-env
   DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
   REDIS_URL: unix:///data/redis/redis.sock
   OLLAMA_BASE_URL: http://host.docker.internal:11434
-  OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
+  # [ФОКУС 4.2] Dynamic-воркеры кодят на выделенном coder-инстансе (не конкурируют с wisdom 11434)
+  OLLAMA_EXECUTOR_BASE_URL: http://host.docker.internal:11436
   OLLAMA_NUM_PARALLEL: "5"
   OLLAMA_GLOBAL_MAX_SLOTS: "4"
   OLLAMA_MAX_QUEUE: "100"
@@ -128,6 +129,10 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       # Выделенный coder-инстанс для autonomous-code (обход ReAct)
       OLLAMA_CODER_URL: http://host.docker.internal:11436
+      # 4.2B: исполнение шагов плана через overflow-очередь воркеров (direct по умолчанию)
+      PLAN_EXECUTOR_MODE: ${PLAN_EXECUTOR_MODE:-direct}
+      PLAN_STEP_STREAM: ${PLAN_STEP_STREAM:-expert_tasks:overflow}
+      PLAN_STEP_EXPERTS: ${PLAN_STEP_EXPERTS:-Инна,Юлия}
       # Optional dedicated endpoint/queue for heavy executor model (qwen3-coder)
       OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_NUM_PARALLEL: "5"

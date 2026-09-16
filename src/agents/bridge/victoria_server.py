@@ -797,6 +797,8 @@ VICTORIA_ACTIVE_REQUESTS = _create_metric(
 )
 _async_ttc_samples: list[float] = []
 _ASYNC_TTC_SAMPLES_MAX = 200
+_ASYNC_TTC_REDIS_KEY = "victoria:async_ttc_samples"
+_ASYNC_INFLIGHT_REDIS_KEY = "victoria:async_inflight"
 
 
 def _percentile(values: list[float], p: float) -> float:
@@ -807,10 +809,19 @@ def _percentile(values: list[float], p: float) -> float:
     return float(ordered[idx])
 
 
+def _coerce_float(value: Any) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _elapsed_seconds_from_store(store: dict) -> Optional[float]:
-    started_mono = store.get("started_monotonic")
-    if isinstance(started_mono, (int, float)):
-        return max(0.0, time.monotonic() - float(started_mono))
+    # Wall clock only: started_monotonic is process-local and lies across Uvicorn workers.
     created_raw = store.get("created_at")
     if not created_raw:
         return None
@@ -829,11 +840,15 @@ def _record_async_ttc(store: dict, status_final: str) -> Optional[float]:
     """Record accept→terminal latency for async /run tasks. Returns duration seconds."""
     if status_final not in ("completed", "failed", "cancelled"):
         return None
+    if store.get("_sla_ttc_recorded"):
+        existing = _coerce_float(store.get("duration_seconds"))
+        return round(existing, 3) if existing is not None else None
     duration = _elapsed_seconds_from_store(store)
     if duration is None:
         return None
     duration = round(duration, 3)
     store["duration_seconds"] = duration
+    store["_sla_ttc_recorded"] = True
     reason = str(store.get("handoff_reason") or "unknown")[:64]
     try:
         VICTORIA_ASYNC_TTC.labels(status=status_final, handoff_reason=reason).observe(duration)
@@ -849,6 +864,18 @@ def _record_async_ttc(store: dict, status_final: str) -> Optional[float]:
         reason,
     )
     return duration
+
+
+async def _push_ttc_sample(duration: Optional[float]) -> None:
+    """Share TTC samples across Uvicorn workers via Redis list."""
+    if duration is None or not redis_manager:
+        return
+    try:
+        client = await redis_manager.get_client()
+        await client.lpush(_ASYNC_TTC_REDIS_KEY, str(duration))
+        await client.ltrim(_ASYNC_TTC_REDIS_KEY, 0, _ASYNC_TTC_SAMPLES_MAX - 1)
+    except Exception:
+        pass
 
 # Лимит шагов агента. Для чата/Telegram клиенты передают max_steps=50 (VICTORIA_MAX_STEPS_CHAT / VICTORIA_MAX_STEPS)
 DEFAULT_MAX_STEPS = int(os.getenv("VICTORIA_MAX_STEPS", "500"))
@@ -1814,6 +1841,12 @@ async def lifespan(app: FastAPI):
         logger.warning(f"⚠️ [GIT] Init failed: {e}")
 
     logger.info("[VICTORIA] Lifespan startup завершён, Uvicorn переходит в режим приёма запросов")
+    if redis_manager:
+        try:
+            client = await redis_manager.get_client()
+            await client.delete(_ASYNC_INFLIGHT_REDIS_KEY)
+        except Exception:
+            pass
     yield
 
     # Shutdown
@@ -5493,23 +5526,33 @@ async def _run_task_background(
 
     # [SINGULARITY 31.3] Auto-sync store to Redis on every update
     async def _sync_store():
+        status_now = store.get("status") or "processing"
+        if status_now in ("completed", "failed", "cancelled"):
+            _record_async_ttc(store, status_now)
         if redis_manager:
             try:
                 st = {k: v for k, v in store.items() if v is not None}
                 await redis_manager.update_task_status(
-                    task_id, st.get("status", "processing"), metadata=st
+                    task_id,
+                    st.get("status", "processing"),
+                    result=st.get("output") or st.get("error"),
+                    metadata=st,
                 )
+                client = await redis_manager.get_client()
+                created = store.get("created_at")
+                if status_now in ("queued", "processing", "running") and created:
+                    await client.hset(_ASYNC_INFLIGHT_REDIS_KEY, task_id, str(created))
+                else:
+                    await client.hdel(_ASYNC_INFLIGHT_REDIS_KEY, task_id)
             except Exception:
                 pass
 
     # Always update in-memory store (UVICORN_WORKERS>1 still needs Redis for other workers).
+    # Full-store sync: thin metadata={"stage": ...} wipes created_at/started_monotonic.
     store["status"] = "processing"
     store["stage"] = "strategy"
     store["updated_at"] = datetime.now(timezone.utc).isoformat()
-    if redis_manager:
-        await redis_manager.update_task_status(
-            task_id, "processing", metadata={"stage": "strategy"}
-        )
+    await _sync_store()
     logger.info("✅ [STATUS] Task %s → processing (stage=strategy)", task_id[:8])
 
     if max_steps is None:
@@ -5642,19 +5685,12 @@ async def _run_task_background(
                     "fast_path": True,
                     "source": source,
                 }
-                if redis_manager:
-                    await redis_manager.update_task_status(
-                        task_id,
-                        "completed",
-                        result=content,
-                        metadata={"knowledge": knowledge, "stage": "completed"},
-                    )
-                else:
-                    await _sync_store()
-                    store["status"] = "completed"
-                    store["output"] = content
-                    store["knowledge"] = knowledge
-                    store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                store["status"] = "completed"
+                store["stage"] = "completed"
+                store["output"] = content
+                store["knowledge"] = knowledge
+                store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                await _sync_store()
                 logger.info(
                     "[VICTORIA_CYCLE] background completed task_id=%s route=absolute_fast_track",
                     task_id[:8],
@@ -5675,19 +5711,12 @@ async def _run_task_background(
         ):
             output = "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?"
             knowledge = {"strategy": "quick_answer", "confidence": 1.0}
-            if redis_manager:
-                await redis_manager.update_task_status(
-                    task_id,
-                    "completed",
-                    result=output,
-                    metadata={"knowledge": knowledge, "stage": "completed"},
-                )
-            else:
-                await _sync_store()
-                store["status"] = "completed"
-                store["output"] = output
-                store["knowledge"] = knowledge
-                store["updated_at"] = datetime.now(timezone.utc).isoformat()
+            store["status"] = "completed"
+            store["stage"] = "completed"
+            store["output"] = output
+            store["knowledge"] = knowledge
+            store["updated_at"] = datetime.now(timezone.utc).isoformat()
+            await _sync_store()
             logger.info(
                 "[VICTORIA_CYCLE] background completed task_id=%s route=quick_answer_greeting",
                 task_id[:8],
@@ -5705,19 +5734,12 @@ async def _run_task_background(
         ):
             output = VICTORIA_CAPABILITIES_RESPONSE
             knowledge = {"strategy": "quick_answer", "confidence": 1.0}
-            if redis_manager:
-                await redis_manager.update_task_status(
-                    task_id,
-                    "completed",
-                    result=output,
-                    metadata={"knowledge": knowledge, "stage": "completed"},
-                )
-            else:
-                await _sync_store()
-                store["status"] = "completed"
-                store["output"] = output
-                store["knowledge"] = knowledge
-                store["updated_at"] = datetime.now(timezone.utc).isoformat()
+            store["status"] = "completed"
+            store["stage"] = "completed"
+            store["output"] = output
+            store["knowledge"] = knowledge
+            store["updated_at"] = datetime.now(timezone.utc).isoformat()
+            await _sync_store()
             logger.info(
                 "[VICTORIA_CYCLE] background completed task_id=%s route=quick_answer_capabilities",
                 task_id[:8],
@@ -5747,19 +5769,12 @@ async def _run_task_background(
                         "correlation_id": correlation_id,
                     },
                 }
-                if redis_manager:
-                    await redis_manager.update_task_status(
-                        task_id,
-                        "completed",
-                        result=quick_text,
-                        metadata={"knowledge": knowledge, "stage": "completed"},
-                    )
-                else:
-                    await _sync_store()
-                    store["status"] = "completed"
-                    store["output"] = _normalize_output_for_user(quick_text)
-                    store["knowledge"] = knowledge
-                    store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                store["status"] = "completed"
+                store["stage"] = "completed"
+                store["output"] = _normalize_output_for_user(quick_text)
+                store["knowledge"] = knowledge
+                store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                await _sync_store()
                 logger.info(
                     "[VICTORIA_CYCLE] background completed task_id=%s route=short_prompt_fast_path",
                     task_id[:8],
@@ -6836,17 +6851,9 @@ async def _run_task_background(
     finally:
         status_final = store.get("status") or "unknown"
         _record_async_ttc(store, status_final)
-        if redis_manager:
-            # Синхронизируем финальное состояние
-            await redis_manager.update_task_status(
-                task_id,
-                status_final,
-                result=store.get("output") or store.get("error"),
-                metadata={"knowledge": store.get("knowledge"), "stage": status_final},
-            )
-        else:
-            store["stage"] = status_final
-            store["updated_at"] = datetime.now(timezone.utc).isoformat()
+        store["stage"] = store.get("stage") or status_final
+        store["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await _sync_store()
         if store.get("knowledge_os_task_id"):
             await _record_orchestration_task_complete(
                 agent,
@@ -6933,9 +6940,7 @@ async def get_run_status(task_id: str):
     logger.info(
         "[VICTORIA_CYCLE] GET /run/status/%s status=%s output_len=%s", task_id, status_val, len(out)
     )
-    duration_sec = rec.get("duration_seconds")
-    if not isinstance(duration_sec, (int, float)):
-        duration_sec = None
+    duration_sec = _coerce_float(rec.get("duration_seconds"))
     elapsed_sec = duration_sec if duration_sec is not None else _elapsed_seconds_from_store(rec)
     resp = {
         "task_id": task_id,
@@ -8225,16 +8230,25 @@ async def run_task(
                     store["stage"] = "failed"
                     store["error"] = f"Background timeout after {_async_timeout_sec:.0f}s"
                     store["updated_at"] = now_iso
-                if redis_manager:
-                    try:
-                        await redis_manager.update_task_status(
-                            task_id,
-                            "failed",
-                            result=f"Background timeout after {_async_timeout_sec:.0f}s",
-                            metadata={"stage": "failed", "timeout_seconds": _async_timeout_sec},
-                        )
-                    except Exception:
-                        pass
+            finally:
+                store = _run_task_store.get(task_id)
+                if store is not None:
+                    status_final = store.get("status") or "unknown"
+                    if status_final in ("completed", "failed", "cancelled"):
+                        duration = _record_async_ttc(store, status_final)
+                        store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                        if redis_manager:
+                            try:
+                                st = {k: v for k, v in store.items() if v is not None}
+                                await redis_manager.update_task_status(
+                                    task_id,
+                                    status_final,
+                                    result=st.get("output") or st.get("error") or st.get("result"),
+                                    metadata=st,
+                                )
+                            except Exception:
+                                pass
+                        await _push_ttc_sample(duration)
 
         _create_tracked_task(_bounded_background_run()).add_done_callback(_done_callback)
         logger.info(
@@ -10051,6 +10065,34 @@ async def metrics():
     embed_s = _rag_latency_last.get("embed_ms", 0) / 1000.0
     prepare_s = _rag_latency_last.get("prepare_ms", 0) / 1000.0
     llm_plan_s = _rag_latency_last.get("llm_plan_ms", 0) / 1000.0
+    ttc_samples = list(_async_ttc_samples)
+    if redis_manager:
+        try:
+            client = await redis_manager.get_client()
+            raw_samples = await client.lrange(_ASYNC_TTC_REDIS_KEY, 0, _ASYNC_TTC_SAMPLES_MAX - 1)
+            parsed = []
+            for item in raw_samples or []:
+                value = _coerce_float(item.decode("utf-8") if isinstance(item, bytes) else item)
+                if value is not None:
+                    parsed.append(value)
+            if parsed:
+                ttc_samples = parsed
+        except Exception:
+            pass
+    inflight_max = 0.0
+    inflight_n = 0
+    if redis_manager:
+        try:
+            client = await redis_manager.get_client()
+            raw_inflight = await client.hvals(_ASYNC_INFLIGHT_REDIS_KEY)
+            for item in raw_inflight or []:
+                created_raw = item.decode("utf-8") if isinstance(item, bytes) else item
+                elapsed = _elapsed_seconds_from_store({"created_at": created_raw})
+                if elapsed is not None:
+                    inflight_max = max(inflight_max, elapsed)
+                    inflight_n += 1
+        except Exception:
+            pass
     body = (
         "# HELP victoria_rag_embed_seconds Last RAG embed time (seconds)\n"
         "# TYPE victoria_rag_embed_seconds gauge\n"
@@ -10066,13 +10108,19 @@ async def metrics():
         f"victoria_rag_slow_requests_total {_rag_latency_slow_count}\n"
         "# HELP victoria_async_ttc_p50_seconds Rolling p50 async time-to-completed (seconds)\n"
         "# TYPE victoria_async_ttc_p50_seconds gauge\n"
-        f"victoria_async_ttc_p50_seconds {_percentile(_async_ttc_samples, 0.50):.6f}\n"
+        f"victoria_async_ttc_p50_seconds {_percentile(ttc_samples, 0.50):.6f}\n"
         "# HELP victoria_async_ttc_p95_seconds Rolling p95 async time-to-completed (seconds)\n"
         "# TYPE victoria_async_ttc_p95_seconds gauge\n"
-        f"victoria_async_ttc_p95_seconds {_percentile(_async_ttc_samples, 0.95):.6f}\n"
+        f"victoria_async_ttc_p95_seconds {_percentile(ttc_samples, 0.95):.6f}\n"
         "# HELP victoria_async_ttc_samples Number of in-memory async TTC samples\n"
         "# TYPE victoria_async_ttc_samples gauge\n"
-        f"victoria_async_ttc_samples {len(_async_ttc_samples)}\n"
+        f"victoria_async_ttc_samples {len(ttc_samples)}\n"
+        "# HELP victoria_async_inflight_max_elapsed_seconds Oldest in-flight async /run elapsed seconds\n"
+        "# TYPE victoria_async_inflight_max_elapsed_seconds gauge\n"
+        f"victoria_async_inflight_max_elapsed_seconds {inflight_max:.6f}\n"
+        "# HELP victoria_async_inflight Number of in-flight async /run tasks\n"
+        "# TYPE victoria_async_inflight gauge\n"
+        f"victoria_async_inflight {inflight_n}\n"
     )
 
     # === RED Metrics from isolated registry ===
@@ -10654,6 +10702,105 @@ async def _fetch_experience_lessons(goal_text: str, limit: int = 3) -> list:
         return []
 
 
+
+
+async def _dispatch_plan_step_to_stream(step: dict, fp: str, session_id: str) -> dict:
+    """
+    [4.2B / PLAN_EXECUTOR_MODE=redis] Поставить шаг плана в overflow-очередь экспертов.
+    Переиспользует redis_manager.push_to_stream (dedup/lock по task_id) — без нового кода.
+    """
+    if redis_manager is None:
+        return {"task_id": None, "dispatch_mode": "redis", "error": "redis_manager недоступен"}
+    import uuid as _uuid
+    task_id = str(_uuid.uuid4())
+    expert = next(_plan_step_dispatch_cycle)
+    description = (
+        f"План-шаг. Задача: {step.get('goal', '')} "
+        f"ОБЯЗАТЕЛЬНО: запиши итоговый python-код в файл {fp} (полный файл, без markdown)."
+    )
+    payload = {
+        "task_id": task_id,
+        "expert_name": expert,
+        "description": description[:1200],
+        "category": "code_gen",
+        "metadata": {
+            "autonomous": True,
+            "kind": "plan_step",
+            "plan_session": session_id,
+            "step_file": fp,
+        },
+        "contract": {
+            "version": "1",
+            "intent": "execute_assigned_task",
+            "output_schema": "expert_response_v1",
+            "risk_level": "medium",
+        },
+    }
+    # Воркер completion требует существующую task-row (иначе "completion skipped" — результат теряется).
+    # Факт: ExpertWorker.process_task → UPDATE tasks WHERE id=… (см. expert_worker.py), поэтому создаём сами.
+    dsn = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+    try:
+        conn = await asyncpg.connect(dsn=dsn)
+        try:
+            assignee = await conn.fetchval(
+                "SELECT id FROM experts WHERE name = $1 LIMIT 1", expert
+            )
+            await conn.execute(
+                """INSERT INTO tasks (id, title, description, status, priority, assignee_expert_id, metadata)
+                   VALUES ($1::uuid, $2, $3, 'pending', 'high', $4, $5::jsonb)
+                   ON CONFLICT (id) DO NOTHING""",
+                task_id,
+                description[:200],
+                description[:1200],
+                assignee,
+                __import__("json").dumps(payload["metadata"], ensure_ascii=False),
+            )
+        finally:
+            await conn.close()
+    except Exception as e:  # noqa: BLE001
+        return {"task_id": task_id, "expert": expert, "dispatch_mode": "redis", "error": f"task-row: {e}"}
+    ok = await redis_manager.push_to_stream(_PLAN_STEP_STREAM, payload)
+    if ok is False:
+        return {"task_id": task_id, "expert": expert, "dispatch_mode": "redis", "error": "dup/blocked"}
+    return {"task_id": task_id, "expert": expert, "dispatch_mode": "redis"}
+
+
+_PLAN_STEP_STREAM = os.getenv("PLAN_STEP_STREAM", "expert_tasks:overflow")
+import itertools as _itertools
+_plan_step_dispatch_cycle = _itertools.cycle(os.getenv("PLAN_STEP_EXPERTS", "Инна,Юлия").split(","))
+
+
+async def _poll_plan_step_result(task_id: str, timeout_s: float = 300) -> dict:
+    """
+    [4.2B] Опрос результата по task_id: воркер INSERT'ит task row и пишет UPDATE tasks
+    (факт проверен в expert_worker.py). Никаких новых reply-каналов не нужно.
+    """
+    dsn = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+    deadline = asyncio.get_event_loop().time() + timeout_s
+    try:
+        conn = await asyncpg.connect(dsn=dsn)
+    except Exception as e:  # noqa: BLE001
+        return {"status": "error", "error": f"db: {e}"}
+    try:
+        while True:
+            row = await conn.fetchrow(
+                """SELECT status, result FROM tasks
+                   WHERE id::text = $1 OR metadata->>'external_task_id' = $1
+                   ORDER BY created_at DESC LIMIT 1""",
+                task_id,
+            )
+            if row and row["status"] in ("completed", "failed"):
+                return {
+                    "status": "passed" if row["status"] == "completed" else "failed",
+                    "result": (row["result"] or "")[:4000],
+                }
+            if asyncio.get_event_loop().time() > deadline:
+                return {"status": "timeout", "result": ""}
+            await asyncio.sleep(10)
+    finally:
+        await conn.close()
+
+
 @app.post("/api/orchestrate-plan")
 async def orchestrate_plan(request: dict):
     goal = (request.get("goal") or "").strip()
@@ -10767,8 +10914,22 @@ async def orchestrate_plan(request: dict):
             async def _one(i: int, st: dict):
                 slug = _re.sub(r"[^a-zA-Z0-9]", "_", str(st.get("title", f"step{i}")))[:24].lower() or f"step{i}"
                 fp = f"src/op{i}_{slug}.py"
-                async with sem:
-                    res = await _run_step(sess, fp, st["goal"])
+                dispatch_mode = os.getenv("PLAN_EXECUTOR_MODE", "direct").lower()
+                dispatched: dict = {}
+                if dispatch_mode == "redis" and redis_manager is not None:
+                    async with sem:
+                        dispatched = await _dispatch_plan_step_to_stream(st, fp, f"sess{int(asyncio.get_event_loop().time())}")
+                    if dispatched.get("task_id"):
+                        poll_res = await _poll_plan_step_result(dispatched["task_id"])
+                        status = poll_res.get("status", "failed")
+                        res = {"final_status": status, "fix_iterations": 0, "attempts": [{"stage": "redis_dispatch", "status": status, "output": (poll_res.get("result") or "")[:600]}]}
+                    else:
+                        # воркер-режим недоступен → деградируем в direct
+                        async with sem:
+                            res = await _run_step(sess, fp, st["goal"])
+                else:
+                    async with sem:
+                        res = await _run_step(sess, fp, st["goal"])
                 status = res.get("final_status", res.get("compile_status"))
                 sanity_ok: bool | None = None
                 if status == "passed":
@@ -10892,6 +11053,7 @@ async def orchestrate_plan(request: dict):
         "replans_used": replans_used,
         "replan_iters": replan_iters,
         "summary": summary,
+        "dispatch_mode": os.getenv("PLAN_EXECUTOR_MODE", "direct"),
     }
 
 
