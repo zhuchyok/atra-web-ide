@@ -224,6 +224,8 @@ VICTORIA_PATTERNS = [
 
 def is_simple_message(content: str) -> bool:
     """Проверить, является ли сообщение простым (не требует агента)"""
+    if is_fact_seeking_question(content):
+        return False
     lower = content.lower().strip().lstrip("«»").strip()
 
     # Если сообщение очень короткое (1-2 слова) и нет явных признаков сложности — это простое
@@ -246,6 +248,8 @@ def is_simple_message(content: str) -> bool:
 
 def is_fast_track_message(content: str) -> bool:
     """Проверить, нужно ли отвечать мгновенно (приветствия и т.д.)"""
+    if is_fact_seeking_question(content):
+        return False
     lower = content.lower().strip().lstrip("«»").strip()
     # Guardrail: длинные/операционные запросы не могут уйти в fast-path.
     if len(lower) >= 180:
@@ -877,6 +881,41 @@ async def _push_ttc_sample(duration: Optional[float]) -> None:
     except Exception:
         pass
 
+
+async def _async_sla_snapshot() -> dict:
+    """p50/p95/samples/inflight for /metrics and live-fact answers. Cross-worker via Redis."""
+    ttc_samples = list(_async_ttc_samples)
+    inflight_max = 0.0
+    inflight_n = 0
+    if redis_manager:
+        try:
+            client = await redis_manager.get_client()
+            raw_samples = await client.lrange(_ASYNC_TTC_REDIS_KEY, 0, _ASYNC_TTC_SAMPLES_MAX - 1)
+            parsed = []
+            for item in raw_samples or []:
+                value = _coerce_float(item.decode("utf-8") if isinstance(item, bytes) else item)
+                if value is not None:
+                    parsed.append(value)
+            if parsed:
+                ttc_samples = parsed
+            raw_inflight = await client.hvals(_ASYNC_INFLIGHT_REDIS_KEY)
+            for item in raw_inflight or []:
+                created_raw = item.decode("utf-8") if isinstance(item, bytes) else item
+                elapsed = _elapsed_seconds_from_store({"created_at": created_raw})
+                if elapsed is not None:
+                    inflight_max = max(inflight_max, elapsed)
+                    inflight_n += 1
+        except Exception:
+            pass
+    return {
+        "p50": round(_percentile(ttc_samples, 0.50), 3),
+        "p95": round(_percentile(ttc_samples, 0.95), 3),
+        "samples": len(ttc_samples),
+        "inflight_max": round(inflight_max, 3),
+        "inflight_n": inflight_n,
+        "ttc_samples": ttc_samples,
+    }
+
 # Лимит шагов агента. Для чата/Telegram клиенты передают max_steps=50 (VICTORIA_MAX_STEPS_CHAT / VICTORIA_MAX_STEPS)
 DEFAULT_MAX_STEPS = int(os.getenv("VICTORIA_MAX_STEPS", "500"))
 # Длинный контекст (план «умнее быстрее»): лимиты истории и цели; 0 = без обрезки
@@ -1366,6 +1405,12 @@ async def warmup_victoria():
             for model in models_list:
                 if not model:
                     continue
+                if os.getenv("VICTORIA_MLX_BRAIN", "true").lower() in ("true", "1", "yes", "on") and "victoria-wisdom" in model.lower():
+                    logger.info(
+                        "⚡ [VICTORIA] %s — мозг в MLX, Ollama прогрев пропускаем",
+                        model,
+                    )
+                    continue
                 if model in mlx_cached or model.rstrip(":latest") in mlx_cached:
                     logger.info("⚡ [VICTORIA] Модель %s уже в MLX — пропускаем Ollama прогрев", model)
                     continue
@@ -1447,6 +1492,23 @@ async def warmup_victoria():
                 pass
     if os.getenv("VICTORIA_WARMUP_BLOCK_STARTUP", "false").lower() in ("true", "1", "yes"):
         logger.info("✅ [VICTORIA] Victoria прогрета (блокирующий режим), приём запросов")
+
+
+async def _unload_ollama_wisdom_if_mlx_brain() -> None:
+    """Wisdom живёт в MLX. Держать две копии в Ollama = 503 pending."""
+    if os.getenv("VICTORIA_MLX_BRAIN", "true").lower() not in ("true", "1", "yes", "on"):
+        return
+    ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            for name in ("victoria-wisdom-24k:latest", "victoria-wisdom-v3.5:latest"):
+                await client.post(
+                    f"{ollama_url}/api/generate",
+                    json={"model": name, "prompt": "", "keep_alive": 0},
+                )
+        logger.info("♻️ [VICTORIA] Ollama wisdom unloaded (мозг в MLX)")
+    except Exception as e:
+        logger.debug("[VICTORIA] Ollama wisdom unload skipped: %s", e)
 
 
 async def _memory_watchdog():
@@ -1687,6 +1749,7 @@ async def lifespan(app: FastAPI):
             await warmup_victoria()
         else:
             _create_tracked_task(warmup_victoria())
+    _create_tracked_task(_unload_ollama_wisdom_if_mlx_brain())
 
     # Memory watchdog: gc + malloc_trim каждые 30 мин + аварийный перезапуск при >18GB
     # [SINGULARITY 30.0] Dynamic interval and event-driven GC
@@ -1845,6 +1908,7 @@ async def lifespan(app: FastAPI):
         try:
             client = await redis_manager.get_client()
             await client.delete(_ASYNC_INFLIGHT_REDIS_KEY)
+            await client.delete(_ASYNC_TTC_REDIS_KEY)
         except Exception:
             pass
     yield
@@ -7386,9 +7450,10 @@ async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
     if any(goal_lower.startswith(prefix) for prefix in automated_prefixes):
         return None
 
+    sla = await _async_sla_snapshot()
     pool = await agent._get_db_pool()
     if not pool:
-        return None
+        return format_live_fact_answer(goal, health="ok", ttc=sla)
 
     queue: Optional[dict] = None
     nodes: Optional[int] = None
@@ -7495,7 +7560,7 @@ async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
         logger.warning("[VICTORIA_FACT] failed to build live fact answer: %s", e)
         return None
 
-    return format_live_fact_answer(goal, health=health, queue=queue, nodes=nodes, ops=ops)
+    return format_live_fact_answer(goal, health=health, queue=queue, nodes=nodes, ops=ops, ttc=sla)
 
 
 @app.post("/run")
@@ -9502,6 +9567,27 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
         raise HTTPException(status_code=400, detail="No user messages found")
 
     goal = user_messages[-1].content
+    if not isinstance(goal, str):
+        goal = str(goal)
+    live_fact = await _build_live_fact_answer_for_run(goal)
+    if live_fact:
+        logger.info("[VICTORIA_FACT] chat completions live fact preview=%s", live_fact[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": live_fact},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
 
     # [SINGULARITY 31.3] Обработка изображений из сообщения
     _images_to_process = []
@@ -10065,34 +10151,10 @@ async def metrics():
     embed_s = _rag_latency_last.get("embed_ms", 0) / 1000.0
     prepare_s = _rag_latency_last.get("prepare_ms", 0) / 1000.0
     llm_plan_s = _rag_latency_last.get("llm_plan_ms", 0) / 1000.0
-    ttc_samples = list(_async_ttc_samples)
-    if redis_manager:
-        try:
-            client = await redis_manager.get_client()
-            raw_samples = await client.lrange(_ASYNC_TTC_REDIS_KEY, 0, _ASYNC_TTC_SAMPLES_MAX - 1)
-            parsed = []
-            for item in raw_samples or []:
-                value = _coerce_float(item.decode("utf-8") if isinstance(item, bytes) else item)
-                if value is not None:
-                    parsed.append(value)
-            if parsed:
-                ttc_samples = parsed
-        except Exception:
-            pass
-    inflight_max = 0.0
-    inflight_n = 0
-    if redis_manager:
-        try:
-            client = await redis_manager.get_client()
-            raw_inflight = await client.hvals(_ASYNC_INFLIGHT_REDIS_KEY)
-            for item in raw_inflight or []:
-                created_raw = item.decode("utf-8") if isinstance(item, bytes) else item
-                elapsed = _elapsed_seconds_from_store({"created_at": created_raw})
-                if elapsed is not None:
-                    inflight_max = max(inflight_max, elapsed)
-                    inflight_n += 1
-        except Exception:
-            pass
+    sla = await _async_sla_snapshot()
+    ttc_samples = sla.get("ttc_samples") or []
+    inflight_max = float(sla.get("inflight_max") or 0.0)
+    inflight_n = int(sla.get("inflight_n") or 0)
     body = (
         "# HELP victoria_rag_embed_seconds Last RAG embed time (seconds)\n"
         "# TYPE victoria_rag_embed_seconds gauge\n"
@@ -10704,6 +10766,23 @@ async def _fetch_experience_lessons(goal_text: str, limit: int = 3) -> list:
 
 
 
+def _fix_mojibake(text: str) -> str:
+    """
+    Чинит двойную перекодировку (utf-8 прочитанный как latin-1): 'Инна' → 'Ð˜Ð½Ð½Ð°'.
+    Ставится только при явном признаке mojibake, иначе текст не трогаем.
+    """
+    if not text or "Ð" not in text:
+        return text
+    try:
+        repaired = text.encode("latin-1", "ignore").decode("utf-8", "ignore")
+        # фикс применяем только если стало "чище" (появились кириллцицы и исчезли артефакты)
+        if repaired and "Ð" not in repaired and any(c.isalpha() and ord(c) > 127 for c in repaired):
+            return repaired
+    except Exception:  # noqa: BLE001
+        pass
+    return text
+
+
 async def _dispatch_plan_step_to_stream(step: dict, fp: str, session_id: str) -> dict:
     """
     [4.2B / PLAN_EXECUTOR_MODE=redis] Поставить шаг плана в overflow-очередь экспертов.
@@ -10818,6 +10897,7 @@ async def orchestrate_plan(request: dict):
             except Exception:  # noqa: BLE001
                 pass
         t = _re.sub(r"```(?:json)?|```", "", plan_text).strip()
+        t = _fix_mojibake(t)
         out = []
         dec = json.JSONDecoder()
         pos = t.find("{")
@@ -10880,12 +10960,18 @@ async def orchestrate_plan(request: dict):
     # [v3.3] Сeness-check Victoria: после успешного шага — быстрое LLM подтверждение «код решает подзадачу?»
     async def _sanity_check(step_goal: str, fp: str) -> bool:
         try:
-            if not os.path.isfile(os.path.join(os.getenv("WORKSPACE_ROOT", os.getenv("PROJECT_ROOT", "/workspace/atra-web-ide")), fp)):
+            base = os.getenv("WORKSPACE_ROOT", os.getenv("PROJECT_ROOT", "/workspace/atra-web-ide"))
+            abs_fp = os.path.join(base, fp)
+            if not os.path.isfile(abs_fp):
                 return False
+            with open(abs_fp, "r", encoding="utf-8", errors="ignore") as _f:
+                head = _f.read(1600)
             from dialogue_llm import generate_dialogue
+            import uuid as _uu
             sp = (
                 f"Подзадача: «{step_goal}». Файл: {fp}.\n"
-                "ОтвOhet строго одним словом: OK или NO (если код не решает подзадачу или по-видимому непригоден)."
+                f"Начало кода:\n{head}\n\n"
+                f"Ответь строго одним словом: OK или NO (если код не решает подзадачу или по-видимому непригоден) [sn:{_uu.uuid4().hex[:8]}]."
             )
             res = await generate_dialogue_safe(sp)
             t = (res or "").strip().upper()
@@ -10968,6 +11054,10 @@ async def orchestrate_plan(request: dict):
                 res = await _run_step(sess, results[k]["file"], st["goal"], max_fix=2)
                 if res.get("final_status") == "passed":
                     results[k]["status"] = "passed"
+                    # v3.3: sanity-check и на retry-пути (иначе sanity_ok остаётся None после dispatch-таймаута)
+                    results[k]["sanity_ok"] = await _sanity_check(st.get("goal", ""), results[k]["file"])
+                    if not results[k]["sanity_ok"]:
+                        results[k]["status"] = "sanity_failed"
                     results[k]["fix_iterations"] = res.get("fix_iterations")
 
             # — ЧНОВОЕ В v3: ре-планирование при упавших шагах —
