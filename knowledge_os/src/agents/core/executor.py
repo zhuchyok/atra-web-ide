@@ -83,6 +83,13 @@ class OllamaExecutor:
         messages.append({"role": "user", "content": prompt})
 
         # keep_alive: используем централизованную политику (MODEL_UNLOADING_AND_MEMORY)
+        if self.model and "victoria-wisdom" in str(self.model).lower():
+            logger.warning(
+                "⚡ skip Ollama POST for %s (мозг в MLX 11435, не 11434)",
+                self.model,
+            )
+            return {"error": "victoria-wisdom must stay on MLX"}
+
         keep_alive = get_keep_alive(self.model, mlx_alive=True)
 
         payload = {

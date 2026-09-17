@@ -7,7 +7,7 @@
 import os, time, urllib.request, json as _json, json
 
 OLLAMA = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
-POLL = int(os.getenv("WISDOM_GUARD_POLL_SEC", "600"))
+POLL = int(os.getenv("WISDOM_GUARD_POLL_SEC", "60"))
 DRY = os.getenv("WISDOM_GUARD_DRY_RUN", "false").lower() in ("1","true","yes")
 
 

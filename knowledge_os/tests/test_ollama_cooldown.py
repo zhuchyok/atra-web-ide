@@ -55,4 +55,4 @@ def test_recovery_cooldown_logic():
 
         result = get_keep_alive(model, mlx_alive=True)
         assert result != -1, "Should not return -1 after recovery cooldown"
-        assert result == 60  # For victoria-wisdom-v3.5 when MLX is alive
+        assert result == 0  # MLX alive → unload wisdom from Ollama immediately

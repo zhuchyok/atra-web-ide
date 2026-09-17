@@ -342,7 +342,17 @@ async def probe_new_models_if_needed(
     results: dict[str, ModelMetrics] = {}
     # Пока probe только для Ollama (MLX сложнее — свой API)
     existing = await get_metrics_for_models(ollama_models, "ollama", db_url)
-    to_probe = [m for m in ollama_models if m not in existing][:max_probes_per_run]
+    to_probe = []
+    try:
+        from available_models_scanner import _skip_as_ollama_hands
+    except ImportError:
+        from app.available_models_scanner import _skip_as_ollama_hands
+    for m in ollama_models:
+        if m in existing or _skip_as_ollama_hands(m):
+            continue
+        to_probe.append(m)
+        if len(to_probe) >= max_probes_per_run:
+            break
     for model_name in to_probe:
         m = await _ollama_probe(model_name, ollama_url, margin_factor)
         if m:

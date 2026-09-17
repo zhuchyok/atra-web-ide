@@ -23,6 +23,21 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("PerformanceWatchdog")
 _REDIS_MANAGER_SINGLETON = None
+_PARAM_PLACEHOLDER = re.compile(r"\$\d+")
+
+
+def _should_explain_analyze(query_text: str) -> bool:
+    """EXPLAIN ANALYZE needs bind types. pg_stat_statements $n defaults to text and
+    yields `operator does not exist: double precision * text` on RAG queries."""
+    q = (query_text or "").strip()
+    if not q.upper().startswith("SELECT"):
+        return False
+    if _PARAM_PLACEHOLDER.search(q):
+        return False
+    if q.upper().startswith("EXPLAIN"):
+        return False
+    return True
+
 
 # Use direct URL for administrative tasks like CREATE INDEX CONCURRENTLY
 DB_URL = os.getenv(
@@ -286,7 +301,7 @@ class PerformanceWatchdog:
         avg_time = query_data["avg_exec_time_ms"]
 
         explain_plan = "N/A"
-        if query_text.strip().upper().startswith("SELECT"):
+        if _should_explain_analyze(query_text):
             pool = await self.get_pool()
             async with pool.acquire() as conn:
                 try:
@@ -294,6 +309,8 @@ class PerformanceWatchdog:
                     explain_plan = "\n".join([r[0] for r in plan_rows])
                 except Exception as e:
                     explain_plan = f"Could not get EXPLAIN plan: {e}"
+        elif _PARAM_PLACEHOLDER.search(query_text or ""):
+            explain_plan = "skipped: parameterized pg_stat_statements query (untyped $n)"
 
         prompt = f"""
 Ты - эксперт по производительности PostgreSQL в корпорации ATRA.

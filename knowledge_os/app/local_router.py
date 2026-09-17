@@ -186,6 +186,7 @@ try:
     from available_models_scanner import (
         MLX_PRIORITY_BY_CATEGORY,
         OLLAMA_PRIORITY_BY_CATEGORY,
+        _skip_as_ollama_hands,
         get_available_models,
         pick_mlx_for_category,
         pick_ollama_for_category,
@@ -194,6 +195,10 @@ try:
     _HAS_MODEL_SCANNER = True
 except ImportError:
     _HAS_MODEL_SCANNER = False
+
+    def _skip_as_ollama_hands(name):  # type: ignore[misc]
+        return bool(name) and "victoria-wisdom" in str(name).lower()
+
     logger.warning("⚠️ available_models_scanner не доступен, используем fallback")
 
 # Кэш доступных моделей (обновляется динамически)
@@ -202,18 +207,18 @@ _cached_ollama_models: list = []
 _models_cache_time: float = 0
 _MODELS_CACHE_TTL = 120  # 2 минуты
 
-# Мозг и руки — victoria-wisdom-v3.5.
+# Руки Ollama 11434: лёгкие модели. Мозг victoria-wisdom* — только MLX 11435.
 OLLAMA_MODELS_FALLBACK = {
-    "reasoning": os.getenv("MODEL_REASONING", "victoria-wisdom-24k:latest"),
-    "coding": os.getenv("MODEL_CODER", "victoria-wisdom-24k:latest"),
-    "chat": "victoria-wisdom-24k:latest",
+    "reasoning": os.getenv("MODEL_REASONING", "phi3.5:3.8b"),
+    "coding": os.getenv("MODEL_CODER", "phi3.5:3.8b"),
+    "chat": "phi3.5:3.8b",
     "fast": os.getenv("MODEL_FAST", "tinyllama:1.1b-chat"),
     "vision": os.getenv("MODEL_VISION", "minicpm-v:latest"),
     "vision_hd": "minicpm-v:latest",
     "vision_pdf": os.getenv("MODEL_VISION_PDF", "minicpm-v:latest"),
     "thinking": os.getenv("MODEL_THINKING", "lfm2.5-thinking:1.2b"),
-    "default": "victoria-wisdom-24k:latest",
-    "vip": "victoria-wisdom-24k:latest",
+    "default": "phi3.5:3.8b",
+    "vip": "phi3.5:3.8b",
 }
 
 # MLX: только лёгкие — 70b/104b/32b удалены (Metal/память); не подставлять удалённые.
@@ -381,6 +386,11 @@ class LocalAIRouter:
         url = str(node.get("url", "")).lower()
         routing_key = str(node.get("routing_key", "")).lower()
         return ("11434" in url) or ("ollama" in url) or ("ollama" in routing_key)
+
+    @staticmethod
+    def _is_wisdom_model(name: Optional[str]) -> bool:
+        """victoria-wisdom* живёт в MLX 11435, не в Ollama 11434."""
+        return bool(name) and "victoria-wisdom" in str(name).lower()
 
     @property
     def memory_manager(self):
@@ -1450,16 +1460,37 @@ class LocalAIRouter:
 
         if should_warmup and ollama_nodes:
             ollama_model = self._select_model(prompt, category, node_type="ollama")
-            # Получаем текущую историю для прогрева KV-Cache
-            session_id = session_id or getattr(self, "_current_session_id", "default")
-            current_history = []
-            if session_id:
-                current_history = await self.context_mirror.get_context(session_id) or []
-
-            asyncio.create_task(
-                self._trigger_predictive_warmup(
-                    ollama_model, ollama_nodes[0]["url"], history=current_history
+            if self._is_wisdom_model(ollama_model) or is_victoria:
+                logger.info(
+                    "⚡ [WISDOM-TAP] skip Ollama KV warmup for %s (мозг в MLX)",
+                    ollama_model,
                 )
+            else:
+                session_id = session_id or getattr(self, "_current_session_id", "default")
+                current_history = []
+                if session_id:
+                    current_history = await self.context_mirror.get_context(session_id) or []
+                asyncio.create_task(
+                    self._trigger_predictive_warmup(
+                        ollama_model, ollama_nodes[0]["url"], history=current_history
+                    )
+                )
+
+        # v4.2-QUALITY: wisdom не дублировать в 11434 (guard — дворник, это замок).
+        # model=None + category=reasoning всё равно выбирает wisdom на MLX — Ollama надо снять.
+        mlx_choice = self._select_model(prompt, category, node_type="mlx") if mlx_nodes else None
+        if (
+            is_victoria
+            or self._is_wisdom_model(model)
+            or self._is_wisdom_model(mlx_choice)
+            or _skip_as_ollama_hands(model)
+        ):
+            healthy_nodes = [n for n in healthy_nodes if not self._is_ollama_node(n)]
+            logger.info(
+                "⚡ [WISDOM-TAP] Ollama nodes dropped for wisdom model=%s mlx_choice=%s remaining=%s",
+                model,
+                mlx_choice,
+                [n.get("name") for n in healthy_nodes],
             )
 
         if preferred_source:
@@ -1753,6 +1784,13 @@ class LocalAIRouter:
             logger.info(
                 f"🎯 [SMART SELECTION] Узел: {node['name']} | Модель: {model} | Тип задачи: {category or 'auto'}"
             )
+            if is_ollama and _skip_as_ollama_hands(model):
+                logger.info(
+                    "⚡ [WISDOM-TAP] skip Ollama node %s for %s (мозг в MLX / тяжёлая не для 11434)",
+                    node.get("name"),
+                    model,
+                )
+                continue
 
             # Используем /api/chat для Ollama (более современный endpoint)
             if is_ollama or is_mlx:
@@ -2499,6 +2537,19 @@ class LocalAIRouter:
                 return
 
             node = available_nodes[0]
+
+        if node and self._is_ollama_node(node) and _skip_as_ollama_hands(model):
+            mlx_alt = [n for n in healthy_nodes if not self._is_ollama_node(n)]
+            if mlx_alt:
+                node = mlx_alt[0]
+                logger.info(
+                    "⚡ [WISDOM-TAP] stream reroute %s → %s (мозг в MLX)",
+                    model,
+                    node.get("name"),
+                )
+            else:
+                logger.info("⚡ [WISDOM-TAP] skip Ollama stream for %s (мозг в MLX)", model)
+                return
 
         node_url = f"{node['url']}/api/generate"
         # TODO: Convert f-string to %s formatting for performance

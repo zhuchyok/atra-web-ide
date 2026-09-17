@@ -99,6 +99,9 @@ class AutoModelManager:
 
     async def load_model(self, model_name: str) -> bool:
         """Загрузить модель через Ollama API"""
+        if model_name and "victoria-wisdom" in model_name.lower():
+            logger.info("⚡ skip Ollama load for %s (мозг в MLX 11435)", model_name)
+            return False
         try:
             # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔄 Загрузка модели {model_name}...")

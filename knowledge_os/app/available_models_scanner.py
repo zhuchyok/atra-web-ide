@@ -28,24 +28,26 @@ _PROBE_NEW_MODELS = os.getenv("MODEL_PROBE_ON_SCAN", "true").lower() in ("true",
 # ВАЖНО: Списки для Ollama и MLX РАЗНЫЕ, не путать!
 # ==============================================================================
 
-# Приоритет для OLLAMA (порт 11434) - по мощности
-# ВАЖНО: victoria-wisdom-v3.5:latest — мозг и руки Виктории (всегда приоритет №1), дообучаем и заменяем в будущем
+# Приоритет для OLLAMA (порт 11434). Wisdom/32b/coder пропускает _skip_as_ollama_hands:
+# мозг — MLX 11435, код — Ollama 11436, руки 11434 — phi3.5 и другие лёгкие.
 OLLAMA_BEST_FIRST: List[str] = [
-    "victoria-wisdom-24k:latest",  # Primary Victoria model
+    "victoria-wisdom-24k:latest",
     "victoria-wisdom-24k",
-    "victoria-wisdom-v3.5:latest",  # 30B Wisdom Era (мозг и руки) - ПРИОРИТЕТ №1
+    "victoria-wisdom-v3.5:latest",
     "victoria-wisdom-v3.5",
-    "qwen3.5:35b",  # 35B Coding/Reasoning - резерв для сложных задач
+    "qwen3.5:35b",
     "deepseek-r1:32b",
     "qwq:32b",
-    "gemma3n:e4b",  # 4B быстрые задачи (SEO, грамматика, Telegram)
-    "tinyllama:1.1b-chat",  # Tiny fallback
-    "lfm2.5-thinking:1.2b",  # Logic check
-    "moondream:latest",  # Vision small
-    "qwen3-coder:30b",  # РЕЗЕРВ (база для Victoria)
-    "deepseek-r1:14b",  # РЕЗЕРВ
-    "minicpm-v:latest",  # Vision medium - РЕЗЕРВ
-    "glm-4.7-flash:latest",  # РЕЗЕРВ
+    "phi3.5:3.8b",  # штатные лёгкие руки
+    "gemma3n:e4b",
+    "tinyllama:1.1b-chat",
+    "lfm2.5-thinking:1.2b",
+    "moondream:latest",
+    "qwen3-coder:30b",
+    "qwen2.5-coder:14b",
+    "deepseek-r1:14b",
+    "minicpm-v:latest",
+    "glm-4.7-flash:latest",
 ]
 
 # Приоритет для MLX (порт 11435)
@@ -58,25 +60,23 @@ MLX_BEST_FIRST: List[str] = [
     "tinyllama:1.1b-chat",  # Tiny fallback
 ]
 
-# Приоритеты моделей Ollama по категории (первый доступный из списка будет выбран)
-# victoria-wisdom-v3.5:latest — основной мозг/руки; qwen3.5:35b — тяжёлые coding/reasoning; gemma3n:e4b — быстрые задачи
+# Приоритеты Ollama по категории. Wisdom/тяжести скипаются; первый живой light — руки.
+_OLLAMA_LIGHT_HANDS = ["phi3.5:3.8b", "gemma3n:e4b", "tinyllama:1.1b-chat"]
 OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
-    "fast": ["tinyllama:1.1b-chat", "gemma3n:e4b", "lfm2.5-thinking:1.2b"],
+    "fast": ["phi3.5:3.8b", "tinyllama:1.1b-chat", "gemma3n:e4b", "lfm2.5-thinking:1.2b"],
     "default": [
         "victoria-wisdom-24k:latest",
         "victoria-wisdom-24k",
         "victoria-wisdom-v3.5:latest",
         "victoria-wisdom-v3.5",
-        "gemma3n:e4b",
-        "tinyllama:1.1b-chat",
+        *_OLLAMA_LIGHT_HANDS,
     ],
     "general": [
         "victoria-wisdom-24k:latest",
         "victoria-wisdom-24k",
         "victoria-wisdom-v3.5:latest",
         "victoria-wisdom-v3.5",
-        "gemma3n:e4b",
-        "tinyllama:1.1b-chat",
+        *_OLLAMA_LIGHT_HANDS,
     ],
     "coding": [
         "victoria-wisdom-24k:latest",
@@ -85,6 +85,7 @@ OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
         "victoria-wisdom-v3.5",
         "qwen3.5:35b",
         "qwen3-coder:30b",
+        *_OLLAMA_LIGHT_HANDS,
     ],
     "reasoning": [
         "victoria-wisdom-24k:latest",
@@ -94,6 +95,7 @@ OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
         "deepseek-r1:32b",
         "qwq:32b",
         "qwen3.5:35b",
+        *_OLLAMA_LIGHT_HANDS,
     ],
     "complex": [
         "victoria-wisdom-24k:latest",
@@ -103,11 +105,12 @@ OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
         "qwen3.5:35b",
         "deepseek-r1:32b",
         "qwq:32b",
+        *_OLLAMA_LIGHT_HANDS,
     ],
     "vision": ["moondream:latest", "minicpm-v:latest"],
-    "thinking": ["lfm2.5-thinking:1.2b", "tinyllama:1.1b-chat"],
-    "vip": ["victoria-wisdom-24k:latest", "victoria-wisdom-24k"],
-    "fallback": ["deepseek-r1:32b", "qwq:32b", "glm-4.7-flash:latest"],
+    "thinking": ["lfm2.5-thinking:1.2b", "tinyllama:1.1b-chat", "phi3.5:3.8b"],
+    "vip": ["victoria-wisdom-24k:latest", "victoria-wisdom-24k", *_OLLAMA_LIGHT_HANDS],
+    "fallback": ["deepseek-r1:32b", "qwq:32b", "glm-4.7-flash:latest", *_OLLAMA_LIGHT_HANDS],
 }
 
 # Приоритеты моделей MLX — только лёгкие (32b убран: ~35 ГБ процесс, Metal/память)
@@ -327,6 +330,35 @@ async def get_available_models(
 # ==============================================================================
 
 
+def _is_wisdom_name(name: Optional[str]) -> bool:
+    """victoria-wisdom* живёт в MLX 11435, не выбираем её как Ollama-руки."""
+    return bool(name) and "victoria-wisdom" in str(name).lower()
+
+
+def _skip_as_ollama_hands(name: Optional[str]) -> bool:
+    """11434 — лёгкие руки. Wisdom/32b/coder не должны сюда выбираться."""
+    if not name:
+        return False
+    key = str(name).lower()
+    if _is_wisdom_name(key):
+        return True
+    markers = (
+        "qwen3-coder",
+        "qwen2.5-coder",
+        "coder",
+        "qwen3.5:35b",
+        "deepseek-r1",
+        "qwq:",
+        ":32b",
+        "32b",
+        "14b",
+        "35b",
+        "70b",
+        "104b",
+    )
+    return any(m in key for m in markers)
+
+
 def pick_best_ollama(ollama_models: List[str]) -> Optional[str]:
     """
     Выбирает самую мощную модель из ТОЛЬКО Ollama списка.
@@ -337,9 +369,14 @@ def pick_best_ollama(ollama_models: List[str]) -> Optional[str]:
     lower_to_exact = {m.strip().lower(): m.strip() for m in ollama_models if m}
     for name in OLLAMA_BEST_FIRST:
         key = name.strip().lower()
+        if _skip_as_ollama_hands(key):
+            continue
         if key in lower_to_exact:
             return lower_to_exact[key]
-    return ollama_models[0].strip() if ollama_models else None
+    for m in ollama_models:
+        if m and not _skip_as_ollama_hands(m):
+            return m.strip()
+    return None
 
 
 def pick_best_mlx(mlx_models: List[str]) -> Optional[str]:
@@ -368,9 +405,14 @@ def pick_ollama_for_category(category: str, ollama_models: List[str]) -> Optiona
     lower_to_exact = {m.strip().lower(): m.strip() for m in ollama_models if m}
     for name in priorities:
         key = name.strip().lower()
+        if _skip_as_ollama_hands(key):
+            continue
         if key in lower_to_exact:
             return lower_to_exact[key]
-    return ollama_models[0].strip() if ollama_models else None
+    for m in ollama_models:
+        if m and not _skip_as_ollama_hands(m):
+            return m.strip()
+    return None
 
 
 def pick_mlx_for_category(category: str, mlx_models: List[str]) -> Optional[str]:

@@ -17,7 +17,8 @@ _last_mlx_failure_time: float = 0
 # Бессмертные модели (держать в памяти всегда) — дублируем список, чтобы не импортировать local_router
 # Финальный состав по §53 (2026-03-08 Singularity 24.7 Immortal Models Alignment):
 # nomic, moondream, tinyllama, phi3.5 — всегда в памяти.
-# victoria-wisdom-v3.5:latest НЕ здесь: при живом MLX → 60с (Wisdom Era §825), immortal только при падении MLX.
+# victoria-wisdom*: при живом MLX → keep_alive=0 (мозг на 11435, не держать дубль на 11434).
+# Immortal в Ollama только если MLX упал (fallback-мозг).
 IMMORTAL_MODELS = {
     "nomic-embed-text",
     "moondream",
@@ -177,8 +178,8 @@ def get_keep_alive(
                         elapsed,
                     )
                     return -1
-            # Если MLX жив и кулдаун прошёл, выгружаем v3.5 в Ollama быстрее (через 1 мин), так как мозг в MLX
-            return 60
+            # MLX жив и кулдаун прошёл — не держать wisdom в Ollama даже 60с
+            return 0
 
     # 1.5. Recovery cooldown: if MLX just recovered, keep Ollama models alive
     if mlx_alive and _last_mlx_failure_time > 0:

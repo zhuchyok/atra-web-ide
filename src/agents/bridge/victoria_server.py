@@ -816,6 +816,36 @@ async def _clear_async_inflight(task_id: str) -> None:
         pass
 
 
+async def _fail_orphaned_inflight_on_startup() -> None:
+    """After process restart there is no live coroutine. Fail leftover inflight /run now."""
+    if not redis_manager:
+        return
+    try:
+        client = await redis_manager.get_client()
+        inflight = await client.hgetall(_ASYNC_INFLIGHT_REDIS_KEY)
+    except Exception as e:
+        logger.debug("[VICTORIA] orphan inflight read failed: %s", e)
+        return
+    if not inflight:
+        return
+    now_iso = datetime.now(timezone.utc).isoformat()
+    err = "orphaned after Victoria restart (no live coroutine)"
+    for raw_id in inflight:
+        task_id = raw_id.decode() if isinstance(raw_id, bytes) else str(raw_id)
+        store = _run_task_store.get(task_id)
+        if store is not None:
+            store["status"] = "failed"
+            store["stage"] = "failed"
+            store["error"] = err
+            store["updated_at"] = now_iso
+        try:
+            await redis_manager.update_task_status(task_id, "failed", result=err)
+        except Exception:
+            pass
+        await _clear_async_inflight(task_id)
+        logger.warning("[VICTORIA] orphan inflight %s → failed", task_id[:8])
+
+
 def _percentile(values: list[float], p: float) -> float:
     if not values:
         return 0.0
@@ -1512,12 +1542,22 @@ async def _unload_ollama_wisdom_if_mlx_brain() -> None:
     ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
-            for name in ("victoria-wisdom-24k:latest", "victoria-wisdom-v3.5:latest"):
+            ps = await client.get(f"{ollama_url}/api/ps")
+            if ps.status_code != 200:
+                return
+            loaded = [
+                str(m.get("name") or "")
+                for m in (ps.json().get("models") or [])
+                if isinstance(m, dict)
+            ]
+            for name in loaded:
+                if "victoria-wisdom" not in name.lower():
+                    continue
                 await client.post(
                     f"{ollama_url}/api/generate",
                     json={"model": name, "prompt": "", "keep_alive": 0},
                 )
-        logger.info("♻️ [VICTORIA] Ollama wisdom unloaded (мозг в MLX)")
+                logger.info("♻️ [VICTORIA] unloaded %s from Ollama (мозг в MLX)", name)
     except Exception as e:
         logger.debug("[VICTORIA] Ollama wisdom unload skipped: %s", e)
 
@@ -1761,6 +1801,7 @@ async def lifespan(app: FastAPI):
         else:
             _create_tracked_task(warmup_victoria())
     _create_tracked_task(_unload_ollama_wisdom_if_mlx_brain())
+    _create_tracked_task(_fail_orphaned_inflight_on_startup())
 
     # Memory watchdog: gc + malloc_trim каждые 30 мин + аварийный перезапуск при >18GB
     # [SINGULARITY 30.0] Dynamic interval and event-driven GC
@@ -8291,10 +8332,7 @@ async def run_task(
                 )
 
         async def _bounded_background_run() -> None:
-            # [SUPER-AGENT] Многошаговые задачи (deep_analysis → Veronica → код) требуют
-            # >180s. Поднимаем дефолт до 600s, настраивается env'ом.
-            # [v4.2-QUALITY] Watchdog per-handoff: analysis-heavy задачи (early_async_analysis)
-            # режем раньше (180с из VICTORIA_ASYNC_WATCHDOG_SEC), остальное — 600с hard.
+            # 180с — только тишина (нет deep stage). enhanced_solve / veronica → 600с.
             _handoff_reason = str(task_data.get("handoff_reason") or "")
             _wd_enabled = os.getenv("VICTORIA_ASYNC_WATCHDOG_SEC", "180")
             _hard_timeout_sec = float(os.getenv("VICTORIA_ASYNC_HARD_TIMEOUT_SEC", "600"))
@@ -8302,27 +8340,69 @@ async def run_task(
                 _wd_sec = float(_wd_enabled)
             except ValueError:
                 _wd_sec = 180.0
-            if _wd_enabled == "0" or _wd_sec <= 0:
-                _async_timeout_sec = _hard_timeout_sec
-            elif _handoff_reason == "early_async_analysis":
-                _async_timeout_sec = min(_wd_sec, _hard_timeout_sec)
-            else:
-                _async_timeout_sec = _hard_timeout_sec
-            try:
-                await asyncio.wait_for(task_coro, timeout=_async_timeout_sec)
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "[VICTORIA_CYCLE] background hard-timeout task_id=%s after %.0fs",
-                    task_id[:8],
-                    _async_timeout_sec,
-                )
+            _deep_stages = (
+                "enhanced_solve",
+                "veronica",
+                "plan_decomposer",
+                "deep_analysis",
+                "agent_run",
+            )
+
+            def _mark_timeout(seconds: float, why: str) -> None:
                 now_iso = datetime.now(timezone.utc).isoformat()
                 store = _run_task_store.get(task_id)
                 if store is not None:
                     store["status"] = "failed"
                     store["stage"] = "failed"
-                    store["error"] = f"Background timeout after {_async_timeout_sec:.0f}s"
+                    store["error"] = f"Background timeout after {seconds:.0f}s ({why})"
                     store["updated_at"] = now_iso
+
+            bg_task = asyncio.ensure_future(task_coro)
+            try:
+                if _wd_enabled == "0" or _wd_sec <= 0 or _handoff_reason != "early_async_analysis":
+                    await asyncio.wait_for(bg_task, timeout=_hard_timeout_sec)
+                else:
+                    await asyncio.wait({bg_task}, timeout=_wd_sec)
+                    if bg_task.done():
+                        await bg_task
+                    else:
+                        store_now = _run_task_store.get(task_id) or {}
+                        stage_now = str(store_now.get("stage") or "")
+                        if stage_now in _deep_stages:
+                            remaining = max(1.0, _hard_timeout_sec - _wd_sec)
+                            logger.info(
+                                "[VICTORIA_CYCLE] watchdog extend task_id=%s stage=%s +%.0fs",
+                                task_id[:8],
+                                stage_now,
+                                remaining,
+                            )
+                            await asyncio.wait_for(bg_task, timeout=remaining)
+                        else:
+                            bg_task.cancel()
+                            try:
+                                await bg_task
+                            except (asyncio.CancelledError, asyncio.TimeoutError):
+                                pass
+                            logger.warning(
+                                "[VICTORIA_CYCLE] silent-timeout task_id=%s after %.0fs stage=%s",
+                                task_id[:8],
+                                _wd_sec,
+                                stage_now,
+                            )
+                            _mark_timeout(_wd_sec, f"no deep progress stage={stage_now or 'none'}")
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "[VICTORIA_CYCLE] background hard-timeout task_id=%s after %.0fs",
+                    task_id[:8],
+                    _hard_timeout_sec,
+                )
+                if not bg_task.done():
+                    bg_task.cancel()
+                    try:
+                        await bg_task
+                    except (asyncio.CancelledError, asyncio.TimeoutError):
+                        pass
+                _mark_timeout(_hard_timeout_sec, "hard cap")
             finally:
                 store = _run_task_store.get(task_id)
                 if store is not None:

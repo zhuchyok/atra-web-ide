@@ -21,6 +21,7 @@ VICTORIA_DEBUG = os.getenv("VICTORIA_DEBUG", "false").lower() in ("true", "1", "
 
 # Мировая практика: только эти инструменты существуют. Любой другой = отклоняем и просим повторить.
 ALLOWED_TOOLS = {"finish", "read_file", "list_directory", "run_terminal_cmd", "ssh_run", "write_file", "apply_patch", "grep_search", "web_search", "db_query", "git_status", "git_diff", "git_log", "git_branch_create", "git_add", "git_commit", "git_push", "git_pr_create", "git_pr_list", "git_test_run"}
+ALLOWED_TOOLS_HINT = ", ".join(sorted(ALLOWED_TOOLS))
 
 # === MODEL FALLBACK CONFIGURATION ===
 # Ordered list of fallback models from smallest to largest
@@ -28,7 +29,6 @@ FALLBACK_MODELS_OLLAMA = [
     "phi3.5:3.8b",  # Fast, stable
     "tinyllama:1.1b-chat",  # Very small, always works
     "glm-4.7-flash:q8_0",  # Medium, good quality
-    "victoria-wisdom-24k:latest",  # Large, may crash on limited RAM
 ]
 
 
@@ -128,6 +128,23 @@ def _wisdom_mlx_primary_enabled() -> bool:
     return os.getenv("VICTORIA_WISDOM_MLX_PRIMARY", "true").lower() in ("1", "true", "yes")
 
 
+def _mlx_brain_enabled() -> bool:
+    return os.getenv("VICTORIA_MLX_BRAIN", "true").lower() in ("1", "true", "yes", "on")
+
+
+def _wisdom_must_stay_on_mlx(model: Optional[str], base_url: str, mlx_url: str) -> bool:
+    """True = этот вызов wisdom нельзя слать на Ollama 11434/11436."""
+    if not _is_victoria_wisdom(model):
+        return False
+    if not (_mlx_brain_enabled() or _wisdom_mlx_primary_enabled()):
+        return False
+    base = (base_url or "").rstrip("/")
+    mlx = (mlx_url or "").rstrip("/")
+    if base == mlx or ":11435" in base:
+        return False
+    return True
+
+
 class OllamaExecutor:
     """Исполнитель запросов к Ollama / MLX API с автоматическим fallback"""
 
@@ -171,11 +188,12 @@ class OllamaExecutor:
 
         self.system_prompt = """ТЫ — ВИКТОРИЯ, TEAM LEAD ATRA. Отвечай на русском.
 
-СТРОГО: Ответ — ОДИН JSON, без текста до/после. Поле "tool" — ТОЛЬКО одно из: finish, read_file, list_directory, run_terminal_cmd, ssh_run, write_file. Других инструментов НЕТ (нет web_search, git_run, web_check, websocket и т.д.).
+СТРОГО: Ответ — ОДИН JSON, без текста до/после. Поле "tool" — только из разрешенного списка ниже.
 
 ФОРМАТ: {"thought": "...", "tool": "...", "tool_input": {...}}
+СПИСОК ДОПУСТИМЫХ TOOL: finish, read_file, list_directory, run_terminal_cmd, ssh_run, write_file, apply_patch, grep_search, web_search, db_query, git_status, git_diff, git_log, git_branch_create, git_add, git_commit, git_push, git_pr_create, git_pr_list, git_test_run.
 
-ИНСТРУМЕНТЫ (только эти):
+БАЗОВЫЕ ПРИМЕРЫ ИНСТРУМЕНТОВ (список выше является полным):
 1. finish - ЗАВЕРШИТЬ задачу. Используй СРАЗУ для простых вопросов!
    {"tool": "finish", "tool_input": {"output": "ответ"}}
 2. read_file - прочитать файл. Путь ТОЛЬКО реальный: frontend/src/App.svelte, package.json (НЕ /path/to/!)
@@ -191,7 +209,7 @@ class OllamaExecutor:
 
    ВАЖНО: content для write_file — это ГОТОВЫЙ КОД/ТЕКСТ файла, а НЕ план! Если просят "создай файл с функцией", content должен содержать готовый код функции.
 
-ЗАПРЕЩЕНО: web_search, web_edit, git_run, web_review — таких инструментов НЕТ! Не выдумывай пути /path/to/ — используй реальные: ., frontend, backend. Ответ — ОДИН JSON, без текста до/после.
+ЗАПРЕЩЕНО: использовать неразрешенные/выдуманные инструменты (например web_edit, web_review, git_run, websocket и т.п.). Не выдумывай пути /path/to/ — используй реальные: ., frontend, backend. Ответ — ОДИН JSON, без текста до/после.
 
 ПРАВИЛА ВЫПОЛНЕНИЯ:
 - Простые вопросы ("привет", "скажи привет") → СРАЗУ finish
@@ -260,8 +278,12 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                         logger.info(f"[FALLBACK] ✅ Found MLX model: {model}")
                         return model, self._mlx_url
 
-        # Try Ollama (smaller models are more stable)
+        # Try Ollama (smaller models are more stable). Wisdom на 11434 запрещён.
         for model in FALLBACK_MODELS_OLLAMA:
+            if _is_victoria_wisdom(model) and (
+                _mlx_brain_enabled() or _wisdom_mlx_primary_enabled()
+            ):
+                continue
             if model not in self._failed_models:
                 if await self._check_model_available(self.base_url, model):
                     logger.info(f"[FALLBACK] ✅ Found Ollama model: {model}")
@@ -386,29 +408,17 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
 
         req_model = model or self.model
         req_base = self.base_url
-        # World practice (brain on specialized accelerator): wisdom → MLX when healthy.
-        if (
-            _wisdom_mlx_primary_enabled()
-            and self._use_mlx_fallback
-            and _is_victoria_wisdom(req_model)
-            and req_base.rstrip("/") != self._mlx_url.rstrip("/")
+        # Wisdom живёт в MLX. Не ждать health-probe, чтобы не упасть на 11434.
+        if _is_victoria_wisdom(req_model) and (
+            _mlx_brain_enabled() or _wisdom_mlx_primary_enabled()
         ):
-            try:
-                timeout = aiohttp.ClientTimeout(total=2.0, connect=1.0)
-                async with aiohttp.ClientSession(timeout=timeout) as _sess:
-                    async with _sess.get(f"{self._mlx_url.rstrip('/')}/health") as _resp:
-                        if _resp.status == 200:
-                            req_base = self._mlx_url
-                            req_model = _normalize_model_for_backend(
-                                req_model, req_base, self._mlx_url
-                            )
-                            logger.info(
-                                "[LLM_ROUTE] wisdom MLX-primary model=%s url=%s",
-                                req_model,
-                                req_base,
-                            )
-            except Exception as _route_err:
-                logger.debug("[LLM_ROUTE] MLX primary probe skipped: %s", _route_err)
+            req_base = self._mlx_url
+            req_model = _normalize_model_for_backend(req_model, req_base, self._mlx_url)
+            logger.info(
+                "[LLM_ROUTE] wisdom MLX-only model=%s url=%s",
+                req_model,
+                req_base,
+            )
 
         async with self._semaphore:
             logger.info(
@@ -567,6 +577,25 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
         system_override: Optional[str] = None,
     ) -> Any:
         """Internal method with fallback support"""
+        if _wisdom_must_stay_on_mlx(model, base_url, self._mlx_url):
+            logger.warning(
+                "[WISDOM-TAP] refuse Ollama for %s url=%s → MLX",
+                model,
+                base_url,
+            )
+            if is_retry and (base_url or "").rstrip("/") == (self._mlx_url or "").rstrip("/"):
+                return {"error": "wisdom refused on Ollama (мозг в MLX)"}
+            return await self._ask_with_fallback(
+                prompt=prompt,
+                history=history,
+                raw_response=raw_response,
+                model=_normalize_model_for_backend(model, self._mlx_url, self._mlx_url),
+                base_url=self._mlx_url,
+                is_retry=True,
+                phase=phase,
+                blocked_tools=blocked_tools,
+                system_override=system_override,
+            )
         model = _normalize_model_for_backend(model, base_url, self._mlx_url)
         url = f"{base_url}/api/chat"
         system_content = system_override or self.system_prompt
@@ -965,7 +994,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                     "[LLM_PARSE] Invalid format detected: tool_execution/final_output"
                 )
                 return AgentFinish(
-                    output='Используй только формат: {"thought": "...", "tool": "один из: finish, read_file, list_directory, run_terminal_cmd, ssh_run, write_file, apply_patch, grep_search", "tool_input": {...}}. Других полей нет.',
+                    output=f'Используй только формат: {{"thought": "...", "tool": "один из: {ALLOWED_TOOLS_HINT}", "tool_input": {{...}}}}. Других полей нет.',
                     thought=thought,
                 )
 
@@ -1006,7 +1035,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                     )
                     logger.warning(f"[LLM_PARSE] Unknown tool '{bad}' rejected")
                     return AgentFinish(
-                        output=f'Доступны только: finish, read_file, list_directory, run_terminal_cmd, ssh_run, write_file, apply_patch, grep_search. Ты указал: {bad}. Ответь одним JSON с tool: finish и tool_input: {{"output": "твой краткий ответ"}}.',
+                        output=f'Доступны только: {ALLOWED_TOOLS_HINT}. Ты указал: {bad}. Ответь одним JSON с tool: finish и tool_input: {{"output": "твой краткий ответ"}}.',
                         thought=thought,
                     )
                 if data["tool"] == "finish" or (data.get("tool") == "" and not tool_input):

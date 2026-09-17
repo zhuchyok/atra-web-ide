@@ -25,15 +25,13 @@ def test_fallback_brain_mlx_down_v35_returns_minus_one():
     assert get_keep_alive("victoria-wisdom-v3.5:latest", category=None, mlx_alive=False) == -1
 
 
-def test_fallback_brain_mlx_alive_v35_not_minus_one():
-    """При mlx_alive=True для v3.5 возвращается не -1 (обычная политика)."""
+def test_fallback_brain_mlx_alive_v35_unloads_immediately():
+    """При mlx_alive=True для v3.5 keep_alive=0 — не держать дубль в Ollama."""
     with patch.dict(os.environ, {}, clear=False):
-        # Убрать env чтобы не переопределяло
         for key in ("VICTORIA_OLLAMA_KEEP_ALIVE", "OLLAMA_KEEP_ALIVE"):
             os.environ.pop(key, None)
         result = get_keep_alive("victoria-wisdom-v3.5", category=None, mlx_alive=True)
-        assert result != -1
-        assert result in (60, 300, 600, 3600) or isinstance(result, int)
+        assert result == 0
 
 
 def test_immortal_models_return_minus_one():
@@ -160,5 +158,4 @@ def test_victoria_strategist_not_capped_as_burst_heavy():
         os.environ.pop("VICTORIA_OLLAMA_KEEP_ALIVE", None)
         os.environ.pop("OLLAMA_KEEP_ALIVE", None)
         result = get_keep_alive("victoria-wisdom-v3.5:latest", mlx_alive=True)
-        assert result in (60, 300, 600, 3600) or isinstance(result, int)
-        assert result != -1 or True  # mlx alive → typically 60
+        assert result == 0
