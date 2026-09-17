@@ -827,6 +827,14 @@ class SemanticAICache:
         ttl_seconds: Optional[int] = None,
     ):
         """Save a new interaction to the semantic cache with routing metrics."""
+        # btree максимум 2704 байта на уникальный индекс (query_text, expert_name).
+        # Запросы длиннее — SRC-текст: обрезать query_text до 1800 символов, чтобы
+        # unique-индекс всегда влезал (иначе INSERT error "index row size exceeds").
+        _BTREE_GUARD_MAX = 1800
+        if query and len(query) > _BTREE_GUARD_MAX:
+            # Конец запроса важнее (обрезаем с начала — хранить семантику хвоста),
+            # чтобы не ломать дедуп по схожести: hash не используем, просто режем.
+            query = query[:_BTREE_GUARD_MAX]
         embedding = await get_embedding(query)
         if not embedding:
             return
