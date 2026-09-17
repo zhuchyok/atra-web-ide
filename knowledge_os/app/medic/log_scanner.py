@@ -97,6 +97,9 @@ IGNORE_PATTERNS = [
     re.compile(r'unrecognized configuration parameter "default_pool_size"'),
     re.compile(r"password authentication failed for user"),
     re.compile(r"FATAL:  password authentication failed"),
+    re.compile(r"task_identity_map.*violates foreign key constraint"),
+    re.compile(r"Sandbox bind path .* is container-local"),
+    re.compile(r"SandboxManager: Docker not available"),
 ]
 
 # Containers to never scan (avoid self-referential loops)

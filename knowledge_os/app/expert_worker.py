@@ -548,6 +548,12 @@ async def _upsert_identity_mapping(conn, external_task_id: str, canonical_task_i
     if external_task_id == canonical_task_id:
         return
     try:
+        exists = await conn.fetchval(
+            "SELECT 1 FROM tasks WHERE id = $1::uuid",
+            str(canonical_task_id),
+        )
+        if not exists:
+            return
         await conn.execute(
             """
             INSERT INTO task_identity_map (external_task_id, canonical_task_id)
@@ -561,6 +567,8 @@ async def _upsert_identity_mapping(conn, external_task_id: str, canonical_task_i
         )
     except asyncpg.exceptions.UndefinedTableError:
         # Backward compatibility while migration is rolling out.
+        pass
+    except asyncpg.exceptions.ForeignKeyViolationError:
         pass
     except Exception as map_err:
         logger.debug(
