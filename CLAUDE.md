@@ -105,3 +105,5 @@ Multi-agent AI system with Victoria as team lead, 88 experts, PostgreSQL, Redis,
 - **Hung-алерт отделён от p95**: `hung_fired_at` отдельный дедуп-ключ в state (ложный p95-page больше не глушит hang)
 - **Wisdom-guard** (`scripts/ollama_wisdom_guard.py` + LaunchAgent `com.atra.ollama-wisdom-guard`): каждые 10мин выгружает `victoria-wisdom*` из Ollama 11434 (keep_alive=0), чтобы MLX-мозг не дублировался в обah Витam; лог: logs/ollama_wisdom_guard.out.log
 - **Финальный 15-мин soak** (16.09): 3 `/run` reasoning + 15мин простой → Все terminal (2 failed по watchdog honesty + 1 completed); HLEN inflight=0 после завершений; wisdom в 11434 False (guard авто-выгрузка доказана). Contract «задача кончается» подтверждён.
+- **semantic_cache btree fix** (17.09): `save_to_cache` обрезает query_text до 1800 симв — устранено 'index row size 2816 exceeds max 2704' (12 ERROR/час → 0)
+- **Хвост**: `text * double precision` PG-логи из генерированных экспертом-SKILL запросов (PERFORMANCE HYPOTHESIS skill выполняется как SQL в db_query путь) — косметика, не блокер
