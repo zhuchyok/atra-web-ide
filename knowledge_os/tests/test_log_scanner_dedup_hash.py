@@ -29,5 +29,7 @@ def test_log_scanner_ignores_watchdog_postgres_type_noise():
     assert r'column "last_exec_time" does not exist' in text
     assert r"password authentication failed" in text
     assert r"\[MISMATCH-RECOVERY\]" in text
+    assert r"Too many conn" in text
+    assert r'unrecognized configuration parameter "default_pool_size"' in text
     assert r"Ошибка парсинга промпта" in text
     assert r"IndentationError.*corporation_knowledge_system" in text

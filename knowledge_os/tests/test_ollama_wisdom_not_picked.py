@@ -1,5 +1,6 @@
 """Wisdom is MLX-only: Ollama pickers must not return victoria-wisdom*."""
 
+from app.ai_core import _direct_ollama_fallback_models
 from app.available_models_scanner import pick_best_ollama, pick_ollama_for_category
 from app.local_router import OLLAMA_MODELS_FALLBACK
 
@@ -43,3 +44,9 @@ def test_pick_best_ollama_heavies_only_returns_none():
 def test_ollama_fallback_defaults_are_not_wisdom():
     for key, name in OLLAMA_MODELS_FALLBACK.items():
         assert "victoria-wisdom" not in str(name).lower(), (key, name)
+
+
+def test_direct_ollama_fallback_models_are_light_hands():
+    models = _direct_ollama_fallback_models("http://host.docker.internal:11434")
+    assert models[0] == "phi3.5:3.8b"
+    assert all("wisdom" not in m.lower() and "35b" not in m.lower() for m in models)

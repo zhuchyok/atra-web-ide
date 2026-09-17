@@ -92,6 +92,7 @@ IGNORE_PATTERNS = [
     # PG pool hiccups are transient, not remediation incidents.
     re.compile(r"\[HEARTBEAT\] Loop failed.*Too many connections"),
     re.compile(r"Too many connections"),
+    re.compile(r"Too many conn"),  # docker/scanner line may truncate "connections"
     # pgbouncer-only config errors surfaced by SHOW; not a ATRA incident
     re.compile(r'unrecognized configuration parameter "default_pool_size"'),
     re.compile(r"password authentication failed for user"),

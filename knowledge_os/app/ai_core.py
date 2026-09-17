@@ -795,6 +795,14 @@ async def _get_db_pool():
     return _DB_POOL
 
 
+def _direct_ollama_fallback_models(ollama_url: str) -> list:
+    """11434 hands only. Wisdom/35b stay off this list — brain is MLX 11435."""
+    local = any(x in (ollama_url or "") for x in ("localhost", "127.0.0.1", "host.docker.internal"))
+    if local:
+        return ["phi3.5:3.8b", "tinyllama:1.1b-chat"]
+    return ["phi3:latest", "tinyllama"]
+
+
 async def _run_cloud_agent_async(
     prompt: str,
     category: Optional[str] = "general",
@@ -1062,35 +1070,14 @@ async def _run_cloud_agent_async(
                         # Mac Studio: доступны лучшие модели
                         # Локальные модели (70b удалены)
                         # Ollama модели: glm-4.7-flash:q8_0, phi3.5:3.8b
-                        if (
-                            "localhost" in ollama_url
-                            or "127.0.0.1" in ollama_url
-                            or "host.docker.internal" in ollama_url
-                        ):
-                            # Mac Studio - лучшие модели (victoria-wisdom приоритет)
-                            models_to_try = [
-                                "victoria-wisdom-24k:latest",
-                                "phi3.5:3.8b",
-                                "qwen3.5:35b",
-                                "tinyllama:1.1b-chat",
-                            ]
-                        else:
-                            # Внешний сервер - легкие модели (если потребуется)
-                            models_to_try = [
-                                "phi3:latest",
-                                "phi3",
-                                "phi4:latest",
-                                "phi4",
-                                "tinyllama",
-                                "gemma:2b",
-                            ]
+                        models_to_try = _direct_ollama_fallback_models(ollama_url)
 
                         response = None
                         model_used = None
 
                         for model_name in models_to_try:
                             try:
-                                _keep_alive = get_keep_alive(model_name, mlx_alive=False)
+                                _keep_alive = get_keep_alive(model_name, mlx_alive=True)
                                 async with session.post(
                                     f"{ollama_url}/api/generate",
                                     json={
