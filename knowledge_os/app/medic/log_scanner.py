@@ -79,6 +79,19 @@ IGNORE_PATTERNS = [
     re.compile(r"\[VICTORIA\]\s+Прогрев .*busy \(503\)", re.IGNORECASE),
     # Grafana plugin auto-update failures are non-critical for ATRA runtime.
     re.compile(r"plugin\.backgroundinstaller.*failed to install plugin", re.IGNORECASE),
+    # Watchdog EXPLAIN ANALYZE on pg_stat_statements $n → postgres type errors.
+    re.compile(r"operator does not exist: (double precision \* text|text \* double precision)"),
+    re.compile(r"canceling statement due to user request"),
+    re.compile(r"FATAL:\s+connection to client lost"),
+    re.compile(r'column "last_exec_time" does not exist'),
+    re.compile(r"password authentication failed"),
+    re.compile(r"\[MISMATCH-RECOVERY\]"),
+    # Truncated corp module / parse self-loop (root is restored file).
+    re.compile(r"Ошибка парсинга промпта"),
+    re.compile(r"IndentationError.*corporation_knowledge_system"),
+    # PG pool hiccups are transient, not remediation incidents.
+    re.compile(r"\[HEARTBEAT\] Loop failed.*Too many connections"),
+    re.compile(r"Too many connections"),
 ]
 
 # Containers to never scan (avoid self-referential loops)
