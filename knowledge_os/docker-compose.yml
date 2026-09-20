@@ -31,7 +31,7 @@ x-logging: &default-logging
 services:
   db:
     logging: *default-logging
-    mem_limit: 8g
+    mem_limit: 6g
     cpus: 2
     image: pgvector/pgvector:pg16
     container_name: knowledge_postgres
@@ -56,7 +56,7 @@ services:
     environment:
       TZ: Europe/Moscow
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
     ports:
       - "5432:5432"
     volumes:

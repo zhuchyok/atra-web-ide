@@ -6,7 +6,7 @@ x-dynamic-worker-env: &dynamic-worker-env
   EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
   ENABLE_METRICS: "true"
   METRICS_PORT: "8001"
-  DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+  DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
   REDIS_URL: unix:///data/redis/redis.sock
   OLLAMA_BASE_URL: http://host.docker.internal:11434
   # [ФОКУС 4.2] Dynamic-воркеры кодят на выделенном coder-инстансе (не конкурируют с wisdom 11434)
@@ -126,8 +126,8 @@ services:
       PROJECT_ROOT: /workspace/atra-web-ide
       WORKSPACE_ROOT: /workspace/atra-web-ide
       ATRA_ENV: prod
-      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
-      POSTGRES_DIRECT_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
+      POSTGRES_DIRECT_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       # Выделенный coder-инстанс для autonomous-code (обход ReAct)
       OLLAMA_CODER_URL: http://host.docker.internal:11436
@@ -216,7 +216,7 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os:/app
-      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       # Выделенный Ollama-инстанс для coder (11436) — не конкурирует с wisdom Victoria
@@ -261,7 +261,7 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
-      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
@@ -323,7 +323,7 @@ services:
       ENABLE_METRICS: "true"
       EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
       METRICS_PORT: "8001"
-      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
@@ -370,7 +370,7 @@ services:
       ENABLE_METRICS: "true"
       EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
       METRICS_PORT: "8001"
-      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
@@ -415,7 +415,7 @@ services:
       ENABLE_METRICS: "true"
       EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
       METRICS_PORT: "8001"
-      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
@@ -520,7 +520,7 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
-      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
@@ -559,7 +559,7 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
-      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_NUM_PARALLEL: "5"
@@ -606,7 +606,7 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
-      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_NUM_PARALLEL: "5"
@@ -645,7 +645,7 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
-      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_NUM_PARALLEL: "5"
@@ -738,7 +738,7 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
-      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
       API_KEY: ${API_KEY:-your-secret-api-key}
       BOARD_REPORTS_DIR: /data/board_reports
       VICTORIA_URL: ${VICTORIA_URL:-http://victoria-agent:8000}
@@ -790,7 +790,7 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
-      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       CHAT_ID: ${TELEGRAM_USER_ID}
       NTFY_URL: ${NTFY_URL:-https://ntfy.sh/atra_victoria_curator}
@@ -870,7 +870,7 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
-      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       HOST_PROJECT_ROOT: ${HOST_PROJECT_ROOT:-}
       HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-}
@@ -899,7 +899,7 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
-      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
       BOARD_REPORTS_DIR: /data/board_reports
       VICTORIA_URL: ${VICTORIA_URL:-http://victoria-agent:8000}
       API_KEY: ${API_KEY:-your-secret-api-key}
@@ -977,7 +977,7 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
-      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
       SWARM_STUDIO_PORT: "8006"
     volumes:
       - ../knowledge_os:/app/knowledge_os
