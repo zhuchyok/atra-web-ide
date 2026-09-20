@@ -110,3 +110,7 @@ Multi-agent AI system with Victoria as team lead, 88 experts, PostgreSQL, Redis,
 - **Loop LOG_SCANNER закрыт** (18.09): фильтры noise (`operator does not exist`, `default_pool_size`, `password auth fail`, `[HEARTBEAT] Too many connections`, `IndentationError corporation`) — после 111 cancelled/24ч поток остановлен (0 новых за 10 мин). corporation_knowledge_system.py восстановлен на 911 строк (был 1-строчный stub в git, откатывался при checkout)
 - **Экспертный full-check (18.09, /expert)**: перезапуск heavy/anna/orchestrator для reload semantic_cache fix; регрессии и soak повторены: 3 задача terminal, HLEN=0, wisdom guard после reasoning сам вычищает за ≤5 мин, LOG_SCANNER 0. Ошибки Victoria 49x`_GatheringFuture` — известный наполовину benign CancelledError (филтр есть)
 - **Финал 100% системы** (18.09): пусто pending/in_progress/queued (0 активных), HLEN=0, wisdom в Ollama=False, LOG_SCANNER 0 сообщений/2 мин, фильтр `stats_reset` добавлен. Система чисто idle, всё 100% закрыто и проверено.
+- **Multi-day re-check (20.09, /expert)**: 
+  1) SASL auth fail у dynamic-1..5 после рестартов — .env knowledge_os не имел POSTGRES_PASSWORD (была сломанная строка `SMART_WORKER_MAX_PENDING=10POSTGRES_PASSWORD`), исправлено + compose anchor; все 5 healthy
+  2) EXPERT_POOL_MODE=true на dynamic-1..5 — orphaned-стримы Дмитрий (427) / Леонид (582) / Анастасия (553) теперь обрабатываются pool-адопшеном (лог "🔄 [POOL] Adopting expert '<name>'"), 0 skip чужого payload
+  3) 3-й soak (10 мин) — 0 pending/in_progress, HLEN=0, wisdom=False
