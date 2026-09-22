@@ -24,7 +24,7 @@ scrape_configs:
   # Expert Workers: task execution metrics (ports for --metrics flag)
   - job_name: "expert-workers"
     static_configs:
-      - targets: ["expert-worker-heavy:8001", "expert-worker-light:8001"]
+      - targets: ["expert-worker-heavy:8001", "expert-worker-dynamic-1:8001", "expert-worker-dynamic-2:8001", "expert-worker-dynamic-3:8001", "expert-worker-dynamic-4:8001", "expert-worker-dynamic-5:8001"]
     metrics_path: "/metrics"
     scrape_interval: 30s
     params:

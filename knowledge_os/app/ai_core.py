@@ -1505,20 +1505,31 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
         graph_task = asyncio.create_task(fetch_graph())
         vector_task = asyncio.create_task(fetch_vector())
         # Жёсткий таймаут: зависший GraphRAG/VectorRAG не должен вешать весь конвейер.
+        # asyncio.wait вместо wait_for(gather(...)): на py3.11 связка wait_for+gather
+        # при отмене оставляет "_GatheringFuture exception was never retrieved".
         _rag_timeout = float(os.getenv("KNOWLEDGE_RAG_TIMEOUT_SEC", "30"))
-        try:
-            graph_context, vector_context = await asyncio.wait_for(
-                asyncio.gather(graph_task, vector_task, return_exceptions=True),
-                timeout=_rag_timeout,
-            )
-        except asyncio.TimeoutError:
-            logger.error(
-                f"⏰ RAG retrieval превысил таймаут {_rag_timeout}с — продолжаем без контекста"
-            )
-            for _t in (graph_task, vector_task):
-                if not _t.done():
-                    _t.cancel()
-            graph_context, vector_context = None, ""
+        _done, _pending = await asyncio.wait(
+            {graph_task, vector_task}, timeout=_rag_timeout
+        )
+        for _t in _pending:
+            _t.cancel()
+        if _pending:
+            await asyncio.wait(_pending, timeout=5)
+            for _t in _pending:
+                _t.exception()
+        for _t in _done:
+            _t.exception()
+
+        async def _task_result(t):
+            if t in _done and not t.cancelled():
+                try:
+                    return t.result()
+                except BaseException:
+                    return None
+            return None
+
+        graph_context = await _task_result(graph_task)
+        vector_context = await _task_result(vector_task) or ""
         if isinstance(graph_context, BaseException):
             # TODO: Convert f-string to %s formatting for performance
             logger.error(f"GraphRAG task error: {graph_context}")

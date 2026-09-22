@@ -206,6 +206,8 @@ services:
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: veronica-agent
     restart: always
+    ports:
+      - "8011:8000"
     networks:
       - atra-network
     healthcheck:

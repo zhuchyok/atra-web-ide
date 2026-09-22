@@ -55,17 +55,31 @@ class ParallelExecutor:
             coroutines.append(coro)
 
         # Выполняем параллельно
-        try:
-            if timeout:
-                results = await asyncio.wait_for(
-                    asyncio.gather(*coroutines, return_exceptions=True), timeout=timeout
-                )
-            else:
-                results = await asyncio.gather(*coroutines, return_exceptions=True)
-        except asyncio.TimeoutError:
-            # TODO: Convert f-string to %s formatting for performance
-            logger.warning(f"⏱️ Timeout при параллельном выполнении {len(tasks)} задач")
-            results = [None] * len(tasks)
+        # asyncio.wait вместо wait_for(gather(...)): на py3.11 связка wait_for+gather
+        # при отмене оставляет "_GatheringFuture exception was never retrieved".
+        if timeout:
+            tasks_fut = [asyncio.ensure_future(c) for c in coroutines]
+            done, pending = await asyncio.wait(tasks_fut, timeout=timeout)
+            for t in pending:
+                t.cancel()
+            if pending:
+                await asyncio.wait(pending, timeout=5)
+                for t in pending:
+                    t.exception()
+            for t in done:
+                t.exception()
+            results = []
+            for t in tasks_fut:
+                if t.done() and not t.cancelled():
+                    try:
+                        results.append(t.result())
+                    except BaseException:
+                        results.append(None)
+                else:
+                    results.append(None)
+            logger.warning(f"⏱️ Timeout при параллельном выполнении {len(tasks)} задач" if pending else "")
+        else:
+            results = await asyncio.gather(*coroutines, return_exceptions=True)
 
         # Обрабатываем результаты и исключения
         processed_results = []
