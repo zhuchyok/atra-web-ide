@@ -34,6 +34,18 @@ def _post_json(url, payload, timeout=30):
         return json.loads(r.read())
 
 
+def _post_json_safe(url, payload, timeout=30, retries=2):
+    """POST с ретраями: сетевые таймауты не должны ронять весь прогон."""
+    last = None
+    for _ in range(retries + 1):
+        try:
+            return _post_json(url, payload, timeout=timeout)
+        except Exception as e:  # noqa: BLE001 — устойчивость важнее типа
+            last = e
+            time.sleep(3)
+    raise last
+
+
 def _get_json(url, timeout=15):
     with urllib.request.urlopen(url, timeout=timeout) as r:
         return json.loads(r.read())
@@ -41,7 +53,10 @@ def _get_json(url, timeout=15):
 
 def solo_answer(goal: str) -> str:
     """Одиночная Виктория через /run async + poll."""
-    resp = _post_json(f"{VICTORIA}/run?async_mode=true", {"goal": goal})
+    try:
+        resp = _post_json_safe(f"{VICTORIA}/run?async_mode=true", {"goal": goal}, timeout=300)
+    except Exception as e:  # noqa: BLE001
+        return f"[ERROR] run post: {e}"
     if resp.get("status") == "success" and resp.get("output"):
         return resp["output"]  # fast-path
     task_id = resp.get("task_id")
@@ -114,6 +129,33 @@ def judge(goal: str, answer_a: str, answer_b: str) -> dict:
             if verdict:
                 break
         if verdict is None:
+            # Судья ушёл в рассуждения без JSON — один жёсткий ретрай.
+            try:
+                resp2 = _post_json(
+                    f"{MLX}/api/chat",
+                    {
+                        "model": JUDGE_MODEL,
+                        "messages": [
+                            {"role": "user", "content": prompt},
+                            {"role": "assistant", "content": raw[:200]},
+                            {"role": "user", "content": "Твой предыдущий ответ был не в формате. Ответь ТОЛЬКО одной строкой JSON: {\"a\": <0-10>, \"b\": <0-10>, \"winner\": \"A\"|\"B\"|\"tie\", \"reason\": \"...\"} без рассуждений."},
+                        ],
+                        "stream": False,
+                    },
+                    timeout=120,
+                )
+                raw2 = resp2.get("message", {}).get("content", "").replace("<think>", "").replace("</think>", "")
+                start, end = raw2.find("{"), raw2.rfind("}") + 1
+                if 0 <= start < end:
+                    verdict = json.loads(raw2[start:end])
+                    return {
+                        "a": float(verdict.get("a", 0)),
+                        "b": float(verdict.get("b", 0)),
+                        "winner": verdict.get("winner", "tie"),
+                        "reason": verdict.get("reason", ""),
+                    }
+            except Exception:  # noqa: BLE001
+                pass
             return {"a": 0.0, "b": 0.0, "winner": "error", "reason": f"judge parse: {raw[:80]}"}
         return {
             "a": float(verdict.get("a", 0)),

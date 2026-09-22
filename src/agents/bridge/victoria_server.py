@@ -307,6 +307,11 @@ def _force_deep_analysis_reason(goal: str) -> Optional[str]:
         if hits >= 2:
             return "explicit_execution_audit_scope"
 
+    # Объяснительные вопросы (knowledge-type): уточнение здесь бесполезно —
+    # нужен содержательный ответ (Enhanced + RAG), а не «уточните, что именно».
+    if any(g.startswith(v) for v in ("объясни", "что такое", "расскажи", "сравни", "почему", "зачем", "чем отличается")):
+        return "knowledge_explanation_no_clarify"
+
     return None
 
 
