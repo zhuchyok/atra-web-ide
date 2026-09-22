@@ -1508,9 +1508,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
         # asyncio.wait вместо wait_for(gather(...)): на py3.11 связка wait_for+gather
         # при отмене оставляет "_GatheringFuture exception was never retrieved".
         _rag_timeout = float(os.getenv("KNOWLEDGE_RAG_TIMEOUT_SEC", "30"))
-        _done, _pending = await asyncio.wait(
-            {graph_task, vector_task}, timeout=_rag_timeout
-        )
+        _done, _pending = await asyncio.wait({graph_task, vector_task}, timeout=_rag_timeout)
         for _t in _pending:
             _t.cancel()
         if _pending:
