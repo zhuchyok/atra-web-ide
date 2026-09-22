@@ -87,6 +87,7 @@ IGNORE_PATTERNS = [
     re.compile(r"FATAL:\s+connection to client lost"),
     re.compile(r'column "last_exec_time" does not exist'),
     re.compile(r'column "stats_reset" does not exist'),
+    re.compile(r'column "(status|source|assigned_to)" does not exist'),
     re.compile(r"password authentication failed"),
     re.compile(r"\[MISMATCH-RECOVERY\]"),
     # Truncated corp module / parse self-loop (root is restored file).
