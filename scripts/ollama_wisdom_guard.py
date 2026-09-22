@@ -26,7 +26,7 @@ def unload(model):
     req = urllib.request.Request(
         f"{OLLAMA}/api/generate", data=data, headers={"Content-Type": "application/json"}
     )
-    urllib.request.urlopen(req, timeout=15).read()
+    urllib.request.urlopen(req, timeout=60).read()
     print(f"[wisdom_guard] unloaded {model} from {OLLAMA}", flush=True)
 
 
@@ -63,8 +63,13 @@ def pin_nomic():
 
 
 def _should_unload(name: str) -> bool:
+    """11434 держит только phi3.5:3.8b и nomic. Всё остальное — чужой слот."""
     key = (name or "").lower()
-    return "wisdom" in key or "minicpm" in key or "smollm" in key
+    if "nomic" in key:
+        return False
+    if "phi3.5:3.8b" in key or key.startswith("phi3.5:3.8b"):
+        return False
+    return bool(key)
 
 
 def _enforce_hands_slot():

@@ -114,6 +114,8 @@ class KnowledgeDistiller:
             from app.ollama_keep_alive_policy import get_keep_alive
 
         model = normalize_ollama_hands_model(model)
+        if "wisdom" in str(model).lower():
+            model = "phi3.5:3.8b"
         num_predict = max(128, int(os.getenv("DISTILL_TEACHER_NUM_PREDICT", "768")))
         body: dict = {
             "model": model,

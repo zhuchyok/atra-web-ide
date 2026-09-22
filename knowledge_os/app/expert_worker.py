@@ -80,11 +80,23 @@ DB_URL = os.getenv("DATABASE_URL")
 
 
 def _ollama_url_for_model(model: Optional[str]) -> str:
-    """Route executor model to dedicated Ollama endpoint when configured."""
+    """Route coder to dedicated Ollama. Wisdom never goes to 11434/11436."""
+    m = (model or "").strip()
+    if m and "wisdom" in m.lower():
+        return (
+            os.getenv("MLX_API_URL")
+            or os.getenv("MLX_BASE_URL")
+            or "http://host.docker.internal:11435"
+        ).rstrip("/")
     base_default = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434").rstrip("/")
     executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k:latest")
-    m = (model or "").strip()
-    if m and (m == executor_model or m.rstrip(":latest") == executor_model.rstrip(":latest")):
+    if (
+        m
+        and "wisdom" not in str(executor_model).lower()
+        and (m == executor_model or m.rstrip(":latest") == executor_model.rstrip(":latest"))
+    ):
+        return os.getenv("OLLAMA_EXECUTOR_BASE_URL", base_default).rstrip("/")
+    if m and "coder" in m.lower():
         return os.getenv("OLLAMA_EXECUTOR_BASE_URL", base_default).rstrip("/")
     return base_default
 

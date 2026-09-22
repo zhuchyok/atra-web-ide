@@ -38,6 +38,12 @@ def test_sandbox_skips_pytest_when_missing():
     assert "except ImportError:" in text
 
 
+def test_distill_teacher_wisdom_remaps_to_phi():
+    text = (APP / "distillation_engine.py").read_text(encoding="utf-8")
+    assert 'if "wisdom" in str(model).lower():' in text
+    assert 'model = "phi3.5:3.8b"' in text
+
+
 def test_visual_search_embed_keeps_nomic_alive():
     text = (APP / "visual_search" / "search_engine_api.py").read_text(encoding="utf-8")
     assert '"keep_alive": -1' in text
@@ -68,9 +74,9 @@ def test_wisdom_guard_pins_phi_after_unload():
     assert "def pin_phi():" in text
     assert "pinned phi3.5:3.8b" in text
     assert "def pin_nomic():" in text
-    assert '"minicpm" in key' in text
-    assert '"smollm" in key' in text
+    assert "11434 держит только phi3.5:3.8b и nomic" in text
     assert "def _enforce_hands_slot():" in text
+    assert "urlopen(req, timeout=60)" in text
 
 
 def test_corruption_probe_skips_hands_and_does_not_error_log():

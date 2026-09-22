@@ -1293,13 +1293,21 @@ def _same_model_alias(left: str, right: str) -> bool:
 
 
 def _ollama_url_for_model(model: str, default_url: Optional[str] = None) -> str:
-    """Route executor model to dedicated Ollama endpoint when configured."""
+    """Route coder to dedicated Ollama. Wisdom never goes to 11434/11436."""
+    if model and "wisdom" in str(model).lower():
+        return (
+            os.getenv("MLX_API_URL")
+            or os.getenv("MLX_BASE_URL")
+            or "http://localhost:11435"
+        ).rstrip("/")
     base_default = (
         default_url
         or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     )
     executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k:latest")
-    if _same_model_alias(model, executor_model):
+    if "wisdom" not in str(executor_model).lower() and _same_model_alias(model, executor_model):
+        return os.getenv("OLLAMA_EXECUTOR_BASE_URL", base_default).rstrip("/")
+    if model and "coder" in str(model).lower():
         return os.getenv("OLLAMA_EXECUTOR_BASE_URL", base_default).rstrip("/")
     return base_default.rstrip("/")
 
@@ -1311,6 +1319,9 @@ async def _deferred_warmup_retry(model: str, ollama_url: str, timeout_per_model:
     max_attempts = max(1, int(os.getenv("VICTORIA_WARMUP_DEFER_MAX_ATTEMPTS", "20")))
     delay_sec = float(os.getenv("VICTORIA_WARMUP_DEFER_DELAY_SEC", "15"))
     keep_alive = max(60, int(os.getenv("VICTORIA_WARMUP_KEEP_ALIVE_SEC", "7200")))
+    if model and "wisdom" in str(model).lower():
+        logger.info("[VICTORIA] Deferred warmup skipped for %s: мозг только в MLX", model)
+        return
     async with httpx.AsyncClient(timeout=timeout_per_model) as client:
         for attempt in range(1, max_attempts + 1):
             try:
