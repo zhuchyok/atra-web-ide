@@ -30,10 +30,89 @@
 
 ## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
-**Дата последнего обновления:** 2026-08-14
-**Уровень эволюции:** 31.2.2 (Total Crystallization + Hardening)
-**Состояние:** Стабильное; IDE :3000 + gateway files + scout class (v141)
-**Целевая платформа:** Mac Studio (локальный мозг MLX + руки Ollama + Docker agents)
+**Дата последнего обновления:** 2026-09-22
+**Уровень эволюции:** 31.2.2 (hands-slot lock + scanner honesty + v143 repair)
+**Состояние:** Runtime-слой закрыт (v142/v143). Не 100% git-porcelain (~400 файлов).
+**Целевая платформа:** Mac Studio (мозг MLX 11435 + руки Ollama 11434 + coder 11436)
+
+### Контракт слоёв (обязателен, 2026-09-22)
+
+| Слой | Порт | Что живёт | Что запрещено |
+|---|---|---|---|
+| Мозг | **11435 MLX** | `victoria-wisdom-24k` | дублировать wisdom в Ollama |
+| Руки | **11434 Ollama** | **только** `phi3.5:3.8b` (или тег `3.8b-stable` того же blob) + `nomic-embed-text` | wisdom / minicpm / smollm / tinyllama / второй phi |
+| Coder | **11436 Ollama** | `qwen3-coder:30b` | wisdom |
+| Victoria | **8010** | `/run`, health | «готово» без очереди/inflight/ps |
+| Закрыто | — | `pending/in_progress/queued`=0 **или** явно чужой work (не LOG_SCANNER); inflight=0; сканер: 0 новых ложных хитов за 1–2 цикла | объявлять 100% репозитория |
+
+Правило дожима: `.cursor/rules/91_finish_to_closed.mdc`. Guard: `scripts/ollama_wisdom_guard.py` + LaunchAgent `com.atra.ollama-wisdom-guard` (unload timeout 60с; на 11434 оставляет только phi+nomic).
+
+---
+
+## § Последние изменения (2026-09-22 v143) — аудит + ремонт: Veronica порт, Prometheus targets, TCC-guard, GatheringFuture ✅
+
+### Диагноз (полный аудит)
+
+1. Veronica: контейнер healthy, но `ports` пусты — с хоста 8011 = 000.
+2. Prometheus: target `expert-worker-light` (несуществующий) — job expert-workers down.
+3. `start_model_tracker.sh`: hardcode `postgresql://zhuchyok@...` → hourly FATAL в PG + зомби-процессы model-tracker с 28.08.
+4. `boot-incident-guard` exit 1: системный `/usr/bin/python3` без TCC → PermissionError в `~/Documents`.
+5. `_GatheringFuture exception was never retrieved`: анонимный `asyncio.gather` под `wait_for` в `ai_core.py` и `parallel_executor.py`.
+6. Ложные срабатывания аудита: бэкапы живы (cron 03:00 + gdrive 03:10 + health-check 04:00, дамп 758MB валиден); tg-deferred-alerts жив (KeepAlive).
+
+### Решение
+
+1. `docker-compose.agents.yml`: veronica-agent `ports: 8011:8000` + recreate.
+2. `prometheus/prometheus.yml`: expert-workers → heavy + dynamic-1..5.
+3. `start_model_tracker.sh` → `admin:${POSTGRES_PASSWORD:-secret}`; зомби убиты, launchd kickstart.
+4. `boot-incident-guard.plist` → `/opt/homebrew/bin/python3`.
+5. Root cause GatheringFuture: py3.11 `wait_for(gather(...))` при отмене/таймауте оставляет исключение gathering-future незабранным. Фикс: в `ai_core._get_knowledge_context_impl` и `parallel_executor.execute_parallel` — `asyncio.wait` (+ cancel pending, retrieve `.exception()`) вместо `wait_for(gather)`. Диагностика через временный monkeypatch `asyncio.gather` (GATHER-ORIGIN trace), после фикса снят. Evidence: 0 предупреждений за 4+ мин (было десятки/мин).
+6. Ops-гигиена: rm atra-{grafana,prometheus,kibana,elasticsearch}, rm -f sandbox-qa (0 строк логов); мёртвый `ai.knowledgeos.backup_db` и дубль `com.atra.knowledge-postgres-backup` → `LaunchAgents/disabled/`.
+7. `.cursor/rules/expert_and_brainstorm.mdc` синхронизирован с контрактом v142.
+8. PG: включены `log_connections/log_disconnections` для атрибуции остаточных битых SQL.
+9. Режим /expert переведён на **авто-триггер** (без команды): критерии включения/исключения — `CLAUDE.md` § «Режим /expert — авто-триггер» + `.cursor/rules/expert_and_brainstorm.mdc` § /expert.
+
+### Evidence (live 2026-09-22 21:1x MSK)
+
+- `curl localhost:8011/health` → `{"status":"ok","agent":"Вероника"}`.
+- Prometheus: **12/12 up** (было 7/8).
+- `launchctl list` boot-incident-guard → exit **0**; model-tracker PID жив, FATAL в PG = 0.
+- Docker: exited=0, 36 контейнеров running; очередь 0/0; слоты 11434/11436/11435 по контракту.
+
+### Открытое (наблюдение)
+
+- Атрибуция «column source/status/assigned_to does not exist» + «aggregate in GROUP BY» — LLM-диагностический SQL, ждём следующий эпизод под трассировкой.
+- RAG-eligible ~70% (цель ≥80%) — дожим nightly; экспертов `is_active` 32/88 — сверить с employees.json.
+
+---
+
+## § Последние изменения (2026-09-22 v142) — слот рук 11434 + сканер без петли + wisdom→MLX ✅
+
+### Диагноз
+
+LOG_SCANNER ел prose (`Error`, слово FATAL, `TimeoutError` в WARNING nightly) и открывал очередь. На 11434 одновременно садились wisdom / minicpm / `3.8b-stable` / smollm (Git-Guardian) и вытесняли nomic. Корень утечки wisdom: `_ollama_url_for_model` считал `VICTORIA_EXECUTOR_MODEL=victoria-wisdom-24k` «executor» и слал мозг на `OLLAMA_EXECUTOR_BASE_URL` (часто 11434). Guard был дворником, не замком.
+
+### Решение
+
+1. Сканер: ловить `ERROR:` / `FATAL:` / CRITICAL, не голые Error/timeout; IGNORE nightly TimeoutError, parallel worker FATAL, embed/503 busy, `_GatheringFuture`.
+2. Руки: `normalize_ollama_hands_model` → один `phi3.5:3.8b`; ReAct/warmup default phi; minicpm keep_alive=0 и skip-as-hands.
+3. Замок маршрута: wisdom → только MLX 11435 (`victoria_server` + `expert_worker`); distill teacher wisdom → phi; deferred warmup wisdom skip.
+4. Guard: evict всего, кроме phi+nomic; pin обоих; timeout unload 60с.
+
+### Evidence (live 2026-09-22 20:28 MSK)
+
+- Очередь `pending/in_progress/queued` = **0**; `victoria:async_inflight` = **0**.
+- HTTP: 8010 / 8080 / 11435 = **200**.
+- 11434 `/api/ps`: `phi3.5:3.8b` + `nomic-embed-text:latest`.
+- Коммиты: `d5544ff7`, `56a457b1`, `57646d6e`, `ed2976d8`.
+- pytest рук/сканера/маршрута: **32 passed** (последний прогон после рестарта victoria + workers).
+- Правило: `.cursor/rules/91_finish_to_closed.mdc`.
+
+### Не закрыто (намеренно)
+
+- ~400 porcelain / мёртвый хардкод 185 — не runtime-слой.
+- На 11436 рядом с coder может сидеть phi (воркерный fallback) — это не слот рук.
+- Настоящий `ERROR:` Victoria сканер по-прежнему шлёт в `/run`.
 
 ---
 
@@ -2881,12 +2960,12 @@ python3 scripts/victoria_task_generator.py --dry-run  # посмотреть б�
 
 ## Wisdom Era Status (Singularity 31.2: Neural Fabric)
 
-**Архитектура:** Единый Интеллект v31.2. **Параллельная работа (Parallel Work):** Мозг (MLX, порт 11435) и Руки (Ollama, порт 11434) работают совместно, распределяя нагрузку. Модель **victoria-wisdom-v3.5** (MLX) и **victoria-wisdom-v3.5:latest** (Ollama) идентичны по знаниям.
+**Архитектура:** Единый Интеллект v31.2. **Параллельная работа (Parallel Work):** Мозг (MLX, порт 11435) и Руки (Ollama, порт 11434) разделены. Wisdom **не** дублируется в Ollama (v142). Актуальная мозг-модель: **victoria-wisdom-24k** только на MLX.
 
-**Полноценная Виктория (v31.2):**
+**Полноценная Виктория (v31.2 / контракт v142):**
 
-1. **MLX (мозг):** `VICTORIA_MLX_BRAIN=true` — предзагрузка (Pure MLX).
-2. **Ollama (руки):** активны параллельно; становятся бессмертными (`keep_alive=-1`) только при падении MLX. При живом MLX выгружаются через 60с простоя для экономии RAM.
+1. **MLX (мозг):** `VICTORIA_MLX_BRAIN=true` — `victoria-wisdom-24k` на 11435.
+2. **Ollama (руки):** 11434 держит **только** `phi3.5:3.8b` + `nomic-embed-text` (`keep_alive=-1`). Wisdom/minicpm/smollm на этом порту запрещены. Coder — отдельный инстанс 11436 (`qwen3-coder:30b`).
 3. **Knowledge Fabric:** Единая шина памяти (LTM, GraphRAG, Semantic Cache).
 4. **Visual Intelligence:** VisualRAG на порту 8005.
 5. **Recursive Evolution:** Автономный цикл улучшения кода.
@@ -2956,7 +3035,7 @@ bash scripts/toggle_strict_local.sh status
 Выполните проверку **перед** изменением `STRICT_LOCAL=true`:
 
 1. **Проверка MLX:** `curl -s http://localhost:11435/health` → HTTP 200
-2. **Проверка Ollama:** `curl -s http://localhost:11434/api/tags` → HTTP 200, список содержит `victoria-wisdom-v3.5:latest`
+2. **Проверка Ollama руки:** `curl -s http://localhost:11434/api/ps` → HTTP 200, **только** `phi3.5:3.8b` + `nomic-embed-text` (wisdom в ps = нарушение v142)
 3. **Проверка Recovery Listener:** `curl -s http://localhost:9099/recover` → HTTP 200 (критично для STRICT_LOCAL; без него при падении MLX система полностью недоступна; см. INVENTORY_VICTORIA_CAPABILITIES_2026.md §11)
 
 Если хотя бы одна проверка не прошла — **не включайте STRICT_LOCAL**, сначала восстановите сервис. Полная оценка готовности к автономности и работе без интернета: **docs/AUTONOMY_OFFLINE_READINESS.md**.
