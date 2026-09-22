@@ -4144,6 +4144,111 @@ def _is_direct_tool_reply_candidate(goal: str) -> bool:
     return True
 
 
+_FILE_CHECK_RE = re.compile(
+    r"^\s*(?:проверь|прочитай)\s+файл\s+(?P<path>[^\s—-]+)",
+    re.IGNORECASE,
+)
+# Truncated per bible v34: keywords must be within the first 120 chars.
+_FILE_CHECK_MAX_PREFIX = 120
+
+
+def _file_check_scan(path: str, task_text: str) -> Optional[str]:
+    """Deterministic file check: «есть ли X» → substring scan, «найди проблемы: a, b» → per-pattern scan.
+
+    Возвращает готовый ответ «ОК/ПРОБЛЕМА + цитата» или None, если формат не распознан.
+    """
+    if not os.path.exists(path) or not os.path.isfile(path):
+        return f"ФАЙЛ НЕ НАЙДЕН: {path}"
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+    except OSError as e:
+        return f"ОШИБКА ЧТЕНИЯ: {path}: {e}"
+
+    lower_lines = [ln.lower() for ln in lines]
+
+    def _limit() -> Optional[int]:
+        m = re.search(r"в первых\s+(\d+)\s*строках", task_text, re.IGNORECASE)
+        return int(m.group(1)) if m else None
+
+    limit = _limit()
+    view = lower_lines[:limit] if limit else lower_lines
+    view_src = lines[: len(view)]
+
+    def _quote(idx: int) -> str:
+        return view_src[idx].strip()[:200]
+
+    # Вариант 1: «есть ли там X» (одно вхождение).
+    m1 = re.search(r"есть\s+ли\s+там\s+(?P<what>[^.?]+)", task_text, re.IGNORECASE)
+    if m1:
+        what = m1.group("what").strip().strip("«»\"'").lower()
+        what = re.sub(r"\s*\(.*?\)\s*$", "", what).strip()
+        if not what:
+            return None
+        hits = [i for i, ln in enumerate(view) if what in ln]
+        if not hits:
+            # Fallback: полная фраза могла не сойтись из-за формулировки —
+            # ищем первые два слова (например «pip install») против false-ОК.
+            words = what.split()
+            if len(words) >= 2:
+                short = " ".join(words[:2])
+                hits = [i for i, ln in enumerate(view) if short in ln]
+                if hits:
+                    return (
+                        f"ПРОБЛЕМА: найдено «{short}» (строка {hits[0] + 1}): {_quote(hits[0])} "
+                        f"— уточни вручную, является ли это рантайм-установкой."
+                    )
+            return f"ОК: «{what}» в файле {path} не найдено."
+        return f"ПРОБЛЕМА: найдено «{what}» (строка {hits[0] + 1}): {_quote(hits[0])}"
+
+    # Вариант 2: «найди потенциальные проблемы: a, b, c».
+    m2 = re.search(r"найди\s+потенциальные\s+проблемы\s*:\s*(?P<list>[^.?]+)", task_text, re.IGNORECASE)
+    if m2:
+        items = [x.strip().lower() for x in m2.group("list").split(",") if x.strip()]
+        if not items:
+            return None
+        findings = []
+        for item in items:
+            for i, ln in enumerate(view):
+                if item in ln:
+                    findings.append(f"«{item}» (строка {i + 1}): {_quote(i)}")
+                    break
+        if not findings:
+            return f"ОК: из {len(items)} паттернов ({', '.join(items[:5])}…) в {path} ничего не найдено."
+        return "ПРОБЛЕМА:\n" + "\n".join(f"- {f}" for f in findings)
+
+    return None
+
+
+async def _try_file_check_reply(goal: str) -> Optional[Dict[str, Any]]:
+    """FAST_ACTION_PATH (библия v34): файловые проверки без LLM, <200 мс.
+
+    Триггер: цель начинается с «проверь файл …» / «прочитай файл …» (в первых 120 символах).
+    Формат ответа — по эталону code_audit: ОК / ПРОБЛЕМА + цитата.
+    """
+    g = (goal or "").strip()
+    if len(g) < _FILE_CHECK_MAX_PREFIX:
+        prefix = g
+    else:
+        prefix = g[:_FILE_CHECK_MAX_PREFIX]
+    m = _FILE_CHECK_RE.match(prefix)
+    if not m:
+        return None
+    # Позиции матча в prefix совпадают с позициями в g (prefix — начало g).
+    task_text = g[m.end("path"):][:400]
+    answer = _file_check_scan(m.group("path"), task_text)
+    if answer is None:
+        return None
+    return {
+        "output": answer,
+        "knowledge": {
+            "strategy": "fast_action_file_check",
+            "confidence": 1.0,
+            "metadata": {"source": "deterministic", "model_used": "none"},
+        },
+    }
+
+
 async def _try_direct_tool_reply(goal: str) -> Optional[Dict[str, Any]]:
     """
     Ultra-fast path: для явной tool-команды возвращает результат инструмента
@@ -5933,8 +6038,22 @@ async def _run_task_background(
                 "reason": forced_reason,
                 "confidence": max(0.9, float(strategy_result.get("confidence", 0.5))),
             }
+        # Guardrail (v144): уточнения не перебивают кураторские эталоны.
+        # «Какой статус проекта?» и т.п. всегда идут в Enhanced + RAG,
+        # а не в LLM-стратегию, которая локально просит «уточните».
+        if strategy_result.get("strategy") == "need_clarification" and is_curator_standard_goal(goal):
+            strategy_result = {
+                "strategy": "deep_analysis",
+                "reason": "curator_standard_goal_no_clarify",
+                "confidence": 0.95,
+            }
         if strategy_result.get("strategy") == "quick_answer":
-            quick_model = os.getenv("VICTORIA_STRATEGY_MODEL", "phi3.5:3.8b")
+            # Code-gen по контракту v142 → coder-слот 11436, не phi3.5 на руках.
+            _q_reason = str(strategy_result.get("reason") or "").lower()
+            if ("код" in _q_reason or "code" in _q_reason) and "кодировк" not in _q_reason:
+                quick_model = os.getenv("VICTORIA_CODE_MODEL", "qwen3-coder:30b")
+            else:
+                quick_model = os.getenv("VICTORIA_STRATEGY_MODEL", "phi3.5:3.8b")
             quick_text = ""
             quick_source = "strategy_quick_answer"
             quick_text, quick_source = await _bg_try_generate(goal, quick_model)
@@ -7727,6 +7846,9 @@ async def run_task(
     # явные web/sql/git команды отдаем напрямую без LLM.
     if not is_discussion and not _stream_mode:
         direct_tool_reply = await _try_direct_tool_reply(goal)
+        if direct_tool_reply is None:
+            # FAST_ACTION_PATH (v34/v143): файловые проверки «проверь файл …» без LLM.
+            direct_tool_reply = await _try_file_check_reply(goal)
         if direct_tool_reply is not None:
             knowledge = direct_tool_reply.get("knowledge") or {}
             metadata = knowledge.get("metadata") or {}

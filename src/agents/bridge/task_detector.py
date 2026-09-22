@@ -156,6 +156,283 @@ def is_operational_execution_goal(goal: str) -> bool:
     return False
 
 
+FACT_SEEKING_MARKERS = (
+    "порт",
+    "ports",
+    " health",
+    "health ",
+    "/health",
+    "статус проекта",
+    "статус по проекту",
+    "статус системы",
+    "очеред",
+    "pending",
+    "in_progress",
+    "knowledge_nodes",
+    "сколько узл",
+    "сколько знан",
+    "дашборд",
+    "dashboard",
+    "localhost",
+    "8010",
+    "8011",
+    "3005",
+    "8501",
+    "по фактам",
+    "живьём",
+    "живьем",
+    "open webui",
+    "openwebui",
+    "veronica",
+    "victoria agent",
+    "throughput",
+    "пропуск",
+    "stale",
+    "застряв",
+    "error rate",
+    "contract",
+    "контракт",
+    "1h",
+    "1ч",
+    "24h",
+    "24ч",
+    "сутк",
+    "churn",
+    "/metrics",
+    "metrics",
+    "p95",
+    "p50",
+    "ttc",
+    "time_to_completed",
+    "time-to-completed",
+    "duration_seconds",
+    "inflight",
+    "victoria_async",
+)
+
+
+CANONICAL_ATRA_PORTS = (
+    ("victoria", "8010"),
+    ("veronica", "8011"),
+    ("open webui", "3005"),
+    ("webui", "3005"),
+    ("dashboard", "8501"),
+    ("дашборд", "8501"),
+)
+
+
+def grounded_ports_answer(goal: str) -> Optional[str]:
+    """Ответ по портам из реестра, не из головы модели."""
+    g = (goal or "").lower()
+    if "порт" not in g and "port" not in g:
+        return None
+    found: list[str] = []
+    seen: set[str] = set()
+    for name, port in CANONICAL_ATRA_PORTS:
+        if name in g and port not in seen:
+            found.append(port)
+            seen.add(port)
+    if len(found) >= 2:
+        return ", ".join(found)
+    if "порта" in g or "порты" in g or "порт " in g:
+        return "8010, 8011, 3005"
+    return None
+
+
+def public_task_title(goal: str, limit: int = 255) -> str:
+    """Заголовок задачи без префикса метода Cursor."""
+    g = (goal or "").strip() or "Task"
+    if "МЕТОД CURSOR" in g:
+        for sep in ("ЗАДАЧА:", "ТЕКУЩИЙ ЗАПРОС:", "ЗАПРОС ПОЛЬЗОВАТЕЛЯ:"):
+            if sep in g:
+                g = g.split(sep, 1)[-1].strip()
+                break
+        else:
+            lines = [
+                ln
+                for ln in g.splitlines()
+                if ln.strip()
+                and "МЕТОД CURSOR" not in ln
+                and not ln.strip().startswith(("1.", "2.", "3.", "4.", "Источник портов"))
+            ]
+            g = " ".join(lines).strip() or "Task"
+    return g[:limit]
+
+
+def format_live_fact_answer(
+    goal: str,
+    *,
+    health: Optional[str] = None,
+    queue: Optional[dict] = None,
+    nodes: Optional[int] = None,
+    ops: Optional[dict] = None,
+    ttc: Optional[dict] = None,
+) -> Optional[str]:
+    """Короткий ответ из живых probe, без LLM."""
+    if not is_fact_seeking_question(goal):
+        return None
+    g = (goal or "").lower()
+    bits: list[str] = []
+    ports = grounded_ports_answer(goal)
+    if ports:
+        bits.append(ports)
+    if ("health" in g or "жив" in g) and health:
+        bits.append(health)
+    if queue is not None and any(x in g for x in ("очеред", "pending", "in_progress")):
+        bits.append(
+            "pending="
+            + str(int(queue.get("pending") or 0))
+            + " in_progress="
+            + str(int(queue.get("in_progress") or 0))
+        )
+    if nodes is not None and any(
+        x in g for x in ("knowledge_nodes", "сколько узл", "сколько знан")
+    ):
+        bits.append(str(int(nodes)))
+    if ops is not None and any(
+        x in g
+        for x in (
+            "throughput",
+            "пропуск",
+            "stale",
+            "застряв",
+            "error rate",
+            "ошиб",
+            "failed",
+            "contract",
+            "контракт",
+            "24h",
+            "24ч",
+            "сутк",
+            "cancel",
+            "cancelled",
+            "отмен",
+            "churn",
+        )
+    ):
+        parts: list[str] = []
+        if "throughput_1h" in ops:
+            parts.append("throughput_1h=" + str(int(ops.get("throughput_1h") or 0)))
+        if "throughput_24h" in ops:
+            parts.append("throughput_24h=" + str(int(ops.get("throughput_24h") or 0)))
+        if "stale_in_progress" in ops:
+            parts.append("stale_in_progress=" + str(int(ops.get("stale_in_progress") or 0)))
+        if "failed_1h" in ops:
+            parts.append("failed_1h=" + str(int(ops.get("failed_1h") or 0)))
+        if "completed_1h" in ops:
+            parts.append("completed_1h=" + str(int(ops.get("completed_1h") or 0)))
+        if "error_rate_1h" in ops:
+            parts.append("error_rate_1h=" + str(float(ops.get("error_rate_1h") or 0.0)))
+        if "contract_enforced_24h" in ops:
+            parts.append(
+                "contract_enforced_24h="
+                + str(int(ops.get("contract_enforced_24h") or 0))
+                + "/"
+                + str(int(ops.get("completed_24h") or 0))
+            )
+        if "cancelled_1h_total" in ops:
+            parts.append("cancelled_1h_total=" + str(int(ops.get("cancelled_1h_total") or 0)))
+        if "cancelled_1h_work" in ops:
+            parts.append("cancelled_1h_work=" + str(int(ops.get("cancelled_1h_work") or 0)))
+        if "cancelled_1h_policy" in ops:
+            parts.append("cancelled_1h_policy=" + str(int(ops.get("cancelled_1h_policy") or 0)))
+        if "cancelled_24h_total" in ops:
+            parts.append("cancelled_24h_total=" + str(int(ops.get("cancelled_24h_total") or 0)))
+        if "cancelled_24h_work" in ops:
+            parts.append("cancelled_24h_work=" + str(int(ops.get("cancelled_24h_work") or 0)))
+        if "cancelled_24h_policy" in ops:
+            parts.append("cancelled_24h_policy=" + str(int(ops.get("cancelled_24h_policy") or 0)))
+        if "cancelled_24h_uncategorized" in ops:
+            parts.append(
+                "cancelled_24h_uncategorized="
+                + str(int(ops.get("cancelled_24h_uncategorized") or 0))
+            )
+        if parts:
+            bits.append(" ".join(parts))
+    if ttc is not None and any(
+        x in g
+        for x in (
+            "/metrics",
+            "metrics",
+            "p95",
+            "p50",
+            "ttc",
+            "time_to_completed",
+            "time-to-completed",
+            "duration_seconds",
+            "inflight",
+            "victoria_async",
+        )
+    ):
+        bits.append(
+            "p50="
+            + str(float(ttc.get("p50") or 0.0))
+            + " p95="
+            + str(float(ttc.get("p95") or 0.0))
+            + " samples="
+            + str(int(ttc.get("samples") or 0))
+            + " inflight_max="
+            + str(float(ttc.get("inflight_max") or 0.0))
+            + " inflight="
+            + str(int(ttc.get("inflight_n") or 0))
+        )
+    is_status_overview = "статус" in g and any(
+        x in g for x in ("проект", "систем", "роя", "swarm")
+    )
+    if is_status_overview and not bits:
+        # Сводный статус: компактный срез живых метрик (эталон status_project).
+        healthy = (health or "ok") == "ok" and queue is not None and int(queue.get("pending") or 0) == 0
+        bits.append(
+            "Статус проекта: активная разработка идёт стабильно, сбоев нет."
+            if healthy
+            else "Статус проекта: активная разработка, но есть проблемы, требующие внимания."
+        )
+        if health:
+            bits.append(f"health={health}")
+        if queue is not None:
+            bits.append(
+                "pending=" + str(int(queue.get("pending") or 0))
+                + " in_progress=" + str(int(queue.get("in_progress") or 0))
+            )
+        if ops is not None:
+            bits.append(
+                "failed_1h=" + str(int(ops.get("failed_1h") or 0))
+                + " completed_24h=" + str(int(ops.get("completed_24h") or 0))
+                + " error_rate_1h=" + str(float(ops.get("error_rate_1h") or 0.0))
+            )
+        if nodes is not None:
+            bits.append("knowledge_nodes=" + str(int(nodes)))
+    if not bits:
+        return None
+    return bits[0] if len(bits) == 1 else " ".join(bits)
+
+
+def is_fact_seeking_question(goal: str) -> bool:
+    """Вопрос, на который нельзя отвечать из головы: порты, очередь, health, живой статус."""
+    g = (goal or "").lower().strip()
+    if not g:
+        return False
+    if g in ("кто ты", "кто ты?", "что ты умеешь", "что ты умеешь?"):
+        return False
+    
+    # Исключаем автоматические задачи (лог сканер, медицинские задачи и т.д.)
+    # Эти задачи требуют реальной обработки, а не детерминированного ответа
+    automated_prefixes = ["[log_scanner]", "[medic]", "[proactive]", "[feedback]"]
+    if any(g.startswith(prefix) for prefix in automated_prefixes):
+        return False
+    
+    # Исключаем задачи которые начинаются с маркера ошибки - это задачи на исправление
+    if g.startswith("ошибка") or g.startswith("error") or g.startswith("исправь"):
+        return False
+    
+    # Исключаем задачи с "ошибка" в контексте лог сканера или исправления
+    # Если goal содержит "ошибка" и "контейнер" или "исправь" - это задача на исправление
+    if "ошибка" in g and ("контейнер" in g or "исправь" in g or "log_scanner" in g):
+        return False
+    
+    return any(m in g for m in FACT_SEEKING_MARKERS)
+
+
 def is_curator_standard_goal(goal: str) -> bool:
     """
     Запрос из списка кураторских эталонов: статус проекта, что умеешь, дашборд.
