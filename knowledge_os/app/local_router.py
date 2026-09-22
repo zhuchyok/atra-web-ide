@@ -188,6 +188,7 @@ try:
         OLLAMA_PRIORITY_BY_CATEGORY,
         _skip_as_ollama_hands,
         get_available_models,
+        normalize_ollama_hands_model,
         pick_mlx_for_category,
         pick_ollama_for_category,
     )
@@ -198,6 +199,12 @@ except ImportError:
 
     def _skip_as_ollama_hands(name):  # type: ignore[misc]
         return bool(name) and "victoria-wisdom" in str(name).lower()
+
+    def normalize_ollama_hands_model(name):  # type: ignore[misc]
+        key = (name or "").strip()
+        if not key or str(key).endswith("3.8b-stable"):
+            return "phi3.5:3.8b"
+        return key
 
     logger.warning("⚠️ available_models_scanner не доступен, используем fallback")
 
@@ -1791,6 +1798,9 @@ class LocalAIRouter:
                     model,
                 )
                 continue
+
+            if is_ollama:
+                model = normalize_ollama_hands_model(model)
 
             # Используем /api/chat для Ollama (более современный endpoint)
             if is_ollama or is_mlx:

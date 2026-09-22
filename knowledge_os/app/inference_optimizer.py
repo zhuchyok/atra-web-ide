@@ -22,16 +22,25 @@ class InferenceOptimizer:
         self.preloaded_models = set()
         self._lock = asyncio.Lock()
 
-    async def warm_up_model(self, model_name: str, keep_alive: int = 60):
+    async def warm_up_model(self, model_name: str, keep_alive: int = -1):
         """
         Отправляет пустой запрос для загрузки модели в память.
+        11434 — только лёгкие руки (phi). Wisdom/coder/lfm сюда не грузим.
         """
+        try:
+            from available_models_scanner import _skip_as_ollama_hands
+        except Exception:
+            from app.available_models_scanner import _skip_as_ollama_hands
+
+        if _skip_as_ollama_hands(model_name) or "lfm" in (model_name or "").lower():
+            logger.debug("[INFERENCE] skip warmup of %s on 11434 hands", model_name)
+            return
+
         async with self._lock:
             if model_name in self.preloaded_models:
                 return
 
-            # TODO: Convert f-string to %s formatting for performance
-            logger.info(f"🔥 [INFERENCE] Упреждающая загрузка модели: {model_name}")
+            logger.info("🔥 [INFERENCE] Упреждающая загрузка модели: %s", model_name)
             try:
                 async with aiohttp.ClientSession() as session:
                     async with session.post(
@@ -46,27 +55,15 @@ class InferenceOptimizer:
                     ) as resp:
                         if resp.status == 200:
                             self.preloaded_models.add(model_name)
-                            # TODO: Convert f-string to %s formatting for performance
-                            logger.info(f"✅ [INFERENCE] Модель {model_name} готова к работе")
+                            logger.info("✅ [INFERENCE] Модель %s готова к работе", model_name)
             except Exception as e:
-                # TODO: Convert f-string to %s formatting for performance
-                logger.error(f"❌ [INFERENCE] Ошибка прогрева модели {model_name}: {e}")
+                logger.warning("⚠️ [INFERENCE] Ошибка прогрева модели %s: %s", model_name, e)
 
     async def predict_and_preload(self, current_category: str):
-        """
-        Предсказывает следующую модель на основе текущей категории и загружает её.
-        NOTE: Только легкие модели, НЕ phi3.5/qwen (дедлок Metal при выгрузке).
-        """
-        # Предзагрузка только лёгких моделей через Ollama
-        predictions = {
-            "reasoning": ["lfm2.5-thinking:1.2b"],
-            "coding": ["lfm2.5-thinking:1.2b"],
-            "general": ["lfm2.5-thinking:1.2b"],
-        }
-
-        models_to_preload = predictions.get(current_category, [])
+        """Держит на 11434 только штатные руки phi3.5."""
+        models_to_preload = ["phi3.5:3.8b"]
         for model in models_to_preload:
-            asyncio.create_task(self.warm_up_model(model, keep_alive=60))
+            asyncio.create_task(self.warm_up_model(model, keep_alive=-1))
 
     def reset_cache(self):
         self.preloaded_models.clear()

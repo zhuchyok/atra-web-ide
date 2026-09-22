@@ -30,18 +30,63 @@ def unload(model):
     print(f"[wisdom_guard] unloaded {model} from {OLLAMA}", flush=True)
 
 
+def pin_phi():
+    """После выгрузки wisdom слот 11434 не должен оставаться пустым."""
+    loaded = _ps()
+    if any("phi3.5:3.8b" == n or n.startswith("phi3.5:3.8b") for n in loaded):
+        return
+    body = {
+        "model": "phi3.5:3.8b",
+        "prompt": "ok",
+        "stream": False,
+        "keep_alive": -1,
+    }
+    data = json.dumps(body).encode()
+    req = urllib.request.Request(
+        f"{OLLAMA}/api/generate", data=data, headers={"Content-Type": "application/json"}
+    )
+    urllib.request.urlopen(req, timeout=60).read()
+    print(f"[wisdom_guard] pinned phi3.5:3.8b on {OLLAMA}", flush=True)
+
+
+def pin_nomic():
+    loaded = _ps()
+    if any("nomic" in n for n in loaded):
+        return
+    body = {"model": "nomic-embed-text", "input": "ping", "keep_alive": -1}
+    data = json.dumps(body).encode()
+    req = urllib.request.Request(
+        f"{OLLAMA}/api/embed", data=data, headers={"Content-Type": "application/json"}
+    )
+    urllib.request.urlopen(req, timeout=30).read()
+    print(f"[wisdom_guard] pinned nomic-embed-text on {OLLAMA}", flush=True)
+
+
+def _should_unload(name: str) -> bool:
+    key = (name or "").lower()
+    return "wisdom" in key or "minicpm" in key
+
+
+def _enforce_hands_slot():
+    names = _ps()
+    evict = [n for n in names if _should_unload(n)]
+    if evict:
+        print(f"[wisdom_guard] evict from {OLLAMA}: {evict}", flush=True)
+        if not DRY:
+            for n in evict:
+                unload(n)
+        else:
+            print(f"[wisdom_guard] dry-run unload skipped: {evict}", flush=True)
+    if not DRY:
+        pin_phi()
+        pin_nomic()
+    left = _ps()
+    print(f"[wisdom_guard] ok: {OLLAMA} api/ps={left}", flush=True)
+
+
 while True:
     try:
-        names = [n for n in _ps() if "wisdom" in n.lower()]
-        if names:
-            print(f"[wisdom_guard] detected: {names}", flush=True)
-            if not DRY:
-                for n in names:
-                    unload(n)
-            else:
-                print(f"[wisdom_guard] dry-run unload skipped: {names}", flush=True)
-        else:
-            print(f"[wisdom_guard] ok: wisdom not in {OLLAMA} api/ps", flush=True)
+        _enforce_hands_slot()
     except Exception as e:
         print(f"[wisdom_guard] err: {e}", flush=True)
     time.sleep(POLL)

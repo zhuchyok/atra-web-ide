@@ -38,13 +38,15 @@ WATCH_CONTAINERS = os.getenv("LOG_SCANNER_CONTAINERS", "").split(",")
 
 # Error patterns to detect
 ERROR_PATTERNS = [
-    re.compile(r"\b(ERROR|CRITICAL|FATAL)\b", re.IGNORECASE),
+    # Log-level markers only. Bare "Error de respuesta" is LLM prose, not an incident.
+    re.compile(r"(?:^|[\s\"'])ERROR[:\s]|- ERROR -|\bCRITICAL\b|FATAL:"),
     re.compile(r"Traceback \(most recent call last\):"),
-    re.compile(r"Exception:|Error:|RuntimeError:|ValueError:|TypeError:"),
+    re.compile(r"Exception:|RuntimeError:|ValueError:|TypeError:"),
     re.compile(r"raise \w+Error"),
     re.compile(r"module.*not found|ImportError|ModuleNotFoundError"),
     re.compile(r"connection refused|ConnectionRefusedError"),
-    re.compile(r"timeout|TimeoutError|ReadTimeout"),
+    # TimeoutError/ReadTimeout as bare tokens fire on WARNING audits and
+    # Ollama retries. Real hangs still match ERROR: / Traceback / Exception:.
     re.compile(r"OOM|OutOfMemory|memory error"),
     re.compile(r"signal \d+|SIGKILL|SIGTERM"),
     re.compile(r"killed|oom-kill"),
@@ -101,6 +103,34 @@ IGNORE_PATTERNS = [
     re.compile(r"task_identity_map.*violates foreign key constraint"),
     re.compile(r"Sandbox bind path .* is container-local"),
     re.compile(r"SandboxManager: Docker not available"),
+    # Header alone is not an incident; the exception line is. CancelledError
+    # traces were creating a task from this line while the next line was ignored.
+    re.compile(r"Traceback \(most recent call last\):"),
+    re.compile(r"_receive_event\(timeout=timeout\)"),
+    re.compile(r"Ollama timeout, retry \d+/\d+"),
+    re.compile(r"Exception calling Node .*ReadTimeout"),
+    # LLM snippet QA is expected to fail; not a runtime incident.
+    re.compile(r"\[SANDBOX GROUNDING\]"),
+    re.compile(r"\[QUALITY CHECK\]"),
+    re.compile(r"Sandbox Grounding Failed"),
+    re.compile(r"No module named 'pytest'"),
+    re.compile(r"\[INFERENCE\] Ошибка прогрева модели"),
+    re.compile(r"Все модели недоступны"),
+    re.compile(r'"content":\s*"#'),
+    re.compile(r"\[WORKER\] I am identified as:"),
+    re.compile(r"Blackboard monitor started"),
+    re.compile(r"Error de respuesta"),
+    re.compile(r"RAG retrieval превысил таймаут"),
+    re.compile(r"продолжаем без контекста"),
+    re.compile(r'terminating background worker "parallel worker"'),
+    re.compile(r"Ollama embed failed after"),
+    re.compile(r"\[OLLAMA-DIRECT\] Failed to call Ollama"),
+    re.compile(r"\[DISTILLATION\] Failed to get response"),
+    re.compile(r"server busy, please try again"),
+    re.compile(r'column "usage_count" does not exist'),
+    # Nightly WARNING, not a crash. Bare TimeoutError must not open a task.
+    re.compile(r"ai_core audit failed/timeout"),
+    re.compile(r"TimeoutError\(\)"),
 ]
 
 # Containers to never scan (avoid self-referential loops)

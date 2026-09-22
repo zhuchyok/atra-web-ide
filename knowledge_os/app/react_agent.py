@@ -75,7 +75,7 @@ class ReActAgent:
     def __init__(
         self,
         agent_name: str = "Виктория",
-        model_name: str = "victoria-wisdom-24k:latest",  # Основная модель Виктории; qwq:32b слишком тяжёлая и блокирует Ollama для других запросов
+        model_name: str = "phi3.5:3.8b",  # 11434 руки; мозг wisdom — MLX 11435
         ollama_url: str = None,
         max_iterations: int = 10,
         system_prompt: Optional[str] = None,
@@ -1334,6 +1334,9 @@ class ReActAgent:
 
             models_to_try = self._models_to_try_cache
 
+        if "phi3.5:3.8b" not in models_to_try:
+            models_to_try = list(models_to_try) + ["phi3.5:3.8b"]
+
         # Таймаут на LLM вызов
         request_timeout_sec = float(os.getenv("SMART_WORKER_LLM_TIMEOUT", "600"))
 
@@ -1353,16 +1356,33 @@ class ReActAgent:
                     if not llm_url:
                         continue
                     try:
-                        # TODO: Convert f-string to %s formatting for performance
-                        logger.debug(f"🔍 [GENERATE] Пробую модель {model} на {llm_url}...")
+                        url_l = (llm_url or "").lower()
+                        is_ollama_hands = any(
+                            x in url_l for x in ("11434", "localhost", "127.0.0.1", "host.docker.internal")
+                        ) and "11435" not in url_l and "11436" not in url_l
+                        if is_ollama_hands:
+                            try:
+                                from available_models_scanner import _skip_as_ollama_hands
+                            except Exception:
+                                from app.available_models_scanner import _skip_as_ollama_hands
+                            if _skip_as_ollama_hands(model):
+                                continue
+                        payload = {
+                            "model": model,
+                            "prompt": prompt,
+                            "stream": False,
+                            "options": {"temperature": 0.7, "num_predict": 2048},
+                        }
+                        if is_ollama_hands:
+                            try:
+                                from ollama_keep_alive_policy import get_keep_alive
+                            except Exception:
+                                from app.ollama_keep_alive_policy import get_keep_alive
+                            payload["keep_alive"] = get_keep_alive(model, mlx_alive=True)
+                        logger.debug("🔍 [GENERATE] Пробую модель %s на %s...", model, llm_url)
                         response = await client.post(
                             f"{llm_url}/api/generate",
-                            json={
-                                "model": model,
-                                "prompt": prompt,
-                                "stream": False,
-                                "options": {"temperature": 0.7, "num_predict": 2048},
-                            },
+                            json=payload,
                             timeout=httpx.Timeout(request_timeout_sec, connect=60.0),
                         )
 

@@ -42,7 +42,7 @@ class KnowledgeDistiller:
     def __init__(self):
         self.teacher_model = os.getenv("DISTILL_TEACHER_MODEL", "phi3.5:3.8b")
         self.teacher_fallback_model = os.getenv(
-            "DISTILL_TEACHER_FALLBACK_MODEL", "phi3.5:3.8b-stable"
+            "DISTILL_TEACHER_FALLBACK_MODEL", "phi3.5:3.8b"
         )
         self.strict_json_schema = os.getenv("DISTILL_STRICT_JSON_SCHEMA", "true").lower() in (
             "1",
@@ -104,13 +104,23 @@ class KnowledgeDistiller:
         return ""
 
     def _ollama_generate_body(self, model: str, prompt: str) -> dict:
+        try:
+            from available_models_scanner import normalize_ollama_hands_model
+        except Exception:
+            from app.available_models_scanner import normalize_ollama_hands_model
+        try:
+            from ollama_keep_alive_policy import get_keep_alive
+        except Exception:
+            from app.ollama_keep_alive_policy import get_keep_alive
+
+        model = normalize_ollama_hands_model(model)
         num_predict = max(128, int(os.getenv("DISTILL_TEACHER_NUM_PREDICT", "768")))
         body: dict = {
             "model": model,
             "prompt": prompt,
             "stream": False,
             "format": self._ollama_response_format(),
-            "keep_alive": "10m",
+            "keep_alive": get_keep_alive(model, mlx_alive=True),
             "options": {"temperature": 0.1, "num_predict": num_predict},
         }
         if self._should_disable_thinking(model):
@@ -1047,7 +1057,7 @@ class KnowledgeDistiller:
         self.teacher_model = priority_teacher
         self.teacher_fallback_model = os.getenv(
             "DISTILL_PRIORITY_TEACHER_FALLBACK",
-            "phi3.5:3.8b-stable",
+            "phi3.5:3.8b",
         )
         node_delay = max(0.0, float(os.getenv("REDISTILL_PRIORITY_NODE_DELAY_SEC", "8")))
         conn = await asyncpg.connect(DB_URL)

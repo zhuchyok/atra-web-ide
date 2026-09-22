@@ -133,10 +133,8 @@ def test_burst_heavy_coder_short_keep_alive():
             get_keep_alive("qwen2.5-coder:14b", mlx_alive=True, ram_percent=50.0)
             == HEAVY_IDLE_KEEP_ALIVE
         )
-        assert (
-            get_keep_alive("minicpm-v:latest", mlx_alive=True, ram_percent=50.0)
-            == HEAVY_IDLE_KEEP_ALIVE
-        )
+        assert get_keep_alive("minicpm-v:latest", mlx_alive=True, ram_percent=50.0) == 0
+        assert get_keep_alive("minicpm-v:latest", category="vision", mlx_alive=True) == 0
         assert get_keep_alive("qwen2.5-coder:14b", mlx_alive=True, ram_percent=90.0) == 60
         # Global env must not pin burst-heavy immortal / long-lived
         with patch.dict(os.environ, {"OLLAMA_KEEP_ALIVE": "3600"}, clear=False):

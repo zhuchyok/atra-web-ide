@@ -202,6 +202,10 @@ def get_keep_alive(
     if model_name and any(m in model_name for m in IMMORTAL_MODELS):
         return -1
 
+    # 2.5 Vision on 11434: serve the request, then free the slot for phi hands.
+    if category == "vision" or (model_name and "minicpm" in str(model_name).lower()):
+        return 0
+
     # 3. Эмбеддинги — адаптивная политика keep_alive
     if (
         category == "embedding"

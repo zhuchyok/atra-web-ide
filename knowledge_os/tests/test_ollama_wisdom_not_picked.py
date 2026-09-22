@@ -1,7 +1,11 @@
 """Wisdom is MLX-only: Ollama pickers must not return victoria-wisdom*."""
 
 from app.ai_core import _direct_ollama_fallback_models
-from app.available_models_scanner import pick_best_ollama, pick_ollama_for_category
+from app.available_models_scanner import (
+    normalize_ollama_hands_model,
+    pick_best_ollama,
+    pick_ollama_for_category,
+)
 from app.local_router import OLLAMA_MODELS_FALLBACK
 
 
@@ -13,6 +17,7 @@ def test_pick_best_ollama_skips_wisdom():
         "qwen3-coder:30b",
         "phi3.5:3.8b",
         "tinyllama:1.1b-chat",
+        "minicpm-v:latest",
     ]
     picked = pick_best_ollama(models)
     assert picked == "phi3.5:3.8b"
@@ -50,3 +55,8 @@ def test_direct_ollama_fallback_models_are_light_hands():
     models = _direct_ollama_fallback_models("http://host.docker.internal:11434")
     assert models[0] == "phi3.5:3.8b"
     assert all("wisdom" not in m.lower() and "35b" not in m.lower() for m in models)
+
+
+def test_normalize_stable_phi_to_single_hands_slot():
+    assert normalize_ollama_hands_model("phi3.5:3.8b-stable") == "phi3.5:3.8b"
+    assert normalize_ollama_hands_model("phi3.5:3.8b") == "phi3.5:3.8b"

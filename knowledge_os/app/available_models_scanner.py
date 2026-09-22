@@ -211,8 +211,10 @@ async def _fetch_ollama_models_with_details(
 
 
 async def _check_model_health(model_name: str, ollama_url: str) -> bool:
-    """Проверяет здоровье модели через /api/show (Singularity 10.0)."""
+    """Проверяет, что модель есть в Ollama. Timeout/busy ≠ corruption."""
     if not model_name or "embedding" in model_name:
+        return True
+    if _skip_as_ollama_hands(model_name):
         return True
     try:
         import httpx
@@ -221,7 +223,8 @@ async def _check_model_health(model_name: str, ollama_url: str) -> bool:
             r = await client.post(f"{ollama_url}/api/show", json={"name": model_name})
             return r.status_code == 200
     except Exception:
-        return False
+        # Tags already listed it; a busy /api/show is not a broken blob.
+        return True
 
 
 async def get_available_models(
@@ -255,12 +258,15 @@ async def get_available_models(
     working_ollama = []
     working_sizes = {}
     for m in ollama_list:
+        if _skip_as_ollama_hands(m):
+            continue
         if await _check_model_health(m, ollama_url):
             working_ollama.append(m)
             working_sizes[m] = ollama_sizes.get(m, 0)
         else:
-            logger.error(
-                f"🚨 [CORRUPTION] Модель {m} повреждена или недоступна. Исключаем из роутинга."
+            logger.warning(
+                "Модель %s не ответила на /api/show (не 200). Пропускаем в роутинге 11434.",
+                m,
             )
 
     ollama_list = working_ollama
@@ -335,6 +341,17 @@ def _is_wisdom_name(name: Optional[str]) -> bool:
     return bool(name) and "victoria-wisdom" in str(name).lower()
 
 
+HANDS_PHI = "phi3.5:3.8b"
+
+
+def normalize_ollama_hands_model(name: Optional[str]) -> str:
+    """Один слот рук: 3.8b-stable не грузить вторым phi (вытесняет nomic)."""
+    key = (name or "").strip()
+    if not key or key.endswith("3.8b-stable") or key == "phi3.5-stable":
+        return HANDS_PHI
+    return key
+
+
 def _skip_as_ollama_hands(name: Optional[str]) -> bool:
     """11434 — лёгкие руки. Wisdom/32b/coder не должны сюда выбираться."""
     if not name:
@@ -355,6 +372,7 @@ def _skip_as_ollama_hands(name: Optional[str]) -> bool:
         "35b",
         "70b",
         "104b",
+        "minicpm",
     )
     return any(m in key for m in markers)
 
@@ -476,40 +494,6 @@ async def scan_and_select_models(
     mlx_models, ollama_models = await get_available_models(
         mlx_url, ollama_url, force_refresh=force_refresh
     )
-
-    # Фильтруем только рабочие модели (Singularity 10.0: Anti-Corruption)
-    working_ollama = []
-    for m in ollama_models:
-        # Используем синхронную проверку или обертку, так как scan_and_select_models асинхронная
-        # Но _check_model_health уже асинхронная, так что просто await
-        try:
-            # Небольшой хак: если мы внутри асинхронной функции, можем использовать await
-            import httpx
-
-            async def check_inner(name):
-                if not name or "embedding" in name:
-                    return True
-                try:
-                    async with httpx.AsyncClient(timeout=5.0) as client:
-                        r = await client.post(f"{ollama_url}/api/show", json={"name": name})
-                        return r.status_code == 200
-                except Exception:
-                    return False
-
-            # Для скорости проверяем только топ-5 моделей
-            is_ok = True
-            if m in OLLAMA_BEST_FIRST[:5]:
-                is_ok = await check_inner(m)
-
-            if is_ok:
-                working_ollama.append(m)
-            else:
-                # TODO: Convert f-string to %s formatting for performance
-                logger.error(f"🚨 [CORRUPTION] Модель {m} повреждена. Исключаем.")
-        except Exception:
-            working_ollama.append(m)
-
-    ollama_models = working_ollama
 
     result = ModelSelection(
         ollama_models=ollama_models,

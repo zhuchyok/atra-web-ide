@@ -36,3 +36,21 @@ def test_log_scanner_ignores_watchdog_postgres_type_noise():
     assert r"SandboxManager: Docker not available" in text
     assert r"Ошибка парсинга промпта" in text
     assert r"IndentationError.*corporation_knowledge_system" in text
+    assert r"Traceback \(most recent call last\):" in text
+    assert r"_receive_event\(timeout=timeout\)" in text
+    assert r"Ollama timeout, retry \d+/\d+" in text
+    assert r"Exception calling Node .*ReadTimeout" in text
+    assert r"\[SANDBOX GROUNDING\]" in text
+    assert r"No module named 'pytest'" in text
+    assert r"Все модели недоступны" in text
+    assert r"Error de respuesta" in text
+    assert r"FATAL:" in text
+    assert r'terminating background worker "parallel worker"' in text
+    assert r"Ollama embed failed after" in text
+    assert r"(?:^|[\s\"'])ERROR[:\s]|- ERROR -|\bCRITICAL\b|FATAL:" in text
+    assert r"Exception:|Error:|RuntimeError:" not in text
+    assert r"\[INFERENCE\] Ошибка прогрева модели" in text
+    assert r"ai_core audit failed/timeout" in text
+    assert r"TimeoutError\(\)" in text
+    assert r"\b(TimeoutError|ReadTimeout|ConnectTimeout)\b" not in text
+    assert "re.compile(r\"timeout|TimeoutError|ReadTimeout\")" not in text

@@ -1543,12 +1543,15 @@ async def process_task(task_data: dict):
                     logger.info(f"🧠 [WORKER] Используем ReAct Agent для сложной задачи {task_id}")
                     try:
                         model_hint = task_data.get("metadata", {}).get("model_hint")
+                        react_model = model_hint or "phi3.5:3.8b"
+                        if "wisdom" in str(react_model).lower():
+                            react_model = "phi3.5:3.8b"
                         logger.info(
-                            f"DEBUG_PRINT: Initializing ReActAgent with model: {model_hint or 'victoria-wisdom-24k:latest'}"
+                            f"DEBUG_PRINT: Initializing ReActAgent with model: {react_model}"
                         )
                         agent = ReActAgent(
                             agent_name=expert_name,
-                            model_name=model_hint or "victoria-wisdom-24k:latest",
+                            model_name=react_model,
                         )
                         # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"DEBUG_PRINT: Calling agent.run() for task {task_id}")
@@ -1558,7 +1561,7 @@ async def process_task(task_data: dict):
                         if actor:
                             await actor.record_event(
                                 "react_agent_started",
-                                {"model": model_hint or "victoria-wisdom-24k:latest"},
+                                {"model": react_model},
                             )
 
                         report = await agent.run(goal=description)
@@ -2534,7 +2537,7 @@ async def worker_loop():
     # [SINGULARITY 28.7] Identify this worker
     expert_name = os.getenv("EXPERT_NAME", f"Worker_{os.uname().nodename}")
     # TODO: Convert f-string to %s formatting for performance
-    logger.error(f"🆔 [WORKER] I am identified as: {expert_name}")
+    logger.info("🆔 [WORKER] I am identified as: %s", expert_name)
 
     # [SINGULARITY 31.3] Agent messaging for all worker paths
     try:
@@ -2651,7 +2654,7 @@ async def worker_loop():
     async def monitor_blackboard_tasks():
         """Фоновый демон для поиска и захвата задач с Blackboard."""
         # TODO: Convert f-string to %s formatting for performance
-        logger.error(f"👀 [AUTONOMY] Blackboard monitor started for {expert_name}")
+        logger.info("👀 [AUTONOMY] Blackboard monitor started for %s", expert_name)
         try:
             from resource_guard import get_resource_guard
             from services.blackboard_service import get_blackboard_service
