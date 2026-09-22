@@ -64,7 +64,7 @@ def pin_nomic():
 
 def _should_unload(name: str) -> bool:
     key = (name or "").lower()
-    return "wisdom" in key or "minicpm" in key
+    return "wisdom" in key or "minicpm" in key or "smollm" in key
 
 
 def _enforce_hands_slot():

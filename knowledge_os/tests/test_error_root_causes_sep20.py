@@ -69,6 +69,7 @@ def test_wisdom_guard_pins_phi_after_unload():
     assert "pinned phi3.5:3.8b" in text
     assert "def pin_nomic():" in text
     assert '"minicpm" in key' in text
+    assert '"smollm" in key' in text
     assert "def _enforce_hands_slot():" in text
 
 
