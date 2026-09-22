@@ -1,0 +1,50 @@
+{"id": "communication_01", "category": "communication", "goal": "привет", "source": "standard"}
+{"id": "communication_02", "category": "communication", "goal": "какой статус проекта?", "source": "standard"}
+{"id": "communication_03", "category": "communication", "goal": "что ты умеешь?", "source": "standard"}
+{"id": "communication_04", "category": "communication", "goal": "Скажи привет одной строкой.", "source": "history"}
+{"id": "communication_05", "category": "communication", "goal": "Скажи одну фразу: работаешь на 24k модели?", "source": "history"}
+{"id": "code_generation_06", "category": "code_generation", "goal": "напиши одну строку кода на Python: вывод текущей даты", "source": "standard"}
+{"id": "code_generation_07", "category": "code_generation", "goal": "напиши функцию на Python, которая проверяет, является ли строка палиндромом", "source": "composed"}
+{"id": "code_generation_08", "category": "code_generation", "goal": "напиши bash-команду, которая найдёт 10 самых больших файлов в каталоге", "source": "composed"}
+{"id": "code_generation_09", "category": "code_generation", "goal": "сгенерируй SQL: топ-10 задач по длительности выполнения из таблицы tasks", "source": "composed"}
+{"id": "code_generation_10", "category": "code_generation", "goal": "напиши регулярное выражение для извлечения даты YYYY-MM-DD из строки", "source": "composed"}
+{"id": "code_audit_11", "category": "code_audit", "goal": "проверь файл /app/knowledge_os/app/expert_worker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата", "source": "standard"}
+{"id": "code_audit_12", "category": "code_audit", "goal": "проверь файл /app/knowledge_os/app/ai_core.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата", "source": "standard"}
+{"id": "code_audit_13", "category": "code_audit", "goal": "прочитай файл /app/knowledge_os/app/worker.py — найди потенциальные проблемы: subprocess calls, hardcoded URLs, eval(), exec(). Ответь: ОК или ПРОБЛЕМА + список", "source": "standard"}
+{"id": "code_audit_14", "category": "code_audit", "goal": "проверь файл /app/knowledge_os/app/consensus_agent.py — есть ли там eval() или exec()? Ответь: ОК или ПРОБЛЕМА + цитата", "source": "composed"}
+{"id": "code_audit_15", "category": "code_audit", "goal": "проверь файл /app/scripts/curator_send_tasks_to_victoria.py — есть ли там pip install в рантайме? Ответь: ОК или ПРОБЛЕМА + цитата", "source": "standard"}
+{"id": "research_16", "category": "research", "goal": "Найди в интернете что такое p95 latency кратко.", "source": "history"}
+{"id": "research_17", "category": "research", "goal": "объясни кратко, чем отличается asyncio.gather от asyncio.wait", "source": "composed"}
+{"id": "research_18", "category": "research", "goal": "что такое HNSW-индекс и зачем он в векторном поиске", "source": "composed"}
+{"id": "research_19", "category": "research", "goal": "объясни, что такое backpressure в очередях задач", "source": "composed"}
+{"id": "research_20", "category": "research", "goal": "объясни разницу между pgvector и отдельной векторной БД", "source": "composed"}
+{"id": "analysis_21", "category": "analysis", "goal": "Исследуй, почему background задачи могут зависать в processing", "source": "history"}
+{"id": "analysis_22", "category": "analysis", "goal": "Проанализируй маршрутизацию early_async_analysis подробно", "source": "history"}
+{"id": "analysis_23", "category": "analysis", "goal": "Разбери SLA time-to-completed: что должно быть в /metrics", "source": "history"}
+{"id": "analysis_24", "category": "analysis", "goal": "Объясни почему duration_seconds важнее latency POST 202", "source": "history"}
+{"id": "analysis_25", "category": "analysis", "goal": "Разбери, что сейчас не так в git и почему", "source": "history"}
+{"id": "devops_26", "category": "devops", "goal": "какие контейнеры сейчас unhealthy и почему?", "source": "composed"}
+{"id": "devops_27", "category": "devops", "goal": "сколько задач в очереди прямо сейчас?", "source": "composed"}
+{"id": "devops_28", "category": "devops", "goal": "какой health у MLX на 11435 и сколько активных запросов?", "source": "composed"}
+{"id": "devops_29", "category": "devops", "goal": "какие модели загружены на Ollama 11434? Разрешены ли там они по контракту v142?", "source": "composed"}
+{"id": "devops_30", "category": "devops", "goal": "проверь Prometheus: все ли targets up?", "source": "composed"}
+{"id": "security_31", "category": "security", "goal": "есть ли в .env.example секреты в открытом виде?", "source": "composed"}
+{"id": "security_32", "category": "security", "goal": "какие API-ключи используются в проекте и где они хранятся?", "source": "composed"}
+{"id": "security_33", "category": "security", "goal": "проверь логин-форму frontend: есть ли защита от XSS?", "source": "composed"}
+{"id": "security_34", "category": "security", "goal": "риск ли exposed docker.sock на victoria-medic и как это ограничить?", "source": "composed"}
+{"id": "security_35", "category": "security", "goal": "как включить STRICT_LOCAL и что проверить перед включением?", "source": "composed"}
+{"id": "architecture_36", "category": "architecture", "goal": "как устроен контракт слоёв мозг/руки/coder в v142?", "source": "composed"}
+{"id": "architecture_37", "category": "architecture", "goal": "зачем MLX_MAX_CONCURRENT=1 и что будет при повышении?", "source": "composed"}
+{"id": "architecture_38", "category": "architecture", "goal": "как проходит задача от /run до эксперта?", "source": "composed"}
+{"id": "architecture_39", "category": "architecture", "goal": "какие компоненты входят в Knowledge Fabric?", "source": "composed"}
+{"id": "architecture_40", "category": "architecture", "goal": "чем Blackboard-аукцион отличается от прямой оркестрации?", "source": "composed"}
+{"id": "debugging_41", "category": "debugging", "goal": "Victoria отвечает success с пустым output — где искать причину?", "source": "composed"}
+{"id": "debugging_42", "category": "debugging", "goal": "pgbouncer возвращает SASL-ошибку у dynamic-воркеров — что проверить?", "source": "composed"}
+{"id": "debugging_43", "category": "debugging", "goal": "Ollama 503 server busy при дебатах — правильная реакция системы?", "source": "composed"}
+{"id": "debugging_44", "category": "debugging", "goal": " Prometheus target expert-workers down с ошибкой DNS — где причина?", "source": "composed"}
+{"id": "debugging_45", "category": "debugging", "goal": "в логах _GatheringFuture exception was never retrieved — что это значит?", "source": "composed"}
+{"id": "testing_46", "category": "testing", "goal": "какие тесты покрывают маршрутизацию wisdom?", "source": "composed"}
+{"id": "testing_47", "category": "testing", "goal": "напиши план smoke-проверки expert-dialogue после деплоя", "source": "composed"}
+{"id": "testing_48", "category": "testing", "goal": "как проверить эталоны куратора после правок Victoria?", "source": "composed"}
+{"id": "testing_49", "category": "testing", "goal": "что должен показывать контрольный срез после рестарта стека?", "source": "composed"}
+{"id": "testing_50", "category": "testing", "goal": "составь чеклист регресса лог-сканера", "source": "composed"}
