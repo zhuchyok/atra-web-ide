@@ -9139,6 +9139,75 @@ async def run_task(
         use_enhanced_for_request = False
     elif strategy_result.get("strategy") == "deep_analysis":
         use_enhanced_for_request = True
+
+    # === CONSILIUM ROUTER (sync, opt-in) ===
+    # Для чат-UX дебат 60-90с нежелателен — по умолчанию выключен
+    # (CONSILIUM_SYNC_ENABLED=true включает). Анти-стаб: деградация → соло.
+    _sync_goal = restated_goal or goal
+    _sync_cat = is_consilium_winnable_goal(_sync_goal)
+    if (
+        _sync_cat
+        and os.getenv("CONSILIUM_SYNC_ENABLED", "false").lower() in ("1", "true", "yes")
+        and os.getenv("CONSILIUM_ROUTING_ENABLED", "true").lower() in ("1", "true", "yes")
+    ):
+        _dlg_url_s = os.getenv("EXPERT_DIALOGUE_URL", "http://host.docker.internal:8080")
+        _cons_to_s = float(os.getenv("CONSILIUM_SYNC_TIMEOUT_SEC", "120"))
+        _synth_s, _eng_s, _deg_s = "", "", True
+        try:
+            async with httpx.AsyncClient(timeout=_cons_to_s) as _c2:
+                _r2 = await _c2.post(
+                    f"{_dlg_url_s}/api/expert-dialogue/start",
+                    json={"topic": _sync_goal, "mode": "debate"},
+                )
+            if _r2.status_code == 200:
+                _d2 = _r2.json()
+                _synth_s = (
+                    _d2.get("victoria_synthesis")
+                    or _d2.get("final_decision")
+                    or _d2.get("synthesis")
+                    or _d2.get("result")
+                    or ""
+                )
+                _eng_s = str(_d2.get("engine_used") or "debate")
+                _deg_s = bool(_d2.get("fallback_used") or _d2.get("lightweight_used"))
+        except Exception as cons_err_s:  # noqa: BLE001
+            logger.warning("[CONSILIUM_ROUTER/sync] debate failed: %s — solo", cons_err_s)
+        if _synth_s and not _deg_s:
+            try:
+                VICTORIA_CONSILIUM_ROUTED.labels(
+                    category=f"{_sync_cat}_sync", outcome="applied"
+                ).inc()
+            except Exception:  # noqa: BLE001
+                pass
+            logger.info(
+                "[CONSILIUM_ROUTER/sync] completed correlation=%s category=%s len=%d",
+                correlation_id[:8],
+                _sync_cat,
+                len(_synth_s),
+            )
+            return TaskResponse(
+                status="success",
+                output=_normalize_output_for_user(_synth_s),
+                knowledge={
+                    "strategy": "consilium",
+                    "confidence": 0.9,
+                    "metadata": {
+                        "category": _sync_cat,
+                        "engine_used": _eng_s,
+                        "source": "expert_dialogue_debate_sync",
+                        "correlation_id": correlation_id,
+                    },
+                },
+                correlation_id=correlation_id,
+            )
+        try:
+            VICTORIA_CONSILIUM_ROUTED.labels(
+                category=f"{_sync_cat}_sync", outcome="fallback"
+            ).inc()
+        except Exception:  # noqa: BLE001
+            pass
+    # === /CONSILIUM ROUTER (sync) ===
+
     task_type = detect_task_type(restated_goal, body.project_context or "")
     logger.info(
         "Запрос [%s] тип: %s, use_enhanced: %s",

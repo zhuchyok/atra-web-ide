@@ -569,7 +569,32 @@ async def main_loop() -> None:
     _ = (distill_task, embed_task, redistill_task, research_task, routing_guard_task)
 
     while True:
-        await run_nightly_cycle()
+        # Error budget (Фаза 4.1): исчерпан — наблюдаемый режим, только лог.
+        try:
+            from error_budget import check_budget
+
+            _allowed, _left = await check_budget("nightly")
+        except Exception:  # pylint: disable=broad-exception-caught
+            _allowed, _left = True, -1
+        if _allowed:
+            try:
+                await run_nightly_cycle()
+                try:
+                    from error_budget import record_success
+
+                    await record_success("nightly")
+                except Exception:  # pylint: disable=broad-exception-caught
+                    pass
+            except Exception as _cycle_err:  # pylint: disable=broad-exception-caught
+                logger.error("🌙 [NIGHTLY] cycle failed: %s", _cycle_err)
+                try:
+                    from error_budget import record_failure
+
+                    await record_failure("nightly")
+                except Exception:  # pylint: disable=broad-exception-caught
+                    pass
+        else:
+            logger.warning("🚫 [NIGHTLY] Error budget исчерпан — наблюдаемый режим (%s)", _left)
         logger.info(
             "😴 [NIGHTLY] Next cycle in %s sec (%s h).",
             NIGHTLY_INTERVAL_SEC,

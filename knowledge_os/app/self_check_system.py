@@ -566,13 +566,38 @@ class SelfCheckSystem:
 
         while self.monitoring_active:
             try:
+                # Error budget (Фаза 4.1): исчерпан — наблюдаемый режим без авто-фиксов.
+                try:
+                    from error_budget import check_budget
+
+                    _allowed, _left = await check_budget("self_check")
+                except Exception:  # pylint: disable=broad-exception-caught
+                    _allowed, _left = True, -1
+                if not _allowed:
+                    logger.warning(
+                        "🚫 [SELF-CHECK] Error budget исчерпан — наблюдаемый режим (%s)", _left
+                    )
+                    await asyncio.sleep(self.check_interval)
+                    continue
                 await self.run_full_check()
+                try:
+                    from error_budget import record_success
+
+                    await record_success("self_check")
+                except Exception:  # pylint: disable=broad-exception-caught
+                    pass
                 await asyncio.sleep(self.check_interval)
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ [SELF-CHECK] Ошибка в цикле мониторинга: {e}")
+                try:
+                    from error_budget import record_failure
+
+                    await record_failure("self_check")
+                except Exception:  # pylint: disable=broad-exception-caught
+                    pass
                 await asyncio.sleep(10)
 
 

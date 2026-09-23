@@ -81,6 +81,7 @@ def render_system_tab():
             "🚀 Singularity 31.2+",
             "📁 Проекты",
             "🤖 Логи",
+            "⚔️ Консилиум",
         ]
     )
 
@@ -100,6 +101,8 @@ def render_system_tab():
         render_projects()
     with tabs_system[7]:
         render_agent_logs()
+    with tabs_system[8]:
+        render_consilium_winrate_block()
 
 
 def render_self_healing():
@@ -743,3 +746,68 @@ def render_agent_logs():
             st.info("Событий в журнале пока нет.")
     except Exception as e:
         st.error(f"Ошибка загрузки логов: {e}")
+
+
+def render_consilium_winrate_block():
+    """Win-rate консилиум-битв (Фаза 3.4): агрегация configs/evals/results/battle_*.json."""
+    import glob
+    import json
+    from pathlib import Path
+
+    st.markdown("---")
+    st.subheader("⚔️ Консилиум: соло vs дебат (A/B-битвы)")
+
+    root = Path(__file__).resolve().parents[3]
+    files = sorted(glob.glob(str(root / "configs/evals/results/battle_*.json")))
+    if not files:
+        st.info("Битвы ещё не проводились (ночные прогоны с 01:30).")
+        return
+
+    # Берём последние 7 прогонов (свежие данные важнее истории)
+    totals = {"A": 0, "B": 0, "tie": 0, "error": 0}
+    by_cat: dict = {}
+    for f in files[-7:]:
+        try:
+            data = json.loads(Path(f).read_text(encoding="utf-8"))
+        except Exception:  # pylint: disable=broad-exception-caught
+            continue
+        wbc = data.get("wins_by_category")
+        if wbc:
+            for cat, w in wbc.items():
+                c = by_cat.setdefault(cat, {"A": 0, "B": 0, "tie": 0, "error": 0})
+                for k in totals:
+                    c[k] = c.get(k, 0) + w.get(k, 0)
+        else:
+            for r in data.get("results", []):
+                w = (r.get("verdict") or {}).get("winner", "error")
+                c = by_cat.setdefault(r.get("category", "?"), {"A": 0, "B": 0, "tie": 0, "error": 0})
+                c[w] = c.get(w, 0) + 1
+                totals[w] = totals.get(w, 0) + 1
+        for k in totals:
+            if wbc:
+                totals[k] += sum(w.get(k, 0) for w in wbc.values())
+
+    total_decided = totals["A"] + totals["B"]
+    st.caption(
+        f"Последние прогоны: {min(len(files), 7)} · Соло A={totals['A']} · Консилиум B={totals['B']} "
+        f"· ничьи={totals['tie']} · ошибки судьи={totals['error']}"
+    )
+    if total_decided:
+        wr = totals["B"] / total_decided * 100
+        st.metric(
+            "Win-rate консилиума (где он применён)",
+            f"{wr:.0f}%",
+            help="B / (A+B) по решениям судьи. Роутер направляет дебат только в категории с WR>50%.",
+        )
+    if by_cat:
+        rows = [
+            {
+                "категория": cat,
+                "соло": w.get("A", 0),
+                "консилиум": w.get("B", 0),
+                "ничьи": w.get("tie", 0),
+                "рекомендация": "дебат" if w.get("B", 0) > w.get("A", 0) else "соло",
+            }
+            for cat, w in sorted(by_cat.items(), key=lambda x: -(x[1].get("A", 0) + x[1].get("B", 0)))
+        ]
+        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)

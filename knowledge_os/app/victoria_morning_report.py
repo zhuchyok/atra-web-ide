@@ -94,19 +94,31 @@ async def run_cursor_agent(prompt: str):
 
 
 def send_telegram_msg(msg: str):
-    """Отправка сообщения в Telegram"""
-    if not TG_TOKEN or not TG_CHAT_ID:
-        logger.debug("TG_TOKEN/CHAT_ID не заданы, пропуск отправки в Telegram")
-        return
-    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
-    data = {"chat_id": TG_CHAT_ID, "text": msg, "parse_mode": "Markdown"}
-    try:
-        res = requests.post(url, data=data, timeout=10)
-        if not res.ok:
-            data["parse_mode"] = ""
-            requests.post(url, data=data, timeout=10)
-    except Exception as exc:  # pylint: disable=broad-exception-caught
-        logger.error("Error sending TG message: %s", exc)
+    """Отправка сообщения в Telegram, fallback ntfy (Telegram блокируется DPI)."""
+    sent = False
+    if TG_TOKEN and TG_CHAT_ID:
+        url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
+        data = {"chat_id": TG_CHAT_ID, "text": msg, "parse_mode": "Markdown"}
+        try:
+            res = requests.post(url, data=data, timeout=10)
+            sent = res.ok
+            if not sent:
+                data["parse_mode"] = ""
+                sent = requests.post(url, data=data, timeout=10).ok
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.error("Error sending TG message: %s", exc)
+    if not sent:
+        try:
+            ntfy_url = os.getenv("NTFY_URL", "https://ntfy.sh/atra_victoria_curator")
+            requests.post(
+                ntfy_url,
+                data=msg.encode("utf-8")[:4000],
+                headers={"Title": "👩‍💼 Утренний доклад Виктории", "Tags": "sunrise,robot"},
+                timeout=10,
+            )
+            logger.info("Отправлено через ntfy (Telegram недоступен)")
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.error("Error sending ntfy: %s", exc)
 
 
 async def generate_morning_plan():
@@ -204,11 +216,27 @@ async def generate_morning_plan():
             [f"- [{k['domain']}] {k['content'][:150]}..." for k in new_knowledge]
         )
 
-        # 5.1 Собираем статус дистилляции и готовность модели
-        distiller = _get_distiller_singleton()
-        distillation_report = await distiller.generate_local_upgrade_report()
-        pipeline = LocalTrainingPipeline()
-        upgrade_status = pipeline.trigger_auto_upgrade()
+        # 5.1 Статус дистилляции (SQL-срез — метод report у дистиллятора отсутствует)
+        try:
+            dr = await conn.fetchrow("""
+                SELECT
+                    COUNT(*) AS total_24h,
+                    COUNT(*) FILTER (WHERE metadata->>'distilled' = 'true') AS distilled_24h,
+                    COUNT(*) FILTER (WHERE is_verified = true) AS verified_24h
+                FROM knowledge_nodes WHERE created_at > NOW() - INTERVAL '24 hours'
+            """)
+            distillation_report = (
+                f"узлов за 24ч: {dr['total_24h']}, дистиллировано: {dr['distilled_24h']}, "
+                f"верифицировано: {dr['verified_24h']}"
+            )
+        except Exception as dr_err:  # pylint: disable=broad-exception-caught
+            logger.warning("distill report skipped: %s", dr_err)
+            distillation_report = "статус недоступен"
+        try:
+            upgrade_status = LocalTrainingPipeline().trigger_auto_upgrade()
+        except Exception as up_err:  # pylint: disable=broad-exception-caught
+            logger.warning("upgrade status skipped: %s", up_err)
+            upgrade_status = "статус недоступен"
 
         # 5.2 [Фаза 4.3] Ночная работа роя / решения совета / error budgets / консилиум
         night_work_str = ""
@@ -349,6 +377,18 @@ async def generate_morning_plan():
 
 🚀 *Готовность к апгрейду:*
 {upgrade_status if upgrade_status else "Статус недоступен"}
+
+🌙 *Ночная автономия:*
+{night_work_str if night_work_str else "данных нет"}
+
+🏛 *Совет директоров (12ч):*
+{board_str if board_str else "не собирался"}
+
+🚦 *Error budgets:*
+{budget_str if budget_str else "недоступны"}
+
+⚔️ *Консилиум-роутер:*
+{consilium_str if consilium_str else "недоступно"}
 
 _Примечание: Полный AI-доклад недоступен из-за таймаута. Показаны базовые метрики._
 """
