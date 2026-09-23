@@ -21,6 +21,11 @@ import os
 import time
 from typing import Any, Dict, List, Optional
 
+# [v147.1] Генерические типы — семантические хабы (cosine завышен для любого запроса):
+# board_directive/mentorship — дайджесты и мета-комментарии, а не операционные знания.
+_GENERIC_HUB_TYPES = {"board_directive", "mentorship_note", "strategy_summary"}
+_GENERIC_HUB_CATEGORIES = ("strategy", "mentorship")
+
 # [SINGULARITY 29.5] Recursion Guard for Multi-Agent Loops
 # Prevents IterativeDiscovery -> run_smart_agent -> IterativeDiscovery loops
 _RECURSION_CONTEXT = contextvars.ContextVar(
@@ -1355,11 +1360,26 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                                 raise StopIteration("Empty Rust RAG")
 
                             # [v147] Релевантность: порог 0.65, максимум 6 узлов.
-                            # Если после фильтра пусто — top-1 (если >= 0.6).
+                            # [v147.1] Hubness-даунрэнкинг: генерические типы (board_directive,
+                            # mentorship и пр.) — семантические хабы, cosine завышен для всех запросов.
                             sims = [(n, (n.get("similarity") or 0)) for n in nodes]
-                            kept = [n for n, s in sims if s >= 0.65][:6]
+
+                            def _eff_sim(node_sim: float, node_meta: dict) -> float:
+                                ntype = str(node_meta.get("type") or "").lower()
+                                ncat = str(node_meta.get("category") or "").lower()
+                                if ntype in _GENERIC_HUB_TYPES or any(
+                                    g in ncat for g in _GENERIC_HUB_CATEGORIES
+                                ):
+                                    return node_sim - 0.12
+                                return node_sim
+
+                            scored = [
+                                (n, _eff_sim(s, n.get("metadata") or {}))
+                                for n, s in sims
+                            ]
+                            kept = [n for n, s in scored if s >= 0.65][:6]
                             if not kept:
-                                best = max(sims, key=lambda p: p[1], default=None)
+                                best = max(scored, key=lambda p: p[1], default=None)
                                 if best and best[1] >= 0.6:
                                     kept = [best[0]]
                             if not kept:
@@ -1441,11 +1461,15 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                     rows = await conn.fetch(
                         f"""
                         SELECT content, metadata, domain_id,
-                               ((1 - (embedding <=> $1::vector)) * (CASE WHEN metadata->>'low_priority' = 'true' THEN 0.5 ELSE 1.0 END)) as similarity
+                               ((1 - (embedding <=> $1::vector))
+                                * (CASE WHEN metadata->>'low_priority' = 'true' THEN 0.5 ELSE 1.0 END)
+                                * (CASE WHEN metadata->>'type' IN ('board_directive','mentorship_note','strategy_summary')
+                                             OR metadata->>'category' IN ('strategy','mentorship')
+                                        THEN 0.85 ELSE 1.0 END)) as similarity
                         FROM knowledge_nodes
                         WHERE embedding IS NOT NULL AND confidence_score >= 0.3
                         {project_cond}
-                        ORDER BY similarity DESC LIMIT 8
+                        ORDER BY similarity DESC LIMIT 6
                         """,
                         *params,
                     )
