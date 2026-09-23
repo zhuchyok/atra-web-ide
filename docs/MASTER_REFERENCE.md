@@ -49,6 +49,15 @@
 
 ---
 
+## § Последние изменения (2026-09-23 v147) — RAG-контекст: релевантность и лимиты ✅
+
+1. **Корень «свалки контекста»** (ответы = чужие темы/mode-collapse): нет общего капа собранного контекста (до 20k+ симв.), пороги similarity 0.55/0.6 впускали посторонние узлы, двойная RAG-инъекция на запрос (`_get_knowledge_context` + `EnhancedRAGEngine` при `FORCE_PROACTIVE_RAG=true`).
+2. **Фикс:** общий кап `KNOWLEDGE_CONTEXT_MAX_CHARS` (default 4000, обрезка по границе узла, порядок vector→graph→visual); пороги 0.55/0.6 → **0.65** (Rust+LanceDB), Rust limit 10→6, top-1 fallback ≥0.6; `FORCE_PROACTIVE_RAG=false` на victoria-agent (дубль-инъекция выключена, возврат — env).
+3. **Evidence:** `/run` «объясни: шаги проверки бэкапа PostgreSQL» → ответ по теме (pg_dump, структурирован, **29с**); регресс: привет→quick_answer, статус→fact_live_probe, объясни→consilium (debate по теме).
+4. **Остаток:** in-process путь специалистов — преамбулы (конституция/meta-блоки вокруг вопроса) — следующий виток сборки промпта; прод-контур чист. Reranker-тест (RAG_RERANKER_ENABLED=true) релевантность не вернул — откажено, false.
+
+---
+
 ## § Последние изменения (2026-09-23 v146) — Фаза 5.2: wisdom → DNA самообучение + битва после фиксов ✅
 
 1. **Курируемое самообучение:** `expert_dna_wisdom_injection.py` — отбор high-band wisdom (distilled+band=high+conf≥0.8) → инъекция в `experts.metadata.wisdom_dna` (рендер в `_compose_expert_prompt` — блок WISDOM DNA во всех LLM-путях) → eval до/после через боевой /run → судья → keep/rollback (ERROR/пустые/деградация — автороллбэк из wisdom_dna_history). Кураторский маппинг категория→эксперт. Ночная петля в nightly (6ч). Дашборд: счётчики в Wisdom-вкладке.
