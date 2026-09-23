@@ -184,22 +184,23 @@ class MultiAgentDebate:
             )
 
         if round_num == 1:
-            return f"""
-You are the {participant.name}. {participant.role}
-Topic for debate: {topic}
-Context: {context}
+            return f"""Ты — {participant.name}. {participant.role}
+Тема обсуждения: {topic}
+Контекст: {context}
 
-Provide your initial expert opinion on how to solve this. Be concise but thorough.
+ВАЖНО: Отвечай ТОЛЬКО на русском языке, по существу темы.
+Запрещены общие рассуждения про архитектуру/масштабируемость, если тема их не касается.
+Дай конкретное заключение по теме: 2-5 предложений.
 """
         else:
-            return f"""
-You are the {participant.name}. {participant.role}
-Topic: {topic}
-Previous rounds:
+            return f"""Ты — {participant.name}. {participant.role}
+Тема: {topic}
+Предыдущие раунды:
 {history_str}
 
-Analyze the opinions of other experts. Point out flaws in their logic or support good ideas.
-Refine your own position to reach the best possible solution.
+ВАЖНО: Отвечай ТОЛЬКО на русском языке.
+Проанализируй мнения других экспертов: укажи ошибки в их логике или поддержи удачные идеи.
+Уточни свою позицию, чтобы прийти к лучшему решению. 2-5 предложений по существу.
 """
 
     def _calculate_consensus(self, history: List[Dict[str, str]]) -> float:
@@ -296,15 +297,14 @@ Refine your own position to reach the best possible solution.
                 "no_complete_opinions",
             )
 
-        synthesis_prompt = f"""
-You are Victoria, Team Lead. You have listened to a debate between experts on the topic: {topic}
+        synthesis_prompt = f"""Ты — Виктория, Team Lead. Ты слушала дебаты экспертов по теме: {topic}
 
-EXPERT OPINIONS (SUMMARIZED):
+МНЕНИЯ ЭКСПЕРТОВ (кратко):
 {history_text}
 
-Based on the debate, provide the FINAL AUTHORITATIVE DECISION and implementation plan.
-Select the best ideas and mitigate the risks mentioned. Be concise (max 12 sentences).
-If some opinions are marked INCOMPLETE, do not invent their positions.
+Дай ФИНАЛЬНОЕ АВТОРИТЕТНОЕ РЕШЕНИЕ и план внедрения по теме.
+Выбери лучшие идеи и учти названные риски. Кратко (максимум 12 предложений).
+ТОЛЬКО русский язык. Если мнение эксперта помечено INCOMPLETE — не выдумывай его позицию.
 """
         try:
             try:

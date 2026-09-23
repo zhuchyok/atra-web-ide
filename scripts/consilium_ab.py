@@ -85,9 +85,15 @@ def consilium_answer(goal: str) -> str:
     except Exception as e:
         return f"[ERROR] dialogue: {e}"
     parts = resp.get("opinions") or []
-    synth = resp.get("synthesis") or resp.get("result") or ""
+    synth = (
+        resp.get("victoria_synthesis")
+        or resp.get("final_decision")
+        or resp.get("synthesis")
+        or resp.get("result")
+        or ""
+    )
     if not synth and parts:
-        synth = "\n".join(f"— {p.get('expert','?')}: {p.get('opinion','')}" for p in parts)
+        synth = "\n".join(f"— {p.get('expert_name') or p.get('expert','?')}: {p.get('opinion','')}" for p in parts)
     if resp.get("fallback_used") or resp.get("lightweight_used"):
         note = " [degraded]"
     else:
