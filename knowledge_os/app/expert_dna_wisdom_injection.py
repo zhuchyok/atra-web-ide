@@ -189,13 +189,35 @@ async def run_answer(goal: str) -> str:
 
 
 async def eval_expert(expert: str, questions: List[str]) -> List[str]:
-    """Ответы через боевой /run (deep-путь: «объясни …» → no-clarify → Enhanced).
-    Wisdom эксперта входит в ответ, когда эксперт — Виктория (дефолтный ответчик /run)."""
+    """Ответы эксперта.
+
+    Виктория (дефолтный ответчик /run): боевой deep-путь «объясни …» → no-clarify.
+    Специалисты (Анна/Игорь/…): in-process run_smart_agent_async(expert_name=…)
+    — их prompt с wisdom_dna подхватывается через get_expert_system_prompt.
+    Полный путь ai_core занимает 100–180с — таймаут 300с.
+    """
+    if expert == "Виктория":
+        answers = []
+        for q in questions:
+            goal = f"объясни: {q}"
+            try:
+                answers.append(
+                    await asyncio.wait_for(run_answer(goal), timeout=RUN_TIMEOUT + 120)
+                )
+            except Exception as e:  # noqa: BLE001
+                answers.append(f"[ERROR] {e}"[:200])
+        return answers
+
+    from ai_core import run_smart_agent_async
+
     answers = []
     for q in questions:
-        goal = f"объясни: {q}"
         try:
-            answers.append(await asyncio.wait_for(run_answer(goal), timeout=RUN_TIMEOUT + 60))
+            ans = await asyncio.wait_for(
+                run_smart_agent_async(q, expert_name=expert, category="reasoning"),
+                timeout=300,
+            )
+            answers.append(str(ans or "")[:1500])
         except Exception as e:  # noqa: BLE001
             answers.append(f"[ERROR] {e}"[:200])
     return answers
@@ -298,6 +320,12 @@ async def run_injection_cycle(dry_run: bool = False) -> Dict[str, Any]:
     report: Dict[str, Any] = {"timestamp": ts, "dry_run": dry_run, "injections": [], "skipped": 0}
 
     batch = await select_wisdom_batch(limit=30)
+    # Фильтр разрешённых экспертов: пока eval-инфраструктура специалистов флапает
+    # (in-process), надёжен только /run-путь Виктории. Расширение — конфигом:
+    # DNA_INJECTION_ALLOWED_EXPERTS="Виктория,Анна,Игорь".
+    allowed_raw = os.getenv("DNA_INJECTION_ALLOWED_EXPERTS", "Виктория")
+    allowed = {x.strip() for x in allowed_raw.split(",") if x.strip()}
+    batch = [b for b in batch if b["expert"] in allowed]
     by_expert: Dict[str, List[Dict]] = {}
     for w in batch:
         by_expert.setdefault(w["expert"], [])
@@ -321,6 +349,17 @@ async def run_injection_cycle(dry_run: bool = False) -> Dict[str, Any]:
         conn = await asyncpg.connect(_dsn())
         try:
             before = await eval_expert(expert, questions)
+            # Не инъектировать при уже сломанном before — не тратить узлы.
+            if any(a.startswith("[ERROR]") for a in before):
+                entry.update(
+                    {
+                        "action": "skipped_before_errors",
+                        "verdict": {"reason": "before-ответы с ошибками (инфраструктура)"},
+                    }
+                )
+                logger.error("🚨 [DNA-INJ] %s: before-ошибки — цикл прерван без инъекции", expert)
+                report["injections"].append(entry)
+                continue
             ok = await inject_wisdom_dna(conn, expert, w["node_id"], w["override_text"])
             if not ok:
                 entry["action"] = "skipped_auto_dna_sync"
