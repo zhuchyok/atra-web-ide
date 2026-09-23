@@ -160,6 +160,9 @@ services:
       EXECUTE_ASSIGNMENTS_IN_RUN: "true"
       PREFER_EXPERTS_FIRST: "true"
       RAG_RERANKER_ENABLED: "false"
+      # v147: второй RAG («ЗНАНИЯ ОТ КОЛЛЕГ») отключён — двойная доза шума; главный контур остаётся
+      FORCE_PROACTIVE_RAG: "false"
+      KNOWLEDGE_CONTEXT_MAX_CHARS: "4000"
       OLLAMA_EMBED_TIMEOUT_SEC: "8"
       OLLAMA_EMBED_MAX_RETRIES: "2"
       MLX_BASE_URL: http://host.docker.internal:11435

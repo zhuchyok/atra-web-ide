@@ -1265,7 +1265,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                             logger.info("⚡ [LANCEDB RAG] Zero-latency context retrieved.")
                             context = "\n⚡ [KNOWLEDGE CONTEXT (LANCEDB-ACCELERATED)]:\n"
                             for r in lancedb_results:
-                                if r["similarity"] >= 0.6:  # Higher threshold for vector search
+                                if r["similarity"] >= 0.65:  # [v147] релевантность: было 0.6
                                     file_path = r["metadata"].get("file_path", "N/A")
                                     context += f"\n[NODE: {file_path}] (релевантность: {r['similarity']:.2f}):\n"
                                     context += f"{r['content'][:1200]}\n"
@@ -1354,17 +1354,27 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                                 )
                                 raise StopIteration("Empty Rust RAG")
 
+                            # [v147] Релевантность: порог 0.65, максимум 6 узлов.
+                            # Если после фильтра пусто — top-1 (если >= 0.6).
+                            sims = [(n, (n.get("similarity") or 0)) for n in nodes]
+                            kept = [n for n, s in sims if s >= 0.65][:6]
+                            if not kept:
+                                best = max(sims, key=lambda p: p[1], default=None)
+                                if best and best[1] >= 0.6:
+                                    kept = [best[0]]
+                            if not kept:
+                                logger.info("📭 [RUST RAG] Все узлы ниже порога 0.6 — контекст пуст.")
+                                return ""
                             context = "\n📚 [KNOWLEDGE CONTEXT (RUST-ACCELERATED)]:\n"
-                            for node in nodes:
+                            for node in kept:
                                 # (node.get("similarity") or 0) — защита от similarity=null в JSON
                                 sim = node.get("similarity") or 0
-                                if sim >= 0.55:
-                                    meta = node.get("metadata") or {}
-                                    file_path = meta.get("file_path", "N/A")
-                                    context += (
-                                        f"\n[NODE: {file_path}] (релевантность: {sim:.2f}):\n"
-                                    )
-                                    context += f"{node['content'][:1200]}\n"
+                                meta = node.get("metadata") or {}
+                                file_path = meta.get("file_path", "N/A")
+                                context += (
+                                    f"\n[NODE: {file_path}] (релевантность: {sim:.2f}):\n"
+                                )
+                                context += f"{node['content'][:1200]}\n"
                             logger.info("🚀 [RUST RAG] Successfully retrieved context.")
 
                             # [SINGULARITY 21.25] Deep Memory Hierarchical Enrichment
@@ -1584,15 +1594,30 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                 # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Consensus verification failed: {ce}")
 
+        # [v147] Сборка с приоритетом релевантности: vector (точный поиск) → graph → visual,
+        # общий кап KNOWLEDGE_CONTEXT_MAX_CHARS по границе узла ([NODE: ...]).
         full_context = ""
-        if graph_context:
-            logger.info("🌐 [GRAPHRAG] Context retrieved.")
-            full_context += graph_context + "\n"
-        if visual_context:
-            logger.info("🖼️ [OMNI-RAG] Visual context retrieved.")
-            full_context += visual_context + "\n"
         if vector_context:
             full_context += vector_context
+        if graph_context:
+            logger.info("🌐 [GRAPHRAG] Context retrieved.")
+            full_context += "\n" + graph_context
+        if visual_context:
+            logger.info("🖼️ [OMNI-RAG] Visual context retrieved.")
+            full_context += "\n" + visual_context
+
+        max_chars = int(os.getenv("KNOWLEDGE_CONTEXT_MAX_CHARS", "4000"))
+        if len(full_context) > max_chars:
+            cut = full_context.rfind("\n[NODE:", 0, max_chars)
+            if cut < 500:  # граница узла не найдена в допустимой зоне
+                cut = max_chars
+            logger.info(
+                "✂️ [RAG] Context capped: %d → %d chars (лимит %d)",
+                len(full_context),
+                cut,
+                max_chars,
+            )
+            full_context = full_context[:cut]
 
         # [SINGULARITY 21.25] Global Deep Memory Hierarchical Enrichment (for GraphRAG)
         # Already handled inside fetch_graph for GraphRAG path and fetch_vector for VectorRAG path.
