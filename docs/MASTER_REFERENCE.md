@@ -49,6 +49,18 @@
 
 ---
 
+## § Последние изменения (2026-09-23 v145) — Фаза 4: error budget + отчёт роя + STRICT_LOCAL drill ✅
+
+1. **Error budget (SRE-практика):** `knowledge_os/app/error_budget.py` — суточный бюджет неудач на автономный цикл (env `ERRBUDGET_<CYCLE>_MAX`, default 10), Redis-счётчики `errbudget:{cycle}:{date}`, успех реабилитирует (−1). Исчерпан → цикл в наблюдаемый режим + triage-задача в БД (source=error_budget, diagnostic_path). Обвязка: `run_evolution_loop.py` + `orchestrator_phases.py` фаза 13 (curiosity).
+2. **Битый SQL закрыт (атрибуция v143 сработала):** `adaptive_learner.py` писал под чужую схему `synthetic_training_data`. Починены: миграция `usage_count`, INSERT под реальные колонки (prompt/response/metadata), `input_query[:50]`→`left(prompt,50)`, потерянный отступ `if not exists`. Цикл живьём зелёный (1 updated).
+3. **Фаза 1 KPI подтверждён:** eligible_with_emb/eligible_all = **54186/54186 = 100%** (официальный `content_is_rag_eligible`); raw 74.7% — антипаническая метрика (v131), не авария. Band-глубина: метадата `band` в узлах отсутствует (наследие v121) — наблюдение.
+4. **Утренний отчёт (4.3):** 4 новых блока — ночная работа роя по source, решения совета (12ч), error budgets, консилиум-роутер. Формат доклада обновлён (ночная автономия + здоровье автономии).
+5. **STRICT_LOCAL drill (4.4, bounded):** pre-flight зелёный; 3 вопроса (вкл. консилиумный, 54с дебат) — **0 реальных облачных вызовов** («OpenRouter пропущен: ключ не задан» = корректное поведение); режим возвращён на false. Полный offline-drill 1ч — ручной шаг.
+
+Evidence: `victoria_consilium_routed_total{research,applied}=1`; evolution-баннер «бюджет: 10 неудач осталось»; контейнеры healthy; очередь 0.
+
+---
+
 ## § Последние изменения (2026-09-23 v144) — Фаза 3: consilium-роутер + ночные A/B-битвы ✅
 
 ### Что внедрено
