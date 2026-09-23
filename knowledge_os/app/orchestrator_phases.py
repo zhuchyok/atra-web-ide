@@ -1451,11 +1451,26 @@ async def phase_heavy_tail(
 
     logger.info("🔍 Phase 13: Curiosity Engine Gap Analysis...")
     try:
+        # Error budget (Фаза 4.1): исчерпан — наблюдаемый режим без LLM-работы.
+        from error_budget import check_budget, record_failure, record_success
+
+        _eb_allowed, _eb_left = await check_budget("curiosity")
+        if not _eb_allowed:
+            logger.warning("🚫 Curiosity: error budget исчерпан — пропуск фазы (%s)", _eb_left)
+            raise RuntimeError(f"error_budget_exhausted:curiosity")
         curiosity = get_curiosity_engine()
         gap_result = await curiosity.scan_for_gaps()
         logger.info("  %s", gap_result)
+        await record_success("curiosity")
     except Exception as exc:  # pylint: disable=broad-exception-caught
         logger.error("Curiosity error: %s", exc)
+        if "error_budget_exhausted" not in str(exc):
+            try:
+                from error_budget import record_failure as _rf
+
+                await _rf("curiosity")
+            except Exception:  # pylint: disable=broad-exception-caught
+                pass
 
     logger.info("🧠 Phase 14: Memory Consolidation (The Dreaming)...")
     try:

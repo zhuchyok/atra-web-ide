@@ -4,6 +4,7 @@ Adaptive Learner
 """
 
 import asyncio
+import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -118,26 +119,31 @@ class AdaptiveLearner:
                 exists = await conn.fetchval(
                     """
                     SELECT COUNT(*) FROM synthetic_training_data
-                    WHERE input_query = $1
+                    WHERE prompt = $1
                 """,
-                    query[:200],
+                    query[:500],
                 )
 
                 if not exists:
-                    # Добавляем как успешный пример
+                    # Добавляем как успешный пример (схема synthetic_training_data:
+                    # prompt/response — текст примера, bad_response/fix_explanation — в metadata)
                     await conn.execute(
                         """
                         INSERT INTO synthetic_training_data
-                        (expert_id, category, input_query, bad_response, corrected_response, fix_explanation, usage_count)
-                        VALUES ($1, $2, $3, $4, $5, $6, 0)
+                        (expert_id, category, prompt, response, metadata, usage_count)
+                        VALUES ($1, $2, $3, $4, $5::jsonb, 0)
                     """,
                         "adaptive_learner",
                         "general",
                         query[:500],
-                        "",  # Нет плохого ответа
                         response[:1000],
-                        "Успешный пример из адаптивного обучения",
-                        0,
+                        json.dumps(
+                            {
+                                "bad_response": "",
+                                "fix_explanation": "Успешный пример из адаптивного обучения",
+                            },
+                            ensure_ascii=False,
+                        ),
                     )  # Начинаем с 0, будет увеличиваться при использовании
                     updated += 1
 
@@ -155,13 +161,13 @@ class AdaptiveLearner:
                     SET usage_count = usage_count + (
                         SELECT COUNT(*) * 2
                         FROM feedback_data fd
-                        WHERE fd.query ILIKE '%' || std.input_query[:50] || '%'
+                        WHERE fd.query ILIKE '%' || left(std.prompt, 50) || '%'
                         AND fd.rerouted_to_cloud = FALSE
                         AND fd.quality_score >= 0.8
                     ) - (
                         SELECT COUNT(*) * 5
                         FROM feedback_data fd
-                        WHERE fd.query ILIKE '%' || std.input_query[:50] || '%'
+                        WHERE fd.query ILIKE '%' || left(std.prompt, 50) || '%'
                         AND fd.rerouted_to_cloud = TRUE
                     )
                     WHERE usage_count < 0

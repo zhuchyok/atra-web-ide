@@ -210,6 +210,69 @@ async def generate_morning_plan():
         pipeline = LocalTrainingPipeline()
         upgrade_status = pipeline.trigger_auto_upgrade()
 
+        # 5.2 [Фаза 4.3] Ночная работа роя / решения совета / error budgets / консилиум
+        night_work_str = ""
+        board_str = ""
+        budget_str = ""
+        try:
+            night_rows = await conn.fetch("""
+                SELECT COALESCE(metadata->>'source', 'other') AS src, COUNT(*) AS cnt
+                FROM tasks
+                WHERE status = 'completed' AND updated_at > NOW() - INTERVAL '12 hours'
+                GROUP BY 1 ORDER BY cnt DESC LIMIT 6
+            """)
+            night_total = sum(r["cnt"] for r in night_rows)
+            night_work_str = (
+                ", ".join(f"{r['src']}: {r['cnt']}" for r in night_rows)
+                + f" — всего {night_total} за 12ч"
+            )
+        except Exception as night_err:  # pylint: disable=broad-exception-caught
+            logger.warning("night work block skipped: %s", night_err)
+
+        try:
+            board_rows = await conn.fetch("""
+                SELECT LEFT(COALESCE(directive_text, question, ''), 140) AS d
+                FROM board_decisions WHERE created_at > NOW() - INTERVAL '12 hours'
+                ORDER BY created_at DESC LIMIT 3
+            """)
+            board_str = (
+                "\n".join(f"- {r['d']}" for r in board_rows)
+                if board_rows
+                else "Совет директоров за ночь не собирался."
+            )
+        except Exception as board_err:  # pylint: disable=broad-exception-caught
+            logger.warning("board block skipped: %s", board_err)
+            board_str = "Статус совета недоступен."
+
+        try:
+            from error_budget import check_budget
+
+            budget_lines = []
+            for _cycle in ("evolution", "curiosity", "self_check", "nightly"):
+                _ok, _left = await check_budget(_cycle)
+                budget_lines.append(
+                    f"{'🟢' if _ok else '🔴'} {_cycle}: {'осталось ' + str(_left) + ' неудач' if _ok else 'ИСЧЕРПАН — наблюдаемый режим'}"
+                )
+            budget_str = "\n".join(budget_lines)
+        except Exception as eb_err:  # pylint: disable=broad-exception-caught
+            logger.warning("budget block skipped: %s", eb_err)
+            budget_str = "Error budgets недоступны."
+
+        try:
+            import httpx
+
+            async with httpx.AsyncClient(timeout=5) as client:
+                m = await client.get("http://localhost:8000/metrics")
+            cons_lines = [
+                ln
+                for ln in m.text.splitlines()
+                if ln.startswith("victoria_consilium_routed_total{")
+            ]
+            consilium_str = "\n".join(cons_lines[-6:]) if cons_lines else "консилиум не вызывался"
+        except Exception as cons_err:  # pylint: disable=broad-exception-caught
+            logger.warning("consilium block skipped: %s", cons_err)
+            consilium_str = "недоступно"
+
         # 6. Промпт для генерации отчета
         prompt = f"""
         {victoria_prompt}
@@ -235,12 +298,24 @@ async def generate_morning_plan():
         ОСНОВА ДЛЯ ДОКЛАДА (Новые знания корпорации за ночь):
         {knowledge_str if knowledge_str else "За ночь новых критических узлов знаний не добавлено."}
 
+        🌙 ЧТО РОЙ СДЕЛАЛ НОЧЬЮ (выполнено за 12ч по источникам):
+        {night_work_str or "данных нет"}
+
+        🏛 РЕШЕНИЯ СОВЕТА ДИРЕКТОРОВ (12ч):
+        {board_str}
+
+        🚦 ERROR BUDGETS АВТОНОМНЫХ ЦИКЛОВ (неудач осталось до наблюдаемого режима):
+        {budget_str}
+
+        ⚔️ КОНСИЛИУМ-РОУТЕР (решений):
+        {consilium_str}
+
         ФОРМАТ ДОКЛАДА:
         1. 💰 Финансовая аналитика: Кратко о затратах и эффективности.
         2. 📊 Статус OKR: Короткий комментарий по прогрессу ключевых целей.
-        3. 📉 Ликвидность и ROI: Как наши знания работают на бизнес.
-        4. 🧠 Интеллектуальный аудит: Краткий обзор самых важных находок ночного обучения.
-        5. 🧬 Эволюция L1: Комментарий по прогрессу дистилляции знаний для локальной модели.
+        3. 🌙 Ночная автономия: Что рой сделал сам и какие решения принял совет.
+        4. 🚦 Здоровье автономии: Error budgets — где горит, где наблюдаемый режим.
+        5. 📉 Ликвидность и ROI: Как наши знания работают на бизнес.
         6. 🚀 Операционный план: Приоритеты для департаментов на сегодня.
         """
 
