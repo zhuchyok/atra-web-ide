@@ -421,6 +421,7 @@ class DialogueMode(str, Enum):
     DEBATE = "debate"  # MultiAgentDebate - многоканальный
     COLLABORATION = "collaboration"  # CollectiveBrainstorming - фазы
     SWARM = "swarm"  # Swarm Intelligence - роение
+    AUTO = "auto"  # Авто-роутинг solo/debate по категории темы (consilium_router)
 
 
 class DialogueRequest(BaseModel):
@@ -430,7 +431,10 @@ class DialogueRequest(BaseModel):
     initial_proposal: Optional[str] = Field(
         None, max_length=10000, description="Начальное предложение"
     )
-    mode: DialogueMode = Field(default=DialogueMode.DEBATE, description="Режим диалога")
+    mode: DialogueMode = Field(
+        default=DialogueMode.DEBATE,
+        description="Режим диалога. 'auto' — выбрать solo/debate по категории темы.",
+    )
     expert_ids: Optional[list[str]] = Field(None, description="Конкретные эксперты")
     round_limit: int = Field(default=2, ge=1, le=10, description="Лимит раундов")
     beautiful_mode: bool = Field(default=True, description="Использовать персоны")
@@ -679,6 +683,23 @@ async def _run_full_mode_engine(request: "DialogueRequest") -> dict[str, Any]:
     return {"success": False, "error": f"Mode {request.mode} not implemented"}
 
 
+def _resolve_auto_mode(request: "DialogueRequest") -> "DialogueRequest":
+    """mode=auto: выбрать solo (sequential) / debate по категории темы.
+
+    Роутинг по данным A/B-битв — см. services/consilium_router.py.
+    """
+    if request.mode != DialogueMode.AUTO:
+        return request
+    from app.services.consilium_router import resolve_engine
+
+    engine, category = resolve_engine(request.topic)
+    resolved = DialogueMode(engine)
+    logger.info(
+        "Auto-routing: category=%s engine=%s topic=%.80s", category, engine, request.topic
+    )
+    return request.model_copy(update={"mode": resolved})
+
+
 def _want_lightweight_first(request: "DialogueRequest") -> bool:
     if request.force_full:
         return False
@@ -796,6 +817,7 @@ async def stream_dialogue(request: DialogueRequest):
     from fastapi.responses import StreamingResponse
 
     session_id = str(uuid4())
+    request = _resolve_auto_mode(request)
 
     async def event_generator():
         try:
@@ -914,6 +936,7 @@ async def start_dialogue(
         Результат диалога с мнениями экспертов, финальным решением и синтезом от Victoria
     """
     session_id = str(uuid4())
+    request = _resolve_auto_mode(request)
 
     _sessions[session_id] = {
         "status": "in_progress",
