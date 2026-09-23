@@ -206,6 +206,13 @@ def main():
         )
 
     out = {"timestamp": ts, "wins": wins, "results": results}
+    # Агрегация по категориям — данные для консилиум-роутера (план 3.3).
+    wins_by_category: dict = {}
+    for r in results:
+        w = r["verdict"]["winner"]
+        c = wins_by_category.setdefault(r["category"], {"A": 0, "B": 0, "tie": 0, "error": 0})
+        c[w] = c.get(w, 0) + 1
+    out["wins_by_category"] = wins_by_category
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=1)

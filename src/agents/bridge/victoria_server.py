@@ -784,6 +784,12 @@ def _create_metric(name: str, metric_class, documentation: str, labelnames=(), *
 VICTORIA_REQUESTS = _create_metric(
     "victoria_requests_total", Counter, "Total Victoria requests", ["endpoint", "mode"]
 )
+VICTORIA_CONSILIUM_ROUTED = _create_metric(
+    "victoria_consilium_routed_total",
+    Counter,
+    "Consilium router decisions (category x outcome: applied|fallback|disabled)",
+    ["category", "outcome"],
+)
 VICTORIA_ERRORS = _create_metric(
     "victoria_errors_total", Counter, "Total Victoria errors", ["error_type", "endpoint"]
 )
@@ -1004,6 +1010,8 @@ from src.agents.bridge.task_detector import (
     format_live_fact_answer,
     is_fact_seeking_question,
     is_curator_standard_goal,
+    is_consilium_winnable_goal,
+    consilium_categories,
     is_operational_execution_goal,
     should_use_enhanced,
 )
@@ -6052,6 +6060,95 @@ async def _run_task_background(
                 "reason": "curator_standard_goal_no_clarify",
                 "confidence": 0.95,
             }
+
+        # === CONSILIUM ROUTER (план 3.3, v144) ===
+        # Категории, где ночные A/B-битвы показали выигрыш дебата над соло
+        # (research 4-1, testing 4-0), идут в экспертный консилиум.
+        # Деградированный/пустой дебат отбрасывается (анти-стаб) — fallback в соло.
+        consilium_category = is_consilium_winnable_goal(goal)
+        if consilium_category and os.getenv("CONSILIUM_ROUTING_ENABLED", "true").lower() in (
+            "1",
+            "true",
+            "yes",
+        ):
+            _dlg_url = os.getenv("EXPERT_DIALOGUE_URL", "http://host.docker.internal:8080")
+            _cons_timeout = float(os.getenv("CONSILIUM_ROUTER_TIMEOUT_SEC", "240"))
+            _synth, _engine, _degraded = "", "", True
+            try:
+                async with httpx.AsyncClient(timeout=_cons_timeout) as _client:
+                    _resp = await _client.post(
+                        f"{_dlg_url}/api/expert-dialogue/start",
+                        json={"topic": goal, "mode": "debate"},
+                    )
+                if _resp.status_code == 200:
+                    _data = _resp.json()
+                    _synth = (
+                        _data.get("victoria_synthesis")
+                        or _data.get("final_decision")
+                        or _data.get("synthesis")
+                        or _data.get("result")
+                        or ""
+                    )
+                    _engine = str(_data.get("engine_used") or "debate")
+                    _degraded = bool(
+                        _data.get("fallback_used") or _data.get("lightweight_used")
+                    )
+            except Exception as cons_err:  # noqa: BLE001 — fallback в соло
+                logger.warning(
+                    "[CONSILIUM_ROUTER] debate failed: %s — fallback to solo", cons_err
+                )
+            if _synth and not _degraded:
+                _knowledge = {
+                    "strategy": "consilium",
+                    "confidence": 0.9,
+                    "metadata": {
+                        "category": consilium_category,
+                        "engine_used": _engine,
+                        "source": "expert_dialogue_debate",
+                        "correlation_id": correlation_id,
+                    },
+                }
+                try:
+                    VICTORIA_CONSILIUM_ROUTED.labels(
+                        category=consilium_category, outcome="applied"
+                    ).inc()
+                except Exception:  # noqa: BLE001
+                    pass
+                if redis_manager:
+                    await redis_manager.update_task_status(
+                        task_id,
+                        "completed",
+                        result=_synth,
+                        metadata={"knowledge": _knowledge, "stage": "completed"},
+                    )
+                    await _clear_async_inflight(task_id)
+                else:
+                    await _sync_store()
+                    store["status"] = "completed"
+                    store["output"] = _normalize_output_for_user(_synth)
+                    store["knowledge"] = _knowledge
+                    store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                logger.info(
+                    "[CONSILIUM_ROUTER] completed task_id=%s category=%s engine=%s len=%d",
+                    task_id[:8],
+                    consilium_category,
+                    _engine,
+                    len(_synth),
+                )
+                return
+            try:
+                VICTORIA_CONSILIUM_ROUTED.labels(
+                    category=consilium_category, outcome="fallback"
+                ).inc()
+            except Exception:  # noqa: BLE001
+                pass
+            logger.info(
+                "[CONSILIUM_ROUTER] debate unusable (degraded=%s len=%d) — solo continues",
+                _degraded,
+                len(_synth),
+            )
+        # === /CONSILIUM ROUTER ===
+
         if strategy_result.get("strategy") == "quick_answer":
             # Code-gen по контракту v142 → coder-слот 11436, не phi3.5 на руках.
             _q_reason = str(strategy_result.get("reason") or "").lower()

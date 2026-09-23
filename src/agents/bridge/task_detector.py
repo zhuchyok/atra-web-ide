@@ -456,6 +456,56 @@ def is_curator_standard_goal(goal: str) -> bool:
     return False
 
 
+# Категории, где ночные A/B-битвы показали выигрыш консилиума над соло
+# (battle_20260922_205549: research 4-1, testing 4-0). Список — env, чтобы
+# пополнять по данным новых битв без правки кода.
+_CONSILIUM_CATEGORY_PATTERNS: dict[str, tuple[str, ...]] = {
+    "research": (
+        "объясни",
+        "что такое",
+        "расскажи",
+        "чем отличается",
+        "найди в интернете",
+        "исследуй",
+    ),
+    "testing": (
+        "тест",
+        "чеклист",
+        "покрытие",
+        "smoke",
+        "план проверки",
+        "план регресса",
+    ),
+}
+
+
+def consilium_categories() -> tuple[str, ...]:
+    raw = os.getenv("CONSILIUM_CATEGORIES", "research,testing")
+    return tuple(x.strip() for x in raw.split(",") if x.strip() in _CONSILIUM_CATEGORY_PATTERNS)
+
+
+def is_consilium_winnable_goal(goal: str) -> Optional[str]:
+    """Категория, где консилиум (дебат) статистически выигрывает у соло — или None.
+
+    Узкие паттерны: research — объяснительные глаголы в начале цели;
+    testing — явные маркеры тест-планирования. Классификация нужна ДО
+    стратегической LLM, поэтому только regex/keywords.
+    """
+    g = (goal or "").lower().strip()
+    if not g:
+        return None
+    enabled = consilium_categories()
+    if "research" in enabled:
+        research_starters = _CONSILIUM_CATEGORY_PATTERNS["research"]
+        if any(g.startswith(v) for v in research_starters) or "найди в интернете" in g:
+            return "research"
+    if "testing" in enabled:
+        testing_markers = _CONSILIUM_CATEGORY_PATTERNS["testing"]
+        if any(m in g for m in testing_markers):
+            return "testing"
+    return None
+
+
 def _is_simple_veronica_request(goal: str) -> bool:
     """
     Запрос — одношаговое действие (показать/вывести/прочитать).

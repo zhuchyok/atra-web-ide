@@ -49,6 +49,31 @@
 
 ---
 
+## § Последние изменения (2026-09-23 v144) — Фаза 3: consilium-роутер + ночные A/B-битвы ✅
+
+### Что внедрено
+
+1. **Eval-контур:** `configs/evals/consilium_v1.jsonl` (50 вопросов × 10 категорий) + `scripts/consilium_ab.py` (соло vs дебат, судья victoria-wisdom-24k на MLX, ретрай парсинга, `wins_by_category` в отчёте). Полная битва: A=25 B=18 tie=1 err=6.
+2. **Роутер консилиума (план 3.3):** `is_consilium_winnable_goal()` в `task_detector.py` (research/testing по узким паттернам, категории через `CONSILIUM_CATEGORIES`); в `_run_task_background` после guardrail'ов: debate через `POST {EXPERT_DIALOGUE_URL}/api/expert-dialogue/start {topic, mode:"debate"}` (default URL `host.docker.internal:8080` — localhost внутри контейнера не работает!). Анти-стаб: degraded/пустой дебат → fallback в соло. Метрика `victoria_consilium_routed_total{category, outcome}`. Только async-путь; opt-out `CONSILIUM_ROUTING_ENABLED=false`.
+3. **Языковой фикс дебата:** промпты `multi_agent_debate.py` (участники + синтез) на русском, запрет off-topic шаблонов — дебат отвечал английским «structure/scalability» даже на «привет».
+4. **Ночные битвы:** launchd `com.atra.consilium-battle-nightly`, 01:30, лог `~/Library/Logs/atra/consilium_battle.log` — накопление данных для расширения `CONSILIUM_CATEGORIES` числами.
+5. **Учебный контур Виктории (v143-продолжение):** восстановлен FAST_ACTION_PATH (файл-проверки 0.01с), code-gen → 11436, «статус проекта» → fact-live-probe с метриками, guard объяснительных глаголов в fact-probe, no-clarify на объяснительные цели. Регресс 4/4 (привет 0.9с, статус 0.1с, код 12с, файл-чек 0.01с).
+
+### Evidence (live 2026-09-23)
+
+- Классификатор 8/8 (research/testing позитивы, communication/code_audit/статус негативы).
+- «объясни, что такое HNSW…» → `strategy=consilium, category=research, engine=debate`, ответ русский по теме, 790 символов.
+- «привет» → `quick_answer` 0.9с; «какой статус проекта?» → `fact_live_probe` 0.1с (роутер не мешает быстрым путям).
+- `/metrics`: `victoria_consilium_routed_total{category="research",outcome="applied"} 1`; очередь 0; 8010/8080 = 200.
+
+### Открытое
+
+- Sync-путь /run дублирует стратегию — роутер пока только async (следующая итерация).
+- Дебат латентен (50–90с) — норма для async; RAG-обогащение дебата тянет нерелевантные узлы (Фаза 1).
+- Судья A/B: согласие ~80% на 20 разметках — на пороге; дожим по мере накопления ночных битв.
+
+---
+
 ## § Последние изменения (2026-09-22 v143) — аудит + ремонт: Veronica порт, Prometheus targets, TCC-guard, GatheringFuture ✅
 
 ### Диагноз (полный аудит)
