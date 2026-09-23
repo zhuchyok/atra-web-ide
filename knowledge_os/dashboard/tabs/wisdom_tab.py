@@ -65,6 +65,26 @@ def render_wisdom_tab():
     st.markdown("## 🏛 Wisdom & Mentorship Command Center")
     st.markdown("### Эволюция интеллекта и корпоративная мудрость (Singularity 31.2+)")
 
+    # [Фаза 5.2] Счётчик инъекций wisdom → DNA
+    try:
+        _dn = fetch_data(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE metadata->>'injected_into_dna' = 'true') AS injected,
+                COUNT(*) FILTER (WHERE metadata->>'injected_into_dna' = 'rollback') AS rollbacks,
+                COUNT(*) FILTER (WHERE metadata->>'injected_into_dna' = 'unconfirmed_retry') AS pending
+            FROM knowledge_nodes WHERE metadata ? 'injected_into_dna'
+            """,
+            key="dna_injection_counters",
+        )
+        if _dn:
+            c1, c2, c3 = st.columns(3)
+            c1.metric("🧬 Инъекций в DNA", int(_dn[0].get("injected") or 0))
+            c2.metric("↩️ Откатов (деградация)", int(_dn[0].get("rollbacks") or 0))
+            c3.metric("⏳ Ожидают повторной оценки", int(_dn[0].get("pending") or 0))
+    except Exception as _e:  # pylint: disable=broad-exception-caught
+        st.caption(f"🧬 DNA-инъекции: данные недоступны ({str(_e)[:40]})")
+
     time_range = st.session_state.get("global_time_range", "Последние 7 дней")
     st.caption(f"📅 Фильтр времени: **{time_range}**")
 
@@ -393,7 +413,9 @@ def render_wisdom_tab():
         overrides_n = _count(
             "SELECT COUNT(*) as count FROM expert_dna_overrides WHERE is_active = TRUE"
         )
-        st.caption(f"Активных DNA overrides: **{overrides_n}** · экспертов в реестре: **{len(experts_list or [])}**")
+        st.caption(
+            f"Активных DNA overrides: **{overrides_n}** · экспертов в реестре: **{len(experts_list or [])}**"
+        )
 
         if experts_list:
             expert_names = [e["name"] for e in experts_list]
@@ -414,7 +436,9 @@ def render_wisdom_tab():
 
             initial_text = current_override[0]["custom_instructions"] if current_override else ""
             if current_override:
-                st.caption(f"Текущий override: v{current_override[0].get('version') or '—'} · {_fmt_ts(current_override[0].get('updated_at'))}")
+                st.caption(
+                    f"Текущий override: v{current_override[0].get('version') or '—'} · {_fmt_ts(current_override[0].get('updated_at'))}"
+                )
 
             with st.form(key=f"dna_form_{expert_id}"):
                 st.markdown(f"**Эксперт:** {selected_expert_name} ({selected_expert['role']})")

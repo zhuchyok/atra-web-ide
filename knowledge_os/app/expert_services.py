@@ -12,6 +12,8 @@ import logging
 import os
 import threading
 import time
+
+MAX_WISDOM_DNA_CHARS = 800
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -136,7 +138,19 @@ def _compose_expert_prompt(base_prompt: str, metadata: Any, dynamic_context: str
     static = base_prompt or ""
     dynamic = dynamic_context or ""
     skills_block = _build_assigned_skills_block(metadata)
-    parts = [p for p in [static, dynamic, skills_block] if p]
+    # [Фаза 5.2] Wisdom-DNA: курируемые уроки из high-band wisdom
+    # (пишет expert_dna_wisdom_injection.py в metadata.wisdom_dna).
+    wisdom_block = ""
+    try:
+        md = metadata if isinstance(metadata, dict) else (
+            json.loads(metadata) if isinstance(metadata, str) and metadata else {}
+        )
+        wisdom = str(md.get("wisdom_dna") or "").strip()
+        if wisdom:
+            wisdom_block = f"### 🧬 WISDOM DNA (уроки из опыта, курируемое самообучение):\n{wisdom[:MAX_WISDOM_DNA_CHARS]}"
+    except Exception:  # pylint: disable=broad-exception-caught
+        wisdom_block = ""
+    parts = [p for p in [static, dynamic, wisdom_block, skills_block] if p]
     return "\n\n".join(parts) if parts else static
 
 

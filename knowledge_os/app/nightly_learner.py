@@ -563,10 +563,18 @@ async def main_loop() -> None:
 
     research_task = asyncio.create_task(run_continuous_research_refresh())
     routing_guard_task = asyncio.create_task(run_continuous_routing_quality_guard())
+    # [Фаза 5.2] Wisdom → DNA инъекция с eval-подтверждением (интервал DNA_INJECTION_INTERVAL_SEC).
+    try:
+        from expert_dna_wisdom_injection import run_continuous_dna_injection
+
+        dna_task = asyncio.create_task(run_continuous_dna_injection())
+    except ImportError:
+        dna_task = None
+        logger.warning("🌙 [NIGHTLY] dna injection module unavailable")
     logger.info(
-        "🌙 [NIGHTLY] Distillation + embedding backfill + priority re-distill + research refresh + routing guard running"
+        "🌙 [NIGHTLY] Distillation + embedding backfill + priority re-distill + research refresh + routing guard + dna injection running"
     )
-    _ = (distill_task, embed_task, redistill_task, research_task, routing_guard_task)
+    _ = (distill_task, embed_task, redistill_task, research_task, routing_guard_task, dna_task)
 
     while True:
         # Error budget (Фаза 4.1): исчерпан — наблюдаемый режим, только лог.

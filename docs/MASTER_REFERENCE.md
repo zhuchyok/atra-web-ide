@@ -49,6 +49,16 @@
 
 ---
 
+## § Последние изменения (2026-09-23 v146) — Фаза 5.2: wisdom → DNA самообучение + битва после фиксов ✅
+
+1. **Курируемое самообучение:** `expert_dna_wisdom_injection.py` — отбор high-band wisdom (distilled+band=high+conf≥0.8) → инъекция в `experts.metadata.wisdom_dna` (рендер в `_compose_expert_prompt` — блок WISDOM DNA во всех LLM-путях) → eval до/после через боевой /run → судья → keep/rollback (ERROR/пустые/деградация — автороллбэк из wisdom_dna_history). Кураторский маппинг категория→эксперт. Ночная петля в nightly (6ч). Дашборд: счётчики в Wisdom-вкладке.
+2. **Live-подтверждение:** Виктория ← research-wisdom, kept (before 2.0 → after 3.0, судья); wisdom_dna в metadata, узел помечен.
+3. **Ограничение:** eval через /run измерим только для Виктории (дефолтный ответчик); in-process `run_smart_agent_async` виснет в worker-контейнере (local_router, reasoning) — эксперты-специалисты подключаются после починки (задача).
+4. **Ночная битва после фиксов (v144):** консилиум впервые победил — **B=24 : A=14**, tie 12, ошибок судьи **0** (retry работает). Категории: security 0-5, analysis 0-4, research 0-4 — дебат; communication 3-0, code_audit 4-0 — соло (роутер верен). По плану — копим 2 недели до решения о дефолтных составах.
+5. **Расписания на launchd:** com.atra.backup-health-check (04:00, скрипт в ~/bin — cron+TCC никогда не работал), com.atra.morning-report (08:30, ntfy-fallback, старый краш distiller-report починен SQL-срезом).
+
+---
+
 ## § Последние изменения (2026-09-23 v145) — Фаза 4: error budget + отчёт роя + STRICT_LOCAL drill ✅
 
 1. **Error budget (SRE-практика):** `knowledge_os/app/error_budget.py` — суточный бюджет неудач на автономный цикл (env `ERRBUDGET_<CYCLE>_MAX`, default 10), Redis-счётчики `errbudget:{cycle}:{date}`, успех реабилитирует (−1). Исчерпан → цикл в наблюдаемый режим + triage-задача в БД (source=error_budget, diagnostic_path). Обвязка: `run_evolution_loop.py` + `orchestrator_phases.py` фаза 13 (curiosity).
