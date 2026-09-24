@@ -554,7 +554,7 @@ class VictoriaEnhanced:
                 os.getenv("VICTORIA_ENHANCED_LLM_TIMEOUT_OPERATIONAL_SEC", "240")
             )
             llm_timeout = (
-                _operational_llm_timeout if is_operational_execution_goal else _default_llm_timeout
+                _operational_llm_timeout if skip_dept_heads else _default_llm_timeout
             )
             try:
                 llm_task = asyncio.create_task(
