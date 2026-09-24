@@ -189,12 +189,12 @@ async def run_answer(goal: str) -> str:
 
 
 async def eval_expert(expert: str, questions: List[str]) -> List[str]:
-    """Ответы эксперта.
+    """Ответы эксперта для eval.
 
     Виктория (дефолтный ответчик /run): боевой deep-путь «объясни …» → no-clarify.
-    Специалисты (Анна/Игорь/…): in-process run_smart_agent_async(expert_name=…)
-    — их prompt с wisdom_dna подхватывается через get_expert_system_prompt.
-    Полный путь ai_core занимает 100–180с — таймаут 300с.
+    Специалисты: прямой вызов мозга (MLX wisdom) с ПОЛНЫМ промптом эксперта
+    (get_full_expert_prompt включает wisdom_dna) — измеряет именно эффект урока,
+    не завязан на слабые руки (phi3.5).
     """
     if expert == "Виктория":
         answers = []
@@ -208,18 +208,62 @@ async def eval_expert(expert: str, questions: List[str]) -> List[str]:
                 answers.append(f"[ERROR] {e}"[:200])
         return answers
 
-    from ai_core import run_smart_agent_async
+    # Чистый A/B: роль эксперта + (после инъекции) wisdom_dna.
+    # Без шумных блоков полного промпта — измеряем ровно ценность урока.
+    import asyncpg as _apg
+
+    _conn = await _apg.connect(_dsn())
+    try:
+        _row = await _conn.fetchrow(
+            "SELECT role, COALESCE(metadata,'{}'::jsonb) AS meta FROM experts WHERE name = $1",
+            expert,
+        )
+    finally:
+        await _conn.close()
+    role = (_row["role"] if _row else "") or "эксперт"
+    wisdom = ""
+    if _row:
+        _meta = _row["meta"]
+        wisdom = str((_meta.get("wisdom_dna") if isinstance(_meta, dict) else "") or "")
+
+    system_prompt = (
+        f"Ты — {expert}, {role} корпорации ATRA. Отвечай по существу вопроса, "
+        f"конкретно, на русском языке, без рассуждений о себе."
+    )
+    if wisdom:
+        system_prompt += f"\n\nОпирайся на этот урок из опыта: {wisdom[:MAX_WISDOM_DNA_CHARS]}"
+    mlx = (
+        os.getenv("MLX_BASE_URL", "").rstrip("/")
+        or os.getenv("MLX_API_URL", "").rstrip("/")
+        or "http://host.docker.internal:11435"
+    )
+    model = os.getenv("VICTORIA_WISDOM_MODEL", "victoria-wisdom-24k")
 
     answers = []
-    for q in questions:
-        try:
-            ans = await asyncio.wait_for(
-                run_smart_agent_async(q, expert_name=expert, category="reasoning"),
-                timeout=300,
-            )
-            answers.append(str(ans or "")[:1500])
-        except Exception as e:  # noqa: BLE001
-            answers.append(f"[ERROR] {e}"[:200])
+    async with httpx.AsyncClient(timeout=300) as client:
+        for q in questions:
+            try:
+                r = await client.post(
+                    f"{mlx}/api/chat",
+                    json={
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": q},
+                        ],
+                        "stream": False,
+                        "options": {"num_predict": 400},
+                    },
+                )
+                raw = str(r.json().get("message", {}).get("content", ""))
+                # [v148] Мозг начинает с <think> — стрипаем, иначе судье
+                # после обрезки достаются только размышления.
+                import re as _re
+
+                raw = _re.sub(r"<think>.*?</think>", "", raw, flags=_re.DOTALL).strip()
+                answers.append(raw[:1500])
+            except Exception as e:  # noqa: BLE001
+                answers.append(f"[ERROR] {e}"[:200])
     return answers
 
 
@@ -239,10 +283,25 @@ async def judge_pair(goal: str, answer_before: str, answer_after: str) -> Dict[s
                 f"{mlx}/api/chat",
                 json={"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False},
             )
-        raw = (r.json().get("message", {}).get("content") or "").replace("<think>", "").replace("</think>", "")
-        start, end = raw.find("{"), raw.rfind("}") + 1
-        if 0 <= start < end:
-            v = json.loads(raw[start:end])
+        import re as _re
+
+        raw = r.json().get("message", {}).get("content") or ""
+        # [v148] Think может быть незакрытым — отрезаем всё до конца </think>.
+        if "</think>" in raw:
+            raw = raw.split("</think>", 1)[1]
+        raw = raw.replace("<think>", "").strip()
+        # Перебор всех "{" — первый валидный JSON-объект побеждает
+        # (в размышлениях тоже встречаются "{...}").
+        v = None
+        for idx, ch in enumerate(raw):
+            if ch != "{":
+                continue
+            try:
+                v, _ = json.JSONDecoder().raw_decode(raw[idx:])
+                break
+            except json.JSONDecodeError:
+                continue
+        if v is not None:
             return {
                 "before": float(v.get("before", 0)),
                 "after": float(v.get("after", 0)),
@@ -378,8 +437,12 @@ async def run_injection_cycle(dry_run: bool = False) -> Dict[str, Any]:
                 logger.error("🚨 [DNA-INJ] %s: eval-ошибки — откат", expert)
             else:
                 verdict = await judge_pair(questions[0], before[0], after[0])
+                if verdict["winner"] == "error":
+                    await rollback_wisdom_dna(conn, expert, w["node_id"])
+                    entry.update({"action": "rolled_back_judge_error", "verdict": verdict})
+                    logger.error("🚨 [DNA-INJ] %s: ошибка судьи — откат", expert)
                 # Гейт качества: 0-балльные ответы = пустышки — подтверждать пользу нечем.
-                if verdict["before"] <= 0 or verdict["after"] <= 0:
+                elif verdict["before"] <= 0 or verdict["after"] <= 0:
                     await rollback_wisdom_dna(conn, expert, w["node_id"])
                     entry.update({"action": "rolled_back_empty_answers", "verdict": verdict})
                     logger.error("🚨 [DNA-INJ] %s: пустые ответы — откат", expert)

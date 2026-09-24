@@ -266,6 +266,8 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
+      DNA_INJECTION_ALLOWED_EXPERTS: "Виктория,Анна,Игорь,Алексей,Сергей,Дмитрий,Роман"
+      DNA_INJECTION_INTERVAL_SEC: "21600"
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
