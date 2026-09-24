@@ -148,7 +148,7 @@ Evidence: `victoria_consilium_routed_total{research,applied}=1`; evolution-ба�
 ### Открытое (наблюдение)
 
 - Атрибуция «column source/status/assigned_to does not exist» + «aggregate in GROUP BY» — LLM-диагностический SQL, ждём следующий эпизод под трассировкой.
-- RAG-eligible ~70% (цель ≥80%) — дожим nightly; экспертов `is_active` 32/88 — сверить с employees.json.
+- RAG-eligible ~70% (цель ≥80%) — дожим nightly; эксперты: 88 всего / 33 активных (штат на линии, закрыто в Фазе 2.1; сотрудники = employees.json, Юлия активирована).
 
 ---
 
