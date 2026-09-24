@@ -1897,7 +1897,9 @@ Use HANDOFF only if delegation genuinely improves the result.
 3. ЗАПРЕЩЕНО уходить в общие рассуждения о "цифровой конституции" или "корпоративных стандартах", если об этом не просили напрямую.
 4. В конце ответа проверь: "Ответил ли я на все числовые и технические параметры запроса?".
 """
-    experience_context = recursive_test_instruction + "\n" + experience_context
+    # [v148.5] Тест-правило уходит в хвост правил — оно для генерации кода,
+    # и в начале промпта оно вылезало первым «ответом».
+    recursive_test_instruction = recursive_test_instruction.replace("### 🧪 RECURSIVE TESTING RULE:", "🧪 Для задач с кодом:")
     # --- END RECURSIVE TESTING ---
 
     # --- MODEL ENSEMBLE LOGIC (Phase 2.7) ---
@@ -2219,11 +2221,27 @@ Use HANDOFF only if delegation genuinely improves the result.
         or experience_context
         or constitution_context
     ):
-        # [SINGULARITY 14.2] Use ContextSwapper for kb_context
+        # [v148.5] Порядок = качество: запрос сначала, знания рядом, конституция
+        # в конец как правила. Малые модели сильнее держат начало промпта —
+        # конституция первой уводила ответ в декларации вместо решения задачи.
         swapper = ContextSwapper()
-        full_context = f"{constitution_context}\n{meta_wisdom_context}\n{mentorship_context}\n{experience_context}\n{ltm_context}\n{kb_context}"
+        _answer_first = (
+            "### ⚡ ПРАВИЛА ВЫВОДА (строго):\n"
+            "1. Твой ответ = ТОЛЬКО решение запроса пользователя. Никаких метакомментариев.\n"
+            "2. НЕ повторяй служебные заголовки контекста (recursive testing, FINAL ANSWER, RESPONSE, СПРАВОЧНЫЙ КОНТЕКСТ) — это внутренние секции, не часть ответа.\n"
+            "3. СНАЧАЛА конкретное решение, по существу, на русском. Затем — краткие пояснения.\n"
+            "4. Структура ответа: заголовок-тема → шаги/пункты по задаче. Декларации и конституцию не начинай.\n"
+        )
+        full_context = "\n".join(
+            x for x in (kb_context, ltm_context, mentorship_context, meta_wisdom_context, experience_context, constitution_context) if x
+        )
         kb_context = await swapper.swap_if_needed(full_context, f"kb_context_{request_id}")
-        user_part = f"{kb_context}\n\nЗАПРОС: {user_part}"
+        kb_context = kb_context or ""
+        user_part = (
+            f"{_answer_first}\nЗАПРОС: {user_part}"
+            + (f"\n\n### СПРАВОЧНЫЙ КОНТЕКСТ (используй только релевантное):\n{kb_context}" if kb_context else "")
+            + (f"\n\n### ПРАВИЛА ПОВЕДЕНИЯ:\n{constitution_context}" if constitution_context else "")
+        )
 
     # Проверка на запрос стратегии: автоматический запуск Discovery → MASTER_PLAN → декомпозиция
     # [FIX] Классифицируем ОРИГИНАЛЬНЫЙ запрос пользователя, а не user_part после внедрения
@@ -4287,7 +4305,9 @@ Use HANDOFF only if delegation genuinely improves the result.
 
     # Cleanup internal metadata markers from response
     response = _clean_response(response)
-    response = strip_think_blocks(response)
+    # [v148.4] response может быть None (LLM вернул None) — не ронять весь запрос
+    if response:
+        response = strip_think_blocks(response)
 
     return response
 

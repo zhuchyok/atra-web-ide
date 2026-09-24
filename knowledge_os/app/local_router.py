@@ -1098,10 +1098,22 @@ class LocalAIRouter:
         logger.info("[ROUTER] Prompt preview: %s...", prompt[:150])
 
         # [SINGULARITY 24.3] Persona Injection for Experts
+        # [v148.5] Персона из БД (system_prompt эксперта) вместо заглушки:
+        # раньше подставлялось "ТЫ - {имя}" без роли — качество ответов
+        # специалистов не зависело от их промптов.
         if expert_name and not system_prompt:
-            system_prompt = f"ТЫ - {expert_name}. Действуй и отвечай в соответствии со своей ролью и характером."
-            # TODO: Convert f-string to %s formatting for performance
-            logger.info(f"🎭 [PERSONA] Injected persona for {expert_name}")
+            try:
+                from expert_services import get_expert_system_prompt
+
+                system_prompt = get_expert_system_prompt(expert_name)
+            except Exception as _e:  # noqa: BLE001
+                logger.debug("persona load failed for %s: %s", expert_name, _e)
+                system_prompt = None
+            if system_prompt:
+                logger.info(f"🎭 [PERSONA] Injected DB persona for {expert_name} ({len(system_prompt)} chars)")
+            else:
+                system_prompt = f"ТЫ - {expert_name}. Действуй и отвечай в соответствии со своей ролью и характером."
+                logger.info(f"🎭 [PERSONA] Injected fallback persona for {expert_name}")
 
         # [SINGULARITY 30.1] Rate Limiter: LLM inference requires a token
         try:
