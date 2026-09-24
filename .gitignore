@@ -130,3 +130,9 @@ docs/recovery/*.jsonl
 .code-review-graph/
 src/generated_file*.py
 src/generated_*
+# --- v148.1 hygiene: runtime secrets/artifacts never in git ---
+data/lancedb.lock
+daemon.json
+file.write
+command.append
+tmp/
