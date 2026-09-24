@@ -302,9 +302,9 @@ async def main():
     logger.info("💾 Результаты сохранены в %s", output_file)
 
     # Анализируем результаты
-    print("\n" + "=" * 80)
-    print("📊 РЕЗУЛЬТАТЫ ОПТИМИЗАЦИИ ПАРАМЕТРОВ:")
-    print("=" * 80)
+    logger.info("\n" + "=" * 80)
+    logger.info("📊 РЕЗУЛЬТАТЫ ОПТИМИЗАЦИИ ПАРАМЕТРОВ:")
+    logger.info("=" * 80)
 
     best_params_by_symbol = {}
 
@@ -313,14 +313,15 @@ async def main():
         if not symbol_results:
             continue
 
-        print(f"\n📈 {symbol}:")
-        print("-" * 80)
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"\n📈 {symbol}:")
+        logger.info("-" * 80)
 
         # Сортируем по PnL
         symbol_results.sort(key=lambda x: x["total_pnl"], reverse=True)
 
         for i, result in enumerate(symbol_results, 1):
-            print(
+            logger.info(
                 f"{i}. {result['variant']:40s} | "
                 f"Сделок: {result['total_trades']:3d} | "
                 f"WR: {result['win_rate']:5.2f}% | "
@@ -333,8 +334,9 @@ async def main():
         best_params_by_symbol[symbol] = best
 
         if best["total_pnl"] > 0:
-            print(f"\n✅ Лучший вариант для {symbol}: {best['variant']}")
-            print(
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n✅ Лучший вариант для {symbol}: {best['variant']}")
+            logger.info(
                 f"   Параметры: RSI {best['parameters']['rsi_oversold']}-{best['parameters']['rsi_overbought']}, "
                 f"AI Score {best['parameters']['ai_score_threshold']}, "
                 f"Confidence {best['parameters']['min_confidence']}"
@@ -352,13 +354,14 @@ async def main():
 
     logger.info("💾 Лучшие параметры сохранены в %s", best_params_file)
 
-    print("\n" + "=" * 80)
-    print("✅ ОПТИМИЗАЦИЯ ЗАВЕРШЕНА!")
-    print("=" * 80)
-    print(
+    logger.info("\n" + "=" * 80)
+    logger.info("✅ ОПТИМИЗАЦИЯ ЗАВЕРШЕНА!")
+    logger.info("=" * 80)
+    logger.info(
         f"Протестировано: {len(PORTFOLIO_SYMBOLS)} монет × {len(PARAMETER_VARIANTS)} вариантов = {total_tests} тестов"
     )
-    print(f"Лучшие параметры сохранены в: {best_params_file}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Лучшие параметры сохранены в: {best_params_file}")
 
 
 if __name__ == "__main__":

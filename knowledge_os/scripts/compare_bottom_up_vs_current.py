@@ -178,9 +178,9 @@ async def main():
         json.dump(comparison_results, f, indent=2, ensure_ascii=False)
 
     # Выводим результаты
-    print("\n" + "=" * 80)
-    print("📊 СРАВНЕНИЕ РЕЗУЛЬТАТОВ:")
-    print("=" * 80)
+    logger.info("\n" + "=" * 80)
+    logger.info("📊 СРАВНЕНИЕ РЕЗУЛЬТАТОВ:")
+    logger.info("=" * 80)
 
     total_bottom_up_pnl = sum(
         r.get("total_pnl", 0) for r in comparison_results["bottom_up"].values()
@@ -188,15 +188,17 @@ async def main():
     total_current_pnl = sum(r.get("total_pnl", 0) for r in comparison_results["current"].values())
     total_improvement = total_bottom_up_pnl - total_current_pnl
 
-    print(f"\n💰 Bottom-Up подход: {total_bottom_up_pnl:.2f} USDT")
-    print(f"💰 Текущие параметры: {total_current_pnl:.2f} USDT")
-    print(
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n💰 Bottom-Up подход: {total_bottom_up_pnl:.2f} USDT")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"💰 Текущие параметры: {total_current_pnl:.2f} USDT")
+    logger.info(
         f"📈 Улучшение: {total_improvement:+.2f} USDT ({total_improvement / total_current_pnl * 100:+.1f}% if total_current_pnl > 0 else 0)"
     )
 
-    print("\n" + "-" * 80)
-    print("Детальное сравнение по монетам:")
-    print("-" * 80)
+    logger.info("\n" + "-" * 80)
+    logger.info("Детальное сравнение по монетам:")
+    logger.info("-" * 80)
 
     for symbol in PORTFOLIO_SYMBOLS:
         if symbol in comparison_results["bottom_up"] and symbol in comparison_results["current"]:
@@ -204,14 +206,16 @@ async def main():
             current = comparison_results["current"][symbol]
             improvement = comparison_results["improvement"].get(symbol, 0)
 
-            print(f"\n{symbol}:")
-            print(
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n{symbol}:")
+            logger.info(
                 f"  Bottom-Up:  PnL {bottom_up['total_pnl']:8.2f} USDT | Сделок {bottom_up['total_trades']:3d} | WR {bottom_up['win_rate']:5.2f}%"
             )
-            print(
+            logger.info(
                 f"  Текущие:    PnL {current['total_pnl']:8.2f} USDT | Сделок {current['total_trades']:3d} | WR {current['win_rate']:5.2f}%"
             )
-            print(f"  Улучшение:  {improvement:+.2f} USDT")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"  Улучшение:  {improvement:+.2f} USDT")
 
 
 if __name__ == "__main__":

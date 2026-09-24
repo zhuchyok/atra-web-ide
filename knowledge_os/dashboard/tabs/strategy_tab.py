@@ -589,8 +589,7 @@ def render_okr():
             st.caption("Архив (не active):")
             for okr in archive:
                 st.markdown(
-                    f"- [{okr['period']}] {okr['objective'][:100]} "
-                    f"({okr['department'] or '—'})"
+                    f"- [{okr['period']}] {okr['objective'][:100]} ({okr['department'] or '—'})"
                 )
 
 

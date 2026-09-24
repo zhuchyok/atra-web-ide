@@ -161,42 +161,52 @@ async def run_backtest(days: int, symbols: List[str] = None):
         json.dump(report_data, f, indent=2, ensure_ascii=False, default=str)
     logger.info("💾 JSON отчет сохранен: %s", json_report_file)
 
-    print("\n" + "=" * 100)
-    print(f"📊 РЕЗУЛЬТАТЫ {days}-ДНЕВНОГО ТЕСТА С ОПТИМИЗИРОВАННОЙ КОНФИГУРАЦИЕЙ")
-    print("=" * 100)
-    print(f"\n📅 Период: {days} дней")
-    print(f"🪙 Монеты: {', '.join(symbols)} (XRPUSDT исключен)")
-    print("✅ RSI фильтр: ВОССТАНОВЛЕН с параметрами 25-75")
-    print("🔓 MACD фильтр: ОТКЛЮЧЕН")
-    print("🔓 BB фильтр: ОТКЛЮЧЕН")
+    logger.info("\n" + "=" * 100)
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📊 РЕЗУЛЬТАТЫ {days}-ДНЕВНОГО ТЕСТА С ОПТИМИЗИРОВАННОЙ КОНФИГУРАЦИЕЙ")
+    logger.info("=" * 100)
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n📅 Период: {days} дней")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"🪙 Монеты: {', '.join(symbols)} (XRPUSDT исключен)")
+    logger.info("✅ RSI фильтр: ВОССТАНОВЛЕН с параметрами 25-75")
+    logger.info("🔓 MACD фильтр: ОТКЛЮЧЕН")
+    logger.info("🔓 BB фильтр: ОТКЛЮЧЕН")
 
-    print("\n💰 ОБЩИЕ ФИНАНСОВЫЕ ПОКАЗАТЕЛИ:")
-    print(f"  Начальный баланс: {backtest.initial_balance:.2f} USDT")
-    print(
+    logger.info("\n💰 ОБЩИЕ ФИНАНСОВЫЕ ПОКАЗАТЕЛИ:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Начальный баланс: {backtest.initial_balance:.2f} USDT")
+    logger.info(
         f"  Финальный баланс: {overall_metrics.get('final_balance', backtest.initial_balance):.2f} USDT"
     )
-    print(
+    logger.info(
         f"  Общий PnL: {overall_metrics.get('total_pnl', 0):.2f} USDT ({overall_metrics.get('total_return', 0):.2f}%)"
     )
-    print(f"  Максимальная просадка: {overall_metrics.get('max_drawdown', 0):.2f}%")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Максимальная просадка: {overall_metrics.get('max_drawdown', 0):.2f}%")
 
-    print("\n📈 ОБЩАЯ СТАТИСТИКА СДЕЛОК:")
-    print(f"  Всего сделок: {overall_metrics.get('total_trades', 0)}")
-    print(f"  Win Rate: {overall_metrics.get('win_rate', 0):.2f}%")
-    print(f"  Profit Factor: {overall_metrics.get('profit_factor', 0):.2f}")
-    print(f"  Avg Win: {overall_metrics.get('avg_win', 0):.2f} USDT")
-    print(f"  Avg Loss: {overall_metrics.get('avg_loss', 0):.2f} USDT")
+    logger.info("\n📈 ОБЩАЯ СТАТИСТИКА СДЕЛОК:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Всего сделок: {overall_metrics.get('total_trades', 0)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Win Rate: {overall_metrics.get('win_rate', 0):.2f}%")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Profit Factor: {overall_metrics.get('profit_factor', 0):.2f}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Avg Win: {overall_metrics.get('avg_win', 0):.2f} USDT")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Avg Loss: {overall_metrics.get('avg_loss', 0):.2f} USDT")
 
-    print("\n📊 РЕЗУЛЬТАТЫ ПО МОНЕТАМ:")
+    logger.info("\n📊 РЕЗУЛЬТАТЫ ПО МОНЕТАМ:")
     for result in results_by_symbol:
         status = "✅" if result["total_pnl"] > 0 else "❌"
-        print(
+        logger.info(
             f"  {status} {result['symbol']}: {result['total_trades']} сделок, "
             f"PnL: {result['total_pnl']:.2f} USDT, Win Rate: {result['win_rate']:.2f}%"
         )
 
     # Критерии успеха
-    print("\n🎯 КРИТЕРИИ УСПЕХА:")
+    logger.info("\n🎯 КРИТЕРИИ УСПЕХА:")
     if days == 30:
         target_pnl = 12.0
         target_wr = 42.0
@@ -214,13 +224,13 @@ async def run_backtest(days: int, symbols: List[str] = None):
     actual_wr = overall_metrics.get("win_rate", 0)
     actual_pf = overall_metrics.get("profit_factor", 0)
 
-    print(
+    logger.info(
         f"  PnL: {actual_pnl:.2f}% {'✅' if actual_pnl >= target_pnl else '❌'} (цель: {target_pnl}%)"
     )
-    print(
+    logger.info(
         f"  Win Rate: {actual_wr:.2f}% {'✅' if actual_wr >= target_wr else '❌'} (цель: {target_wr}%)"
     )
-    print(
+    logger.info(
         f"  Profit Factor: {actual_pf:.2f} {'✅' if actual_pf >= target_pf else '❌'} (цель: {target_pf})"
     )
 

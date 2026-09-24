@@ -24,7 +24,9 @@ OLLAMA_MODEL = os.getenv("OLLAMA_EMBED_MODEL", os.getenv("OLLAMA_MODEL", "nomic-
 CONCURRENCY = int(os.getenv("TASK_EMBED_CONCURRENCY", "4"))
 
 
-async def _embed(client: httpx.AsyncClient, sem: asyncio.Semaphore, text: str) -> Optional[List[float]]:
+async def _embed(
+    client: httpx.AsyncClient, sem: asyncio.Semaphore, text: str
+) -> Optional[List[float]]:
     async with sem:
         for attempt in range(3):
             try:

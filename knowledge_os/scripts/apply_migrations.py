@@ -20,7 +20,7 @@ try:
     ASYNCPG_AVAILABLE = True
 except ImportError:
     ASYNCPG_AVAILABLE = False
-    print("❌ asyncpg не установлен. Установите: pip install asyncpg")
+    logger.info("❌ asyncpg не установлен. Установите: pip install asyncpg")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -69,6 +69,7 @@ class MigrationApplier:
             )
             return [row["migration_name"] for row in rows]
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка получения списка миграций: {e}")
             return []
 
@@ -84,6 +85,7 @@ class MigrationApplier:
                 migration_name,
             )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка отметки миграции {migration_name}: {e}")
 
     async def apply_migration(self, conn, migration_file: Path) -> bool:
@@ -100,9 +102,11 @@ class MigrationApplier:
             # Отмечаем как примененную
             await self.mark_migration_applied(conn, migration_name)
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Применена миграция: {migration_name}")
             return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка применения миграции {migration_name}: {e}")
             return False
 
@@ -113,6 +117,7 @@ class MigrationApplier:
             return False
 
         if not self.migrations_dir.exists():
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Директория миграций не найдена: {self.migrations_dir}")
             return False
 
@@ -123,6 +128,7 @@ class MigrationApplier:
             logger.warning("⚠️ Миграции не найдены")
             return False
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📁 Найдено {len(migration_files)} миграций")
 
         try:
@@ -130,6 +136,7 @@ class MigrationApplier:
             try:
                 # Получаем список примененных миграций
                 applied_migrations = await self.get_applied_migrations(conn)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"📋 Уже применено миграций: {len(applied_migrations)}")
 
                 # Применяем непримененные миграции
@@ -140,24 +147,30 @@ class MigrationApplier:
                     migration_name = migration_file.name
 
                     if migration_name in applied_migrations:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"⏭️  Пропущена (уже применена): {migration_name}")
                         continue
 
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🔄 Применение миграции: {migration_name}")
                     if await self.apply_migration(conn, migration_file):
                         applied_count += 1
                     else:
                         failed_count += 1
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.error(f"❌ Не удалось применить миграцию: {migration_name}")
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Применено новых миграций: {applied_count}")
                 if failed_count > 0:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ Не удалось применить миграций: {failed_count}")
 
                 return failed_count == 0
             finally:
                 await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка подключения к базе данных: {e}")
             logger.error(
                 f"   URL: {DB_URL.replace(DB_URL.split('@')[0].split(':')[-1] if '@' in DB_URL else '', '***')}"
@@ -168,7 +181,9 @@ class MigrationApplier:
 async def main():
     """Главная функция"""
     logger.info("🚀 Запуск применения миграций PostgreSQL...")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"📁 Директория миграций: {MIGRATIONS_DIR}")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"🔗 URL базы данных: {DB_URL.split('@')[-1] if '@' in DB_URL else DB_URL}")
 
     applier = MigrationApplier(DB_URL)

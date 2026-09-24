@@ -359,13 +359,20 @@ def optimize_filter(filter_type):
     params_list = ORDER_FLOW_PARAMS if filter_type == "order_flow" else MICROSTRUCTURE_PARAMS
     filter_name = "Order Flow" if filter_type == "order_flow" else "Microstructure"
 
-    print(f"\n{'=' * 80}")
-    print(f"🔍 ОПТИМИЗАЦИЯ {filter_name.upper()} ФИЛЬТРА")
-    print(f"{'=' * 80}")
-    print(f"📅 Период: {PERIOD_DAYS} дней")
-    print(f"📊 Символы: {', '.join(TEST_SYMBOLS)}")
-    print(f"🔧 Параметров для теста: {len(params_list)}")
-    print(f"{'=' * 80}\n")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n{'=' * 80}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"🔍 ОПТИМИЗАЦИЯ {filter_name.upper()} ФИЛЬТРА")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"{'=' * 80}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📅 Период: {PERIOD_DAYS} дней")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📊 Символы: {', '.join(TEST_SYMBOLS)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"🔧 Параметров для теста: {len(params_list)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"{'=' * 80}\n")
 
     results = []
 
@@ -412,9 +419,12 @@ def optimize_filter(filter_type):
     best_position = None
     best_return = float("-inf")
 
-    print(f"\n{'=' * 80}")
-    print(f"📊 РЕЗУЛЬТАТЫ ОПТИМИЗАЦИИ {filter_name.upper()}")
-    print(f"{'=' * 80}\n")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n{'=' * 80}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📊 РЕЗУЛЬТАТЫ ОПТИМИЗАЦИИ {filter_name.upper()}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"{'=' * 80}\n")
 
     # Сортируем по return
     sorted_results = sorted(params_results.items(), key=lambda x: x[1]["return"], reverse=True)
@@ -422,12 +432,14 @@ def optimize_filter(filter_type):
     # Показываем топ-10 результатов
     for idx, (full_key, metrics) in enumerate(sorted_results[:10], 1):
         position = "ПЕРЕД baseline" if metrics["before_baseline"] else "ПОСЛЕ baseline"
-        print(f"{idx}. Параметры: {metrics['params']}")
-        print(f"   Позиция: {position}")
-        print(
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"{idx}. Параметры: {metrics['params']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Позиция: {position}")
+        logger.info(
             f"   Сделок: {metrics['trades']}, Return: {metrics['return']:+.2f}%, Сигналов: {metrics['signals']}"
         )
-        print()
+        logger.info()
 
         if metrics["return"] > best_return and metrics["trades"] > 0:
             best_return = metrics["return"]
@@ -436,12 +448,15 @@ def optimize_filter(filter_type):
 
     if best_params:
         position_str = "ПЕРЕД baseline" if best_position else "ПОСЛЕ baseline"
-        print("=" * 80)
-        print("✅ ЛУЧШИЕ ПАРАМЕТРЫ:")
-        print(f"   Параметры: {best_params}")
-        print(f"   Позиция: {position_str}")
-        print(f"   Return: {best_return:+.2f}%")
-        print("=" * 80 + "\n")
+        logger.info("=" * 80)
+        logger.info("✅ ЛУЧШИЕ ПАРАМЕТРЫ:")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Параметры: {best_params}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Позиция: {position_str}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Return: {best_return:+.2f}%")
+        logger.info("=" * 80 + "\n")
 
         # Сохраняем результаты
         output_file = f"backtests/{filter_type}_optimization_results.json"
@@ -469,14 +484,15 @@ def optimize_filter(filter_type):
                 default=str,
             )
 
-        print(f"💾 Результаты сохранены в {output_file}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"💾 Результаты сохранены в {output_file}")
 
     return best_params, best_position, best_return
 
 
 if __name__ == "__main__":
-    print("🚀 ОПТИМИЗАЦИЯ ПАРАМЕТРОВ ФИЛЬТРОВ")
-    print("=" * 80)
+    logger.info("🚀 ОПТИМИЗАЦИЯ ПАРАМЕТРОВ ФИЛЬТРОВ")
+    logger.info("=" * 80)
 
     # Оптимизируем Order Flow
     of_params, of_position, of_return = optimize_filter("order_flow")
@@ -484,16 +500,22 @@ if __name__ == "__main__":
     # Оптимизируем Microstructure
     ms_params, ms_position, ms_return = optimize_filter("microstructure")
 
-    print("\n" + "=" * 80)
-    print("📊 ИТОГОВЫЕ РЕКОМЕНДАЦИИ")
-    print("=" * 80)
-    print("Order Flow:")
-    print(f"   Параметры: {of_params}")
-    print(f"   Позиция: {'ПЕРЕД baseline' if of_position else 'ПОСЛЕ baseline'}")
-    print(f"   Return: {of_return:+.2f}%")
-    print()
-    print("Microstructure:")
-    print(f"   Параметры: {ms_params}")
-    print(f"   Позиция: {'ПЕРЕД baseline' if ms_position else 'ПОСЛЕ baseline'}")
-    print(f"   Return: {ms_return:+.2f}%")
-    print("=" * 80)
+    logger.info("\n" + "=" * 80)
+    logger.info("📊 ИТОГОВЫЕ РЕКОМЕНДАЦИИ")
+    logger.info("=" * 80)
+    logger.info("Order Flow:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Параметры: {of_params}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Позиция: {'ПЕРЕД baseline' if of_position else 'ПОСЛЕ baseline'}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Return: {of_return:+.2f}%")
+    logger.info()
+    logger.info("Microstructure:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Параметры: {ms_params}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Позиция: {'ПЕРЕД baseline' if ms_position else 'ПОСЛЕ baseline'}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Return: {ms_return:+.2f}%")
+    logger.info("=" * 80)

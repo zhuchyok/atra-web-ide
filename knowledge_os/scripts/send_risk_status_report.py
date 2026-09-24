@@ -1,3 +1,5 @@
+
+logger = logging.getLogger(__name__)
 #!/usr/bin/env python3
 """
 Отправляет оперативный risk-отчёт в Telegram.
@@ -206,9 +208,9 @@ def main() -> None:
         )
         message += "\n\n" + _format_infra_short(infra)
     if args.dry_run:
-        print("=== Risk Status (dry run) ===")
-        print(message)
-        print("=== End ===")
+        logger.info("=== Risk Status (dry run) ===")
+        logger.info(message)
+        logger.info("=== End ===")
         return
 
     user_id = args.user_id if args.user_id is not None else _load_default_user_id()
@@ -217,7 +219,8 @@ def main() -> None:
             "Не удалось определить user_id. Передайте --user-id или настройте user_data.json."
         )
     asyncio.run(_send(int(user_id), message))
-    print(f"✅ Risk status отправлен пользователю {user_id}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"✅ Risk status отправлен пользователю {user_id}")
 
 
 if __name__ == "__main__":

@@ -177,7 +177,7 @@ class MLRouterABTest:
                         AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) as success_rate
                     FROM ml_router_ab_test
                     WHERE used_ml = TRUE
-                    AND created_at > NOW() - INTERVAL '%s days'
+                    AND created_at > NOW() - ($1 * INTERVAL '1 day')
                 """,
                     days,
                 )
@@ -192,7 +192,7 @@ class MLRouterABTest:
                         AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) as success_rate
                     FROM ml_router_ab_test
                     WHERE used_ml = FALSE
-                    AND created_at > NOW() - INTERVAL '%s days'
+                    AND created_at > NOW() - ($1 * INTERVAL '1 day')
                 """,
                     days,
                 )

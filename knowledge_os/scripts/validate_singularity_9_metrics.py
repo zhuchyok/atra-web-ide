@@ -78,6 +78,7 @@ async def validate_singularity_9_metrics():
                 if achieved:
                     # Метрика достигнута - создаем уведомление об успехе
                     message = f"✅ Singularity 9.0: {hypothesis_key} достигнута целевая метрика! ({metric_value:.2%} >= {target_value:.2%}, выборка: {sample_size:,})"
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ [SINGULARITY 9 VALIDATION] {hypothesis_key}: {message}")
 
                     await conn.execute(
@@ -90,6 +91,7 @@ async def validate_singularity_9_metrics():
                 else:
                     # Метрика не достигнута - создаем уведомление о проблеме
                     message = f"⚠️ Singularity 9.0: {hypothesis_key} не достигнута целевая метрика ({metric_value:.2%} < {target_value:.2%}, выборка: {sample_size:,})"
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.warning(f"⚠️ [SINGULARITY 9 VALIDATION] {hypothesis_key}: {message}")
 
                     await conn.execute(
@@ -107,6 +109,7 @@ async def validate_singularity_9_metrics():
 
         logger.info("✅ [SINGULARITY 9 VALIDATION] Metrics validation completed")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ [SINGULARITY 9 VALIDATION] Error validating metrics: {e}")
         import traceback
 

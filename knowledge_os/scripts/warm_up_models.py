@@ -8,12 +8,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Реально существующие модели в Ollama (автоматически сканируются при запуске)
-# Ollama: qwq:32b, qwen2.5-coder:32b, glm-4.7-flash:q8_0, llava:7b, phi3.5:3.8b, moondream:latest, tinyllama:1.1b-chat
-MODELS = ["qwq:32b", "qwen2.5-coder:32b", "phi3.5:3.8b", "moondream:latest", "tinyllama:1.1b-chat"]
+# Ollama: qwq:32b, qwen3-coder:30b, glm-4.7-flash:q8_0, llava:7b, phi3.5:3.8b, moondream:latest, tinyllama:1.1b-chat
+MODELS = ["qwq:32b", "qwen3-coder:30b", "phi3.5:3.8b", "moondream:latest", "tinyllama:1.1b-chat"]
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
 
 async def warm_up_model(model: str):
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"🔥 Warming up model: {model}...")
     try:
         async with httpx.AsyncClient() as client:
@@ -21,8 +22,10 @@ async def warm_up_model(model: str):
             await client.post(
                 OLLAMA_URL, json={"model": model, "prompt": "ok", "stream": False}, timeout=60.0
             )
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Model {model} is warm and ready.")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Failed to warm up {model}: {e}")
 
 

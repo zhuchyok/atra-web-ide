@@ -422,22 +422,24 @@ def save_results(results: Dict[str, Any], output_dir: Path = None):
 
 def print_summary(results: Dict[str, Any]):
     """Выводит сводку результатов"""
-    print("\n" + "=" * 80)
-    print("📊 СВОДКА РЕЗУЛЬТАТОВ СКРИНИНГА ПО КОРРЕЛЯЦИОННЫМ ГРУППАМ")
-    print("=" * 80)
+    logger.info("\n" + "=" * 80)
+    logger.info("📊 СВОДКА РЕЗУЛЬТАТОВ СКРИНИНГА ПО КОРРЕЛЯЦИОННЫМ ГРУППАМ")
+    logger.info("=" * 80)
 
     top5_by_group = results.get("top5_by_group", {})
 
     for group_name in ["BTC_HIGH", "ETH_HIGH", "SOL_HIGH"]:
         top5 = top5_by_group.get(group_name, [])
         if not top5:
-            print(f"\n⚠️ {group_name}: Нет результатов")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n⚠️ {group_name}: Нет результатов")
             continue
 
-        print(f"\n🎯 {group_name} - ТОП-5 МОНЕТ:")
-        print("-" * 80)
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"\n🎯 {group_name} - ТОП-5 МОНЕТ:")
+        logger.info("-" * 80)
         for idx, coin in enumerate(top5, 1):
-            print(
+            logger.info(
                 f"  {idx}. {coin['symbol']:12s} | "
                 f"Сделок: {coin['total_trades']:3d} | "
                 f"Win Rate: {coin['win_rate']:5.2f}% | "
@@ -446,9 +448,9 @@ def print_summary(results: Dict[str, Any]):
                 f"MaxDD: {coin['max_drawdown']:5.2f}%"
             )
 
-    print("\n" + "=" * 80)
-    print("✅ Скрининг завершен!")
-    print("=" * 80)
+    logger.info("\n" + "=" * 80)
+    logger.info("✅ Скрининг завершен!")
+    logger.info("=" * 80)
 
 
 async def main():

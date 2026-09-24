@@ -26,13 +26,13 @@ try:
     )
 
     if is_rust_available():
-        print("✅ Rust acceleration доступен")
+        logger.info("✅ Rust acceleration доступен")
         rust_accelerator = get_rust_accelerator()
     else:
-        print("⚠️ Rust acceleration недоступен, используем Python")
+        logger.info("⚠️ Rust acceleration недоступен, используем Python")
         rust_accelerator = None
 except ImportError:
-    print("⚠️ Rust модуль не найден, используем Python")
+    logger.info("⚠️ Rust модуль не найден, используем Python")
     rust_accelerator = None
 
 from scripts.backtest_5coins_intelligent import (
@@ -188,7 +188,8 @@ def test_symbol_with_params(
             ifs_module.get_symbol_specific_parameters = original_func
 
     except Exception as e:
-        print(f"    ❌ Ошибка для {symbol}: {e}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"    ❌ Ошибка для {symbol}: {e}")
         import traceback
 
         traceback.print_exc()
@@ -236,15 +237,19 @@ def test_combination(args) -> Optional[Dict[str, Any]]:
 
         return metrics
     except Exception as e:
-        print(f"    ❌ Ошибка для {symbol} комбинация {combo_num}: {e}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"    ❌ Ошибка для {symbol} комбинация {combo_num}: {e}")
         return None
 
 
 def optimize_symbol_parameters(symbol: str) -> Dict[str, Any]:
     """Оптимизирует параметры для одного символа с многопоточностью"""
-    print(f"\n{'=' * 80}")
-    print(f"🔧 ОПТИМИЗАЦИЯ ПАРАМЕТРОВ ДЛЯ {symbol}")
-    print(f"{'=' * 80}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n{'=' * 80}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"🔧 ОПТИМИЗАЦИЯ ПАРАМЕТРОВ ДЛЯ {symbol}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"{'=' * 80}")
 
     # Генерируем все комбинации параметров
     param_names = list(PARAM_GRID.keys())
@@ -258,9 +263,12 @@ def optimize_symbol_parameters(symbol: str) -> Dict[str, Any]:
         if params["rsi_oversold"] < params["rsi_overbought"]:
             valid_combinations.append(params)
 
-    print(f"📊 Тестируем {len(valid_combinations)} комбинаций параметров...")
-    print(f"📅 Период: {PERIOD_DAYS} дней")
-    print(f"🚀 Используем {MAX_WORKERS} потоков для ускорения")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📊 Тестируем {len(valid_combinations)} комбинаций параметров...")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📅 Период: {PERIOD_DAYS} дней")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"🚀 Используем {MAX_WORKERS} потоков для ускорения")
 
     best_result = None
     best_params = None
@@ -290,7 +298,7 @@ def optimize_symbol_parameters(symbol: str) -> Dict[str, Any]:
                 results.append(metrics)
                 score = metrics["score"]
 
-                print(
+                logger.info(
                     f"  [{completed}/{len(valid_combinations)}] ✅ {symbol}: "
                     f"return={metrics['total_return']:+.2f}%, "
                     f"Sharpe={metrics['sharpe_ratio']:.2f}, "
@@ -303,26 +311,38 @@ def optimize_symbol_parameters(symbol: str) -> Dict[str, Any]:
                     best_score = score
                     best_result = metrics
                     best_params = params
-                    print(f"      🏆 НОВЫЙ ЛУЧШИЙ РЕЗУЛЬТАТ! Score: {score:.2f}")
+                    # TODO: Convert f-string to %s formatting for performance
+                    logger.info(f"      🏆 НОВЫЙ ЛУЧШИЙ РЕЗУЛЬТАТ! Score: {score:.2f}")
 
             except Exception as e:
-                print(f"    ❌ Ошибка выполнения: {e}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"    ❌ Ошибка выполнения: {e}")
 
-    print(f"\n{'=' * 80}")
-    print(f"✅ ОПТИМИЗАЦИЯ ЗАВЕРШЕНА ДЛЯ {symbol}")
-    print(f"{'=' * 80}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n{'=' * 80}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"✅ ОПТИМИЗАЦИЯ ЗАВЕРШЕНА ДЛЯ {symbol}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"{'=' * 80}")
 
     if best_result:
-        print("🏆 ЛУЧШИЕ ПАРАМЕТРЫ:")
+        logger.info("🏆 ЛУЧШИЕ ПАРАМЕТРЫ:")
         for key, value in best_params.items():
-            print(f"   {key}: {value}")
-        print("\n📊 РЕЗУЛЬТАТЫ:")
-        print(f"   Доходность: {best_result['total_return']:+.2f}%")
-        print(f"   Sharpe Ratio: {best_result['sharpe_ratio']:.2f}")
-        print(f"   Win Rate: {best_result['win_rate']:.1f}%")
-        print(f"   Profit Factor: {best_result['profit_factor']:.2f}")
-        print(f"   Сделок: {best_result['total_trades']}")
-        print(f"   Score: {best_result['score']:.2f}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   {key}: {value}")
+        logger.info("\n📊 РЕЗУЛЬТАТЫ:")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Доходность: {best_result['total_return']:+.2f}%")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Sharpe Ratio: {best_result['sharpe_ratio']:.2f}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Win Rate: {best_result['win_rate']:.1f}%")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Profit Factor: {best_result['profit_factor']:.2f}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Сделок: {best_result['total_trades']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Score: {best_result['score']:.2f}")
 
     return {
         "symbol": symbol,
@@ -348,24 +368,31 @@ def main():
     )
     logger = logging.getLogger(__name__)
 
-    print("=" * 80)
-    print("🔧 ОПТИМИЗАЦИЯ ПАРАМЕТРОВ INTELLIGENT FILTER SYSTEM")
-    print("📊 ДЛЯ НОВЫХ 50 МОНЕТ (топ 51-100)")
-    print("=" * 80)
-    print(f"📅 Дата запуска: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"📊 Монет для оптимизации: {len(TEST_SYMBOLS)}")
-    print(f"📅 Период: {PERIOD_DAYS} дней")
-    print(f"📁 Лог файл: {log_file}")
-    print("=" * 80)
+    logger.info("=" * 80)
+    logger.info("🔧 ОПТИМИЗАЦИЯ ПАРАМЕТРОВ INTELLIGENT FILTER SYSTEM")
+    logger.info("📊 ДЛЯ НОВЫХ 50 МОНЕТ (топ 51-100)")
+    logger.info("=" * 80)
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📅 Дата запуска: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📊 Монет для оптимизации: {len(TEST_SYMBOLS)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📅 Период: {PERIOD_DAYS} дней")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📁 Лог файл: {log_file}")
+    logger.info("=" * 80)
     logger.info("Начало оптимизации для %d монет", len(TEST_SYMBOLS))
 
     all_results = {}
 
     for idx, symbol in enumerate(TEST_SYMBOLS, 1):
         logger.info("[%d/%d] Начало оптимизации для %s", idx, len(TEST_SYMBOLS), symbol)
-        print(f"\n{'=' * 80}")
-        print(f"📈 [{idx}/{len(TEST_SYMBOLS)}] Оптимизация {symbol}")
-        print(f"{'=' * 80}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"\n{'=' * 80}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"📈 [{idx}/{len(TEST_SYMBOLS)}] Оптимизация {symbol}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"{'=' * 80}")
         result = optimize_symbol_parameters(symbol)
         all_results[symbol] = result
         logger.info("[%d/%d] ✅ ОПТИМИЗАЦИЯ ЗАВЕРШЕНА ДЛЯ %s", idx, len(TEST_SYMBOLS), symbol)
@@ -386,22 +413,28 @@ def main():
         json.dump(all_results, f, indent=2, default=str)
 
     # Итоговая сводка
-    print("\n" + "=" * 80)
-    print("📊 ИТОГОВАЯ СВОДКА")
-    print("=" * 80)
+    logger.info("\n" + "=" * 80)
+    logger.info("📊 ИТОГОВАЯ СВОДКА")
+    logger.info("=" * 80)
 
     for symbol, result in all_results.items():
         if result.get("best_params"):
-            print(f"\n{symbol}:")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n{symbol}:")
             for key, value in result["best_params"].items():
-                print(f"  {key}: {value}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"  {key}: {value}")
             if result.get("best_result"):
-                print(f"  Доходность: {result['best_result']['total_return']:+.2f}%")
-                print(f"  Sharpe: {result['best_result']['sharpe_ratio']:.2f}")
-                print(f"  Win Rate: {result['best_result']['win_rate']:.1f}%")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"  Доходность: {result['best_result']['total_return']:+.2f}%")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"  Sharpe: {result['best_result']['sharpe_ratio']:.2f}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"  Win Rate: {result['best_result']['win_rate']:.1f}%")
 
-    print(f"\n✅ Результаты сохранены в {output_file}")
-    print("\n🎉 ОПТИМИЗАЦИЯ ЗАВЕРШЕНА!")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n✅ Результаты сохранены в {output_file}")
+    logger.info("\n🎉 ОПТИМИЗАЦИЯ ЗАВЕРШЕНА!")
 
 
 if __name__ == "__main__":
@@ -420,8 +453,10 @@ if __name__ == "__main__":
     if opt_args.symbol:
         PERIOD_DAYS = opt_args.period
         TEST_SYMBOLS = [opt_args.symbol]
-        print(f"🎯 Оптимизация для одной монеты: {opt_args.symbol}")
-        print(f"📅 Период: {PERIOD_DAYS} дней")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"🎯 Оптимизация для одной монеты: {opt_args.symbol}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"📅 Период: {PERIOD_DAYS} дней")
 
         opt_result = optimize_symbol_parameters(opt_args.symbol)
 
@@ -453,7 +488,8 @@ if __name__ == "__main__":
         with open(opt_output_file, "w", encoding="utf-8") as opt_f:
             json.dump(opt_all_results, opt_f, indent=2, default=str)
 
-        print(f"\n✅ Результаты сохранены в {opt_output_file}")
-        print("\n🎉 ОПТИМИЗАЦИЯ ЗАВЕРШЕНА!")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"\n✅ Результаты сохранены в {opt_output_file}")
+        logger.info("\n🎉 ОПТИМИЗАЦИЯ ЗАВЕРШЕНА!")
     else:
         main()

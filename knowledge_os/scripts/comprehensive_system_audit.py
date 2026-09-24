@@ -29,47 +29,47 @@ class SystemAuditor:
 
     def audit_all(self):
         """Проводит полный аудит системы"""
-        print("🔍 НАЧАЛО КОМПЛЕКСНОГО АУДИТА СИСТЕМЫ ATRA")
-        print("=" * 80)
+        logger.info("🔍 НАЧАЛО КОМПЛЕКСНОГО АУДИТА СИСТЕМЫ ATRA")
+        logger.info("=" * 80)
 
         # 1. Проверка основных модулей
-        print("\n📦 1. ПРОВЕРКА ОСНОВНЫХ МОДУЛЕЙ")
+        logger.info("\n📦 1. ПРОВЕРКА ОСНОВНЫХ МОДУЛЕЙ")
         self.check_main_modules()
 
         # 2. Проверка импортов
-        print("\n📥 2. ПРОВЕРКА ИМПОРТОВ")
+        logger.info("\n📥 2. ПРОВЕРКА ИМПОРТОВ")
         self.check_imports()
 
         # 3. Проверка связей между модулями
-        print("\n🔗 3. ПРОВЕРКА СВЯЗЕЙ МЕЖДУ МОДУЛЯМИ")
+        logger.info("\n🔗 3. ПРОВЕРКА СВЯЗЕЙ МЕЖДУ МОДУЛЯМИ")
         self.check_module_connections()
 
         # 4. Проверка базы данных
-        print("\n💾 4. ПРОВЕРКА БАЗЫ ДАННЫХ")
+        logger.info("\n💾 4. ПРОВЕРКА БАЗЫ ДАННЫХ")
         self.check_database()
 
         # 5. Проверка Telegram бота
-        print("\n🤖 5. ПРОВЕРКА TELEGRAM БОТА")
+        logger.info("\n🤖 5. ПРОВЕРКА TELEGRAM БОТА")
         self.check_telegram_bot()
 
         # 6. Проверка execution модулей
-        print("\n⚙️ 6. ПРОВЕРКА EXECUTION МОДУЛЕЙ")
+        logger.info("\n⚙️ 6. ПРОВЕРКА EXECUTION МОДУЛЕЙ")
         self.check_execution_modules()
 
         # 7. Проверка сигналов
-        print("\n📡 7. ПРОВЕРКА СИСТЕМЫ СИГНАЛОВ")
+        logger.info("\n📡 7. ПРОВЕРКА СИСТЕМЫ СИГНАЛОВ")
         self.check_signals()
 
         # 8. Проверка конфигураций
-        print("\n⚙️ 8. ПРОВЕРКА КОНФИГУРАЦИЙ")
+        logger.info("\n⚙️ 8. ПРОВЕРКА КОНФИГУРАЦИЙ")
         self.check_configurations()
 
         # 9. Проверка тестов
-        print("\n🧪 9. ПРОВЕРКА ТЕСТОВ")
+        logger.info("\n🧪 9. ПРОВЕРКА ТЕСТОВ")
         self.check_tests()
 
         # 10. Финальный отчет
-        print("\n📊 10. ФИНАЛЬНЫЙ ОТЧЕТ")
+        logger.info("\n📊 10. ФИНАЛЬНЫЙ ОТЧЕТ")
         self.print_report()
 
     def check_main_modules(self):
@@ -95,7 +95,8 @@ class SystemAuditor:
                 self.errors.append(
                     {"type": "missing_module", "module": module_path, "severity": "critical"}
                 )
-                print(f"  ❌ Отсутствует: {module_path}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"  ❌ Отсутствует: {module_path}")
 
     def check_imports(self):
         """Проверяет все импорты в проекте"""
@@ -312,30 +313,32 @@ class SystemAuditor:
 
     def print_report(self):
         """Выводит финальный отчет"""
-        print("\n" + "=" * 80)
-        print("📊 ФИНАЛЬНЫЙ ОТЧЕТ АУДИТА")
-        print("=" * 80)
+        logger.info("\n" + "=" * 80)
+        logger.info("📊 ФИНАЛЬНЫЙ ОТЧЕТ АУДИТА")
+        logger.info("=" * 80)
 
-        print(
+        logger.info(
             f"\n❌ КРИТИЧЕСКИЕ ОШИБКИ: {len([e for e in self.errors if e.get('severity') == 'critical'])}"
         )
-        print(
+        logger.info(
             f"⚠️ ВЫСОКИЙ ПРИОРИТЕТ: {len([e for e in self.errors if e.get('severity') == 'high'])}"
         )
-        print(f"⚠️ ПРЕДУПРЕЖДЕНИЯ: {len(self.warnings)}")
-        print(f"✅ УСПЕШНЫЕ ПРОВЕРКИ: {len(self.info)}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"⚠️ ПРЕДУПРЕЖДЕНИЯ: {len(self.warnings)}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"✅ УСПЕШНЫЕ ПРОВЕРКИ: {len(self.info)}")
 
         if self.errors:
-            print("\n🔴 КРИТИЧЕСКИЕ ПРОБЛЕМЫ:")
+            logger.info("\n🔴 КРИТИЧЕСКИЕ ПРОБЛЕМЫ:")
             for error in self.errors[:20]:  # Показываем первые 20
-                print(
+                logger.info(
                     f"  - {error.get('type')}: {error.get('module', error.get('file', 'unknown'))}"
                 )
 
         if self.warnings:
-            print("\n🟡 ПРЕДУПРЕЖДЕНИЯ:")
+            logger.info("\n🟡 ПРЕДУПРЕЖДЕНИЯ:")
             for warning in self.warnings[:20]:
-                print(
+                logger.info(
                     f"  - {warning.get('type')}: {warning.get('module', warning.get('file', 'unknown'))}"
                 )
 

@@ -35,7 +35,7 @@ def test_dispatch_shared_when_disabled(monkeypatch):
 
 def test_worker_stream_matches_expert(monkeypatch):
     monkeypatch.setenv("EXPERT_STREAM_DEDICATED", "true")
-    assert worker_stream_name("Роман") == "expert_tasks:Роман"
+    assert worker_stream_name("Антон") == "expert_tasks:Антон"
 
 
 def test_resolve_push_stream_from_payload(monkeypatch):

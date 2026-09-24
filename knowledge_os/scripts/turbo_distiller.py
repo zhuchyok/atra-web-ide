@@ -28,18 +28,21 @@ async def run_turbo_cycle():
         cycle_count = 0
         while True:
             cycle_count += 1
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🚀 [TURBO] Starting cycle #{cycle_count}")
 
             start_time = time.time()
             await distiller.distill_knowledge_batch()
             elapsed = time.time() - start_time
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ [TURBO] Cycle #{cycle_count} completed in {elapsed:.2f}s")
 
             # Brief pause to let system breathe and sync buffers
             await asyncio.sleep(2)
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"🚨 [TURBO] Critical failure: {e}")
         # Auto-restart after 10s
         await asyncio.sleep(10)

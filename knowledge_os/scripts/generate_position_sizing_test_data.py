@@ -428,9 +428,12 @@ def main() -> None:
 
             db.conn.commit()
 
-    print(f"✅ Добавлено событий сайзинга: {inserted_events}")
-    print(f"✅ Добавлено связанных сделок: {inserted_trades}")
-    print(f"ℹ️ user_id='{args.user_id}', режим={args.trade_mode}, база={args.base_amount} USD")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"✅ Добавлено событий сайзинга: {inserted_events}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"✅ Добавлено связанных сделок: {inserted_trades}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"ℹ️ user_id='{args.user_id}', режим={args.trade_mode}, база={args.base_amount} USD")
 
 
 if __name__ == "__main__":

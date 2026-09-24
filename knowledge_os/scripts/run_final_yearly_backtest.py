@@ -195,23 +195,28 @@ def save_results(results: Dict[str, Any], output_dir: Path = None):
 
 def print_summary(results: Dict[str, Any]):
     """Выводит сводку результатов"""
-    print("\n" + "=" * 80)
-    print("📊 РЕЗУЛЬТАТЫ ГОДОВОГО БЕКТЕСТА ПОРТФЕЛЯ")
-    print("=" * 80)
+    logger.info("\n" + "=" * 80)
+    logger.info("📊 РЕЗУЛЬТАТЫ ГОДОВОГО БЕКТЕСТА ПОРТФЕЛЯ")
+    logger.info("=" * 80)
 
-    print(f"\n📋 Портфель: {len(results.get('portfolio_symbols', []))} монет")
-    print(f"📊 Период: {results.get('period_days', 0)} дней")
-    print(f"📈 Всего сделок: {results.get('total_trades', 0)}")
-    print(f"✅ Win Rate: {results.get('win_rate', 0.0):.2f}%")
-    print(f"💰 Profit Factor: {results.get('profit_factor', 0.0):.2f}")
-    print(
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n📋 Портфель: {len(results.get('portfolio_symbols', []))} монет")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📊 Период: {results.get('period_days', 0)} дней")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📈 Всего сделок: {results.get('total_trades', 0)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"✅ Win Rate: {results.get('win_rate', 0.0):.2f}%")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"💰 Profit Factor: {results.get('profit_factor', 0.0):.2f}")
+    logger.info(
         f"💵 Total PnL: {results.get('total_pnl', 0.0):.2f} USDT ({results.get('total_pnl_pct', 0.0):.2f}%)"
     )
 
-    print("\n📊 Результаты по монетам:")
-    print("-" * 80)
+    logger.info("\n📊 Результаты по монетам:")
+    logger.info("-" * 80)
     for result in results.get("symbol_results", []):
-        print(
+        logger.info(
             f"  {result['symbol']:12s} | "
             f"Сделок: {result['total_trades']:3d} | "
             f"Win Rate: {result['win_rate']:5.2f}% | "
@@ -219,7 +224,7 @@ def print_summary(results: Dict[str, Any]):
             f"PnL: {result['total_pnl_pct']:7.2f}%"
         )
 
-    print("\n" + "=" * 80)
+    logger.info("\n" + "=" * 80)
 
 
 async def main():

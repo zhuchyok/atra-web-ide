@@ -1,3 +1,5 @@
+
+logger = logging.getLogger(__name__)
 """
 Отправляет последний отчёт daily_quality_report в Telegram.
 
@@ -121,7 +123,8 @@ def main() -> None:
             raise SystemExit("Не удалось определить user_id. Передайте --user-id.")
 
     asyncio.run(_send_report(int(user_id), message))
-    print(f"✅ Отчёт отправлен пользователю {user_id}. Файл: {report_path.name}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"✅ Отчёт отправлен пользователю {user_id}. Файл: {report_path.name}")
 
 
 if __name__ == "__main__":

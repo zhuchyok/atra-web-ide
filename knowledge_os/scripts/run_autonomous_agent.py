@@ -24,17 +24,19 @@ async def main():
 
     args = parser.parse_args()
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"🤖 Инициализация агента AuditAgent (модель: {args.model})...")
     agent = AuditAgent(model_name=args.model)
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"🎯 Задание для агента: {args.goal}")
     result = await agent.run(args.goal)
 
-    print("\n" + "=" * 50)
-    print("🏁 ФИНАЛЬНЫЙ ОТЧЕТ АГЕНТА:")
-    print("=" * 50)
-    print(result)
-    print("=" * 50)
+    logger.info("\n" + "=" * 50)
+    logger.info("🏁 ФИНАЛЬНЫЙ ОТЧЕТ АГЕНТА:")
+    logger.info("=" * 50)
+    logger.info(result)
+    logger.info("=" * 50)
 
 
 if __name__ == "__main__":
@@ -43,4 +45,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("🛑 Завершение работы по команде пользователя.")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Критическая ошибка: {e}")

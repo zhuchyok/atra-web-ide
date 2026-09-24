@@ -131,20 +131,21 @@ def create_missing_tables():
         return True
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка при создании таблиц: {e}")
         return False
 
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print("СОЗДАНИЕ НЕДОСТАЮЩИХ ТАБЛИЦ БД")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("СОЗДАНИЕ НЕДОСТАЮЩИХ ТАБЛИЦ БД")
+    logger.info("=" * 60)
 
     success = create_missing_tables()
 
     if success:
-        print("\n✅ Миграция завершена успешно!")
+        logger.info("\n✅ Миграция завершена успешно!")
         sys.exit(0)
     else:
-        print("\n❌ Ошибка при выполнении миграции!")
+        logger.info("\n❌ Ошибка при выполнении миграции!")
         sys.exit(1)

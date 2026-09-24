@@ -212,24 +212,30 @@ async def main():
     results = await run_portfolio_backtest(FINAL_PORTFOLIO, days=365)
 
     if results:
-        print("\n" + "=" * 80)
-        print("📊 ИТОГОВЫЕ РЕЗУЛЬТАТЫ ПОРТФЕЛЯ:")
-        print("=" * 80)
-        print(f"Монет в портфеле: {results['total_symbols']}")
-        print(f"Успешных бектестов: {results['successful_backtests']}")
-        print(f"Всего сделок: {results['total_trades']}")
-        print(f"Win Rate портфеля: {results['portfolio_win_rate']:.2f}%")
-        print(f"Общий PnL: {results['total_pnl']:.2f} USDT")
-        print(f"Общий PnL %: {results['total_pnl_pct']:.2f}%")
-        print("\n" + "-" * 80)
-        print("Результаты по монетам:")
-        print("-" * 80)
+        logger.info("\n" + "=" * 80)
+        logger.info("📊 ИТОГОВЫЕ РЕЗУЛЬТАТЫ ПОРТФЕЛЯ:")
+        logger.info("=" * 80)
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"Монет в портфеле: {results['total_symbols']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"Успешных бектестов: {results['successful_backtests']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"Всего сделок: {results['total_trades']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"Win Rate портфеля: {results['portfolio_win_rate']:.2f}%")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"Общий PnL: {results['total_pnl']:.2f} USDT")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"Общий PnL %: {results['total_pnl_pct']:.2f}%")
+        logger.info("\n" + "-" * 80)
+        logger.info("Результаты по монетам:")
+        logger.info("-" * 80)
 
         for result in sorted(
             results["results_by_symbol"], key=lambda x: x.get("total_pnl", 0), reverse=True
         ):
             if "error" not in result:
-                print(
+                logger.info(
                     f"{result['symbol']:12s} | "
                     f"Сделок: {result['total_trades']:3d} | "
                     f"WR: {result['win_rate']:5.2f}% | "
@@ -237,7 +243,8 @@ async def main():
                     f"PnL: {result['total_pnl']:8.2f} USDT"
                 )
             else:
-                print(f"{result['symbol']:12s} | ❌ Ошибка: {result.get('error', 'Unknown')}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"{result['symbol']:12s} | ❌ Ошибка: {result.get('error', 'Unknown')}")
 
 
 if __name__ == "__main__":

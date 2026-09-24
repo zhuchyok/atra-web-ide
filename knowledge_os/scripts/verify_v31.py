@@ -23,6 +23,7 @@ async def test_duckdb_distillation():
         logger.info("✅ Distiller initialized.")
         return True
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Distiller test failed: {e}")
         return False
 
@@ -38,9 +39,11 @@ async def test_lancedb_rag():
         # Test search with dummy vector
         dummy_vector = [0.1] * 768
         results = await svc.search(dummy_vector, limit=1)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ LanceDB search test completed (found {len(results)} nodes).")
         return True
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ LanceDB test failed: {e}")
         return False
 

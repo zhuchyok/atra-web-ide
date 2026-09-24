@@ -52,6 +52,7 @@ async def sync_lancedb():
           AND embedding IS NOT NULL
         """
     )
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"Starting LanceDB sync for {total} distilled nodes.")
 
     offset = 0
@@ -107,9 +108,11 @@ async def sync_lancedb():
             synced += len(batch)
 
         offset += CHUNK_SIZE
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"Progress: synced={synced} skipped={skipped} offset={offset}/{total}")
 
     await conn.close()
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"LanceDB sync completed: synced={synced}, skipped={skipped}, total={total}")
 
 

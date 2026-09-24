@@ -30,7 +30,7 @@ DECLARE
 BEGIN
     WITH moved_rows AS (
         DELETE FROM knowledge_nodes
-        WHERE usage_count = 0 
+        WHERE usage_count = 0
           AND created_at < NOW() - INTERVAL '30 days'
           AND is_verified = FALSE
           AND (metadata->>'type' IS NULL OR metadata->>'type' NOT IN ('memory_crystal', 'domain_summary'))
@@ -39,7 +39,7 @@ BEGIN
     INSERT INTO knowledge_archive (id, content, embedding, metadata, usage_count, is_verified, project_context, expert_consensus, source_ref, created_at, updated_at)
     SELECT id, content, embedding, metadata, usage_count, is_verified, project_context, expert_consensus, source_ref, created_at, updated_at
     FROM moved_rows;
-    
+
     GET DIAGNOSTICS moved_count = ROW_COUNT;
     RETURN moved_count;
 END;

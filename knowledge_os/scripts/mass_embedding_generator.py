@@ -49,9 +49,11 @@ async def get_embedding(client: httpx.AsyncClient, text: str) -> Optional[List[f
                     )
                     await asyncio.sleep(wait_time)
                 else:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.error(f"❌ Ollama error {response.status_code}: {response.text}")
                     break
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Embedding request failed: {e}")
                 await asyncio.sleep(1)
     return None
@@ -118,6 +120,7 @@ async def main():
             await asyncio.sleep(0.1)
 
     await pool.close()
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"🏁 Mass embedding generation complete. Total processed: {total_processed}")
 
 

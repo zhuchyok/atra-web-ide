@@ -75,6 +75,7 @@ class ProjectManager:
             return self.report
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка при выполнении ежедневной проверки: {e}", exc_info=True)
             trace.record(
                 step="observe", name="check_failed", status="error", metadata={"error": str(e)}
@@ -159,6 +160,7 @@ class ProjectManager:
             conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка проверки финансовых метрик: {e}")
             self.report["issues"].append(
                 {
@@ -261,6 +263,7 @@ class ProjectManager:
             conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка проверки операционных метрик: {e}")
             self.report["issues"].append(
                 {
@@ -302,9 +305,11 @@ class ProjectManager:
                     }
                 )
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Качество кода: {error_count} ошибок линтера")
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ Не удалось проверить качество кода: {e}")
             self.report["metrics"]["code_quality"] = {"status": "check_failed"}
 
@@ -375,6 +380,7 @@ class ProjectManager:
             conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка проверки рисков: {e}")
 
     async def _generate_recommendations(self, trace) -> None:
@@ -444,47 +450,58 @@ class ProjectManager:
         with output_path.open("w", encoding="utf-8") as f:
             json.dump(self.report, f, ensure_ascii=False, indent=2)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Отчёт сохранён: {output_path}")
         return output_path
 
     def print_summary(self) -> None:
         """Выводит краткую сводку отчёта"""
-        print("\n" + "=" * 60)
-        print("📊 ЕЖЕДНЕВНЫЙ ОТЧЁТ PM")
-        print("=" * 60)
-        print(f"📅 Дата: {self.report['date']}")
-        print(f"📈 Статус: {self.report['status'].upper()}")
-        print()
+        logger.info("\n" + "=" * 60)
+        logger.info("📊 ЕЖЕДНЕВНЫЙ ОТЧЁТ PM")
+        logger.info("=" * 60)
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"📅 Дата: {self.report['date']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"📈 Статус: {self.report['status'].upper()}")
+        logger.info()
 
         if "financial" in self.report["metrics"]:
             fin = self.report["metrics"]["financial"]
-            print("💰 ФИНАНСОВЫЕ МЕТРИКИ:")
-            print(f"  • Сделок за 24ч: {fin.get('total_trades_24h', 0)}")
-            print(f"  • Win rate: {fin.get('win_rate_pct', 0):.1f}%")
-            print(f"  • PnL: {fin.get('total_pnl_usd', 0):.2f} USD")
-            print()
+            logger.info("💰 ФИНАНСОВЫЕ МЕТРИКИ:")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"  • Сделок за 24ч: {fin.get('total_trades_24h', 0)}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"  • Win rate: {fin.get('win_rate_pct', 0):.1f}%")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"  • PnL: {fin.get('total_pnl_usd', 0):.2f} USD")
+            logger.info()
 
         if "operational" in self.report["metrics"]:
             op = self.report["metrics"]["operational"]
-            print("⚙️ ОПЕРАЦИОННЫЕ МЕТРИКИ:")
-            print(f"  • Fill rate: {op.get('limit_fill_rate_pct', 0):.1f}%")
-            print(f"  • Timeout rate: {op.get('limit_timeout_rate_pct', 0):.1f}%")
-            print(f"  • Market fallback: {op.get('market_fallback_rate_pct', 0):.1f}%")
-            print()
+            logger.info("⚙️ ОПЕРАЦИОННЫЕ МЕТРИКИ:")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"  • Fill rate: {op.get('limit_fill_rate_pct', 0):.1f}%")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"  • Timeout rate: {op.get('limit_timeout_rate_pct', 0):.1f}%")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"  • Market fallback: {op.get('market_fallback_rate_pct', 0):.1f}%")
+            logger.info()
 
         if self.report["issues"]:
-            print("⚠️ ПРОБЛЕМЫ:")
+            logger.info("⚠️ ПРОБЛЕМЫ:")
             for issue in self.report["issues"][:5]:  # Показываем первые 5
-                print(f"  • [{issue.get('severity', 'unknown').upper()}] {issue['message']}")
-            print()
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"  • [{issue.get('severity', 'unknown').upper()}] {issue['message']}")
+            logger.info()
 
         if self.report["recommendations"]:
-            print("💡 РЕКОМЕНДАЦИИ:")
+            logger.info("💡 РЕКОМЕНДАЦИИ:")
             for rec in self.report["recommendations"][:5]:  # Показываем первые 5
-                print(f"  • [{rec.get('priority', 'medium').upper()}] {rec['action']}")
-            print()
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"  • [{rec.get('priority', 'medium').upper()}] {rec['action']}")
+            logger.info()
 
-        print("=" * 60 + "\n")
+        logger.info("=" * 60 + "\n")
 
 
 async def main():

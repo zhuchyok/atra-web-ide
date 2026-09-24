@@ -88,6 +88,7 @@ def analyze_knowledge_base(kb_path: Path) -> Dict[str, any]:
     try:
         content = kb_path.read_text(encoding="utf-8")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Ошибка чтения {kb_path}: {e}")
         return {
             "exists": False,
@@ -232,6 +233,7 @@ def analyze_learning_program(program_path: Path) -> Dict[str, any]:
     try:
         content = program_path.read_text(encoding="utf-8")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Ошибка чтения {program_path}: {e}")
         return {
             "exists": False,
@@ -431,14 +433,15 @@ def main():
     results.sort(key=lambda x: x["percentage"], reverse=True)
 
     # Выводим таблицу
-    print("\n" + "=" * 100)
-    print("📊 ПРОГРЕСС ОБУЧЕНИЯ ВСЕХ СОТРУДНИКОВ")
-    print("=" * 100)
-    print()
+    logger.info("\n" + "=" * 100)
+    logger.info("📊 ПРОГРЕСС ОБУЧЕНИЯ ВСЕХ СОТРУДНИКОВ")
+    logger.info("=" * 100)
+    logger.info()
 
     # Заголовок таблицы
-    print(f"{'№':<4} {'Имя':<15} {'Роль':<30} {'Прогресс':<12} {'Статус':<10}")
-    print("-" * 100)
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"{'№':<4} {'Имя':<15} {'Роль':<30} {'Прогресс':<12} {'Статус':<10}")
+    logger.info("-" * 100)
 
     # Данные таблицы
     for i, result in enumerate(results, 1):
@@ -460,9 +463,10 @@ def main():
 
         progress_bar = "█" * int(percentage / 5) + "░" * (20 - int(percentage / 5))
 
-        print(f"{i:<4} {name:<15} {role:<30} {percentage:>5.1f}% {progress_bar:<12} {status:<10}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"{i:<4} {name:<15} {role:<30} {percentage:>5.1f}% {progress_bar:<12} {status:<10}")
 
-    print("-" * 100)
+    logger.info("-" * 100)
 
     # Статистика
     total_members = len(results)
@@ -475,18 +479,25 @@ def main():
     low = sum(1 for r in results if 20 <= r["percentage"] < 40)
     start = sum(1 for r in results if r["percentage"] < 20)
 
-    print()
-    print("📈 СТАТИСТИКА:")
-    print(f"   Всего сотрудников: {total_members}")
-    print(f"   Средний прогресс: {avg_percentage:.1f}%")
-    print(f"   🟢 Отлично (80%+): {excellent} ({excellent / total_members * 100:.1f}%)")
-    print(f"   🟡 Хорошо (60-79%): {good} ({good / total_members * 100:.1f}%)")
-    print(f"   🟠 Средне (40-59%): {medium} ({medium / total_members * 100:.1f}%)")
-    print(f"   🔴 Низко (20-39%): {low} ({low / total_members * 100:.1f}%)")
-    print(f"   ⚫ Начало (<20%): {start} ({start / total_members * 100:.1f}%)")
+    logger.info()
+    logger.info("📈 СТАТИСТИКА:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Всего сотрудников: {total_members}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Средний прогресс: {avg_percentage:.1f}%")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   🟢 Отлично (80%+): {excellent} ({excellent / total_members * 100:.1f}%)")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   🟡 Хорошо (60-79%): {good} ({good / total_members * 100:.1f}%)")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   🟠 Средне (40-59%): {medium} ({medium / total_members * 100:.1f}%)")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   🔴 Низко (20-39%): {low} ({low / total_members * 100:.1f}%)")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   ⚫ Начало (<20%): {start} ({start / total_members * 100:.1f}%)")
 
-    print()
-    print("=" * 100)
+    logger.info()
+    logger.info("=" * 100)
 
     logger.info("✅ Анализ завершен!")
 

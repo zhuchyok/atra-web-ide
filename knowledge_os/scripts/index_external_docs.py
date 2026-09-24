@@ -26,7 +26,7 @@ try:
     import asyncpg
     from app.semantic_cache import get_embedding
 except ImportError:
-    print("Ошибка: Необходимы asyncpg и app.semantic_cache. Проверьте установку зависимостей.")
+    logger.info("Ошибка: Необходимы asyncpg и app.semantic_cache. Проверьте установку зависимостей.")
     sys.exit(1)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -67,21 +67,24 @@ async def index_file(conn, file_path: str, domain_id: int):
         with open(file_path, encoding="utf-8", errors="replace") as f:
             content = f.read()
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Ошибка чтения файла {file_path}: {e}")
         return
 
     file_rel_path = os.path.relpath(file_path, TARGET_DIR)
-    file_hash = hashlib.sha256(content.encode()).hexdigest()
+    file_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
 
     # Проверка на дубликаты
     exists = await conn.fetchval(
         "SELECT id FROM knowledge_nodes WHERE metadata->>'file_hash' = $1", file_hash
     )
     if exists:
+        # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Файл {file_rel_path} уже проиндексирован.")
         return
 
     chunks = chunk_text(content)
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"Индексация {file_rel_path} ({len(chunks)} чанков)")
 
     for i, chunk in enumerate(chunks):
@@ -116,15 +119,18 @@ async def index_file(conn, file_path: str, domain_id: int):
 def _sync_repo(repo_url: str, repo_path: str) -> None:
     """Синхронизирует репозиторий с защитой от битого worktree."""
     if not os.path.exists(repo_path):
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"Клонирование {repo_url}...")
         subprocess.run(["git", "clone", repo_url, repo_path], check=True)
         return
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"Обновление {os.path.basename(repo_path)}...")
     try:
         subprocess.run(["git", "-C", repo_path, "pull", "--ff-only"], check=True)
         return
     except subprocess.CalledProcessError as pull_err:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"git pull не удался: {pull_err}. Пробуем self-heal...")
 
     # Fallback: аккуратно восстанавливаем состояние без удаления каталога.

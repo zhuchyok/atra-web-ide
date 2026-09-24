@@ -22,6 +22,7 @@ DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@knowledge_postgres
 
 async def register_project(conn, slug, name, path):
     """Регистрирует проект в таблице projects."""
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"📝 Регистрация проекта: {slug} ({name})")
     await conn.execute(
         """
@@ -38,6 +39,7 @@ async def register_project(conn, slug, name, path):
 
 async def index_project(slug, path):
     """Запускает индексацию файлов проекта."""
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"🧠 Изучение проекта: {slug}...")
 
     # Ищем ключевые файлы для индексации
@@ -47,6 +49,7 @@ async def index_project(slug, path):
         files_to_index.extend(found)
 
     if not files_to_index:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ В проекте {slug} не найдено файлов для индексации.")
         return
 
@@ -58,13 +61,16 @@ async def index_project(slug, path):
     try:
         # Запускаем внутри контейнера (скрипт уже там)
         subprocess.run(cmd, check=True, capture_output=True, text=True)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Проект {slug} успешно проиндексирован.")
     except subprocess.CalledProcessError as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка индексации {slug}: {e.stderr}")
 
 
 async def main():
     if not DEV_DIR.exists():
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Папка {DEV_DIR} не найдена.")
         return
 

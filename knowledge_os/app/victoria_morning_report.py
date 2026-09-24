@@ -113,7 +113,7 @@ def send_telegram_msg(msg: str):
             requests.post(
                 ntfy_url,
                 data=msg.encode("utf-8")[:4000],
-                headers={"Title": "👩‍💼 Утренний доклад Виктории", "Tags": "sunrise,robot"},
+                headers={"Title": "Morning report: Victoria (ATRA)", "Tags": "sunrise,robot"},
                 timeout=10,
             )
             logger.info("Отправлено через ntfy (Telegram недоступен)")
@@ -349,7 +349,7 @@ async def generate_morning_plan():
 
         # Пытаемся сгенерировать отчет с таймаутом 60 секунд
         try:
-            plan = await asyncio.wait_for(run_cursor_agent(prompt), timeout=60)
+            plan = await asyncio.wait_for(run_cursor_agent(prompt), timeout=300)
             if plan and str(plan).strip() and len(str(plan)) > 50:
                 full_msg = f"👩‍💼 *Утренний доклад Виктории (Team Lead)*\n\n{plan}"
                 send_telegram_msg(full_msg)

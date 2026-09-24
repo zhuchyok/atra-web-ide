@@ -92,14 +92,11 @@ async def test_failover_uses_mirrored_context(mock_context_mirror):
 
 
 @pytest.mark.asyncio
-async def test_predictive_warmup_triggered_for_reasoning():
-    """Test that predictive warm-up is triggered for reasoning tasks."""
+async def test_predictive_warmup_skipped_for_wisdom_reasoning():
+    """Wisdom KV warmup on Ollama 11434 is the faucet; skip it."""
     router = LocalAIRouter()
-
-    # Mock trigger_predictive_warmup
     router._trigger_predictive_warmup = AsyncMock()
-
-    # Mock health check
+    router._select_model = MagicMock(return_value="victoria-wisdom-24k:latest")
     router.check_health = AsyncMock(
         return_value=[
             {
@@ -123,5 +120,79 @@ async def test_predictive_warmup_triggered_for_reasoning():
 
         await router.run_local_llm("Analyze this", category="reasoning")
 
-        # Verify warmup was triggered
+        router._trigger_predictive_warmup.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_predictive_warmup_triggered_for_non_wisdom():
+    router = LocalAIRouter()
+    router._trigger_predictive_warmup = AsyncMock()
+    router._select_model = MagicMock(return_value="phi3.5:3.8b")
+    router.check_health = AsyncMock(
+        return_value=[
+            {
+                "name": "MLX",
+                "url": "http://localhost:11435",
+                "priority": 0,
+                "routing_key": "mlx_studio",
+            },
+            {
+                "name": "Ollama",
+                "url": "http://localhost:11434",
+                "priority": 1,
+                "routing_key": "ollama_studio",
+            },
+        ]
+    )
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = MagicMock(status_code=200)
+        mock_post.return_value.json.return_value = {"message": {"content": "Response"}}
+
+        await router.run_local_llm("Analyze this", category="reasoning", model="phi3.5:3.8b")
+
         router._trigger_predictive_warmup.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_empty_mlx_does_not_fallback_wisdom_to_ollama(mock_context_mirror):
+    """MLX empty must not POST victoria-wisdom* to Ollama 11434."""
+    router = LocalAIRouter()
+    router.context_mirror = mock_context_mirror
+    router._trigger_predictive_warmup = AsyncMock()
+    router.check_health = AsyncMock(
+        return_value=[
+            {
+                "name": "MLX",
+                "url": "http://localhost:11435",
+                "priority": 0,
+                "routing_key": "mlx_studio",
+            },
+            {
+                "name": "Ollama",
+                "url": "http://localhost:11434",
+                "priority": 1,
+                "routing_key": "ollama_studio",
+            },
+        ]
+    )
+
+    posted = []
+
+    async def fake_post(url, json=None, **kwargs):
+        posted.append((str(url), (json or {}).get("model")))
+        resp = MagicMock(status_code=200)
+        resp.json.return_value = {"message": {"content": ""}}
+        resp.text = ""
+        return resp
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.side_effect = fake_post
+        await router.run_local_llm("Analyze this deeply", category="reasoning")
+
+    ollama_wisdom = [
+        (u, m)
+        for u, m in posted
+        if "11434" in u and m and "victoria-wisdom" in str(m).lower()
+    ]
+    assert ollama_wisdom == []

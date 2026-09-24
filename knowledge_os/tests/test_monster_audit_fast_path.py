@@ -62,7 +62,9 @@ def test_monster_secret_header_audit_detects_hardcoded_secret(tmp_path, monkeypa
         "API_KEY = 'prod-very-secret-key'\nprint('ok')\n",
         encoding="utf-8",
     )
-    prompt = f"проверь файл {target} — есть ли там hardcoded секреты или пароли в первых 30 строках?"
+    prompt = (
+        f"проверь файл {target} — есть ли там hardcoded секреты или пароли в первых 30 строках?"
+    )
 
     result = _run_monster_secret_header_audit(
         prompt,

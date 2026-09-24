@@ -1,3 +1,5 @@
+
+logger = logging.getLogger(__name__)
 #!/usr/bin/env python3
 """One-shot priority re-distill smoke (default limit=2)."""
 
@@ -25,7 +27,7 @@ async def main(limit: int) -> int:
     from distillation_engine import KnowledgeDistiller
 
     stats = await KnowledgeDistiller().redistill_priority_batch(limit=limit)
-    print(stats)
+    logger.info(stats)
     return 0 if stats.get("updated", 0) >= 0 else 1
 
 

@@ -327,7 +327,7 @@ def main() -> None:
     )
 
     if args.print_summary:
-        print(format_summary(diff))
+        logger.info(format_summary(diff))
 
     if args.update_baseline or baseline_report is None:
         ensure_parent(args.baseline)

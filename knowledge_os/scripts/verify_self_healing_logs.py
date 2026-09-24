@@ -78,6 +78,7 @@ async def simulate_error():
         finally:
             await conn.close()
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Error verifying DB: {e}")
 
     await bus.stop()

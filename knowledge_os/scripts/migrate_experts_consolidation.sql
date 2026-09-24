@@ -1,0 +1,51 @@
+-- Expert Consolidation Migration: 88 → 32 roles
+-- Run: docker exec victoria-agent python3 /app/knowledge_os/scripts/migrate_experts_consolidation.py
+
+-- Phase 1: Update 32 target experts with consolidated roles/departments
+-- Phase 2: Deactivate remaining 56 experts
+
+-- Target experts (32 roles):
+-- 1. Виктория → Team Lead / CEO (keep)
+-- 2. Вероника → Developer Agent (keep)
+-- 3. Даниил → Backend Lead
+-- 4. Денис → Backend Engineer
+-- 5. Макс → DevOps Lead
+-- 6. Алекс Нейман → ML Lead
+-- 7. Дмитрий → ML Engineer
+-- 8. Арина → Prompt Engineer
+-- 9. Владимир → Data Engineer
+-- 10. Алексей → Security Engineer
+-- 11. Анна → QA Lead
+-- 12. Дарья → Marketing Lead
+-- 13. Дмитрий_Ad → Growth Marketing
+-- 14. Владимир_CEO → CEO
+-- 15. Михаил Гребенюк → Business Architect
+-- 16. Виктор_M&A → Finance Lead
+-- 17. Виктор → Trading Lead
+-- 18. Инна → Data Science Lead
+-- 19. Ирина → Documentation Lead
+-- 20. Зоя → Support Engineer
+-- 21. Георгий → Monitor
+-- 22. Виталий → Performance Engineer
+-- 23. Анастасия → Product Manager
+-- 24. Леонид → Risk Manager
+-- 25. Alex → AI Coordination Lead
+-- 26. Александр Нейман → AI Systems Lead
+-- 27. Алекс → Multi-Agent Lead
+-- 28. Оливер → Knowledge Lead
+-- 29. Артур → Agent Architecture Lead
+-- 30. Натан → Competitive Intelligence Lead
+-- 31. Евгения → PR Director
+-- 32. Адриан → System Design Lead
+
+-- Deactivated experts (56):
+-- Константин, Константин, Игорь, Илья, Кирилл, Марк, Никита,
+-- Алекс Ковальски, Роман, Станислав, Борис, Глеб, Олег, Сергей,
+-- Вадим, Василий, Николай, Галина, Юлия, Алла,
+-- Артем, Лариса, Наталья, Кристина, Лиза, Марина, Ульяна,
+-- Оксана, Альберт, Диана, Совет Директоров, Григорий,
+-- Екатерина, Павел, Тимофей, Ксения, Людмила, Максим, Степан,
+-- Светлана, Татьяна, Елена, Ольга, Валерия, Мария,
+-- Александр (System Architect - merge into Адриан),
+-- Александра (Error Handling - merge into Анна/QA),
+-- Маркус (Team Excellence - merge into Виктория/Team Lead)

@@ -1,7 +1,10 @@
-import pytest
 import asyncio
 import json
-from knowledge_os.app.ai_core import _get_knowledge_context, _enrich_with_deep_memory, _get_db_pool
+
+import pytest
+
+from knowledge_os.app.ai_core import _enrich_with_deep_memory, _get_db_pool, _get_knowledge_context
+
 
 @pytest.mark.asyncio
 async def test_enrich_with_deep_memory_unit(db_connection, test_domain_id):
@@ -17,7 +20,7 @@ async def test_enrich_with_deep_memory_unit(db_connection, test_domain_id):
         """,
         test_domain_id,
         summary_content,
-        json.dumps({"type": "domain_summary"})
+        json.dumps({"type": "domain_summary"}),
     )
 
     # 2. Prepare mock nodes
@@ -32,8 +35,11 @@ async def test_enrich_with_deep_memory_unit(db_connection, test_domain_id):
     assert "domain name=" in enrichment
     assert summary_content in enrichment
 
+
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="Requires complex setup to bypass GraphRAG and hit Python RAG path with specific nodes")
+@pytest.mark.skip(
+    reason="Requires complex setup to bypass GraphRAG and hit Python RAG path with specific nodes"
+)
 async def test_get_knowledge_context_enrichment(db_connection, test_domain_id):
     """
     Test that _get_knowledge_context includes <deep_memory> enrichment.
@@ -47,7 +53,7 @@ async def test_get_knowledge_context_enrichment(db_connection, test_domain_id):
         """,
         test_domain_id,
         summary_content,
-        json.dumps({"type": "domain_summary"})
+        json.dumps({"type": "domain_summary"}),
     )
 
     # 2. Insert a regular knowledge node that will be retrieved
@@ -59,7 +65,7 @@ async def test_get_knowledge_context_enrichment(db_connection, test_domain_id):
         """,
         test_domain_id,
         "Specific knowledge about something.",
-        json.dumps({"source": "indexing_daemon", "file_path": "test.py"})
+        json.dumps({"source": "indexing_daemon", "file_path": "test.py"}),
     )
 
     # 3. Call _get_knowledge_context

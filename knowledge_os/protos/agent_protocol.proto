@@ -8,10 +8,10 @@ import "google/protobuf/timestamp.proto";
 service AgentService {
   // Основной метод для выполнения задачи агентом
   rpc ProcessTask (TaskRequest) returns (TaskResponse) {}
-  
+
   // Метод для проверки здоровья агента (Heartbeat)
   rpc GetHealth (HealthRequest) returns (HealthResponse) {}
-  
+
   // Метод для передачи задачи между агентами (Handoff)
   rpc InitiateHandoff (HandoffRequest) returns (HandoffResponse) {}
 }

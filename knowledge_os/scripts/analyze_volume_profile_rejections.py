@@ -1,3 +1,5 @@
+
+logger = logging.getLogger(__name__)
 #!/usr/bin/env python3
 """
 🔍 АНАЛИЗ ОТКЛОНЕНИЙ VOLUME PROFILE ФИЛЬТРА
@@ -43,14 +45,18 @@ def analyze_volume_profile_rejections(symbol: str, limit_days: int = 30) -> Dict
     # Определяем режим работы фильтра
     strict_mode = False
 
-    print(f"\n{'=' * 80}")
-    print(f"🔍 АНАЛИЗ VOLUME PROFILE ДЛЯ {symbol}")
-    print(f"{'=' * 80}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n{'=' * 80}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"🔍 АНАЛИЗ VOLUME PROFILE ДЛЯ {symbol}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"{'=' * 80}")
 
     # Загружаем данные
     df = load_yearly_data(symbol, limit_days=limit_days)
     if df is None or len(df) < 100:
-        print(f"❌ Недостаточно данных для {symbol}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"❌ Недостаточно данных для {symbol}")
         return {}
 
     df = add_technical_indicators(df)
@@ -164,30 +170,40 @@ def analyze_volume_profile_rejections(symbol: str, limit_days: int = 30) -> Dict
         else 0
     )
 
-    print("\n📊 СТАТИСТИКА:")
-    print(f"   Всего сигналов (базовые условия): {signals_passed_base}")
-    print(f"   Прошло через VP фильтр: {signals_passed_vp}")
-    print(f"   Отклонено VP фильтром: {signals_passed_base - signals_passed_vp}")
-    print(f"   Процент отклонений: {rejection_rate:.1f}%")
+    logger.info("\n📊 СТАТИСТИКА:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Всего сигналов (базовые условия): {signals_passed_base}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Прошло через VP фильтр: {signals_passed_vp}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Отклонено VP фильтром: {signals_passed_base - signals_passed_vp}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Процент отклонений: {rejection_rate:.1f}%")
 
     if vp_rejections:
-        print("\n🔍 ПРИМЕРЫ ОТКЛОНЕНИЙ (первые 10):")
+        logger.info("\n🔍 ПРИМЕРЫ ОТКЛОНЕНИЙ (первые 10):")
         for idx, rejection in enumerate(vp_rejections[:10], 1):
-            print(f"\n   {idx}. Свеча {rejection['candle']}, {rejection['side']}:")
-            print(f"      Цена: {rejection['price']:.2f}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n   {idx}. Свеча {rejection['candle']}, {rejection['side']}:")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"      Цена: {rejection['price']:.2f}")
             if rejection.get("poc"):
                 poc_dist = rejection.get("distance_from_poc_pct", 0)
                 poc_price = rejection["poc"]
-                print(f"      POC: {poc_price:.2f} (расстояние: {poc_dist:.2f}%)")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"      POC: {poc_price:.2f} (расстояние: {poc_dist:.2f}%)")
             if rejection.get("val"):
                 val_dist = rejection.get("distance_from_val_pct", 0)
                 val_price = rejection["val"]
-                print(f"      VAL: {val_price:.2f} (расстояние: {val_dist:.2f}%)")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"      VAL: {val_price:.2f} (расстояние: {val_dist:.2f}%)")
             if rejection.get("vah"):
                 vah_dist = rejection.get("distance_from_vah_pct", 0)
                 vah_price = rejection["vah"]
-                print(f"      VAH: {vah_price:.2f} (расстояние: {vah_dist:.2f}%)")
-            print(f"      Причина: {rejection['reason']}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"      VAH: {vah_price:.2f} (расстояние: {vah_dist:.2f}%)")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"      Причина: {rejection['reason']}")
 
         # Анализ расстояний
         distances_val = [
@@ -212,11 +228,15 @@ def analyze_volume_profile_rejections(symbol: str, limit_days: int = 30) -> Dict
             val_median = val_series.median()
             val_min = val_series.min()
             val_max = val_series.max()
-            print("\n📈 СРЕДНИЕ РАССТОЯНИЯ ОТ VAL:")
-            print(f"   Среднее: {val_mean:.2f}%")
-            print(f"   Медиана: {val_median:.2f}%")
-            print(f"   Мин: {val_min:.2f}%")
-            print(f"   Макс: {val_max:.2f}%")
+            logger.info("\n📈 СРЕДНИЕ РАССТОЯНИЯ ОТ VAL:")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Среднее: {val_mean:.2f}%")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Медиана: {val_median:.2f}%")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Мин: {val_min:.2f}%")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Макс: {val_max:.2f}%")
 
         if distances_vah:
             vah_series = pd.Series(distances_vah)
@@ -224,11 +244,15 @@ def analyze_volume_profile_rejections(symbol: str, limit_days: int = 30) -> Dict
             vah_median = vah_series.median()
             vah_min = vah_series.min()
             vah_max = vah_series.max()
-            print("\n📈 СРЕДНИЕ РАССТОЯНИЯ ОТ VAH:")
-            print(f"   Среднее: {vah_mean:.2f}%")
-            print(f"   Медиана: {vah_median:.2f}%")
-            print(f"   Мин: {vah_min:.2f}%")
-            print(f"   Макс: {vah_max:.2f}%")
+            logger.info("\n📈 СРЕДНИЕ РАССТОЯНИЯ ОТ VAH:")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Среднее: {vah_mean:.2f}%")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Медиана: {vah_median:.2f}%")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Мин: {vah_min:.2f}%")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Макс: {vah_max:.2f}%")
 
         if distances_poc:
             poc_series = pd.Series(distances_poc)
@@ -236,11 +260,15 @@ def analyze_volume_profile_rejections(symbol: str, limit_days: int = 30) -> Dict
             poc_median = poc_series.median()
             poc_min = poc_series.min()
             poc_max = poc_series.max()
-            print("\n📈 СРЕДНИЕ РАССТОЯНИЯ ОТ POC:")
-            print(f"   Среднее: {poc_mean:.2f}%")
-            print(f"   Медиана: {poc_median:.2f}%")
-            print(f"   Мин: {poc_min:.2f}%")
-            print(f"   Макс: {poc_max:.2f}%")
+            logger.info("\n📈 СРЕДНИЕ РАССТОЯНИЯ ОТ POC:")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Среднее: {poc_mean:.2f}%")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Медиана: {poc_median:.2f}%")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Мин: {poc_min:.2f}%")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Макс: {poc_max:.2f}%")
     return {
         "symbol": symbol,
         "total_signals": signals_passed_base,
@@ -251,9 +279,9 @@ def analyze_volume_profile_rejections(symbol: str, limit_days: int = 30) -> Dict
 
 
 if __name__ == "__main__":
-    print("=" * 80)
-    print("🔍 АНАЛИЗ ОТКЛОНЕНИЙ VOLUME PROFILE ФИЛЬТРА")
-    print("=" * 80)
+    logger.info("=" * 80)
+    logger.info("🔍 АНАЛИЗ ОТКЛОНЕНИЙ VOLUME PROFILE ФИЛЬТРА")
+    logger.info("=" * 80)
 
     results = []
     for test_symbol in TEST_SYMBOLS:
@@ -261,25 +289,29 @@ if __name__ == "__main__":
         if result:
             results.append(result)
 
-    print("\n" + "=" * 80)
-    print("📊 ИТОГОВАЯ СТАТИСТИКА")
-    print("=" * 80)
+    logger.info("\n" + "=" * 80)
+    logger.info("📊 ИТОГОВАЯ СТАТИСТИКА")
+    logger.info("=" * 80)
 
     total_signals_all = sum(r["total_signals"] for r in results)
     total_passed_all = sum(r["signals_passed_vp"] for r in results)
     AVG_REJECTION_RATE = sum(r["rejection_rate"] for r in results) / len(results) if results else 0
 
-    print(f"\nВсего сигналов (базовые условия): {total_signals_all}")
-    print(f"Прошло через VP фильтр: {total_passed_all}")
-    print(f"Отклонено: {total_signals_all - total_passed_all}")
-    print(f"Средний процент отклонений: {AVG_REJECTION_RATE:.1f}%")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\nВсего сигналов (базовые условия): {total_signals_all}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Прошло через VP фильтр: {total_passed_all}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Отклонено: {total_signals_all - total_passed_all}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Средний процент отклонений: {AVG_REJECTION_RATE:.1f}%")
 
-    print("\n💡 ВЫВОДЫ:")
+    logger.info("\n💡 ВЫВОДЫ:")
     if AVG_REJECTION_RATE > 90:
-        print("   ❌ Фильтр слишком строгий - блокирует >90% сигналов")
-        print("   💡 Рекомендация: увеличить tolerance_pct или уменьшить требования к Value Area")
+        logger.info("   ❌ Фильтр слишком строгий - блокирует >90% сигналов")
+        logger.info("   💡 Рекомендация: увеличить tolerance_pct или уменьшить требования к Value Area")
     elif AVG_REJECTION_RATE > 50:
-        print("   ⚠️ Фильтр строгий - блокирует >50% сигналов")
-        print("   💡 Рекомендация: ослабить параметры фильтра")
+        logger.info("   ⚠️ Фильтр строгий - блокирует >50% сигналов")
+        logger.info("   💡 Рекомендация: ослабить параметры фильтра")
     else:
-        print("   ✅ Фильтр работает нормально")
+        logger.info("   ✅ Фильтр работает нормально")

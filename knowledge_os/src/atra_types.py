@@ -4,10 +4,10 @@ Type definitions for ATRA trading system
 """
 
 import typing
-from typing import Dict, Any, List, Optional, Tuple, Union
 from datetime import datetime
-import pandas as pd
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+import pandas as pd
 
 # =============================================================================
 # DATA TYPES
@@ -29,6 +29,7 @@ UserData = Dict[str, Any]
 # SIGNAL TYPES
 # =============================================================================
 
+
 class SignalResult:
     """Результат генерации сигнала"""
 
@@ -37,13 +38,14 @@ class SignalResult:
         signal: Optional[str],
         reason: str,
         strength: str = "medium",
-        confidence: str = "medium"
+        confidence: str = "medium",
     ):
         self.signal = signal  # "LONG", "SHORT" или None
         self.reason = reason
         self.strength = strength  # "high", "medium", "low"
         self.confidence = confidence  # "high", "medium", "low"
         from src.shared.utils.datetime_utils import get_utc_now
+
         self.timestamp = get_utc_now()
 
     def __bool__(self) -> bool:
@@ -74,7 +76,7 @@ class TradeSignal:
         indicators: Optional[IndicatorData] = None,
         trend_analysis: Optional[Dict[str, Any]] = None,
         user_id: str = "",
-        filter_mode: str = "strict"
+        filter_mode: str = "strict",
     ):
         self.symbol = symbol
         self.signal_type = signal_type
@@ -94,13 +96,15 @@ class TradeSignal:
         self.user_id = user_id
         self.filter_mode = filter_mode
         from src.shared.utils.datetime_utils import get_utc_now
+
         self.timestamp = get_utc_now().isoformat()
         self.confidence = self._calculate_confidence()
-        
+
         # Self-validation: проверяем инварианты после создания
         try:
-            from src.core.self_validation import get_validation_manager
             from src.core.invariants import register_all_invariants
+            from src.core.self_validation import get_validation_manager
+
             register_all_invariants()
             manager = get_validation_manager()
             results = manager.validate_object(self, "TradeSignal")
@@ -108,6 +112,7 @@ class TradeSignal:
             for result in results:
                 if not result.passed:
                     import logging
+
                     logger = logging.getLogger(__name__)
                     logger.warning(f"TradeSignal invariant violated: {result.message}")
         except Exception:
@@ -166,7 +171,7 @@ class TradeSignal:
             "user_id": self.user_id,
             "filter_mode": self.filter_mode,
             "timestamp": self.timestamp,
-            "confidence": self.confidence
+            "confidence": self.confidence,
         }
 
     def __str__(self) -> str:
@@ -177,6 +182,7 @@ class TradeSignal:
 # FILTER TYPES
 # =============================================================================
 
+
 class FilterResult:
     """Результат работы фильтра"""
 
@@ -185,6 +191,7 @@ class FilterResult:
         self.reason = reason
         self.details = details or {}
         from src.shared.utils.datetime_utils import get_utc_now
+
         self.timestamp = get_utc_now()
 
     def __bool__(self) -> bool:
@@ -198,6 +205,7 @@ class FilterResult:
 # DCA TYPES
 # =============================================================================
 
+
 class DCAResult:
     """Результат DCA анализа"""
 
@@ -210,7 +218,7 @@ class DCAResult:
         new_avg_price: float = 0.0,
         profit_targets: Optional[Dict[str, float]] = None,
         dca_count: int = 0,
-        loss_pct: float = 0.0
+        loss_pct: float = 0.0,
     ):
         self.can_dca = can_dca
         self.reason = reason
@@ -229,21 +237,17 @@ class DCAResult:
 # API RESPONSE TYPES
 # =============================================================================
 
+
 class APIResponse:
     """Стандартизированный ответ API"""
 
-    def __init__(
-        self,
-        success: bool,
-        data: Any = None,
-        error: str = "",
-        status_code: int = 200
-    ):
+    def __init__(self, success: bool, data: Any = None, error: str = "", status_code: int = 200):
         self.success = success
         self.data = data
         self.error = error
         self.status_code = status_code
         from src.shared.utils.datetime_utils import get_utc_now
+
         self.timestamp = get_utc_now()
 
     def __bool__(self) -> bool:
@@ -261,25 +265,27 @@ RiskConfig = Dict[str, Union[int, float, bool]]
 LeverageConfig = Dict[str, Union[int, float, bool]]
 
 # Общий тип конфигурации
-SystemConfig = Dict[str, Union[
-    FilterConfig,
-    IndicatorConfig,
-    RiskConfig,
-    LeverageConfig
-]]
+SystemConfig = Dict[str, Union[FilterConfig, IndicatorConfig, RiskConfig, LeverageConfig]]
 
 
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
 
+
 def validate_signal_data(signal: TradeSignal) -> bool:
     """Валидация данных сигнала"""
     try:
         # Проверка обязательных полей
         required_fields = [
-            "symbol", "signal_type", "entry_price", "stop_loss_price",
-            "take_profit_1", "take_profit_2", "risk_pct", "leverage"
+            "symbol",
+            "signal_type",
+            "entry_price",
+            "stop_loss_price",
+            "take_profit_1",
+            "take_profit_2",
+            "risk_pct",
+            "leverage",
         ]
 
         for field in required_fields:
@@ -336,7 +342,7 @@ def create_signal_from_dict(data: Dict[str, Any]) -> TradeSignal:
             indicators=data.get("indicators", {}),
             trend_analysis=data.get("trend_analysis", {}),
             user_id=data.get("user_id", ""),
-            filter_mode=data.get("filter_mode", "strict")
+            filter_mode=data.get("filter_mode", "strict"),
         )
     except KeyError as e:
         raise ValueError(f"Отсутствует обязательное поле в данных сигнала: {e}")

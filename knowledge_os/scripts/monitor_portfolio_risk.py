@@ -185,7 +185,7 @@ async def main():
 
     # Выводим отчет
     formatted_report = format_risk_report(report)
-    print(formatted_report)
+    logger.info(formatted_report)
 
     # Сохраняем в файл
     report_file = (

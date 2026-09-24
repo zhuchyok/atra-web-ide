@@ -98,6 +98,7 @@ def check_database() -> Dict[str, Any]:
     except Exception as e:
         results["status"] = "error"
         results["errors"].append(f"Ошибка проверки БД: {e}")
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка проверки БД: {e}")
 
     return results
@@ -144,6 +145,7 @@ def check_ml_models() -> Dict[str, Any]:
         except Exception as e:
             results["predictor_available"] = False
             results["errors"].append(f"Ошибка загрузки predictor: {e}")
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ Predictor недоступен (не критично): {e}")
 
         results["status"] = "ok" if results.get("models_available", False) else "warning"
@@ -151,6 +153,7 @@ def check_ml_models() -> Dict[str, Any]:
     except Exception as e:
         results["status"] = "error"
         results["errors"].append(f"Ошибка проверки ML: {e}")
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка проверки ML: {e}")
 
     return results
@@ -192,6 +195,7 @@ def check_prometheus_metrics() -> Dict[str, Any]:
     except Exception as e:
         results["status"] = "error"
         results["errors"].append(f"Ошибка проверки метрик: {e}")
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка проверки метрик: {e}")
 
     return results
@@ -228,6 +232,7 @@ def check_logs() -> Dict[str, Any]:
     except Exception as e:
         results["status"] = "error"
         results["errors"].append(f"Ошибка проверки логов: {e}")
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка проверки логов: {e}")
 
     return results
@@ -283,6 +288,7 @@ def check_code_fixes() -> Dict[str, Any]:
     except Exception as e:
         results["status"] = "error"
         results["errors"].append(f"Ошибка проверки исправлений: {e}")
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка проверки исправлений: {e}")
 
     return results
@@ -371,13 +377,15 @@ def generate_report() -> str:
 if __name__ == "__main__":
     try:
         report = generate_report()
-        print(report)
+        logger.info(report)
 
         # Сохраняем отчёт
         report_path = Path("scripts/PROD_HEALTH_CHECK_REPORT.txt")
         report_path.write_text(report, encoding="utf-8")
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Отчёт сохранён: {report_path}")
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка генерации отчёта: {e}")
         sys.exit(1)

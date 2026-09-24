@@ -26,7 +26,7 @@ except ImportError:
 
     def do_hash(text: str) -> str:
         normalized = " ".join(text.lower().split())
-        return hashlib.md5(normalized.encode()).hexdigest()
+        return hashlib.md5(normalized.encode('utf-8')).hexdigest()
 
 
 N_TEXTS = int(os.getenv("BENCHMARK_N_TEXTS", "1000"))

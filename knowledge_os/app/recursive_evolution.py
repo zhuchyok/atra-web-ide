@@ -143,7 +143,7 @@ Provide a concise summary of 3-5 'Giant's Knowledge' patterns that should be app
 Output ONLY the mutated python code block.
 """
             # [SINGULARITY 28.2] Используем микро-модель для быстрых итераций мутаций
-            tasks.append(run_smart_agent_async(prompt, expert_name="Даниил", model="smollm2:360m"))
+            tasks.append(run_smart_agent_async(prompt, expert_name="Даниил"))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 

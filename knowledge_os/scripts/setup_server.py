@@ -32,8 +32,10 @@ def create_directories():
     for directory in directories:
         try:
             os.makedirs(directory, exist_ok=True)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Создана директория: {directory}")
         except OSError as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка создания директории {directory}: {e}")
 
 
@@ -68,6 +70,7 @@ USE_BTC_TREND_FILTER=true
             f.write(env_template)
         logger.info("✅ Создан файл .env (заполните своими данными)")
     except OSError as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка создания файла .env: {e}")
 
 
@@ -95,12 +98,15 @@ def check_python_dependencies():
                 import sqlite3
             else:
                 __import__(package)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Пакет {package} установлен")
         except ImportError:
             missing_packages.append(package)
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Пакет {package} не найден")
 
     if missing_packages:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Отсутствуют пакеты: {', '.join(missing_packages)}")
         logger.info("💡 Установите их командой: pip install " + " ".join(missing_packages))
         return False
@@ -139,9 +145,11 @@ async def initialize_database():
             logger.info("✅ База данных инициализирована через стандартный механизм")
             return True
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка инициализации базы данных: {e}")
             return False
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Неожиданная ошибка: {e}")
         return False
 
@@ -171,6 +179,7 @@ def create_user_data_file():
             json.dump(default_user_data, f, ensure_ascii=False, indent=2)
         logger.info("✅ Создан файл user_data.json")
     except OSError as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка создания файла user_data.json: {e}")
 
 
@@ -205,8 +214,10 @@ def create_locale_files():
 
                 with open(locale_file, "w", encoding="utf-8") as f:
                     json.dump(content, f, ensure_ascii=False, indent=2)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Создан файл локализации: {locale_file}")
             except OSError as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка создания файла локализации {lang}: {e}")
 
 
@@ -268,5 +279,6 @@ if __name__ == "__main__":
         logger.info("🛑 Настройка прервана пользователем")
         sys.exit(1)
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"💥 Неожиданная ошибка: {e}")
         sys.exit(1)

@@ -20,13 +20,16 @@ import pytest
 
 TEST_DB_URL = __import__("os").getenv(
     "TEST_DATABASE_URL",
-    __import__("os").getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"),
+    __import__("os").getenv(
+        "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+    ),
 )
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 async def _get_conn() -> asyncpg.Connection:
     return await asyncpg.connect(TEST_DB_URL)
@@ -35,6 +38,7 @@ async def _get_conn() -> asyncpg.Connection:
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def event_loop():
@@ -61,6 +65,7 @@ async def clean_actor_tables(db_conn):
 # ---------------------------------------------------------------------------
 # Minimal stub for VictoriaExpertActor without agentscope
 # ---------------------------------------------------------------------------
+
 
 class _StubActor:
     """Minimal stand-in when agentscope is not installed."""
@@ -92,8 +97,7 @@ class _StubActor:
         pool = await self._get_pool()
         async with pool.acquire() as conn:
             await conn.execute(
-                "INSERT INTO actor_states (actor_name, task_id, state_data) "
-                "VALUES ($1, $2, $3)",
+                "INSERT INTO actor_states (actor_name, task_id, state_data) VALUES ($1, $2, $3)",
                 self.name,
                 uuid.UUID(self.task_id) if self.task_id else None,
                 json.dumps(self._state),

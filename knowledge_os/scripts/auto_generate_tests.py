@@ -39,6 +39,7 @@ class TestGenerator:
                 self.source_code = f.read()
             self.tree = ast.parse(self.source_code)
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка парсинга модуля {module_path}: {e}")
             raise
 
@@ -202,6 +203,7 @@ class TestGenerator:
 
             # Проверяем, существует ли уже файл
             if self.test_file_path.exists():
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Файл {self.test_file_path} уже существует. Пропускаем.")
                 return False
 
@@ -210,10 +212,12 @@ class TestGenerator:
             with open(self.test_file_path, "w", encoding="utf-8") as f:
                 f.write(test_content)
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Тесты созданы: {self.test_file_path}")
             return True
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка сохранения тестов: {e}")
             return False
 
@@ -270,6 +274,7 @@ def main():
     if args.all:
         # Генерируем тесты для всех модулей
         modules = find_python_modules()
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📊 Найдено {len(modules)} модулей")
 
         generated = 0
@@ -283,10 +288,13 @@ def main():
                 else:
                     skipped += 1
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка для {module_path}: {e}")
                 skipped += 1
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Создано тестов: {generated}")
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"⚠️ Пропущено: {skipped}")
 
     elif args.module:
@@ -295,9 +303,13 @@ def main():
 
         if args.check_coverage:
             coverage = generator.check_coverage()
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📊 Покрытие для {args.module}:")
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"   Классов: {coverage['classes']}")
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"   Функций: {coverage['functions']}")
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"   Публичных методов: {coverage['public_methods']}")
 
         generator.save_test_file()

@@ -67,24 +67,27 @@ def search_best_practices_for_all_members(use_web_search: bool = True):
             )
 
     # Выводим результаты
-    print("\n" + "=" * 70)
-    print("📊 РЕЗУЛЬТАТЫ ПОИСКА ЛУЧШИХ ПРАКТИК")
-    print("=" * 70)
+    logger.info("\n" + "=" * 70)
+    logger.info("📊 РЕЗУЛЬТАТЫ ПОИСКА ЛУЧШИХ ПРАКТИК")
+    logger.info("=" * 70)
 
     total_practices = sum(r.get("practices_found", 0) for r in results)
-    print(f"✅ Всего найдено практик: {total_practices}")
-    print(f"✅ Обработано сотрудников: {len(results)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"✅ Всего найдено практик: {total_practices}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"✅ Обработано сотрудников: {len(results)}")
 
-    print("\n👥 РЕЗУЛЬТАТЫ ПО СОТРУДНИКАМ:")
+    logger.info("\n👥 РЕЗУЛЬТАТЫ ПО СОТРУДНИКАМ:")
     for result in results:
         status = "✅" if result.get("practices_found", 0) > 0 else "⚠️"
-        print(
+        logger.info(
             f"   {status} {result['member']} ({result['role']}): {result.get('practices_found', 0)} практик"
         )
         if "error" in result:
-            print(f"      Ошибка: {result['error']}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"      Ошибка: {result['error']}")
 
-    print("\n" + "=" * 70)
+    logger.info("\n" + "=" * 70)
     logger.info("✅ Поиск завершен!")
 
     return results

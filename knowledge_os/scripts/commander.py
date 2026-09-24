@@ -4,6 +4,8 @@ import logging
 import os
 import sys
 
+logger = logging.getLogger(__name__)
+
 # Добавляем корень проекта в пути
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -37,7 +39,7 @@ class VictoriaAgent(AtraBaseAgent):
             self.memory = []
             self.executed_commands_hash = []  # Сброс истории команд только при новой задаче
 
-        print("🧠 [DeepSeek-R1] Виктория прорабатывает стратегию...")
+        logger.info("🧠 [DeepSeek-R1] Виктория прорабатывает стратегию...")
         plan_prompt = f"""ТЫ — ТЕХНИЧЕСКИЙ ДИРЕКТОР ATRA. Составь СТРОГИЙ пошаговый план.
 ЗАДАЧА: {goal}
 БАЗА ДАННЫХ: /root/atra/trading.db
@@ -58,7 +60,7 @@ class VictoriaAgent(AtraBaseAgent):
     async def run(self, goal: str, max_steps: int = 500) -> str:
         # 1. Глубокое планирование (DeepSeek)
         raw_plan = await self.plan(goal)
-        print("📋 СТРАТЕГИЯ СФОРМИРОВАНА.\n")
+        logger.info("📋 СТРАТЕГИЯ СФОРМИРОВАНА.\n")
 
         # 2. Исполнение (Qwen)
         enhanced_goal = f"ТВОЙ ПЛАН ОТ ГЕНШТАБА:\n{raw_plan}\n\nПРИСТУПАЙ К ВЫПОЛНЕНИЮ ЦЕЛИ: {goal}"
@@ -66,12 +68,12 @@ class VictoriaAgent(AtraBaseAgent):
 
 
 async def main():
-    print("\n" + "=" * 50)
-    print("🤖 ATRA COMMAND CENTER (Autonomous Agent)")
-    print("=" * 50)
-    print("Я готов выполнять твои задачи через Ollama.")
-    print("Brain: phi3.5:3.8b | Hands: qwen2.5-coder:32b")
-    print("Для выхода напиши 'exit' или 'выход'.\n")
+    logger.info("\n" + "=" * 50)
+    logger.info("🤖 ATRA COMMAND CENTER (Autonomous Agent)")
+    logger.info("=" * 50)
+    logger.info("Я готов выполнять твои задачи через Ollama.")
+    logger.info("Brain: phi3.5:3.8b | Hands: qwen3-coder:30b")
+    logger.info("Для выхода напиши 'exit' или 'выход'.\n")
 
     agent = VictoriaAgent(name="Victoria")
 
@@ -131,24 +133,26 @@ async def main():
         try:
             user_input = input("👤 Ты: ")
             if user_input.lower() in ["exit", "выход", "quit"]:
-                print("👋 До связи, Босс!")
+                logger.info("👋 До связи, Босс!")
                 break
 
             if not user_input.strip():
                 continue
 
-            print("\n⚙️  Агент Виктория думает...")
+            logger.info("\n⚙️  Агент Виктория думает...")
             # Запускаем основной цикл агента
             final_output = await agent.run(user_input)
 
-            print(f"\n✅ Ответ Виктории:\n{final_output}\n")
-            print("-" * 50)
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n✅ Ответ Виктории:\n{final_output}\n")
+            logger.info("-" * 50)
 
         except KeyboardInterrupt:
-            print("\n👋 До связи, Босс!")
+            logger.info("\n👋 До связи, Босс!")
             break
         except Exception as e:
-            print(f"\n❌ Ошибка: {str(e)}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n❌ Ошибка: {str(e)}")
 
 
 if __name__ == "__main__":

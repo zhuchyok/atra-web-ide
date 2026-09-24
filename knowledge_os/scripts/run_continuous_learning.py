@@ -36,27 +36,36 @@ def main():
     result = learning_system.run_continuous_learning_cycle()
 
     # Выводим результаты
-    print("\n" + "=" * 60)
-    print("📊 РЕЗУЛЬТАТЫ ОБУЧЕНИЯ")
-    print("=" * 60)
-    print(f"✅ Обновлено сотрудников: {result['members_updated']}")
-    print(f"✅ Обновлено программ: {result['programs_updated']}")
-    print(f"✅ База знаний обновлена: {result['knowledge_base_updated']}")
-    print("\n📈 МЕТРИКИ ОБУЧЕНИЯ:")
+    logger.info("\n" + "=" * 60)
+    logger.info("📊 РЕЗУЛЬТАТЫ ОБУЧЕНИЯ")
+    logger.info("=" * 60)
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"✅ Обновлено сотрудников: {result['members_updated']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"✅ Обновлено программ: {result['programs_updated']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"✅ База знаний обновлена: {result['knowledge_base_updated']}")
+    logger.info("\n📈 МЕТРИКИ ОБУЧЕНИЯ:")
     metrics = result["learning_metrics"]
-    print(f"   - Всего сотрудников: {metrics['total_members']}")
-    print(f"   - Активных: {metrics['active_members']}")
-    print(f"   - С базой знаний: {metrics['members_with_knowledge_base']}")
-    print(f"   - Покрытие: {metrics['coverage_percentage']:.1f}%")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Всего сотрудников: {metrics['total_members']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Активных: {metrics['active_members']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - С базой знаний: {metrics['members_with_knowledge_base']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   - Покрытие: {metrics['coverage_percentage']:.1f}%")
 
-    print("\n👥 ОБНОВЛЕННЫЕ СОТРУДНИКИ:")
+    logger.info("\n👥 ОБНОВЛЕННЫЕ СОТРУДНИКИ:")
     for member_info in result["members"]:
         status = "✅" if member_info.get("updated") else "⚠️"
-        print(f"   {status} {member_info['member']} ({member_info['role']})")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   {status} {member_info['member']} ({member_info['role']})")
         if "error" in member_info:
-            print(f"      Ошибка: {member_info['error']}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"      Ошибка: {member_info['error']}")
 
-    print("\n" + "=" * 60)
+    logger.info("\n" + "=" * 60)
     logger.info("✅ Обучение завершено успешно!")
 
     return 0

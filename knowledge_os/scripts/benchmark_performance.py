@@ -75,6 +75,7 @@ class PerformanceBenchmark:
 
     async def benchmark_write_latency(self, num_operations: int = 100) -> BenchmarkResult:
         """Проверяет latency записи в БД"""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔍 Бенчмарк: Latency записи ({num_operations} операций)...")
 
         try:
@@ -128,6 +129,7 @@ class PerformanceBenchmark:
                 },
             )
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка бенчмарка latency: {e}")
             return BenchmarkResult(
                 name="Latency записи в БД (P95)",
@@ -153,6 +155,7 @@ class PerformanceBenchmark:
             if isinstance(result, BenchmarkResult):
                 self.results.append(result)
             elif isinstance(result, Exception):
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка в бенчмарке: {result}")
 
         return self.results
@@ -168,14 +171,19 @@ class PerformanceBenchmark:
 
         for result in self.results:
             status = "✅ PASS" if result.passed else "❌ FAIL"
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"{status} | {result.name}")
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"     Время: {result.duration:.3f}s")
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"     Порог: {result.threshold}")
             if result.details:
                 for key, value in result.details.items():
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"     {key}: {value}")
 
         logger.info("=" * 80)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Пройдено: {passed}/{total}")
         logger.info("=" * 80)
 

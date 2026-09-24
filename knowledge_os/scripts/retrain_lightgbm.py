@@ -41,9 +41,9 @@ except ImportError:
     logger.error("❌ LightGBM не установлен: pip install lightgbm scikit-learn")
     sys.exit(1)
 
-print("=" * 80)
-print("🤖 ПЕРЕОБУЧЕНИЕ LIGHTGBM С ПРАВИЛЬНЫМИ FEATURES")
-print("=" * 80)
+logger.info("=" * 80)
+logger.info("🤖 ПЕРЕОБУЧЕНИЕ LIGHTGBM С ПРАВИЛЬНЫМИ FEATURES")
+logger.info("=" * 80)
 
 PATTERNS_FILE = Path(__file__).parent.parent / "ai_learning_data" / "trading_patterns.json"
 MODEL_DIR = Path(__file__).parent.parent / "ai_learning_data" / "lightgbm_models"
@@ -90,21 +90,26 @@ FEATURE_NAMES = [
 
 def load_patterns():
     """Загружает паттерны из файла"""
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"📂 Загрузка паттернов из {PATTERNS_FILE}")
 
     if not PATTERNS_FILE.exists():
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Файл не найден: {PATTERNS_FILE}")
         sys.exit(1)
 
     with open(PATTERNS_FILE, encoding="utf-8") as f:
         data = json.load(f)
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"✅ Загружено {len(data)} паттернов")
 
     # Статистика
     wins = sum(1 for p in data if p.get("result") == "WIN")
     losses = len(data) - wins
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   WIN: {wins} ({wins / len(data) * 100:.1f}%)")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   LOSS: {losses} ({losses / len(data) * 100:.1f}%)")
 
     return data
@@ -231,6 +236,7 @@ def extract_features_from_pattern(pattern):
         return features
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ Ошибка извлечения features: {e}")
         return None
 
@@ -250,6 +256,7 @@ def prepare_dataset(patterns):
 
         patterns_sorted = sorted(patterns, key=get_ts)
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ Не удалось отсортировать паттерны: {e}")
         patterns_sorted = patterns
 
@@ -379,16 +386,11 @@ def prepare_dataset(patterns):
     y_class = np.array(y_class)
     y_reg = np.array(y_reg)
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"✅ Подготовлено {len(X)} samples с {len(FEATURE_NAMES)} features")
-    return X, y_class, y_reg
-
-    # Создаем DataFrame
-    X = pd.DataFrame(X_list)[FEATURE_NAMES]
-    y_class = np.array(y_class)
-    y_reg = np.array(y_reg)
-
-    logger.info(f"✅ Подготовлено {len(X)} samples с {len(FEATURE_NAMES)} features")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   WIN: {y_class.sum()} ({y_class.mean() * 100:.1f}%)")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   LOSS: {len(y_class) - y_class.sum()} ({(1 - y_class.mean()) * 100:.1f}%)")
 
     return X, y_class, y_reg
@@ -444,6 +446,7 @@ def train_models(X, y_class, y_reg, use_purged_cv=True):
             y_reg_train = y_reg[train_idx]
             y_reg_test = y_reg[test_idx]
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"   ✅ Purged CV: train={len(X_train)}, test={len(X_test)}")
             logger.info("   📊 Purged samples предотвращают data leakage")
 
@@ -457,7 +460,9 @@ def train_models(X, y_class, y_reg, use_purged_cv=True):
             X, y_class, y_reg, test_size=0.2, random_state=42, stratify=y_class
         )
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   Train: {len(X_train)} samples")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   Test: {len(X_test)} samples")
 
     # ==================== SAMPLE WEIGHTS ====================
@@ -475,6 +480,7 @@ def train_models(X, y_class, y_reg, use_purged_cv=True):
 
     # Балансировка классов
     scale_pos_weight = (len(y_class_train) - y_class_train.sum()) / y_class_train.sum()
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   Scale pos weight: {scale_pos_weight:.2f}")
 
     train_data_class = lgb.Dataset(X_train, label=y_class_train, weight=sample_weights_train)
@@ -517,6 +523,7 @@ def train_models(X, y_class, y_reg, use_purged_cv=True):
 
     logger.info("\n✅ Classifier метрики:")
     for key, value in class_metrics.items():
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"   {key}: {value:.4f}")
 
     # ==================== REGRESSOR ====================
@@ -563,6 +570,7 @@ def train_models(X, y_class, y_reg, use_purged_cv=True):
 
     logger.info("\n✅ Regressor метрики:")
     for key, value in reg_metrics.items():
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"   {key}: {value:.4f}")
 
     # Feature importance
@@ -570,6 +578,7 @@ def train_models(X, y_class, y_reg, use_purged_cv=True):
     importance = classifier.feature_importance(importance_type="gain")
     feature_importance = sorted(zip(FEATURE_NAMES, importance), key=lambda x: x[1], reverse=True)
     for feature, imp in feature_importance[:10]:
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"   {feature}: {imp:.0f}")
 
     return classifier, regressor, class_metrics, reg_metrics
@@ -577,6 +586,7 @@ def train_models(X, y_class, y_reg, use_purged_cv=True):
 
 def save_models(classifier, regressor, class_metrics, reg_metrics):
     """Сохраняет модели и метаданные"""
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"\n💾 Сохранение моделей в {MODEL_DIR}...")
 
     # Сохраняем модели
@@ -594,8 +604,11 @@ def save_models(classifier, regressor, class_metrics, reg_metrics):
         json.dump(metadata, f, indent=2, ensure_ascii=False)
 
     logger.info("✅ Модели сохранены!")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   - {MODEL_DIR / 'classifier.txt'}")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   - {MODEL_DIR / 'regressor.txt'}")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   - {MODEL_DIR / 'metadata.json'}")
 
 
@@ -620,13 +633,21 @@ def main():
     logger.info("✅ ПЕРЕОБУЧЕНИЕ ЗАВЕРШЕНО!")
     logger.info("=" * 80)
     logger.info("\n📊 Итоговые метрики:")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   ROC AUC: {class_metrics['roc_auc']:.4f}")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   Accuracy: {class_metrics['accuracy']:.4f}")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   Precision: {class_metrics['precision']:.4f}")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   Recall: {class_metrics['recall']:.4f}")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   F1 Score: {class_metrics['f1_score']:.4f}")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"\n   Regressor MAE: {reg_metrics['mae']:.4f}")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   Regressor RMSE: {reg_metrics['rmse']:.4f}")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   Regressor R²: {reg_metrics['r2']:.4f}")
     logger.info("\n🎯 Модели готовы к использованию!")
     logger.info("=" * 80)

@@ -105,6 +105,7 @@ def create_recommended_indexes(conn: sqlite3.Connection, dry_run: bool = False):
     logger.info("🔍 Анализ существующих индексов...")
     existing_indexes = analyze_existing_indexes(conn)
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"📊 Найдено таблиц с индексами: {len(existing_indexes)}")
 
     # Получаем список всех таблиц
@@ -121,8 +122,10 @@ def create_recommended_indexes(conn: sqlite3.Connection, dry_run: bool = False):
     for table in tables:
         suggestions = suggest_indexes_for_table(table, conn)
         if suggestions:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"💡 Предложения для таблицы {table}:")
             for suggestion in suggestions:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"   {suggestion}")
                 all_suggestions.append(suggestion)
 
@@ -131,6 +134,7 @@ def create_recommended_indexes(conn: sqlite3.Connection, dry_run: bool = False):
         return
 
     # Создаем индексы
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"🔧 Создание {len(all_suggestions)} индексов...")
     created = 0
     failed = 0
@@ -140,11 +144,14 @@ def create_recommended_indexes(conn: sqlite3.Connection, dry_run: bool = False):
             cursor.execute(suggestion)
             conn.commit()
             created += 1
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Создан индекс: {suggestion.split('(')[0]}")
         except sqlite3.Error as e:
             failed += 1
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка создания индекса: {e}")
 
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"✅ Создано индексов: {created}, ошибок: {failed}")
 
 
@@ -160,6 +167,7 @@ def main():
     args = parser.parse_args()
 
     if not os.path.exists(args.db):
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Файл БД не найден: {args.db}")
         return 1
 
@@ -167,6 +175,7 @@ def main():
         conn = sqlite3.connect(args.db)
         conn.row_factory = sqlite3.Row
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📂 Подключение к БД: {args.db}")
 
         # Анализируем и создаем индексы
@@ -175,12 +184,14 @@ def main():
         # Показываем итоговую статистику
         existing_indexes = analyze_existing_indexes(conn)
         total_indexes = sum(len(indexes) for indexes in existing_indexes.values())
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📊 Итого индексов в БД: {total_indexes}")
 
         conn.close()
         return 0
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка: {e}", exc_info=True)
         return 1
 

@@ -47,11 +47,13 @@ class AutoFixEngine:
 
     async def run_continuous_fix_cycle(self, interval_minutes: int = 60) -> None:
         """Запускает непрерывный цикл исправлений"""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 Запуск непрерывного цикла исправлений (интервал: {interval_minutes} мин)")
 
         while True:
             try:
                 logger.info("=" * 60)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🔄 Начало цикла исправлений: {get_utc_now().isoformat()}")
 
                 # 1. Анализ проблем
@@ -64,8 +66,10 @@ class AutoFixEngine:
                 fixes_applied = await self._apply_fixes(report, optimization)
 
                 if fixes_applied:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ Применено исправлений: {len(fixes_applied)}")
                     for fix in fixes_applied:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"  • {fix.get('description', 'N/A')}")
                 else:
                     logger.info("ℹ️ Нет критических проблем для исправления")
@@ -73,10 +77,12 @@ class AutoFixEngine:
                 # 4. Сохранение результатов
                 await self._save_fix_results(report, optimization, fixes_applied)
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"⏳ Ожидание {interval_minutes} минут до следующего цикла...")
                 await asyncio.sleep(interval_minutes * 60)
 
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"❌ Ошибка в цикле исправлений: {e}", exc_info=True)
                 await asyncio.sleep(60)  # Короткая пауза при ошибке
 
@@ -108,6 +114,7 @@ class AutoFixEngine:
 
         # Если timeout rate высокий, обновляем параметры в auto_execution.py
         if timeout_rate > 15:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔧 Исправление: timeout rate {timeout_rate:.1f}% > 15%")
 
             # Увеличиваем TTL для лимитных ордеров
@@ -138,6 +145,7 @@ class AutoFixEngine:
 
         # Если fill rate низкий, улучшаем цены лимитов
         if fill_rate < 85:
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🔧 Исправление: fill rate {fill_rate:.1f}% < 85%")
 
             fix_applied = await self._update_limit_spread(0.002)  # Увеличиваем до 0.2%
@@ -167,6 +175,7 @@ class AutoFixEngine:
                     param = action.get("parameter")
                     recommended_value = action.get("recommended_value")
 
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🔧 Применение оптимизации: {param} = {recommended_value}")
 
                     # Применяем оптимизацию в зависимости от параметра
@@ -228,6 +237,7 @@ class AutoFixEngine:
 
                 # Если много убыточных сделок, уменьшаем размер позиций
                 if "убыточных сделок" in message:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🔧 Исправление риск-проблемы: {message}")
 
                     # Уменьшаем максимальный размер позиции
@@ -245,6 +255,7 @@ class AutoFixEngine:
 
                 # Если большой убыток, уменьшаем риск на сделку
                 elif "убыток" in message.lower():
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"🔧 Исправление риск-проблемы: {message}")
 
                     # Уменьшаем риск на сделку
@@ -275,6 +286,7 @@ class AutoFixEngine:
             if re.search(pattern1, content):
                 new_content = re.sub(pattern1, f"\\g<1>{ttl_seconds}", content)
                 file_path.write_text(new_content, encoding="utf-8")
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Обновлён limit_timeout по умолчанию до {ttl_seconds} секунд")
                 return True
 
@@ -283,6 +295,7 @@ class AutoFixEngine:
             if re.search(pattern2, content):
                 new_content = re.sub(pattern2, f"\\g<1>{ttl_seconds}", content)
                 file_path.write_text(new_content, encoding="utf-8")
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Обновлён минимальный limit_timeout до {ttl_seconds} секунд")
                 return True
 
@@ -291,12 +304,14 @@ class AutoFixEngine:
             if re.search(pattern3, content):
                 new_content = re.sub(pattern3, f"\\g<1>{ttl_seconds}", content, count=1)
                 file_path.write_text(new_content, encoding="utf-8")
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Обновлён limit_timeout до {ttl_seconds} секунд")
                 return True
 
             return False
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка обновления limit_order_ttl: {e}")
             return False
 
@@ -313,6 +328,7 @@ class AutoFixEngine:
             replacement_buy = f"limit_price = bid * {1.0 + spread:.6f}"
             if re.search(pattern_buy, content):
                 content = re.sub(pattern_buy, replacement_buy, content)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Обновлён спред для BUY до {spread * 100:.2f}%")
 
             # Обновляем для SELL (ask * 0.999 -> ask * (1.0 - spread))
@@ -320,13 +336,16 @@ class AutoFixEngine:
             replacement_sell = f"limit_price = ask * {1.0 - spread:.6f}"
             if re.search(pattern_sell, content):
                 content = re.sub(pattern_sell, replacement_sell, content)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Обновлён спред для SELL до {spread * 100:.2f}%")
 
             file_path.write_text(content, encoding="utf-8")
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Обновлён спред лимитных ордеров до {spread * 100:.2f}%")
             return True
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка обновления limit_spread: {e}")
             return False
 
@@ -352,6 +371,7 @@ class AutoFixEngine:
             return False
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка обновления direction_confidence: {e}")
             return False
 
@@ -369,12 +389,14 @@ class AutoFixEngine:
             if re.search(pattern, content):
                 content = re.sub(pattern, replacement, content)
                 file_path.write_text(content, encoding="utf-8")
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Обновлён max_capital_per_position_pct до {size_pct * 100}%")
                 return True
 
             return False
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка обновления max_position_size: {e}")
             return False
 
@@ -383,10 +405,12 @@ class AutoFixEngine:
         try:
             # Ищем в user_data.json или других конфигах
             # Пока просто логируем
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"ℹ️ Рекомендуется обновить risk_per_trade до {risk_pct * 100}% вручную")
             return False
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка обновления risk_per_trade: {e}")
             return False
 
@@ -408,9 +432,11 @@ class AutoFixEngine:
             with output_path.open("w", encoding="utf-8") as f:
                 json.dump(results, f, ensure_ascii=False, indent=2)
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Результаты сохранены: {output_path}")
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка сохранения результатов: {e}")
 
 

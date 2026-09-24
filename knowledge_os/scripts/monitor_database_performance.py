@@ -59,9 +59,11 @@ def get_table_sizes(db):
                     "estimated_size_mb": 0,  # Будет рассчитано позже
                 }
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"⚠️ Ошибка получения размера таблицы {table_name}: {e}")
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка получения размеров таблиц: {e}")
 
     return sizes
@@ -83,6 +85,7 @@ def get_index_usage(db):
             "unused_indexes": [],
         }
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ Ошибка получения информации об индексах: {e}")
         return {"total_indexes": 0, "unused_count": 0, "unused_indexes": []}
 
@@ -94,6 +97,7 @@ def get_slow_queries_stats(profiler):
         # (требует реализации метода get_stats в QueryProfiler)
         return {"total_slow_queries": 0, "avg_execution_time": 0.0, "max_execution_time": 0.0}
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ Ошибка получения статистики запросов: {e}")
         return {"total_slow_queries": 0, "avg_execution_time": 0.0, "max_execution_time": 0.0}
 
@@ -213,8 +217,8 @@ def main():
                 while True:
                     report = generate_performance_report(db, manager)
                     os.system("clear" if os.name != "nt" else "cls")
-                    print(report)
-                    print("\n⏳ Ожидание 60 секунд... (Ctrl+C для остановки)")
+                    logger.info(report)
+                    logger.info("\n⏳ Ожидание 60 секунд... (Ctrl+C для остановки)")
                     time.sleep(60)
             except KeyboardInterrupt:
                 logger.info("✅ Мониторинг остановлен")
@@ -224,13 +228,15 @@ def main():
             if args.output:
                 with open(args.output, "w", encoding="utf-8") as f:
                     f.write(report)
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Отчет сохранен в {args.output}")
             else:
-                print(report)
+                logger.info(report)
 
         return 0
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Критическая ошибка: {e}", exc_info=True)
         return 1
 

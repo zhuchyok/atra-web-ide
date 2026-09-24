@@ -34,35 +34,42 @@ def main():
 
     agents = ["signal_live", "auto_execution", "risk_monitor"]
 
-    print("\n" + "=" * 80)
-    print("📊 СТАТУС АГЕНТОВ И СИСТЕМ УЛУЧШЕНИЙ")
-    print("=" * 80 + "\n")
+    logger.info("\n" + "=" * 80)
+    logger.info("📊 СТАТУС АГЕНТОВ И СИСТЕМ УЛУЧШЕНИЙ")
+    logger.info("=" * 80 + "\n")
 
     for agent in agents:
         status = integration.get_agent_status(agent)
 
-        print(f"\n🤖 АГЕНТ: {agent}")
-        print("-" * 80)
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"\n🤖 АГЕНТ: {agent}")
+        logger.info("-" * 80)
 
         # Менторство
         if status.get("mentorship"):
             mentorship = status["mentorship"]
-            print("👥 Менторство:")
-            print(f"   Уровень: {mentorship.get('mentor_level', 'N/A')}")
-            print(f"   Success Rate: {mentorship.get('success_rate', 0):.2%}")
-            print(f"   Всего задач: {mentorship.get('total_tasks', 0)}")
+            logger.info("👥 Менторство:")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Уровень: {mentorship.get('mentor_level', 'N/A')}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Success Rate: {mentorship.get('success_rate', 0):.2%}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Всего задач: {mentorship.get('total_tasks', 0)}")
             if mentorship.get("mentor"):
-                print(f"   Ментор: {mentorship['mentor']}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"   Ментор: {mentorship['mentor']}")
 
         # KPI
         if status.get("kpi"):
             kpi = status["kpi"]
-            print("\n📊 KPI:")
-            print(f"   Общий балл: {kpi.get('overall_score', 0):.1f}/100")
+            logger.info("\n📊 KPI:")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   Общий балл: {kpi.get('overall_score', 0):.1f}/100")
             if kpi.get("achievements"):
-                print(f"   Достижения: {', '.join(kpi['achievements'])}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"   Достижения: {', '.join(kpi['achievements'])}")
             if kpi.get("kpis"):
-                print("   Метрики:")
+                logger.info("   Метрики:")
                 for kpi_item in kpi["kpis"]:
                     status_emoji = (
                         "✅"
@@ -71,33 +78,38 @@ def main():
                         if kpi_item["status"] == "warning"
                         else "❌"
                     )
-                    print(
+                    logger.info(
                         f"     {status_emoji} {kpi_item['name']}: {kpi_item['current']:.2f} / {kpi_item['target']:.2f} ({kpi_item['status']})"
                     )
 
         # Аномалии
         if status.get("anomalies"):
-            print(f"\n⚠️ Аномалии ({len(status['anomalies'])}):")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n⚠️ Аномалии ({len(status['anomalies'])}):")
             for anomaly in status["anomalies"][:3]:
-                print(f"   - {anomaly['description']} (severity: {anomaly['severity']})")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"   - {anomaly['description']} (severity: {anomaly['severity']})")
 
         # Предупреждения
         if status.get("warnings"):
-            print(f"\n🔔 Предупреждения ({len(status['warnings'])}):")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n🔔 Предупреждения ({len(status['warnings'])}):")
             for warning in status["warnings"][:3]:
-                print(f"   - {warning['message']}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"   - {warning['message']}")
 
         # Задачи
         if status.get("tasks"):
-            print(f"\n📋 Задачи ({len(status['tasks'])}):")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n📋 Задачи ({len(status['tasks'])}):")
             for task in status["tasks"][:3]:
-                print(
+                logger.info(
                     f"   - {task['title']} (приоритет: {task['priority']}, статус: {task['status']})"
                 )
 
-        print()
+        logger.info()
 
-    print("=" * 80 + "\n")
+    logger.info("=" * 80 + "\n")
 
 
 if __name__ == "__main__":

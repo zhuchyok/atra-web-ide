@@ -1,8 +1,7 @@
 import importlib
 
-import pytest
-
 import app.redis_manager as redis_manager
+import pytest
 
 
 def test_worker_queue_depth_metric_is_idempotent_on_reload():

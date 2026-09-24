@@ -235,20 +235,24 @@ def test_params_after_baseline(symbol, params):
 
         return {"trades": len(trades), "return": total_return, "signals": signals_generated}
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Ошибка для {symbol}: {e}")
         return {"trades": 0, "return": 0.0, "signals": 0}
 
 
 def find_optimal_params():
     """Находит оптимальные параметры"""
-    print("=" * 80)
-    print("🔍 ПОИСК ОПТИМАЛЬНЫХ ПАРАМЕТРОВ ORDER FLOW")
-    print("=" * 80)
-    print(f"📅 Период: {PERIOD_DAYS} дней")
-    print(f"📊 Символы: {', '.join(TEST_SYMBOLS)}")
-    print(f"🧵 Потоков: {MAX_WORKERS}")
-    print("=" * 80)
-    print()
+    logger.info("=" * 80)
+    logger.info("🔍 ПОИСК ОПТИМАЛЬНЫХ ПАРАМЕТРОВ ORDER FLOW")
+    logger.info("=" * 80)
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📅 Период: {PERIOD_DAYS} дней")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📊 Символы: {', '.join(TEST_SYMBOLS)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"🧵 Потоков: {MAX_WORKERS}")
+    logger.info("=" * 80)
+    logger.info()
 
     all_results = {}
 
@@ -287,24 +291,29 @@ def find_optimal_params():
     # Сортируем по return (убывание)
     sorted_results = sorted(all_results.items(), key=lambda x: x[1]["total_return"], reverse=True)
 
-    print("\n" + "=" * 80)
-    print("📊 РЕЗУЛЬТАТЫ ОПТИМИЗАЦИИ")
-    print("=" * 80)
-    print()
+    logger.info("\n" + "=" * 80)
+    logger.info("📊 РЕЗУЛЬТАТЫ ОПТИМИЗАЦИИ")
+    logger.info("=" * 80)
+    logger.info()
 
-    print("Топ-10 комбинаций параметров:")
-    print()
+    logger.info("Топ-10 комбинаций параметров:")
+    logger.info()
 
     for i, (params_key, result) in enumerate(sorted_results[:10], 1):
         params = result["params"]
         avg_return = result["total_return"] / len(TEST_SYMBOLS)
 
-        print(f"{i}. Параметры: {params}")
-        print(f"   Сигналов: {result['total_signals']}")
-        print(f"   Сделок: {result['total_trades']}")
-        print(f"   Средний return: {avg_return:.2f}%")
-        print(f"   Общий return: {result['total_return']:.2f}%")
-        print()
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"{i}. Параметры: {params}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Сигналов: {result['total_signals']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Сделок: {result['total_trades']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Средний return: {avg_return:.2f}%")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Общий return: {result['total_return']:.2f}%")
+        logger.info()
 
     # Находим лучшие параметры (баланс между количеством и качеством)
     best_params = None
@@ -326,17 +335,22 @@ def find_optimal_params():
                 best_score = score
                 best_params = params
 
-    print("=" * 80)
-    print("✅ РЕКОМЕНДУЕМЫЕ ПАРАМЕТРЫ")
-    print("=" * 80)
-    print(f"Параметры: {best_params}")
+    logger.info("=" * 80)
+    logger.info("✅ РЕКОМЕНДУЕМЫЕ ПАРАМЕТРЫ")
+    logger.info("=" * 80)
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Параметры: {best_params}")
     if best_params:
         best_result = all_results[str(best_params)]
-        print(f"Сигналов: {best_result['total_signals']}")
-        print(f"Сделок: {best_result['total_trades']}")
-        print(f"Средний return: {best_result['total_return'] / len(TEST_SYMBOLS):.2f}%")
-        print(f"Общий return: {best_result['total_return']:.2f}%")
-    print("=" * 80)
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"Сигналов: {best_result['total_signals']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"Сделок: {best_result['total_trades']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"Средний return: {best_result['total_return'] / len(TEST_SYMBOLS):.2f}%")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"Общий return: {best_result['total_return']:.2f}%")
+    logger.info("=" * 80)
 
     # Сохраняем результаты
     output_file = "backtests/order_flow_optimal_params.json"
@@ -362,7 +376,8 @@ def find_optimal_params():
             ensure_ascii=False,
         )
 
-    print(f"\n💾 Результаты сохранены в: {output_file}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n💾 Результаты сохранены в: {output_file}")
 
 
 if __name__ == "__main__":

@@ -29,29 +29,36 @@ FINAL_LIMIT = 30  # Финальный лимит после фильтраци�
 
 
 async def main():
-    print("=" * 80)
-    print("📥 ЗАГРУЗКА ГОДОВЫХ ДАННЫХ ДЛЯ ТОП МОНЕТ")
-    print("=" * 80)
-    print(f"\n📊 Топ монет для анализа: {TOP_N}")
-    print(f"📊 Финальный лимит: {FINAL_LIMIT}")
-    print(f"📅 Период: {DAYS} дней (~ {DAYS / 30:.1f} месяцев)")
-    print(f"💾 Папка: {OUTPUT_DIR}\n")
+    logger.info("=" * 80)
+    logger.info("📥 ЗАГРУЗКА ГОДОВЫХ ДАННЫХ ДЛЯ ТОП МОНЕТ")
+    logger.info("=" * 80)
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n📊 Топ монет для анализа: {TOP_N}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📊 Финальный лимит: {FINAL_LIMIT}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📅 Период: {DAYS} дней (~ {DAYS / 30:.1f} месяцев)")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"💾 Папка: {OUTPUT_DIR}\n")
 
     # Получаем отфильтрованные монеты
-    print("🔍 Получение и фильтрация топ монет...")
+    logger.info("🔍 Получение и фильтрация топ монет...")
     symbols = await get_filtered_top_usdt_pairs_fast(top_n=TOP_N, final_limit=FINAL_LIMIT)
 
     if not symbols:
-        print("❌ Не удалось получить список монет")
+        logger.info("❌ Не удалось получить список монет")
         return
 
-    print(f"✅ Получено {len(symbols)} монет после фильтрации")
-    print(f"   Топ-15: {', '.join(symbols[:15])}")
-    print(f"   Всего: {', '.join(symbols)}\n")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"✅ Получено {len(symbols)} монет после фильтрации")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Топ-15: {', '.join(symbols[:15])}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Всего: {', '.join(symbols)}\n")
 
     # Загружаем данные
     async with HistoricalDataLoader(exchange="binance") as loader:
-        print("🔄 Загрузка данных...\n")
+        logger.info("🔄 Загрузка данных...\n")
 
         end_time = get_utc_now()
         start_time = end_time - timedelta(days=DAYS)
@@ -61,7 +68,8 @@ async def main():
         # Загружаем по одному символу
         for i, symbol in enumerate(symbols, 1):
             try:
-                print(f"  [{i}/{len(symbols)}] Загрузка {symbol}...", end=" ")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"  [{i}/{len(symbols)}] Загрузка {symbol}...", end=" ")
                 df = await loader.fetch_ohlcv(
                     symbol=symbol, interval="1h", start_time=start_time, end_time=end_time
                 )
@@ -69,44 +77,53 @@ async def main():
                 if df is not None and not df.empty:
                     all_data[symbol] = df
                     days_actual = (df.index[-1] - df.index[0]).days
-                    print(f"✅ {len(df)} свечей ({days_actual} дней)")
+                    # TODO: Convert f-string to %s formatting for performance
+                    logger.info(f"✅ {len(df)} свечей ({days_actual} дней)")
                 else:
-                    print("⚠️ Нет данных")
+                    logger.info("⚠️ Нет данных")
 
             except Exception as e:
-                print(f"❌ Ошибка: {e}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"❌ Ошибка: {e}")
 
         # Сохраняем в CSV
         if all_data:
-            print(f"\n💾 Сохранение данных в {OUTPUT_DIR}...")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n💾 Сохранение данных в {OUTPUT_DIR}...")
             loader.save_to_csv(all_data, OUTPUT_DIR)
 
-            print("\n" + "=" * 80)
-            print("✅ ЗАГРУЗКА ЗАВЕРШЕНА")
-            print("=" * 80)
+            logger.info("\n" + "=" * 80)
+            logger.info("✅ ЗАГРУЗКА ЗАВЕРШЕНА")
+            logger.info("=" * 80)
 
             # Статистика
-            print(f"\n📊 Загружено символов: {len(all_data)}")
-            print("\n" + "-" * 60)
-            print(f"{'Символ':<15} {'Свечей':>10} {'Дней':>10} {'Полнота':>10}")
-            print("-" * 60)
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n📊 Загружено символов: {len(all_data)}")
+            logger.info("\n" + "-" * 60)
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"{'Символ':<15} {'Свечей':>10} {'Дней':>10} {'Полнота':>10}")
+            logger.info("-" * 60)
 
             for symbol, df in sorted(all_data.items()):
                 days_actual = (df.index[-1] - df.index[0]).days
                 completeness = (days_actual / DAYS) * 100
-                print(f"{symbol:<15} {len(df):>10} {days_actual:>10} {completeness:>9.1f}%")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"{symbol:<15} {len(df):>10} {days_actual:>10} {completeness:>9.1f}%")
 
             # Фильтруем монеты с недостаточными данными
             full_data_symbols = [
                 s for s, df in all_data.items() if (df.index[-1] - df.index[0]).days >= 300
             ]
-            print("\n" + "-" * 60)
-            print(f"✅ Монет с полными данными (>300 дней): {len(full_data_symbols)}")
-            print(f"   {', '.join(full_data_symbols)}")
+            logger.info("\n" + "-" * 60)
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"✅ Монет с полными данными (>300 дней): {len(full_data_symbols)}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   {', '.join(full_data_symbols)}")
 
-            print(f"\n💾 Все данные сохранены в: {OUTPUT_DIR}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n💾 Все данные сохранены в: {OUTPUT_DIR}")
         else:
-            print("\n❌ Нет данных для сохранения")
+            logger.info("\n❌ Нет данных для сохранения")
 
 
 if __name__ == "__main__":

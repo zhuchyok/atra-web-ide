@@ -53,6 +53,7 @@ async def link_knowledge_nodes(limit: int = 1000, threshold: float = 0.60):
             limit,
         )
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🐢 Начинаем неспешную перелинковку {len(nodes)} узлов")
         links_created = 0
 
@@ -108,6 +109,7 @@ async def link_knowledge_nodes(limit: int = 1000, threshold: float = 0.60):
                 )
                 await asyncio.sleep(5)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Неспешная перелинковка завершена! Создано связей: {links_created}")
         return links_created
 

@@ -112,7 +112,7 @@ def main() -> None:
         logger.info("✅ Guidance применён для всех агентов")
 
     if args.print_summary:
-        print(json.dumps(data, ensure_ascii=False, indent=2))
+        logger.info(json.dumps(data, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

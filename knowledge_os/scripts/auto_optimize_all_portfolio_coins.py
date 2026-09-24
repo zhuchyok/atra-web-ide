@@ -404,9 +404,9 @@ async def main():
         json.dump(comparison, f, indent=2, ensure_ascii=False)
 
     # Выводим результаты
-    print("\n" + "=" * 80)
-    print("📊 РЕЗУЛЬТАТЫ DATA-DRIVEN BOTTOM-UP ОПТИМИЗАЦИИ:")
-    print("=" * 80)
+    logger.info("\n" + "=" * 80)
+    logger.info("📊 РЕЗУЛЬТАТЫ DATA-DRIVEN BOTTOM-UP ОПТИМИЗАЦИИ:")
+    logger.info("=" * 80)
 
     profitable_count = 0
     total_pnl = 0.0
@@ -422,21 +422,25 @@ async def main():
             total_pnl += pnl
 
         params = best.get("parameters", {})
-        print(f"\n{symbol}:")
-        print(f"  Лучший вариант: {best.get('variant', 'N/A')}")
-        print(
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"\n{symbol}:")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"  Лучший вариант: {best.get('variant', 'N/A')}")
+        logger.info(
             f"  Параметры: RSI {params.get('rsi_oversold', 0):.0f}-{params.get('rsi_overbought', 0):.0f}, "
             f"AI {params.get('ai_score_threshold', 0):.2f}, Conf {params.get('min_confidence', 0):.0f}"
         )
-        print(
+        logger.info(
             f"  Результаты: PnL {pnl:8.2f} USDT | Сделок {best.get('total_trades', 0):3d} | "
             f"WR {best.get('win_rate', 0):5.2f}% | PF {best.get('profit_factor', 0):5.2f}"
         )
 
-    print("\n" + "=" * 80)
-    print(f"📈 ИТОГО: {profitable_count}/{len(PORTFOLIO_SYMBOLS)} прибыльных монет")
-    print(f"💰 Общий PnL: {total_pnl:.2f} USDT")
-    print("=" * 80)
+    logger.info("\n" + "=" * 80)
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📈 ИТОГО: {profitable_count}/{len(PORTFOLIO_SYMBOLS)} прибыльных монет")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"💰 Общий PnL: {total_pnl:.2f} USDT")
+    logger.info("=" * 80)
 
     # Сохраняем лучшие параметры для применения
     best_params_file = (

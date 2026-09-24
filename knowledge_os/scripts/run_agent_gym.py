@@ -79,7 +79,7 @@ def main() -> None:
     logger.info("Report saved to %s", args.output)
 
     if args.print_summary:
-        print(json.dumps(report, ensure_ascii=False, indent=2))
+        logger.info(json.dumps(report, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

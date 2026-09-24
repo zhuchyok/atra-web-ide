@@ -46,17 +46,19 @@ def main():
             # Показываем отчет
             if args.report:
                 report = manager.generate_optimization_report()
-                print(report)
+                logger.info(report)
 
             if args.metrics:
                 metrics = manager.get_performance_metrics()
-                print("\n📊 МЕТРИКИ ПРОИЗВОДИТЕЛЬНОСТИ:")
-                print("=" * 60)
+                logger.info("\n📊 МЕТРИКИ ПРОИЗВОДИТЕЛЬНОСТИ:")
+                logger.info("=" * 60)
                 for key, value in metrics.items():
                     if isinstance(value, list):
-                        print(f"  {key}: {', '.join(value) if value else 'нет'}")
+                        # TODO: Convert f-string to %s formatting for performance
+                        logger.info(f"  {key}: {', '.join(value) if value else 'нет'}")
                     else:
-                        print(f"  {key}: {value}")
+                        # TODO: Convert f-string to %s formatting for performance
+                        logger.info(f"  {key}: {value}")
 
             return 0
 
@@ -66,26 +68,31 @@ def main():
         results = manager.apply_all_optimizations(force=args.force)
 
         # Выводим результаты
-        print("=" * 60)
-        print("📊 РЕЗУЛЬТАТЫ ПРИМЕНЕНИЯ ОПТИМИЗАЦИЙ")
-        print("=" * 60)
-        print(f"✅ Успешно: {results['success_count']}")
-        print(f"❌ Ошибок: {results['failed_count']}")
-        print(f"⏱️  Время: {results['total_time']:.2f} сек")
-        print("")
+        logger.info("=" * 60)
+        logger.info("📊 РЕЗУЛЬТАТЫ ПРИМЕНЕНИЯ ОПТИМИЗАЦИЙ")
+        logger.info("=" * 60)
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"✅ Успешно: {results['success_count']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"❌ Ошибок: {results['failed_count']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"⏱️  Время: {results['total_time']:.2f} сек")
+        logger.info("")
 
-        print("Детали:")
+        logger.info("Детали:")
         for opt_name, opt_result in results["optimizations"].items():
             status = opt_result.get("status", "unknown")
             icon = "✅" if status == "success" else "❌" if status == "failed" else "⏭️"
-            print(f"  {icon} {opt_name}: {status}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"  {icon} {opt_name}: {status}")
             if "error" in opt_result:
-                print(f"      Ошибка: {opt_result['error']}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"      Ошибка: {opt_result['error']}")
 
         # Показываем финальный отчет
-        print("\n" + "=" * 60)
+        logger.info("\n" + "=" * 60)
         report = manager.generate_optimization_report()
-        print(report)
+        logger.info(report)
 
         logger.info("✅ Применение оптимизаций завершено!")
         return 0

@@ -21,7 +21,7 @@ class AuditAgent(AtraBaseAgent):
 
         # [SINGULARITY 20.0] Hybrid Strategist/Executor Architecture
         # Strategist (Wisdom) lives on MLX (11435), Executor (Qwen3) on Ollama (11434)
-        self.strategist_model = os.getenv("VICTORIA_STRATEGIST_MODEL", "victoria-wisdom-v3.5")
+        self.strategist_model = os.getenv("VICTORIA_STRATEGIST_MODEL", "victoria-wisdom-24k")
         self.executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "qwen3-coder:30b")
 
         self.strategist_executor = OllamaExecutor(

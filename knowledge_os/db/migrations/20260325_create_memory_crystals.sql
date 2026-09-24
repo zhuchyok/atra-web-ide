@@ -17,7 +17,7 @@ CREATE INDEX IF NOT EXISTS idx_crystals_project ON memory_crystals(project_conte
 
 -- Initial crystals for current project state
 INSERT INTO memory_crystals (project_context, crystal_type, content, metadata)
-VALUES 
+VALUES
 ('atra-web-ide', 'parameter', 'Database Port: 6432 (PgBouncer)', '{"source": "manual_init"}'),
 ('atra-web-ide', 'decision', 'Implemented Smart Task Throttling & Deduplication in v37', '{"source": "manual_init"}'),
 ('atra-web-ide', 'decision', 'Deep Memory (Hierarchical RAG) integrated in v35', '{"source": "manual_init"}')

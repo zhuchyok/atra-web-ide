@@ -78,6 +78,7 @@ class AutoOptimizer:
             return result
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка при оптимизации: {e}", exc_info=True)
             trace.record(
                 step="observe",
@@ -141,6 +142,7 @@ class AutoOptimizer:
                 return {"status": "no_data"}
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка анализа производительности: {e}")
             return {"error": str(e)}
 
@@ -233,6 +235,7 @@ class AutoOptimizer:
             conn.close()
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ Ошибка анализа timeout rate: {e}")
 
         return optimizations
@@ -318,22 +321,26 @@ class AutoOptimizer:
         with output_path.open("w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Результаты оптимизации сохранены: {output_path}")
         return output_path
 
     def print_summary(self, result: Dict) -> None:
         """Выводит краткую сводку оптимизации"""
-        print("\n" + "=" * 60)
-        print("🔧 АВТОМАТИЧЕСКАЯ ОПТИМИЗАЦИЯ")
-        print("=" * 60)
+        logger.info("\n" + "=" * 60)
+        logger.info("🔧 АВТОМАТИЧЕСКАЯ ОПТИМИЗАЦИЯ")
+        logger.info("=" * 60)
 
         if "performance" in result:
             perf = result["performance"]
-            print("📊 ПРОИЗВОДИТЕЛЬНОСТЬ (7 дней):")
-            print(f"  • Сделок: {perf.get('total_trades_7d', 0)}")
-            print(f"  • Win rate: {perf.get('win_rate_pct', 0):.1f}%")
-            print(f"  • Profit factor: {perf.get('profit_factor', 0):.2f}")
-            print()
+            logger.info("📊 ПРОИЗВОДИТЕЛЬНОСТЬ (7 дней):")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"  • Сделок: {perf.get('total_trades_7d', 0)}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"  • Win rate: {perf.get('win_rate_pct', 0):.1f}%")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"  • Profit factor: {perf.get('profit_factor', 0):.2f}")
+            logger.info()
 
         if "optimizations" in result:
             opt = result["optimizations"]
@@ -342,28 +349,32 @@ class AutoOptimizer:
                 + len(opt.get("execution", []))
                 + len(opt.get("risk", []))
             )
-            print(f"💡 НАЙДЕНО ОПТИМИЗАЦИЙ: {total}")
-            print()
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"💡 НАЙДЕНО ОПТИМИЗАЦИЙ: {total}")
+            logger.info()
 
             if opt.get("signals"):
-                print("🎯 СИГНАЛЫ:")
+                logger.info("🎯 СИГНАЛЫ:")
                 for o in opt["signals"]:
-                    print(f"  • {o['parameter']}: {o['current_value']} → {o['recommended_value']}")
-                print()
+                    # TODO: Convert f-string to %s formatting for performance
+                    logger.info(f"  • {o['parameter']}: {o['current_value']} → {o['recommended_value']}")
+                logger.info()
 
             if opt.get("execution"):
-                print("⚙️ ИСПОЛНЕНИЕ:")
+                logger.info("⚙️ ИСПОЛНЕНИЕ:")
                 for o in opt["execution"]:
-                    print(f"  • {o['parameter']}: {o['current_value']} → {o['recommended_value']}")
-                print()
+                    # TODO: Convert f-string to %s formatting for performance
+                    logger.info(f"  • {o['parameter']}: {o['current_value']} → {o['recommended_value']}")
+                logger.info()
 
             if opt.get("risk"):
-                print("🛡️ РИСК-МЕНЕДЖМЕНТ:")
+                logger.info("🛡️ РИСК-МЕНЕДЖМЕНТ:")
                 for o in opt["risk"]:
-                    print(f"  • {o['parameter']}: {o['current_value']} → {o['recommended_value']}")
-                print()
+                    # TODO: Convert f-string to %s formatting for performance
+                    logger.info(f"  • {o['parameter']}: {o['current_value']} → {o['recommended_value']}")
+                logger.info()
 
-        print("=" * 60 + "\n")
+        logger.info("=" * 60 + "\n")
 
 
 async def main():

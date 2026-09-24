@@ -39,6 +39,7 @@ async def synthesize_dataset():
             ORDER BY created_at DESC
         """)
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"📊 [SYNTHESIZER] Found {len(rows)} potential knowledge nodes.")
 
         dataset = []
@@ -79,11 +80,13 @@ async def synthesize_dataset():
             for entry in dataset:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ [SYNTHESIZER] Dataset created: {OUTPUT_FILE} ({len(dataset)} examples)")
         await conn.close()
         return len(dataset)
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ [SYNTHESIZER] Error: {e}")
         return 0
 

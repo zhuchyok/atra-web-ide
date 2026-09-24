@@ -42,10 +42,10 @@ def main() -> None:
     if args.list:
         flags = manager.get_flags()
         if not flags:
-            print("risk_flags table empty")
+            logger.info("risk_flags table empty")
             return
         for flag, info in flags.items():
-            print(
+            logger.info(
                 f"{flag}: value={info.value}, updated_at={info.updated_at.isoformat()}, reason={info.reason}"
             )
         return
@@ -60,13 +60,16 @@ def main() -> None:
 
     if args.set:
         manager.set_flag(args.flag, True, reason=reason)
-        print(f"{args.flag} = 1 (reason={reason})")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"{args.flag} = 1 (reason={reason})")
     elif args.clear:
         manager.clear_flag(args.flag)
-        print(f"{args.flag} = 0 (cleared)")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"{args.flag} = 0 (cleared)")
     else:
         status = manager.is_active(args.flag)
-        print(f"{args.flag} status: {status}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"{args.flag} status: {status}")
 
 
 if __name__ == "__main__":

@@ -50,7 +50,7 @@ def main():
 
         # Выводим логи
         for line in process.stdout:
-            print(line, end="")
+            logger.info(line, end="")
 
         process.wait()
 
@@ -59,6 +59,7 @@ def main():
         process.terminate()
         process.wait()
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка запуска: {e}")
         sys.exit(1)
 

@@ -57,6 +57,7 @@ class ServerKnowledgeSync:
 
     async def sync_experts(self):
         """Pulls expert definitions, establishes hierarchy and handles 40+ employees from both SQL and MD files."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"👥 Deep syncing 40+ experts and hierarchy from {SERVER_IP}...")
 
         # 1. Sync from SQL Seed
@@ -67,6 +68,7 @@ class ServerKnowledgeSync:
             await conn.execute(sql_content)
             await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to sync experts from SQL: {e}")
 
         # 2. Sync from Learning Programs (MD files) - Auto-create named experts
@@ -95,6 +97,7 @@ class ServerKnowledgeSync:
                     # Create expert if not exists
                     exists = await conn.fetchval("SELECT id FROM experts WHERE name = $1", name)
                     if not exists:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"  🆕 Creating named expert: {name} ({role})")
                         await conn.execute(
                             """
@@ -126,6 +129,7 @@ class ServerKnowledgeSync:
 
             await conn.close()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to sync expert programs: {e}")
 
         # 3. Define Hierarchy
@@ -178,6 +182,7 @@ class ServerKnowledgeSync:
             """)
 
             count = await conn.fetchval("SELECT count(*) FROM experts")
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Deep sync complete. Total active employees: {count}")
             return count
         finally:
@@ -185,6 +190,7 @@ class ServerKnowledgeSync:
 
     async def sync_reports(self, limit: int = 100):
         """Pulls recent markdown reports from server and ingests them."""
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🔄 Starting knowledge sync from {SERVER_IP}...")
 
         # 1. Get list of MD files on server (handling spaces correctly)
@@ -193,6 +199,7 @@ class ServerKnowledgeSync:
         try:
             result = self._run_ssh(list_cmd).splitlines()
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"Failed to list remote files: {e}")
             return
 
@@ -217,6 +224,7 @@ class ServerKnowledgeSync:
             if exists:
                 continue
 
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"  📥 Syncing: {file_name}")
 
             # 2. Read remote file content (quoting path for spaces)
@@ -244,9 +252,11 @@ class ServerKnowledgeSync:
 
                 sync_count += 1
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.error(f"Error syncing {file_name}: {e}")
 
         await conn.close()
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Sync complete. Ingested {sync_count} new knowledge nodes.")
         return sync_count
 

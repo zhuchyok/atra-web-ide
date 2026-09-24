@@ -69,8 +69,10 @@ def main():
             description=args.description,
             capabilities_required=args.capabilities,
         )
-        print(f"✅ Проект создан: {project.project_id}")
-        print(f"   Название: {project.name}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"✅ Проект создан: {project.project_id}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Название: {project.name}")
         return 0
 
     elif args.command == "assign":
@@ -81,30 +83,36 @@ def main():
             capabilities=args.capabilities,
         )
         if success:
-            print(f"✅ Агент {args.agent} назначен на проект {args.project_id}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"✅ Агент {args.agent} назначен на проект {args.project_id}")
         else:
-            print("❌ Ошибка назначения агента")
+            logger.info("❌ Ошибка назначения агента")
         return 0 if success else 1
 
     elif args.command == "switch":
         success = manager.set_current_project(args.project_id)
         if success:
             project = manager.get_current_project()
-            print(f"✅ Переключено на проект: {project.name} ({args.project_id})")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"✅ Переключено на проект: {project.name} ({args.project_id})")
         else:
-            print(f"❌ Проект не найден: {args.project_id}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"❌ Проект не найден: {args.project_id}")
         return 0 if success else 1
 
     elif args.command == "list":
         if args.agent:
             projects = manager.get_agent_projects(args.agent)
-            print(f"\n📁 Проекты агента {args.agent}:")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n📁 Проекты агента {args.agent}:")
             for project in projects:
-                print(f"  - {project.name} ({project.project_id}) - {project.status.value}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"  - {project.name} ({project.project_id}) - {project.status.value}")
         else:
-            print("\n📁 Все проекты:")
+            logger.info("\n📁 Все проекты:")
             for project in manager._projects.values():
-                print(f"  - {project.name} ({project.project_id}) - {project.status.value}")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"  - {project.name} ({project.project_id}) - {project.status.value}")
         return 0
 
     elif args.command == "status":
@@ -113,17 +121,22 @@ def main():
         else:
             current = manager.get_current_project()
             if not current:
-                print("❌ Нет активного проекта")
+                logger.info("❌ Нет активного проекта")
                 return 1
             project_id = current.project_id
 
         context = manager.get_project_context(project_id)
-        print(f"\n📊 Статус проекта: {context['name']}")
-        print(f"   ID: {context['project_id']}")
-        print(f"   Статус: {context['status']}")
-        print(f"   Агентов: {len(context['assignments'])}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"\n📊 Статус проекта: {context['name']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   ID: {context['project_id']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Статус: {context['status']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Агентов: {len(context['assignments'])}")
         for assignment in context["assignments"]:
-            print(f"     - {assignment['agent']} ({assignment['role']})")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"     - {assignment['agent']} ({assignment['role']})")
         return 0
 
     return 1

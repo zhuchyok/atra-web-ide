@@ -161,9 +161,9 @@ async def main():
         json.dump(results, f, indent=2, ensure_ascii=False)
 
     # Выводим результаты
-    print("\n" + "=" * 80)
-    print("📊 РЕЗУЛЬТАТЫ ДИАГНОСТИКИ:")
-    print("=" * 80)
+    logger.info("\n" + "=" * 80)
+    logger.info("📊 РЕЗУЛЬТАТЫ ДИАГНОСТИКИ:")
+    logger.info("=" * 80)
 
     unlocked_count = 0
     still_blocked = []
@@ -172,22 +172,26 @@ async def main():
         trades = result.get("total_trades", 0)
         if trades > 0:
             unlocked_count += 1
-            print(f"\n✅ {symbol}: {trades} сделок, PnL: {result.get('total_pnl', 0):.2f} USDT")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n✅ {symbol}: {trades} сделок, PnL: {result.get('total_pnl', 0):.2f} USDT")
         else:
             still_blocked.append(symbol)
-            print(f"\n❌ {symbol}: Все еще 0 сделок (блокируется другими фильтрами)")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"\n❌ {symbol}: Все еще 0 сделок (блокируется другими фильтрами)")
 
-    print("\n" + "=" * 80)
-    print(f"📈 Разблокировано: {unlocked_count}/{len(PROBLEM_SYMBOLS)} монет")
-    print(f"❌ Все еще заблокировано: {len(still_blocked)} монет")
+    logger.info("\n" + "=" * 80)
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📈 Разблокировано: {unlocked_count}/{len(PROBLEM_SYMBOLS)} монет")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"❌ Все еще заблокировано: {len(still_blocked)} монет")
 
     if still_blocked:
-        print("\n💡 Для заблокированных монет нужно:")
-        print("   1. Проверить другие фильтры (Volume, EMA, BB, MTF)")
-        print("   2. Рассмотреть отключение некоторых фильтров")
-        print("   3. Попробовать другие стратегии")
+        logger.info("\n💡 Для заблокированных монет нужно:")
+        logger.info("   1. Проверить другие фильтры (Volume, EMA, BB, MTF)")
+        logger.info("   2. Рассмотреть отключение некоторых фильтров")
+        logger.info("   3. Попробовать другие стратегии")
 
-    print("=" * 80)
+    logger.info("=" * 80)
     logger.info("💾 Результаты сохранены в %s", output_file)
 
 

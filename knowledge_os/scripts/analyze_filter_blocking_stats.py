@@ -308,34 +308,40 @@ def check_microstructure_with_params(df, i, params):
 
 def analyze_filter_blocking():
     """Анализирует статистику блокировки фильтров"""
-    print("=" * 80)
-    print("📊 АНАЛИЗ БЛОКИРОВКИ СИГНАЛОВ ФИЛЬТРАМИ")
-    print("=" * 80)
-    print(f"📅 Период: {PERIOD_DAYS} дней")
-    print(f"📊 Символы: {', '.join(TEST_SYMBOLS)}")
-    print("=" * 80)
-    print()
+    logger.info("=" * 80)
+    logger.info("📊 АНАЛИЗ БЛОКИРОВКИ СИГНАЛОВ ФИЛЬТРАМИ")
+    logger.info("=" * 80)
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📅 Период: {PERIOD_DAYS} дней")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📊 Символы: {', '.join(TEST_SYMBOLS)}")
+    logger.info("=" * 80)
+    logger.info()
 
     # Загружаем лучшие параметры из оптимизации
     try:
         with open("backtests/order_flow_optimization_results.json") as f:
             of_results = json.load(f)
             of_best_params = of_results["best_params"]
-            print(f"✅ Загружены параметры Order Flow: {of_best_params}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"✅ Загружены параметры Order Flow: {of_best_params}")
     except Exception as e:
         of_best_params = {"required_confirmations": 0, "pr_threshold": 0.5}
-        print(f"⚠️ Используем параметры по умолчанию для Order Flow: {of_best_params}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"⚠️ Используем параметры по умолчанию для Order Flow: {of_best_params}")
 
     try:
         with open("backtests/microstructure_optimization_results.json") as f:
             ms_results = json.load(f)
             ms_best_params = ms_results["best_params"]
-            print(f"✅ Загружены параметры Microstructure: {ms_best_params}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"✅ Загружены параметры Microstructure: {ms_best_params}")
     except Exception as e:
         ms_best_params = {"tolerance_pct": 3.0, "min_strength": 0.15, "lookback": 40}
-        print(f"⚠️ Используем параметры по умолчанию для Microstructure: {ms_best_params}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"⚠️ Используем параметры по умолчанию для Microstructure: {ms_best_params}")
 
-    print()
+    logger.info()
 
     total_baseline = 0
     total_of_before = 0
@@ -344,11 +350,12 @@ def analyze_filter_blocking():
     total_ms_after = 0
 
     for symbol in TEST_SYMBOLS:
-        print(f"\n📊 Анализ {symbol}...")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"\n📊 Анализ {symbol}...")
         try:
             df = load_yearly_data(symbol, limit_days=PERIOD_DAYS)
             if df is None or len(df) < 25:
-                print("   ❌ Недостаточно данных")
+                logger.info("   ❌ Недостаточно данных")
                 continue
 
             baseline = count_baseline_signals(df, symbol)
@@ -371,54 +378,61 @@ def analyze_filter_blocking():
             total_ms_before += ms_before
             total_ms_after += ms_after
 
-            print(f"   📈 Baseline (VP+VWAP): {baseline} сигналов")
-            print(
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   📈 Baseline (VP+VWAP): {baseline} сигналов")
+            logger.info(
                 f"   🔵 Order Flow ПЕРЕД: {of_before} сигналов (заблокировано: {baseline - of_before}, {((baseline - of_before) / baseline * 100) if baseline > 0 else 0:.1f}%)"
             )
-            print(
+            logger.info(
                 f"   🔵 Order Flow ПОСЛЕ: {of_after} сигналов (заблокировано: {baseline - of_after}, {((baseline - of_after) / baseline * 100) if baseline > 0 else 0:.1f}%)"
             )
-            print(
+            logger.info(
                 f"   🟢 Microstructure ПЕРЕД: {ms_before} сигналов (заблокировано: {baseline - ms_before}, {((baseline - ms_before) / baseline * 100) if baseline > 0 else 0:.1f}%)"
             )
-            print(
+            logger.info(
                 f"   🟢 Microstructure ПОСЛЕ: {ms_after} сигналов (заблокировано: {baseline - ms_after}, {((baseline - ms_after) / baseline * 100) if baseline > 0 else 0:.1f}%)"
             )
 
         except Exception as e:
-            print(f"   ❌ Ошибка: {e}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"   ❌ Ошибка: {e}")
             import traceback
 
             traceback.print_exc()
 
-    print("\n" + "=" * 80)
-    print("📊 ИТОГОВАЯ СТАТИСТИКА БЛОКИРОВКИ")
-    print("=" * 80)
-    print(f"📈 Baseline сигналов (VP+VWAP): {total_baseline}")
-    print()
-    print("🔵 ORDER FLOW ФИЛЬТР:")
-    print(f"   ПЕРЕД baseline: {total_of_before} сигналов")
-    print(
+    logger.info("\n" + "=" * 80)
+    logger.info("📊 ИТОГОВАЯ СТАТИСТИКА БЛОКИРОВКИ")
+    logger.info("=" * 80)
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📈 Baseline сигналов (VP+VWAP): {total_baseline}")
+    logger.info()
+    logger.info("🔵 ORDER FLOW ФИЛЬТР:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   ПЕРЕД baseline: {total_of_before} сигналов")
+    logger.info(
         f"   Заблокировано: {total_baseline - total_of_before} ({(total_baseline - total_of_before) / total_baseline * 100 if total_baseline > 0 else 0:.1f}%)"
     )
-    print(f"   ПОСЛЕ baseline: {total_of_after} сигналов")
-    print(
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   ПОСЛЕ baseline: {total_of_after} сигналов")
+    logger.info(
         f"   Заблокировано: {total_baseline - total_of_after} ({(total_baseline - total_of_after) / total_baseline * 100 if total_baseline > 0 else 0:.1f}%)"
     )
-    print()
-    print("🟢 MICROSTRUCTURE ФИЛЬТР:")
-    print(f"   ПЕРЕД baseline: {total_ms_before} сигналов")
-    print(
+    logger.info()
+    logger.info("🟢 MICROSTRUCTURE ФИЛЬТР:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   ПЕРЕД baseline: {total_ms_before} сигналов")
+    logger.info(
         f"   Заблокировано: {total_baseline - total_ms_before} ({(total_baseline - total_ms_before) / total_baseline * 100 if total_baseline > 0 else 0:.1f}%)"
     )
-    print(f"   ПОСЛЕ baseline: {total_ms_after} сигналов")
-    print(
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   ПОСЛЕ baseline: {total_ms_after} сигналов")
+    logger.info(
         f"   Заблокировано: {total_baseline - total_ms_after} ({(total_baseline - total_ms_after) / total_baseline * 100 if total_baseline > 0 else 0:.1f}%)"
     )
-    print("=" * 80)
-    print()
+    logger.info("=" * 80)
+    logger.info()
 
-    print("💡 ВЫВОДЫ:")
+    logger.info("💡 ВЫВОДЫ:")
     of_before_pct = (
         (total_baseline - total_of_before) / total_baseline * 100 if total_baseline > 0 else 0
     )
@@ -432,10 +446,14 @@ def analyze_filter_blocking():
         (total_baseline - total_ms_after) / total_baseline * 100 if total_baseline > 0 else 0
     )
 
-    print(f"   Order Flow ПЕРЕД baseline блокирует {of_before_pct:.1f}% сигналов")
-    print(f"   Order Flow ПОСЛЕ baseline блокирует {of_after_pct:.1f}% сигналов")
-    print(f"   Microstructure ПЕРЕД baseline блокирует {ms_before_pct:.1f}% сигналов")
-    print(f"   Microstructure ПОСЛЕ baseline блокирует {ms_after_pct:.1f}% сигналов")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Order Flow ПЕРЕД baseline блокирует {of_before_pct:.1f}% сигналов")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Order Flow ПОСЛЕ baseline блокирует {of_after_pct:.1f}% сигналов")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Microstructure ПЕРЕД baseline блокирует {ms_before_pct:.1f}% сигналов")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Microstructure ПОСЛЕ baseline блокирует {ms_after_pct:.1f}% сигналов")
 
 
 if __name__ == "__main__":

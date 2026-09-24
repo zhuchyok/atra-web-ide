@@ -25,9 +25,11 @@ BACKUP_DIR.mkdir(exist_ok=True)
 
 def create_backup(db_path: str) -> str:
     """Создает резервную копию базы данных"""
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"📦 Создание бэкапа базы данных: {db_path}")
 
     if not os.path.exists(db_path):
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ База данных не найдена: {db_path}")
         return None
 
@@ -40,24 +42,30 @@ def create_backup(db_path: str) -> str:
         with sqlite3.connect(source_uri, uri=True) as src_conn:
             with sqlite3.connect(str(backup_path)) as dst_conn:
                 src_conn.backup(dst_conn)
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Бэкап создан: {backup_path}")
         return str(backup_path)
     except sqlite3.Error as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ Ошибка SQLite backup API: {e}, используем прямое копирование")
         try:
             shutil.copy2(db_path, backup_path)
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ Бэкап создан (прямое копирование): {backup_path}")
             return str(backup_path)
         except Exception as e2:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка создания бэкапа: {e2}")
             return None
 
 
 def check_database_integrity(db_path: str) -> bool:
     """Проверяет целостность базы данных"""
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"🔍 Проверка целостности базы данных: {db_path}")
 
     if not os.path.exists(db_path):
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ База данных не найдена: {db_path}")
         return False
 
@@ -75,18 +83,22 @@ def check_database_integrity(db_path: str) -> bool:
             logger.info("✅ База данных целостна")
             return True
         else:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ База данных повреждена: {result}")
             return False
     except sqlite3.Error as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка проверки целостности: {e}")
         return False
 
 
 def recover_database(db_path: str) -> bool:
     """Пытается восстановить базу данных через .recover"""
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"🔧 Попытка восстановления базы данных: {db_path}")
 
     if not os.path.exists(db_path):
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ База данных не найдена: {db_path}")
         return False
 
@@ -104,6 +116,7 @@ def recover_database(db_path: str) -> bool:
 
         # Проверяем восстановленную БД
         if check_database_integrity(recovered_path):
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"✅ База данных восстановлена: {recovered_path}")
             # Заменяем оригинальную БД
             shutil.move(recovered_path, db_path)
@@ -114,6 +127,7 @@ def recover_database(db_path: str) -> bool:
             os.remove(recovered_path)
             return False
     except sqlite3.Error as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка восстановления: {e}")
         if os.path.exists(recovered_path):
             os.remove(recovered_path)
@@ -122,10 +136,12 @@ def recover_database(db_path: str) -> bool:
 
 def recreate_database_structure(db_path: str, schema_file: str = "database_schema.sql") -> bool:
     """Пересоздает структуру базы данных из схемы"""
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"🔨 Пересоздание структуры базы данных: {db_path}")
 
     # Удаляем поврежденную БД
     if os.path.exists(db_path):
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🗑️ Удаление поврежденной БД: {db_path}")
         os.remove(db_path)
 
@@ -136,6 +152,7 @@ def recreate_database_structure(db_path: str, schema_file: str = "database_schem
 
         # Читаем схему
         if os.path.exists(schema_file):
+            # TODO: Convert f-string to %s formatting for performance
             logger.info(f"📖 Чтение схемы из: {schema_file}")
             with open(schema_file, encoding="utf-8") as f:
                 schema_sql = f.read()
@@ -145,6 +162,7 @@ def recreate_database_structure(db_path: str, schema_file: str = "database_schem
             conn.commit()
             logger.info("✅ Структура базы данных создана")
         else:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Файл схемы не найден: {schema_file}, создаем базовую структуру")
             # Создаем базовую структуру
             cursor.execute("""
@@ -195,6 +213,7 @@ def recreate_database_structure(db_path: str, schema_file: str = "database_schem
             logger.error("❌ Новая база данных повреждена")
             return False
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Ошибка создания структуры: {e}")
         return False
 
@@ -204,11 +223,13 @@ def main():
     logger.info("=" * 80)
     logger.info("🔧 ВОССТАНОВЛЕНИЕ БАЗЫ ДАННЫХ ATRA")
     logger.info("=" * 80)
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"База данных: {DB_PATH}")
     logger.info("")
 
     # Шаг 1: Проверка существования БД
     if not os.path.exists(DB_PATH):
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ База данных не найдена: {DB_PATH}")
         logger.info("📝 Создаем новую базу данных...")
         if recreate_database_structure(DB_PATH):

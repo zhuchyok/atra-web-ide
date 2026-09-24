@@ -31,13 +31,19 @@ def _import_root_executor_helpers():
         _is_victoria_wisdom,
         _normalize_model_for_backend,
         _wisdom_mlx_primary_enabled,
+        _wisdom_must_stay_on_mlx,
     )
 
-    return _is_victoria_wisdom, _normalize_model_for_backend, _wisdom_mlx_primary_enabled
+    return (
+        _is_victoria_wisdom,
+        _normalize_model_for_backend,
+        _wisdom_mlx_primary_enabled,
+        _wisdom_must_stay_on_mlx,
+    )
 
 
 def test_normalize_strips_latest_for_mlx():
-    _, normalize, _ = _import_root_executor_helpers()
+    _, normalize, _, _ = _import_root_executor_helpers()
     mlx = "http://host.docker.internal:11435"
     ollama = "http://host.docker.internal:11434"
     assert normalize("victoria-wisdom-v3.5:latest", mlx, mlx) == "victoria-wisdom-v3.5"
@@ -46,7 +52,7 @@ def test_normalize_strips_latest_for_mlx():
 
 
 def test_is_victoria_wisdom():
-    is_wisdom, _, _ = _import_root_executor_helpers()
+    is_wisdom, _, _, _ = _import_root_executor_helpers()
     assert is_wisdom("victoria-wisdom-v3.5:latest")
     assert is_wisdom("victoria-wisdom-v3.5")
     assert not is_wisdom("phi3.5:3.8b")
@@ -54,8 +60,18 @@ def test_is_victoria_wisdom():
 
 
 def test_wisdom_mlx_primary_default_on(monkeypatch):
-    _, _, enabled = _import_root_executor_helpers()
+    _, _, enabled, _ = _import_root_executor_helpers()
     monkeypatch.delenv("VICTORIA_WISDOM_MLX_PRIMARY", raising=False)
     assert enabled() is True
     monkeypatch.setenv("VICTORIA_WISDOM_MLX_PRIMARY", "false")
     assert enabled() is False
+
+
+def test_wisdom_must_stay_on_mlx(monkeypatch):
+    _, _, _, stay = _import_root_executor_helpers()
+    monkeypatch.setenv("VICTORIA_MLX_BRAIN", "true")
+    mlx = "http://host.docker.internal:11435"
+    ollama = "http://host.docker.internal:11434"
+    assert stay("victoria-wisdom-24k:latest", ollama, mlx) is True
+    assert stay("victoria-wisdom-24k", mlx, mlx) is False
+    assert stay("phi3.5:3.8b", ollama, mlx) is False

@@ -21,10 +21,10 @@ class TestExpertWorkerConfig:
 
     def test_worker_stream_name_format(self):
         """Stream name should follow expert_tasks:{name} pattern."""
-        expert_name = "Роман"
+        expert_name = "Антон"
         is_dedicated = True
         stream = f"expert_tasks:{expert_name}" if is_dedicated else "expert_tasks"
-        assert stream == "expert_tasks:Роман"
+        assert stream == "expert_tasks:Антон"
 
         stream_shared = "expert_tasks"
         assert stream_shared == "expert_tasks"

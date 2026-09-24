@@ -590,36 +590,40 @@ def run_backtest_with_all_filters(
             "trades_list": trades_list,
         }
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Ошибка для {symbol}: {e}")
         return {"trades": 0, "return": 0.0, "signals": 0, "winning_trades": 0, "losing_trades": 0}
 
 
 def optimize_all_filters():
     """Оптимизирует все фильтры"""
-    print("=" * 80)
-    print("🚀 КОМПЛЕКСНАЯ ОПТИМИЗАЦИЯ ВСЕХ ФИЛЬТРОВ")
-    print("=" * 80)
-    print(f"📅 Период: {PERIOD_DAYS} дней (3 месяца)")
-    print(f"📊 Символы: {', '.join(TEST_SYMBOLS)}")
-    print(f"🧵 Потоков: {MAX_WORKERS}")
-    print()
-    print("🔧 ФИЛЬТРЫ ДЛЯ ОПТИМИЗАЦИИ:")
-    print("   ✅ Volume Profile (VP) - НОВЫЙ")
-    print("   ✅ VWAP - НОВЫЙ")
-    print("   ✅ AMT Filter - НОВЫЙ")
-    print("   ✅ Market Profile Filter - НОВЫЙ")
-    print("   ✅ Institutional Patterns Filter - НОВЫЙ")
-    print("   ✅ Interest Zone Filter - НОВЫЙ")
-    print("   ✅ Fibonacci Zone Filter - НОВЫЙ")
-    print("   ✅ Volume Imbalance Filter - НОВЫЙ")
-    print()
-    print("✅ ИСПОЛЬЗУЮТСЯ ОПТИМАЛЬНЫЕ ПАРАМЕТРЫ:")
-    print("   ✅ Order Flow: required_confirmations=0, pr_threshold=0.5")
-    print("   ✅ Microstructure: tolerance_pct=2.5, min_strength=0.1, lookback=30")
-    print("   ✅ Momentum: все пороги=50")
-    print("   ✅ Trend Strength: adx_threshold=15, require_direction=false")
-    print("=" * 80)
-    print()
+    logger.info("=" * 80)
+    logger.info("🚀 КОМПЛЕКСНАЯ ОПТИМИЗАЦИЯ ВСЕХ ФИЛЬТРОВ")
+    logger.info("=" * 80)
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📅 Период: {PERIOD_DAYS} дней (3 месяца)")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📊 Символы: {', '.join(TEST_SYMBOLS)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"🧵 Потоков: {MAX_WORKERS}")
+    logger.info()
+    logger.info("🔧 ФИЛЬТРЫ ДЛЯ ОПТИМИЗАЦИИ:")
+    logger.info("   ✅ Volume Profile (VP) - НОВЫЙ")
+    logger.info("   ✅ VWAP - НОВЫЙ")
+    logger.info("   ✅ AMT Filter - НОВЫЙ")
+    logger.info("   ✅ Market Profile Filter - НОВЫЙ")
+    logger.info("   ✅ Institutional Patterns Filter - НОВЫЙ")
+    logger.info("   ✅ Interest Zone Filter - НОВЫЙ")
+    logger.info("   ✅ Fibonacci Zone Filter - НОВЫЙ")
+    logger.info("   ✅ Volume Imbalance Filter - НОВЫЙ")
+    logger.info()
+    logger.info("✅ ИСПОЛЬЗУЮТСЯ ОПТИМАЛЬНЫЕ ПАРАМЕТРЫ:")
+    logger.info("   ✅ Order Flow: required_confirmations=0, pr_threshold=0.5")
+    logger.info("   ✅ Microstructure: tolerance_pct=2.5, min_strength=0.1, lookback=30")
+    logger.info("   ✅ Momentum: все пороги=50")
+    logger.info("   ✅ Trend Strength: adx_threshold=15, require_direction=false")
+    logger.info("=" * 80)
+    logger.info()
 
     # Генерируем все комбинации параметров для новых фильтров
     # Сначала оптимизируем базовые фильтры (VP, VWAP, AMT, MP, IP)
@@ -637,9 +641,11 @@ def optimize_all_filters():
         )
     )
 
-    print(f"📊 Всего комбинаций: {len(all_combinations)}")
-    print(f"📊 Всего тестов: {len(all_combinations) * len(TEST_SYMBOLS)}")
-    print()
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📊 Всего комбинаций: {len(all_combinations)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📊 Всего тестов: {len(all_combinations) * len(TEST_SYMBOLS)}")
+    logger.info()
 
     all_results = {}
 
@@ -794,73 +800,101 @@ def optimize_all_filters():
 
     sorted_results = sorted(all_results.items(), key=lambda x: quality_score(x[1]), reverse=True)
 
-    print("\n" + "=" * 80)
-    print("📊 РЕЗУЛЬТАТЫ ОПТИМИЗАЦИИ")
-    print("=" * 80)
-    print()
+    logger.info("\n" + "=" * 80)
+    logger.info("📊 РЕЗУЛЬТАТЫ ОПТИМИЗАЦИИ")
+    logger.info("=" * 80)
+    logger.info()
 
-    print("Топ-10 комбинаций параметров:")
-    print()
+    logger.info("Топ-10 комбинаций параметров:")
+    logger.info()
 
     for i, (params_key, result) in enumerate(sorted_results[:10], 1):
-        print(f"{i}. Комбинация #{i}:")
-        print(f"   Volume Profile: {result['vp_params']}")
-        print(f"   VWAP: {result['vwap_params']}")
-        print(f"   AMT: {result['amt_params']}")
-        print(f"   Market Profile: {result['mp_params']}")
-        print(f"   Institutional Patterns: {result['ip_params']}")
-        print(f"   Interest Zone: {result['iz_params']}")
-        print(f"   Fibonacci Zone: {result['fib_params']}")
-        print(f"   Volume Imbalance: {result['vi_params']}")
-        print(f"   Сигналов: {result['total_signals']}")
-        print(f"   Сделок: {result['total_trades']}")
-        print(
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"{i}. Комбинация #{i}:")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Volume Profile: {result['vp_params']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   VWAP: {result['vwap_params']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   AMT: {result['amt_params']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Market Profile: {result['mp_params']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Institutional Patterns: {result['ip_params']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Interest Zone: {result['iz_params']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Fibonacci Zone: {result['fib_params']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Volume Imbalance: {result['vi_params']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Сигналов: {result['total_signals']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Сделок: {result['total_trades']}")
+        logger.info(
             f"   Win Rate: {result['win_rate']:.1f}% ({result['total_winning']}/{result['total_trades']})"
         )
-        print(f"   Profit Factor: {result['profit_factor']:.2f}")
-        print(f"   Return/сигнал: {result['return_per_signal']:.2f}%")
-        print(f"   Общий return: {result['total_return']:.2f}%")
-        print()
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Profit Factor: {result['profit_factor']:.2f}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Return/сигнал: {result['return_per_signal']:.2f}%")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"   Общий return: {result['total_return']:.2f}%")
+        logger.info()
 
     # Лучшая комбинация
     best_key, best_result = sorted_results[0]
 
-    print("=" * 80)
-    print("✅ ОПТИМАЛЬНЫЕ ПАРАМЕТРЫ ВСЕХ ФИЛЬТРОВ")
-    print("=" * 80)
-    print()
-    print("📊 Volume Profile:")
-    print(f"   {json.dumps(best_result['vp_params'], indent=2)}")
-    print()
-    print("📊 VWAP:")
-    print(f"   {json.dumps(best_result['vwap_params'], indent=2)}")
-    print()
-    print("📊 AMT Filter:")
-    print(f"   {json.dumps(best_result['amt_params'], indent=2)}")
-    print()
-    print("📊 Market Profile Filter:")
-    print(f"   {json.dumps(best_result['mp_params'], indent=2)}")
-    print()
-    print("📊 Institutional Patterns Filter:")
-    print(f"   {json.dumps(best_result['ip_params'], indent=2)}")
-    print()
-    print("📊 Interest Zone Filter:")
-    print(f"   {json.dumps(best_result['iz_params'], indent=2)}")
-    print()
-    print("📊 Fibonacci Zone Filter:")
-    print(f"   {json.dumps(best_result['fib_params'], indent=2)}")
-    print()
-    print("📊 Volume Imbalance Filter:")
-    print(f"   {json.dumps(best_result['vi_params'], indent=2)}")
-    print()
-    print("📈 РЕЗУЛЬТАТЫ:")
-    print(f"   Сигналов: {best_result['total_signals']}")
-    print(f"   Сделок: {best_result['total_trades']}")
-    print(f"   Win Rate: {best_result['win_rate']:.1f}%")
-    print(f"   Profit Factor: {best_result['profit_factor']:.2f}")
-    print(f"   Return/сигнал: {best_result['return_per_signal']:.2f}%")
-    print(f"   Общий return: {best_result['total_return']:.2f}%")
-    print("=" * 80)
+    logger.info("=" * 80)
+    logger.info("✅ ОПТИМАЛЬНЫЕ ПАРАМЕТРЫ ВСЕХ ФИЛЬТРОВ")
+    logger.info("=" * 80)
+    logger.info()
+    logger.info("📊 Volume Profile:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   {json.dumps(best_result['vp_params'], indent=2)}")
+    logger.info()
+    logger.info("📊 VWAP:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   {json.dumps(best_result['vwap_params'], indent=2)}")
+    logger.info()
+    logger.info("📊 AMT Filter:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   {json.dumps(best_result['amt_params'], indent=2)}")
+    logger.info()
+    logger.info("📊 Market Profile Filter:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   {json.dumps(best_result['mp_params'], indent=2)}")
+    logger.info()
+    logger.info("📊 Institutional Patterns Filter:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   {json.dumps(best_result['ip_params'], indent=2)}")
+    logger.info()
+    logger.info("📊 Interest Zone Filter:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   {json.dumps(best_result['iz_params'], indent=2)}")
+    logger.info()
+    logger.info("📊 Fibonacci Zone Filter:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   {json.dumps(best_result['fib_params'], indent=2)}")
+    logger.info()
+    logger.info("📊 Volume Imbalance Filter:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   {json.dumps(best_result['vi_params'], indent=2)}")
+    logger.info()
+    logger.info("📈 РЕЗУЛЬТАТЫ:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Сигналов: {best_result['total_signals']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Сделок: {best_result['total_trades']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Win Rate: {best_result['win_rate']:.1f}%")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Profit Factor: {best_result['profit_factor']:.2f}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Return/сигнал: {best_result['return_per_signal']:.2f}%")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"   Общий return: {best_result['total_return']:.2f}%")
+    logger.info("=" * 80)
 
     # Сохраняем результаты
     output_file = "backtests/all_filters_optimization_results.json"
@@ -914,8 +948,9 @@ def optimize_all_filters():
             ensure_ascii=False,
         )
 
-    print(f"\n💾 Результаты сохранены в: {output_file}")
-    print("=" * 80)
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n💾 Результаты сохранены в: {output_file}")
+    logger.info("=" * 80)
 
 
 if __name__ == "__main__":

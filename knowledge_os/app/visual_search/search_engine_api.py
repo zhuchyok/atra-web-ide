@@ -42,10 +42,14 @@ async def get_embedding(text: str) -> np.ndarray:
     """Get real embedding from Ollama nomic-embed-text with retry on 503."""
     for attempt in range(5):
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
                     f"{OLLAMA_BASE_URL}/api/embed",
-                    json={"model": EMBEDDING_MODEL, "input": text},
+                    json={
+                        "model": EMBEDDING_MODEL,
+                        "input": text,
+                        "keep_alive": -1,
+                    },
                 )
                 if response.status_code == 503:
                     wait = 2**attempt + 1

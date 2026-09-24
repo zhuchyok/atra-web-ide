@@ -83,35 +83,51 @@ async def main():
     results = backtest.calculate_metrics()
 
     # Выводим результаты
-    print("\n" + "=" * 80)
-    print("📊 РЕЗУЛЬТАТЫ БЕКТЕСТА (Топ 100 монет, 1 месяц)")
-    print("=" * 80)
-    print("\n💰 ФИНАНСОВЫЕ ПОКАЗАТЕЛИ:")
-    print(f"  Начальный баланс: {backtest.initial_balance:.2f} USDT")
-    print(f"  Финальный баланс: {results.get('final_balance', backtest.current_balance):.2f} USDT")
-    print(
+    logger.info("\n" + "=" * 80)
+    logger.info("📊 РЕЗУЛЬТАТЫ БЕКТЕСТА (Топ 100 монет, 1 месяц)")
+    logger.info("=" * 80)
+    logger.info("\n💰 ФИНАНСОВЫЕ ПОКАЗАТЕЛИ:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Начальный баланс: {backtest.initial_balance:.2f} USDT")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Финальный баланс: {results.get('final_balance', backtest.current_balance):.2f} USDT")
+    logger.info(
         f"  Общий PnL: {results.get('total_pnl', 0):.2f} USDT ({results.get('total_return', 0):.2f}%)"
     )
-    print(f"  Максимальная прибыль: {results.get('max_profit', 0):.2f} USDT")
-    print(f"  Максимальный убыток: {results.get('max_loss', 0):.2f} USDT")
-    print(f"  Максимальная просадка: {results.get('max_drawdown', 0):.2f}%")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Максимальная прибыль: {results.get('max_profit', 0):.2f} USDT")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Максимальный убыток: {results.get('max_loss', 0):.2f} USDT")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Максимальная просадка: {results.get('max_drawdown', 0):.2f}%")
 
-    print("\n📈 СТАТИСТИКА СДЕЛОК:")
-    print(f"  Всего сделок: {results.get('total_trades', 0)}")
-    print(f"  Прибыльных: {results.get('winning_trades', 0)} ({results.get('win_rate', 0):.2f}%)")
-    print(f"  Убыточных: {results.get('losing_trades', 0)}")
-    print(f"  Средняя прибыль: {results.get('avg_win', 0):.2f} USDT")
-    print(f"  Средний убыток: {results.get('avg_loss', 0):.2f} USDT")
-    print(f"  Profit Factor: {results.get('profit_factor', 0):.2f}")
+    logger.info("\n📈 СТАТИСТИКА СДЕЛОК:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Всего сделок: {results.get('total_trades', 0)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Прибыльных: {results.get('winning_trades', 0)} ({results.get('win_rate', 0):.2f}%)")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Убыточных: {results.get('losing_trades', 0)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Средняя прибыль: {results.get('avg_win', 0):.2f} USDT")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Средний убыток: {results.get('avg_loss', 0):.2f} USDT")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Profit Factor: {results.get('profit_factor', 0):.2f}")
 
-    print("\n📊 МЕТРИКИ РИСКА:")
-    print(f"  Sharpe Ratio: {results.get('sharpe_ratio', 0):.2f}")
-    print(f"  Sortino Ratio: {results.get('sortino_ratio', 0):.2f}")
+    logger.info("\n📊 МЕТРИКИ РИСКА:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Sharpe Ratio: {results.get('sharpe_ratio', 0):.2f}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Sortino Ratio: {results.get('sortino_ratio', 0):.2f}")
 
-    print("\n🤖 ИСПОЛЬЗОВАНИЕ ИИ:")
-    print(f"  Сделок с индивидуальными параметрами: {results.get('trades_with_symbol_params', 0)}")
-    print(f"  Сделок с анализом паттернов: {results.get('trades_with_patterns_analysis', 0)}")
-    print(f"  Всего паттернов в системе: {results.get('patterns_total', 0)}")
+    logger.info("\n🤖 ИСПОЛЬЗОВАНИЕ ИИ:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Сделок с индивидуальными параметрами: {results.get('trades_with_symbol_params', 0)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Сделок с анализом паттернов: {results.get('trades_with_patterns_analysis', 0)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Всего паттернов в системе: {results.get('patterns_total', 0)}")
 
     # Сохраняем отчет
     report_dir = Path("data/reports")
@@ -136,10 +152,11 @@ async def main():
         json.dump(report_data, f, indent=2, ensure_ascii=False, default=str)
     logger.info("💾 Отчет сохранен: %s", report_file)
 
-    print("\n" + "=" * 80)
-    print("✅ Бектест завершен!")
-    print(f"💾 Отчет сохранен: {report_file}")
-    print("=" * 80 + "\n")
+    logger.info("\n" + "=" * 80)
+    logger.info("✅ Бектест завершен!")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"💾 Отчет сохранен: {report_file}")
+    logger.info("=" * 80 + "\n")
 
 
 if __name__ == "__main__":

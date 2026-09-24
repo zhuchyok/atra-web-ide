@@ -78,6 +78,7 @@ def main():
     if success and "Connected" in stdout:
         logger.info("✅ Подключение установлено")
     else:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"❌ Не удалось подключиться: {stderr}")
         return
 
@@ -90,6 +91,7 @@ def main():
         logger.info("✅ Cron задача найдена:")
         for line in stdout.split("\n"):
             if "victoria_morning_report" in line:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"   {line.strip()}")
     else:
         logger.warning("⚠️  Cron задача не найдена. Добавляю...")
@@ -100,6 +102,7 @@ def main():
         if success:
             logger.info("✅ Cron задача добавлена")
         else:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Не удалось добавить cron задачу: {stderr}")
 
     # 3. Проверка файла скрипта
@@ -123,8 +126,10 @@ def main():
         lines = stdout.split("\n")
         for line in lines[-30:]:
             if line.strip():
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"   {line}")
     else:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️  Тестовый скрипт завершился с ошибками: {stderr[:200]}")
 
     # 5. Тестовый запуск отчета
@@ -142,6 +147,7 @@ def main():
             "⚠️  Тестовый запуск завершился с ошибками (это может быть нормально, если AI недоступен)"
         )
         if stderr:
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"   Stderr: {stderr[:200]}")
 
     # 6. Проверка логов
@@ -154,6 +160,7 @@ def main():
         logger.info("📋 Последние строки лога:")
         for line in stdout.split("\n")[-10:]:
             if line.strip():
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"   {line}")
     else:
         logger.info("ℹ️  Лог файл не найден (это нормально, если скрипт еще не запускался)")

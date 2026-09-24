@@ -32,7 +32,8 @@ try:
     import asyncpg
     from app.semantic_cache import get_embedding
 except ImportError as e:
-    print(f"Ошибка: нужны asyncpg и app.semantic_cache. {e}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Ошибка: нужны asyncpg и app.semantic_cache. {e}")
     sys.exit(1)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")

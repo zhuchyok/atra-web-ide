@@ -34,7 +34,8 @@ try:
     DYNAMIC_LEVERAGE_AVAILABLE = True
 except ImportError as e:
     # Используем print, так как logger может быть еще не инициализирован
-    print(f"⚠️ get_dynamic_leverage недоступен: {e}, используем фиксированное плечо")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"⚠️ get_dynamic_leverage недоступен: {e}, используем фиксированное плечо")
     DYNAMIC_LEVERAGE_AVAILABLE = False
     get_dynamic_leverage = None
 

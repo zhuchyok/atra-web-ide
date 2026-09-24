@@ -93,7 +93,7 @@ def get_symbol_tp_sl_multipliers(symbol: str) -> tuple:
         tp_mult = params.get("tp_mult", DEFAULT_TP_MULT)
         sl_mult = params.get("sl_mult", DEFAULT_SL_MULT)
         if symbol in OPTIMIZED_PARAMETERS:
-            print(
+            logger.info(
                 f"✅ Используем оптимизированные параметры для {symbol}: TP={tp_mult:.2f}x, SL={sl_mult:.2f}x"
             )
         return tp_mult, sl_mult
@@ -237,21 +237,35 @@ class BacktestStats:
     def print_summary(self):
         """Выводит сводку"""
         metrics = self.get_metrics()
-        print(f"\n{'=' * 80}")
-        print(f"📊 {self.name}")
-        print(f"{'=' * 80}")
-        print(f"💰 Финальный баланс: ${metrics['final_balance']:.2f}")
-        print(f"📈 Общая доходность: {metrics['total_return']:.2f}%")
-        print(f"📊 Всего сделок: {metrics['total_trades']}")
-        print(f"✅ Прибыльных: {metrics['winning_trades']} ({metrics['win_rate']:.2f}%)")
-        print(f"❌ Убыточных: {metrics['losing_trades']}")
-        print(f"💵 Profit Factor: {metrics['profit_factor']:.2f}")
-        print(f"📉 Макс. просадка: {metrics['max_drawdown_pct']:.2f}%")
-        print(f"📊 Sharpe Ratio: {metrics['sharpe_ratio']:.2f}")
-        print(f"📊 Sortino Ratio: {metrics['sortino_ratio']:.2f}")
-        print(f"🎯 Сигналов сгенерировано: {metrics['signals_generated']}")
-        print(f"✅ Сигналов исполнено: {metrics['signals_executed']}")
-        print(
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"\n{'=' * 80}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"📊 {self.name}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"{'=' * 80}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"💰 Финальный баланс: ${metrics['final_balance']:.2f}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"📈 Общая доходность: {metrics['total_return']:.2f}%")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"📊 Всего сделок: {metrics['total_trades']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"✅ Прибыльных: {metrics['winning_trades']} ({metrics['win_rate']:.2f}%)")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"❌ Убыточных: {metrics['losing_trades']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"💵 Profit Factor: {metrics['profit_factor']:.2f}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"📉 Макс. просадка: {metrics['max_drawdown_pct']:.2f}%")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"📊 Sharpe Ratio: {metrics['sharpe_ratio']:.2f}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"📊 Sortino Ratio: {metrics['sortino_ratio']:.2f}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"🎯 Сигналов сгенерировано: {metrics['signals_generated']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"✅ Сигналов исполнено: {metrics['signals_executed']}")
+        logger.info(
             f"❌ Отклонено интеллектуальной системой: {metrics['signals_rejected_by_intelligent']}"
         )
 
@@ -266,7 +280,8 @@ def load_yearly_data(symbol: str, limit_days: Optional[int] = None) -> Optional[
     csv_path = os.path.join(DATA_DIR, f"{symbol}.csv")
 
     if not os.path.exists(csv_path):
-        print(f"⚠️ Файл не найден: {csv_path}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"⚠️ Файл не найден: {csv_path}")
         return None
 
     try:
@@ -309,7 +324,8 @@ def load_yearly_data(symbol: str, limit_days: Optional[int] = None) -> Optional[
         # Убеждаемся, что есть нужные колонки
         required_cols = ["open", "high", "low", "close", "volume"]
         if not all(col in df.columns for col in required_cols):
-            print(f"⚠️ Отсутствуют необходимые колонки в {symbol}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"⚠️ Отсутствуют необходимые колонки в {symbol}")
             return None
 
         # Преобразуем в float
@@ -320,11 +336,13 @@ def load_yearly_data(symbol: str, limit_days: Optional[int] = None) -> Optional[
         df = df.dropna(subset=required_cols)
 
         period_str = f"последние {limit_days} дней" if limit_days else "годовые данные"
-        print(f"✅ Загружено {len(df)} свечей для {symbol} ({period_str})")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"✅ Загружено {len(df)} свечей для {symbol} ({period_str})")
         return df
 
     except Exception as e:
-        print(f"❌ Ошибка загрузки {symbol}: {e}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"❌ Ошибка загрузки {symbol}: {e}")
         traceback.print_exc()
         return None
 
@@ -365,7 +383,8 @@ def run_backtest(
     ]
     missing_cols = [col for col in required_cols if col not in df.columns]
     if missing_cols:
-        print(f"⚠️ Отсутствуют колонки: {missing_cols}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"⚠️ Отсутствуют колонки: {missing_cols}")
         return stats
 
     # Получаем оптимизированные параметры
@@ -379,7 +398,8 @@ def run_backtest(
     start_idx = 25
 
     if len(df) < start_idx:
-        print(f"⚠️ Недостаточно данных: {len(df)} < {start_idx}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"⚠️ Недостаточно данных: {len(df)} < {start_idx}")
         return stats
 
     position = None
@@ -605,7 +625,7 @@ def run_backtest(
                     and not pd.isna(ema25)
                 )
                 ema_str = f"{ema7 > ema25}" if ema_cond else "None"
-                print(
+                logger.info(
                     f"🔍 [{symbol}] Сигнал не сгенерирован на свече {i}: "
                     f"rsi={rsi_str}, volume_ratio={vol_str}, ema7>ema25={ema_str}"
                 )
@@ -730,26 +750,31 @@ def main():
     # 🔧 МИНИМАЛЬНЫЙ ТЕСТ ДЛЯ ВЕРИФИКАЦИИ
     period_days = 7  # 7 дней данных
     TEST_SYMBOLS = ["BTCUSDT"]  # Только BTC
-    print(f"🚀 МЕСЯЧНЫЙ БЭКТЕСТ {len(TEST_SYMBOLS)} МОНЕТ С ИНТЕЛЛЕКТУАЛЬНОЙ СИСТЕМОЙ")
-    print("=" * 80)
-    print(f"📅 Дата запуска: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"💰 Начальный баланс: ${START_BALANCE:.2f}")
-    print(f"📊 Символы ({len(TEST_SYMBOLS)}): {', '.join(TEST_SYMBOLS)}")
-    print(f"📅 Период: последние {period_days} дней (месячные данные)")
-    print("=" * 80)
-    print("")
-    print("✅ ВКЛЮЧЕНЫ ВСЕ ФИЛЬТРЫ + ИНТЕЛЛЕКТУАЛЬНАЯ СИСТЕМА:")
-    print("   - Volume Profile (VP)")
-    print("   - VWAP")
-    print("   - Order Flow")
-    print("   - Microstructure")
-    print("   - Momentum")
-    print("   - Trend Strength")
-    print("   - 🤖 Динамическая адаптация под рыночные условия")
-    print("   - 🤖 Индивидуальные параметры для каждой монеты")
-    print("   - 🤖 Система приоритетов и компенсации")
-    print("   - 🤖 Адаптация на основе исторической эффективности")
-    print("")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"🚀 МЕСЯЧНЫЙ БЭКТЕСТ {len(TEST_SYMBOLS)} МОНЕТ С ИНТЕЛЛЕКТУАЛЬНОЙ СИСТЕМОЙ")
+    logger.info("=" * 80)
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📅 Дата запуска: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"💰 Начальный баланс: ${START_BALANCE:.2f}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📊 Символы ({len(TEST_SYMBOLS)}): {', '.join(TEST_SYMBOLS)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"📅 Период: последние {period_days} дней (месячные данные)")
+    logger.info("=" * 80)
+    logger.info("")
+    logger.info("✅ ВКЛЮЧЕНЫ ВСЕ ФИЛЬТРЫ + ИНТЕЛЛЕКТУАЛЬНАЯ СИСТЕМА:")
+    logger.info("   - Volume Profile (VP)")
+    logger.info("   - VWAP")
+    logger.info("   - Order Flow")
+    logger.info("   - Microstructure")
+    logger.info("   - Momentum")
+    logger.info("   - Trend Strength")
+    logger.info("   - 🤖 Динамическая адаптация под рыночные условия")
+    logger.info("   - 🤖 Индивидуальные параметры для каждой монеты")
+    logger.info("   - 🤖 Система приоритетов и компенсации")
+    logger.info("   - 🤖 Адаптация на основе исторической эффективности")
+    logger.info("")
 
     # Инициализируем интеллектуальную систему
     intelligent_system = get_intelligent_filter_system()
@@ -758,18 +783,23 @@ def main():
 
     # Тестируем каждую монету
     for idx, symbol in enumerate(TEST_SYMBOLS, 1):
-        print(f"\n{'=' * 80}")
-        print(f"📈 Тестирование {symbol} ({idx}/{len(TEST_SYMBOLS)})")
-        print(f"{'=' * 80}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"\n{'=' * 80}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"📈 Тестирование {symbol} ({idx}/{len(TEST_SYMBOLS)})")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"{'=' * 80}")
 
         # Загружаем месячные данные
         df = load_yearly_data(symbol, limit_days=period_days)
         if df is None or len(df) < 50:
-            print(f"❌ Недостаточно данных для {symbol}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"❌ Недостаточно данных для {symbol}")
             continue
 
         # Запускаем бэктест
-        print(f"🔵 Запуск бэктеста для {symbol} с интеллектуальной системой...")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"🔵 Запуск бэктеста для {symbol} с интеллектуальной системой...")
         stats = run_backtest(df, symbol=symbol, mode="soft", intelligent_system=intelligent_system)
         stats.print_summary()
 
@@ -796,9 +826,11 @@ def main():
         json.dump(all_results, f, indent=2, default=str)
 
     # Итоговая сводка
-    print(f"\n{'=' * 80}")
-    print("📊 ИТОГОВАЯ СВОДКА")
-    print(f"{'=' * 80}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n{'=' * 80}")
+    logger.info("📊 ИТОГОВАЯ СВОДКА")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"{'=' * 80}")
 
     # 🔧 ИСПРАВЛЕНИЕ: Общий бюджет распределяется между монетами
     total_initial = START_BALANCE  # Общий бюджет $10,000
@@ -827,27 +859,39 @@ def main():
         total_executed += executed
         total_rejected += rejected
 
-        print(f"\n{symbol}:")
-        print(f"  💰 Баланс: ${initial:.2f} → ${final:.2f} (доходность: {return_pct:+.2f}%)")
-        print(f"  📊 Сделок: {trades}")
-        print(f"  🎯 Сигналов: {signals} (исполнено: {executed}, отклонено ИС: {rejected})")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"\n{symbol}:")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"  💰 Баланс: ${initial:.2f} → ${final:.2f} (доходность: {return_pct:+.2f}%)")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"  📊 Сделок: {trades}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"  🎯 Сигналов: {signals} (исполнено: {executed}, отклонено ИС: {rejected})")
 
-    print(f"\n{'=' * 80}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n{'=' * 80}")
     total_profit = total_final - total_initial
     total_return_pct = (total_profit / total_initial) * 100 if total_initial > 0 else 0
-    print("📊 ИТОГО ПОРТФЕЛЯ:")
-    print(f"  Начальный баланс: ${total_initial:.2f}")
-    print(f"  Финальный баланс: ${total_final:.2f}")
-    print(f"  Общая прибыль: ${total_profit:+.2f}")
-    print(f"  Общая доходность: {total_return_pct:+.2f}%")
-    print(f"  Всего сделок: {total_trades}")
-    print(
+    logger.info("📊 ИТОГО ПОРТФЕЛЯ:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Начальный баланс: ${total_initial:.2f}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Финальный баланс: ${total_final:.2f}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Общая прибыль: ${total_profit:+.2f}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Общая доходность: {total_return_pct:+.2f}%")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Всего сделок: {total_trades}")
+    logger.info(
         f"  Всего сигналов: {total_signals} (исполнено: {total_executed}, отклонено ИС: {total_rejected})"
     )
-    print(f"{'=' * 80}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"{'=' * 80}")
 
-    print(f"\n✅ Результаты сохранены в {results_file}")
-    print("\n🎉 БЭКТЕСТ ЗАВЕРШЕН!")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n✅ Результаты сохранены в {results_file}")
+    logger.info("\n🎉 БЭКТЕСТ ЗАВЕРШЕН!")
 
 
 if __name__ == "__main__":

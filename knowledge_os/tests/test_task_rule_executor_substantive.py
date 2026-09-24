@@ -1,6 +1,12 @@
-"""File-audit rule results are substantive (not soft DEGRADED)."""
+"""Rule executor behavior for substantive and delegation tasks."""
 
-from app.task_rule_executor import finalize_rule_result, is_substantive_rule_result
+import pytest
+from app.task_rule_executor import (
+    can_handle,
+    execute_fallback,
+    finalize_rule_result,
+    is_substantive_rule_result,
+)
 
 
 def test_file_audit_ok_is_substantive():
@@ -14,6 +20,8 @@ def test_file_audit_ok_is_substantive():
     out, meta, status = finalize_rule_result(text)
     assert status == "completed"
     assert meta.get("kpi_success") is True
+    assert meta.get("task_contract_version") == "smart_worker_v1"
+    assert meta.get("task_contract_output_schema") == "free_text"
     assert "[DEGRADED_RULE_FALLBACK]" not in out
 
 
@@ -23,4 +31,29 @@ def test_soft_status_template_still_degraded():
     out, meta, status = finalize_rule_result(text)
     assert status == "cancelled"
     assert meta.get("quality_degraded") is True
+    assert meta.get("auto_fallback_reason") == "rule_fallback_cancelled"
+    assert meta.get("manual_cancel_reason") == "policy_rule_fallback"
     assert out.lstrip().startswith("[DEGRADED_RULE_FALLBACK]")
+
+
+def test_monster_delegation_wrapper_not_misclassified_as_status_task():
+    task = {
+        "metadata": {"source": "victoria_monster_delegation"},
+        "title": "🤖 Делегировано: Алексей (main)",
+        "description": (
+            "Задача от Team Lead Victoria: Факты до вывода: прочитай файлы, логи, health, статус."
+        ),
+    }
+    assert can_handle(task) is False
+
+
+@pytest.mark.asyncio
+async def test_monster_delegation_allows_file_audit_fast_path():
+    task = {
+        "metadata": {"source": "victoria_monster_delegation"},
+        "title": "🤖 Делегировано: QA",
+        "description": "проверь файл /app/file.py — есть ли секреты",
+    }
+    assert can_handle(task) is True
+    result = await execute_fallback(task)
+    assert result is not None

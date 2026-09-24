@@ -194,28 +194,35 @@ async def main() -> None:
     """Точка входа скрипта."""
     summary = await run_oct_window_backtest()
     if not summary:
-        print("❌ Не удалось выполнить бектест по окну 10 октября")
+        logger.info("❌ Не удалось выполнить бектест по окну 10 октября")
         return
 
-    print("================================================================================")
-    print("📊 РЕЗУЛЬТАТЫ БЕКТЕСТА (ОКНО ОКОЛО 10 ОКТЯБРЯ)")
-    print("================================================================================")
-    print(f"Окно: {summary['window_start']} — {summary['window_end']}")
-    print(f"Монет в портфеле: {summary['total_symbols']}")
-    print(f"Всего сделок: {summary['total_trades']}")
-    print(f"Win Rate портфеля: {summary['portfolio_win_rate']:.2f}%")
-    print(f"Общий PnL: {summary['total_pnl']:.2f} USDT")
-    print(f"Общий PnL % (на портфель 10×10k): {summary['total_pnl_pct']:.2f}%")
-    print("--------------------------------------------------------------------------------")
-    print("По монетам:")
-    print("--------------------------------------------------------------------------------")
+    logger.info("================================================================================")
+    logger.info("📊 РЕЗУЛЬТАТЫ БЕКТЕСТА (ОКНО ОКОЛО 10 ОКТЯБРЯ)")
+    logger.info("================================================================================")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Окно: {summary['window_start']} — {summary['window_end']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Монет в портфеле: {summary['total_symbols']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Всего сделок: {summary['total_trades']}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Win Rate портфеля: {summary['portfolio_win_rate']:.2f}%")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Общий PnL: {summary['total_pnl']:.2f} USDT")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"Общий PnL % (на портфель 10×10k): {summary['total_pnl_pct']:.2f}%")
+    logger.info("--------------------------------------------------------------------------------")
+    logger.info("По монетам:")
+    logger.info("--------------------------------------------------------------------------------")
     for res in sorted(
         summary["results_by_symbol"], key=lambda r: r.get("total_pnl", 0), reverse=True
     ):
         if "error" in res:
-            print(f"{res['symbol']:10s} | ❌ Ошибка: {res['error']}")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"{res['symbol']:10s} | ❌ Ошибка: {res['error']}")
         else:
-            print(
+            logger.info(
                 f"{res['symbol']:10s} | "
                 f"Сделок: {res['total_trades']:3d} | "
                 f"WR: {res['win_rate']:5.2f}% | "

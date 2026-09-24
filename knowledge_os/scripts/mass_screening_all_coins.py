@@ -401,56 +401,62 @@ def print_summary(results: List[Dict[str, Any]], analysis: Dict[str, Any]):
     """
     Выводит сводку результатов скрининга
     """
-    print("\n" + "=" * 80)
-    print("📊 РЕЗУЛЬТАТЫ МАССОВОГО СКРИНИНГА ВСЕХ МОНЕТ")
-    print("=" * 80)
+    logger.info("\n" + "=" * 80)
+    logger.info("📊 РЕЗУЛЬТАТЫ МАССОВОГО СКРИНИНГА ВСЕХ МОНЕТ")
+    logger.info("=" * 80)
 
-    print(f"\n✅ Всего протестировано: {len(results)} монет")
-    print("\n📈 Распределение по Win Rate:")
-    print(f"  🟢 Отлично (≥55%): {analysis['summary']['excellent_wr_55plus']} монет")
-    print(f"  🟡 Хорошо (45-55%): {analysis['summary']['good_wr_45_55']} монет")
-    print(f"  🟠 Средне (35-45%): {analysis['summary']['average_wr_35_45']} монет")
-    print(f"  🔴 Плохо (<35%): {analysis['summary']['poor_wr_below_35']} монет")
-    print(f"\n🎯 Кандидаты в портфель: {analysis['summary']['portfolio_candidates']} монет")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n✅ Всего протестировано: {len(results)} монет")
+    logger.info("\n📈 Распределение по Win Rate:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  🟢 Отлично (≥55%): {analysis['summary']['excellent_wr_55plus']} монет")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  🟡 Хорошо (45-55%): {analysis['summary']['good_wr_45_55']} монет")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  🟠 Средне (35-45%): {analysis['summary']['average_wr_35_45']} монет")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  🔴 Плохо (<35%): {analysis['summary']['poor_wr_below_35']} монет")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n🎯 Кандидаты в портфель: {analysis['summary']['portfolio_candidates']} монет")
 
-    print("\n🏆 ТОП-10 ПО WIN RATE:")
-    print("-" * 80)
+    logger.info("\n🏆 ТОП-10 ПО WIN RATE:")
+    logger.info("-" * 80)
     for idx, coin in enumerate(analysis["top_10"]["by_win_rate"], 1):
-        print(
+        logger.info(
             f"  {idx:2d}. {coin['symbol']:12s} | WR: {coin['win_rate']:5.2f}% | "
             f"PF: {coin['profit_factor']:5.2f} | Сделок: {coin['total_trades']:3d} | "
             f"PnL: {coin['total_pnl']:8.2f} USDT"
         )
 
-    print("\n💰 ТОП-10 ПО PROFIT FACTOR:")
-    print("-" * 80)
+    logger.info("\n💰 ТОП-10 ПО PROFIT FACTOR:")
+    logger.info("-" * 80)
     for idx, coin in enumerate(analysis["top_10"]["by_profit_factor"], 1):
-        print(
+        logger.info(
             f"  {idx:2d}. {coin['symbol']:12s} | PF: {coin['profit_factor']:5.2f} | "
             f"WR: {coin['win_rate']:5.2f}% | Сделок: {coin['total_trades']:3d} | "
             f"PnL: {coin['total_pnl']:8.2f} USDT"
         )
 
-    print("\n💎 ТОП-10 ПО PnL:")
-    print("-" * 80)
+    logger.info("\n💎 ТОП-10 ПО PnL:")
+    logger.info("-" * 80)
     for idx, coin in enumerate(analysis["top_10"]["by_pnl"], 1):
-        print(
+        logger.info(
             f"  {idx:2d}. {coin['symbol']:12s} | PnL: {coin['total_pnl']:8.2f} USDT | "
             f"WR: {coin['win_rate']:5.2f}% | PF: {coin['profit_factor']:5.2f} | "
             f"Сделок: {coin['total_trades']:3d}"
         )
 
     if analysis["portfolio_candidates"]:
-        print("\n🎯 КАНДИДАТЫ В ПОРТФЕЛЬ (WR≥45%, PF≥1.0, Сделок≥8):")
-        print("-" * 80)
+        logger.info("\n🎯 КАНДИДАТЫ В ПОРТФЕЛЬ (WR≥45%, PF≥1.0, Сделок≥8):")
+        logger.info("-" * 80)
         for idx, coin in enumerate(analysis["portfolio_candidates"], 1):
-            print(
+            logger.info(
                 f"  {idx:2d}. {coin['symbol']:12s} | WR: {coin['win_rate']:5.2f}% | "
                 f"PF: {coin['profit_factor']:5.2f} | Сделок: {coin['total_trades']:3d} | "
                 f"PnL: {coin['total_pnl']:8.2f} USDT | MaxDD: {coin['max_drawdown']:5.2f}%"
             )
 
-    print("\n" + "=" * 80)
+    logger.info("\n" + "=" * 80)
 
 
 async def main():

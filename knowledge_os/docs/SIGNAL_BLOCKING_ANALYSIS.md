@@ -72,6 +72,7 @@
    - **Риск:** Блокирует при ложном пробое
 
 3. **MTF Confirmation** (строка 1897-1908)
+
    ```python
    if not mtf_confirmed:
        logger.debug("🚫 %s: MTF Confirmation не пройден")

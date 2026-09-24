@@ -60,8 +60,10 @@ class PMCoordinator:
                 fixes_applied = await fix_engine._apply_fixes(report, optimization)
 
                 if fixes_applied:
+                    # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"✅ Применено исправлений: {len(fixes_applied)}")
                     for fix in fixes_applied:
+                        # TODO: Convert f-string to %s formatting for performance
                         logger.info(f"  • {fix.get('description', 'N/A')}")
                 else:
                     logger.info("ℹ️ Нет критических проблем для исправления")
@@ -69,6 +71,7 @@ class PMCoordinator:
             logger.info("✅ Ежедневный цикл PM завершён")
 
         except Exception as e:
+            # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка в ежедневном цикле PM: {e}", exc_info=True)
 
     async def _apply_critical_optimizations(self, optimization: dict) -> None:
@@ -88,13 +91,16 @@ class PMCoordinator:
                 param = action.get("parameter")
                 recommended_value = action.get("recommended_value")
 
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"🔧 Применение оптимизации: {param} = {recommended_value}")
 
                 # Здесь можно добавить автоматическое применение оптимизаций
                 # Например, обновление конфигурационных файлов
                 # Пока только логируем
+                # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"  ✓ {action.get('reason', '')}")
 
+        # TODO: Convert f-string to %s formatting for performance
         logger.info(f"✅ Применено {len(high_priority)} критических оптимизаций")
 
 

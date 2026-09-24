@@ -32,8 +32,8 @@ class ExpertDialogueRepositoryImpl(ExpertDialogueRepository):
         async with self._pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO expert_dialogues 
-                (session_id, topic, mode, status, participants, final_decision, 
+                INSERT INTO expert_dialogues
+                (session_id, topic, mode, status, participants, final_decision,
                  consensus_score, created_at, completed_at)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 ON CONFLICT (session_id) DO UPDATE SET
@@ -61,7 +61,7 @@ class ExpertDialogueRepositoryImpl(ExpertDialogueRepository):
         async with self._pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO expert_opinions 
+                INSERT INTO expert_opinions
                 (id, session_id, expert_id, opinion_text, confidence, created_at)
                 VALUES ($1, $2, $3, $4, $5, $6)
                 ON CONFLICT (id) DO UPDATE SET
@@ -82,7 +82,7 @@ class ExpertDialogueRepositoryImpl(ExpertDialogueRepository):
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
-                SELECT session_id, topic, mode, status, participants, 
+                SELECT session_id, topic, mode, status, participants,
                        final_decision, consensus_score, created_at, completed_at
                 FROM expert_dialogues
                 WHERE session_id = $1

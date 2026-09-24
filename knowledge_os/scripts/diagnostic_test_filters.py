@@ -36,6 +36,7 @@ LEVERAGE = 2.0
 async def run_diagnostic_test():
     """Запускает диагностический тест с исправленными фильтрами."""
     logger.info("🚀 Запуск диагностического теста исправленных фильтров...")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"📊 Параметры: {len(TEST_SYMBOLS)} монет, {TEST_DAYS} дней")
 
     backtest = AdvancedBacktest(
@@ -109,44 +110,59 @@ async def run_diagnostic_test():
     overall_metrics = backtest.calculate_metrics()
 
     # Выводим результаты
-    print("\n" + "=" * 100)
-    print("📊 РЕЗУЛЬТАТЫ ДИАГНОСТИЧЕСКОГО ТЕСТА")
-    print("=" * 100)
-    print(f"\n📅 Период: {TEST_DAYS} дней")
-    print(f"🪙 Монеты: {', '.join(TEST_SYMBOLS)}")
-    print("🔧 Фильтры: Исправленные (RSI ослаблен, AI Score=10.0, AI Volatility отключен)")
+    logger.info("\n" + "=" * 100)
+    logger.info("📊 РЕЗУЛЬТАТЫ ДИАГНОСТИЧЕСКОГО ТЕСТА")
+    logger.info("=" * 100)
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"\n📅 Период: {TEST_DAYS} дней")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"🪙 Монеты: {', '.join(TEST_SYMBOLS)}")
+    logger.info("🔧 Фильтры: Исправленные (RSI ослаблен, AI Score=10.0, AI Volatility отключен)")
 
-    print("\n💰 ОБЩИЕ ФИНАНСОВЫЕ ПОКАЗАТЕЛИ:")
-    print(f"  Начальный баланс: {INITIAL_BALANCE:.2f} USDT")
-    print(f"  Финальный баланс: {overall_metrics.get('final_balance', INITIAL_BALANCE):.2f} USDT")
-    print(f"  Общий PnL: {overall_metrics.get('total_pnl', 0):.2f} USDT")
-    print(f"  Максимальная просадка: {overall_metrics.get('max_drawdown', 0):.2f}%")
+    logger.info("\n💰 ОБЩИЕ ФИНАНСОВЫЕ ПОКАЗАТЕЛИ:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Начальный баланс: {INITIAL_BALANCE:.2f} USDT")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Финальный баланс: {overall_metrics.get('final_balance', INITIAL_BALANCE):.2f} USDT")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Общий PnL: {overall_metrics.get('total_pnl', 0):.2f} USDT")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Максимальная просадка: {overall_metrics.get('max_drawdown', 0):.2f}%")
 
-    print("\n📈 ОБЩАЯ СТАТИСТИКА СДЕЛОК:")
-    print(f"  Всего сделок: {overall_metrics.get('total_trades', 0)}")
-    print(f"  Win Rate: {overall_metrics.get('win_rate', 0):.2f}%")
-    print(f"  Profit Factor: {overall_metrics.get('profit_factor', 0):.2f}")
+    logger.info("\n📈 ОБЩАЯ СТАТИСТИКА СДЕЛОК:")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Всего сделок: {overall_metrics.get('total_trades', 0)}")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Win Rate: {overall_metrics.get('win_rate', 0):.2f}%")
+    # TODO: Convert f-string to %s formatting for performance
+    logger.info(f"  Profit Factor: {overall_metrics.get('profit_factor', 0):.2f}")
 
-    print("\n📊 РЕЗУЛЬТАТЫ ПО МОНЕТАМ:")
-    print("-" * 100)
+    logger.info("\n📊 РЕЗУЛЬТАТЫ ПО МОНЕТАМ:")
+    logger.info("-" * 100)
     for res in results_by_symbol:
-        print(f"\n  {res['symbol']}:")
-        print(f"    Сделок: {res['total_trades']}")
-        print(f"    Win Rate: {res['win_rate']:.2f}%")
-        print(f"    PnL: {res['total_pnl']:.2f} USDT")
-        print(f"    Profit Factor: {res['profit_factor']:.2f}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"\n  {res['symbol']}:")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"    Сделок: {res['total_trades']}")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"    Win Rate: {res['win_rate']:.2f}%")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"    PnL: {res['total_pnl']:.2f} USDT")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"    Profit Factor: {res['profit_factor']:.2f}")
 
     # Статистика по фильтрам
     filter_stats = overall_metrics.get("filter_statistics", {})
     if filter_stats:
-        print("\n🔍 СТАТИСТИКА БЛОКИРОВОК ПО ФИЛЬТРАМ:")
-        print("-" * 100)
+        logger.info("\n🔍 СТАТИСТИКА БЛОКИРОВОК ПО ФИЛЬТРАМ:")
+        logger.info("-" * 100)
         total_checked = filter_stats.get("total_signals_checked", 0)
         rejections = filter_stats.get("filter_rejections", {})
         percentages = filter_stats.get("rejection_percentages", {})
 
-        print(f"\n  Всего проверено сигналов: {total_checked}")
-        print("\n  Блокировок по фильтрам (топ-5):")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"\n  Всего проверено сигналов: {total_checked}")
+        logger.info("\n  Блокировок по фильтрам (топ-5):")
 
         sorted_rejections = sorted(rejections.items(), key=lambda x: x[1], reverse=True)
         for filter_name, count in sorted_rejections[:5]:
@@ -160,22 +176,25 @@ async def run_diagnostic_test():
                     "ai_volatility_filter": "AI Volatility фильтр",
                 }.get(filter_name, filter_name)
 
-                print(f"    {filter_display_name}: {count} ({pct:.2f}%)")
+                # TODO: Convert f-string to %s formatting for performance
+                logger.info(f"    {filter_display_name}: {count} ({pct:.2f}%)")
 
     # Анализ результатов
-    print("\n🎯 АНАЛИЗ РЕЗУЛЬТАТОВ:")
-    print("-" * 100)
+    logger.info("\n🎯 АНАЛИЗ РЕЗУЛЬТАТОВ:")
+    logger.info("-" * 100)
     total_trades = overall_metrics.get("total_trades", 0)
     if total_trades > 0:
-        print(f"  ✅ УСПЕХ! Появились сделки: {total_trades}")
-        print("  ✅ Проблема с RSI фильтром решена!")
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"  ✅ УСПЕХ! Появились сделки: {total_trades}")
+        logger.info("  ✅ Проблема с RSI фильтром решена!")
         if total_trades >= 10:
-            print("  ✅ Количество сделок достаточное для анализа")
+            logger.info("  ✅ Количество сделок достаточное для анализа")
         else:
-            print(f"  ⚠️ Количество сделок низкое, но это нормально для {TEST_DAYS} дней")
+            # TODO: Convert f-string to %s formatting for performance
+            logger.info(f"  ⚠️ Количество сделок низкое, но это нормально для {TEST_DAYS} дней")
     else:
-        print("  ❌ ПРОБЛЕМА: Все еще 0 сделок")
-        print("  ❌ Нужна дополнительная диагностика других фильтров")
+        logger.info("  ❌ ПРОБЛЕМА: Все еще 0 сделок")
+        logger.info("  ❌ Нужна дополнительная диагностика других фильтров")
 
     # Сохраняем отчет
     report_dir = Path("data/reports")
@@ -203,9 +222,9 @@ async def run_diagnostic_test():
         json.dump(report_data, f, indent=2, ensure_ascii=False, default=str)
     logger.info("💾 Отчет сохранен: %s", json_report_file)
 
-    print("\n" + "=" * 100)
-    print("✅ Диагностический тест завершен!")
-    print("=" * 100)
+    logger.info("\n" + "=" * 100)
+    logger.info("✅ Диагностический тест завершен!")
+    logger.info("=" * 100)
 
 
 if __name__ == "__main__":
