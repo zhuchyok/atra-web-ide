@@ -54,7 +54,9 @@ def _get_json(url, timeout=15):
 def solo_answer(goal: str) -> str:
     """Одиночная Виктория через /run async + poll."""
     try:
-        resp = _post_json_safe(f"{VICTORIA}/run?async_mode=true", {"goal": goal}, timeout=300)
+        resp = _post_json_safe(
+            f"{VICTORIA}/run?async_mode=true", {"goal": f"[SOLO] {goal}"}, timeout=300
+        )
     except Exception as e:  # noqa: BLE001
         return f"[ERROR] run post: {e}"
     if resp.get("status") == "success" and resp.get("output"):

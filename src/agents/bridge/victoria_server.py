@@ -309,7 +309,7 @@ def _force_deep_analysis_reason(goal: str) -> Optional[str]:
 
     # Объяснительные вопросы (knowledge-type): уточнение здесь бесполезно —
     # нужен содержательный ответ (Enhanced + RAG), а не «уточните, что именно».
-    if any(g.startswith(v) for v in ("объясни", "что такое", "расскажи", "сравни", "почему", "зачем", "чем отличается")):
+    if any(g.startswith(v) for v in ("объясни", "что такое", "расскажи", "сравни", "почему", "зачем", "чем отличается", "разбери", "проанализируй", "исследуй", "опиши", "перечисли", "составь", "напиши план", "какая", "какие", "как")):
         return "knowledge_explanation_no_clarify"
 
     return None
@@ -6065,7 +6065,11 @@ async def _run_task_background(
         # Категории, где ночные A/B-битвы показали выигрыш дебата над соло
         # (research 4-1, testing 4-0), идут в экспертный консилиум.
         # Деградированный/пустой дебат отбрасывается (анти-стаб) — fallback в соло.
-        consilium_category = is_consilium_winnable_goal(goal)
+        # Тест-хук для A/B-битв: "[SOLO] ..." обходит роутер (замер чистого соло).
+        if goal.startswith("[SOLO]"):
+            consilium_category = None
+        else:
+            consilium_category = is_consilium_winnable_goal(goal)
         if consilium_category and os.getenv("CONSILIUM_ROUTING_ENABLED", "true").lower() in (
             "1",
             "true",
