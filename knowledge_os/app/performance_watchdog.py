@@ -411,12 +411,28 @@ CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
                         "source": "performance_watchdog",
                         "query_avg_ms": query_data["avg_exec_time_ms"],
                         "type": "database_optimization",
+                        "query_hash": hash(query_data["query"][:300]),
+                        "low_priority": "true",
                     }
                 )
+                # [v148.2] Дедуп+cooldown: одинаковый запрос не пишем повторно в течение 7 дней.
+                dup = await conn.fetchval(
+                    """
+                    SELECT 1 FROM knowledge_nodes
+                    WHERE metadata->>'type' = 'database_optimization'
+                      AND metadata->>'query_hash' = $1
+                      AND created_at > now() - interval '7 days'
+                    LIMIT 1
+                    """,
+                    str(hash(query_data["query"][:300])),
+                )
+                if dup:
+                    return
+                # Гипотеза ≠ проверенное знание: is_verified=false, вне RAG-выдачи до верификации.
                 await conn.execute(
                     """
                     INSERT INTO knowledge_nodes (content, metadata, confidence_score, source_ref, is_verified)
-                    VALUES ($1, $2, 0.9, 'performance_watchdog', true)
+                    VALUES ($1, $2, 0.9, 'performance_watchdog', false)
                 """,
                     content,
                     meta,

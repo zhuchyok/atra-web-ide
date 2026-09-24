@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 
 # [v147.1] Генерические типы — семантические хабы (cosine завышен для любого запроса):
 # board_directive/mentorship — дайджесты и мета-комментарии, а не операционные знания.
-_GENERIC_HUB_TYPES = {"board_directive", "mentorship_note", "strategy_summary"}
+_GENERIC_HUB_TYPES = {"board_directive", "mentorship_note", "strategy_summary", "database_optimization"}
 _GENERIC_HUB_CATEGORIES = ("strategy", "mentorship")
 
 # [SINGULARITY 29.5] Recursion Guard for Multi-Agent Loops
@@ -1463,7 +1463,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                         SELECT content, metadata, domain_id,
                                ((1 - (embedding <=> $1::vector))
                                 * (CASE WHEN metadata->>'low_priority' = 'true' THEN 0.5 ELSE 1.0 END)
-                                * (CASE WHEN metadata->>'type' IN ('board_directive','mentorship_note','strategy_summary')
+                                * (CASE WHEN metadata->>'type' IN ('board_directive','mentorship_note','strategy_summary','database_optimization')
                                              OR metadata->>'category' IN ('strategy','mentorship')
                                         THEN 0.85 ELSE 1.0 END)) as similarity
                         FROM knowledge_nodes
