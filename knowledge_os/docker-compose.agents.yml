@@ -34,6 +34,7 @@ x-dynamic-worker-defaults: &dynamic-worker-defaults
     context: ..
     dockerfile: infrastructure/docker/agents/Dockerfile
   restart: unless-stopped
+  mem_limit: 2g
   networks:
     - atra-network
   healthcheck:
@@ -51,6 +52,7 @@ services:
       context: app
       dockerfile: Dockerfile.quality
     container_name: quality-service
+    mem_limit: 1g
     restart: unless-stopped
     ports:
       - "8003:8003"
@@ -68,6 +70,7 @@ services:
       dockerfile: Dockerfile
     container_name: docker-proxy
     restart: unless-stopped
+    mem_limit: 256m
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
@@ -75,7 +78,7 @@ services:
     networks:
       - atra-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:2376/health"]
+      test: ["CMD", "python3", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:2376/_ping', timeout=3)"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -208,6 +211,7 @@ services:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: veronica-agent
+    mem_limit: 6g
     restart: always
     ports:
       - "8011:8000"
@@ -317,6 +321,7 @@ services:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     restart: always
+    mem_limit: 4g
     networks:
       - atra-network
     healthcheck:
@@ -364,6 +369,7 @@ services:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     restart: always
+    mem_limit: 2g
     networks:
       - atra-network
     healthcheck:
@@ -510,6 +516,7 @@ services:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: knowledge_os_worker
+    mem_limit: 4g
     restart: unless-stopped
     networks:
       - atra-network
@@ -732,6 +739,7 @@ services:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: knowledge_rest
+    mem_limit: 1g
     restart: unless-stopped
     ports:
       - "8002:8002"
@@ -782,6 +790,7 @@ services:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: telegram-notifications
+    mem_limit: 256m
     restart: unless-stopped
     networks:
       - atra-network
@@ -813,6 +822,7 @@ services:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: victoria-medic
+    mem_limit: 1g
     restart: unless-stopped
     networks:
       - atra-network
@@ -840,6 +850,7 @@ services:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: log-scanner
+    mem_limit: 512m
     restart: unless-stopped
     networks:
       - atra-network
@@ -895,6 +906,7 @@ services:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: board-scheduler
+    mem_limit: 512m
     restart: unless-stopped
     networks:
       - atra-network
@@ -936,6 +948,7 @@ services:
       context: ./app/visual_search
       dockerfile: Dockerfile
     container_name: victoria-visual-search
+    mem_limit: 4g
     restart: unless-stopped
     networks:
       - atra-network
@@ -971,6 +984,7 @@ services:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: swarm-studio
+    mem_limit: 512m
     restart: unless-stopped
     ports:
       - "8006:8006"
