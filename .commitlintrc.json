@@ -1,7 +1,3 @@
-# Commitizen Configuration
-# Based on Element Plus cz-git
-# Enables structured commit messages
-
 {
   "$schema": "https://json.schemastore.org/commitlintrc",
   "extends": ["@commitlint/config-conventional"],

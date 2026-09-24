@@ -138,3 +138,10 @@ command.append
 tmp/
 audit_curl_err.txt
 .cache/
+# --- agent configs (per-tool, runtime) ---
+.claude/
+.codebuddy/
+.gemini/
+.qoder/
+.serena/
+.zcode/
