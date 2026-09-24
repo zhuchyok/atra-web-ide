@@ -4,6 +4,8 @@
 # При проблемах — алерт в ntfy. Cron: 04:00 ежедневно.
 set -u
 
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_DIR="${LOCAL_BACKUP_DIR:-$HOME/atra_backups/knowledge_postgres}"
 GDRIVE_REMOTE="${GDRIVE_REMOTE:-gdrive}"
