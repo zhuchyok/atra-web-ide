@@ -96,6 +96,59 @@ async def send_tg(text: str) -> bool:
     return await alerter.send_alert(text, priority="high", source="Deferred Monitor")
 
 
+
+def _fmt_sec(s: float) -> str:
+    """Человеческая длительность: 45 с / 2 мин 21 с / 4 ч 05 мин."""
+    s = int(round(s))
+    if s < 60:
+        return f"{s} с"
+    m, sec = divmod(s, 60)
+    if m < 60:
+        return f"{m} мин {sec:02d} с"
+    h, m = divmod(m, 60)
+    return f"{h} ч {m:02d} мин"
+
+
+def _build_ttc_text(
+    threshold: float, p95_over: bool, hung_over: bool,
+    p50: float | None, p95: float | None, samples: int,
+    inflight_max: float, inflight_n: int,
+) -> str:
+    """Человекочитаемый алерт скорости ответов Виктории."""
+    lines = []
+    if hung_over:
+        lines.append("⚠️ Одна из задач Виктории висит без ответа слишком долго.")
+    if p95_over:
+        lines.append("🐢 Ответы Виктории медленнее нормы.")
+    if not lines:
+        lines.append("⏱ Замечено отклонение скорости ответов Виктории.")
+    lines.append("")
+    if p50 is not None:
+        lines.append(f"• Обычный ответ: ~{_fmt_sec(p50)}")
+    if p95 is not None:
+        lines.append(f"• Медленный ответ (каждый 20-й): ~{_fmt_sec(p95)}")
+    lines.append(f"• Норма: до {_fmt_sec(threshold)}")
+    if hung_over:
+        lines.append(f"• ⚠️ Задача в работе уже {_fmt_sec(inflight_max)} — похоже на зависание")
+    elif inflight_n:
+        lines.append(f"• Сейчас в работе: {inflight_n}")
+    lines.append("")
+    lines.append("Что это значит:")
+    if hung_over:
+        lines.append("• Зависшая задача погаснет при следующем рестарте Виктории;")
+        lines.append("  если ответ всё ещё нужен — отправьте запрос заново.")
+    if p95_over:
+        lines.append("• Медленные ответы обычно у сложных «объясни…» вопросов — это нормально,")
+        lines.append("  но если тянется часами — смотрите dashboard 8501 → «Задачи и SLA».")
+    lines.append("")
+    lines.append(
+        f"Технически: p95={p95:.1f}s p50={p50 if p50 is not None else 0:.1f}s "
+        f"n={samples} inflight_max={inflight_max:.1f}s inflight_n={inflight_n} "
+        f"порог={threshold:.0f}s"
+    )
+    return "\n".join(lines).replace("\\n", "\n")
+
+
 async def run_once(threshold: float) -> bool:
     value = await fetch_metric()
     if value is None:
@@ -105,8 +158,11 @@ async def run_once(threshold: float) -> bool:
     fresh_enough = time.time() - already < RESET_AFTER_SEC
     if value > threshold and not fresh_enough:
         ok = await send_tg(
-            f"🚨 Порог эскалаций превышен\n\n{METRIC} = {int(value)} (порог {int(threshold)})\n"
-            "Проверьте дашборд Knowledge OS — задачи и last_error."
+            f"📥 Накопились задачи, требующие человека\n\n"
+            f"За сутки их появилось: {int(value)} (норма до {int(threshold)})\n"
+            f"Что делать: дашборд 8501 → «Задачи и SLA» → фильтр deferred;\n"
+            f"разобрать или закрыть вручную.\n\n"
+            f"Технически: {METRIC}"
         )
         if ok:
             state["fired_at"] = time.time()
@@ -137,13 +193,9 @@ async def run_ttc_once(threshold: float = TTC_P95_THRESHOLD, min_samples: int = 
         f"inflight_max={inflight_max} inflight_n={inflight_n} "
         f"threshold={threshold} min_samples={min_samples} over={over}"
     )
-    if over and not fresh_enough:
+    if over:
         ok = await send_tg(
-            "⏱ Async TTC SLA\n\n"
-            f"p95={p95:.1f}s samples={samples} p50={p50:.1f}s\n"
-            f"inflight_max={inflight_max:.1f}s n={inflight_n}\n"
-            f"порог {threshold:.0f}s (p95_over={p95_over} hung={hung_over})\n"
-            "Это accept→completed / зависание processing, не latency POST 202."
+            _build_ttc_text(threshold, p95_over, hung_over, p50, p95, samples, inflight_max, inflight_n)
         )
         if ok:
             now2 = time.time()
