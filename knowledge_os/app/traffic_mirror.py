@@ -28,7 +28,13 @@ class TrafficMirror:
     """Mirrors traffic to shadow versions for A/B testing and validation."""
 
     def __init__(self):
-        self.sandbox_manager = get_sandbox_manager() if get_sandbox_manager else None
+        try:
+            self.sandbox_manager = get_sandbox_manager() if get_sandbox_manager else None
+        except Exception as _e:  # noqa: BLE001
+            # [v148.4] Docker недоступен (sandbox/proxy) — A/B-мьютация недоступна,
+            # но не должна ронять выполнение задач экспертов.
+            logger.warning("🛡️ [SHADOW] SandboxManager unavailable — shadow execution disabled: %s", _e)
+            self.sandbox_manager = None
         self.profiler = get_profiler() if get_profiler else None
         self.active_shadows: Dict[str, str] = {}  # module_name -> container_id
 
