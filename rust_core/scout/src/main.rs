@@ -73,7 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let document = Html::parse_document(&response);
 
     // Extract all links to chapters
-    let link_selector = Selector::parse("a").unwrap();
+    let link_selector = Selector::parse("a").expect("Invalid selector 'a'");
     let mut chapter_urls = Vec::new();
     for link in document.select(&link_selector) {
         if let Some(href) = link.value().attr("href") {
@@ -89,7 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📚 Found {} chapters to index.", chapter_urls.len());
 
     let mut total_count = 0;
-    let p_selector = Selector::parse("p").unwrap();
+    let p_selector = Selector::parse("p").expect("Invalid selector 'p'");
 
     for url in chapter_urls {
         println!("📖 Indexing chapter: {}...", url);
@@ -124,7 +124,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let content = distill_content(&raw_content).await;
 
             let node_id = Uuid::new_v4();
-            let domain_id = Uuid::parse_str("8a31f9dd-cd47-426c-bd1d-3ecb435fca8a").unwrap();
+            let domain_id = Uuid::parse_str("8a31f9dd-cd47-426c-bd1d-3ecb435fca8a").expect("Invalid hardcoded UUID");
             let confidence_score = 0.9;
             let is_verified = true;
             let now = Utc::now();

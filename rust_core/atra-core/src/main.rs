@@ -47,7 +47,7 @@ async fn auth_login(Json(body): Json<LoginRequest>) -> (StatusCode, Json<serde_j
         };
         return (
             StatusCode::OK,
-            Json(serde_json::to_value(response).unwrap()),
+            Json(serde_json::to_value(response).expect("Failed to serialize response")),
         );
     }
 

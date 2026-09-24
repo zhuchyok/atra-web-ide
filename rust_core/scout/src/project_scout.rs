@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let folders_to_index = vec!["backend", "frontend", "rust_core", "knowledge_os"];
 
     let mut total_count = 0;
-    let domain_id = Uuid::parse_str("8a31f9dd-cd47-426c-bd1d-3ecb435fca8a").unwrap(); // General Knowledge domain
+    let domain_id = Uuid::parse_str("8a31f9dd-cd47-426c-bd1d-3ecb435fca8a").expect("Invalid hardcoded UUID"); // General Knowledge domain
 
     for folder in folders_to_index {
         let folder_path = project_root.join(folder);

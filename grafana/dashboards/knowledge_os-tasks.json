@@ -1,8 +1,46 @@
 {
   "title": "Knowledge OS — задачи и ручная проверка",
   "uid": "knowledge_os-tasks",
-  "version": 1,
-  "description": "Метрики очереди на ручную проверку (deferred_to_human) и типы last_error. Алерт: при knowledge_os_tasks_deferred_to_human_total > 10 создать алерт в UI (Edit panel → Alert).",
+  "version": 2,
+  "description": "Метрики очереди на ручную проверку (deferred_to_human), типы last_error и состояние routing guard.",
+  "timezone": "browser",
+  "refresh": "10s",
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
+        "type": "dashboard"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "enable": true,
+        "expr": "routing_guard_action_state{action!=\"rollout\"} == 1",
+        "hide": false,
+        "iconColor": "rgba(255, 96, 96, 1)",
+        "name": "Routing Guard Non-Rollout",
+        "step": "60s",
+        "textFormat": "action={{action}}",
+        "titleFormat": "routing-guard non-rollout"
+      }
+    ]
+  },
   "panels": [
     {
       "id": 1,
@@ -43,6 +81,49 @@
         }
       ],
       "description": "Разбивка по error_type: timeout, empty_or_short_response, validation_failed, connection_error, oom_or_metal, other."
+    },
+    {
+      "id": 3,
+      "title": "Routing Guard Action State",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "routing_guard_action_state",
+          "legendFormat": "{{action}}",
+          "refId": "A"
+        }
+      ],
+      "description": "One-hot состояние routing guard: rollout/canary_only/rollback."
+    },
+    {
+      "id": 4,
+      "title": "Routing Guard KPI",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "routing_guard_events_window",
+          "legendFormat": "events_window",
+          "refId": "A"
+        },
+        {
+          "expr": "routing_guard_win_rate",
+          "legendFormat": "win_rate",
+          "refId": "B"
+        },
+        {
+          "expr": "routing_guard_regret_rate",
+          "legendFormat": "regret_rate",
+          "refId": "C"
+        },
+        {
+          "expr": "routing_guard_latency_p95_ms",
+          "legendFormat": "latency_p95_ms",
+          "refId": "D"
+        }
+      ],
+      "description": "Ключевые KPI routing guard. Коррелируйте с алертами RoutingGuardNotRollout / RoutingGuardRollbackActive."
     }
   ],
   "schemaVersion": 38

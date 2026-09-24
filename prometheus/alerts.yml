@@ -21,6 +21,18 @@ groups:
           summary: "Victoria p95 latency > 5s"
           description: "Victoria task duration p95 is {{ $value | humanizeDuration }}"
 
+      # Async /run accept→completed. Threshold 60s: sequential analysis ~12s, parallel saturation 50-400s.
+      # Working notify path is scripts/tg_deferred_alerts.py (Grafana AM→Telegram does not dispatch here).
+      - alert: VictoriaAsyncTtcP95High
+        expr: (victoria_async_ttc_p95_seconds > 60 and victoria_async_ttc_samples >= 5) or victoria_async_inflight_max_elapsed_seconds > 60
+        for: 5m
+        labels:
+          severity: warning
+          service: victoria
+        annotations:
+          summary: "Victoria async time-to-completed p95 > 60s"
+          description: "Async TTC p95 is {{ $value }}s with samples {{ $labels.instance }}"
+
       - alert: VictoriaComponentUnavailable
         expr: victoria_enhanced_component_available == 0
         for: 2m
@@ -70,7 +82,7 @@ groups:
           description: "LLM error rate is {{ $value | humanizePercentage }}"
 
       - alert: RAGHighCacheMissRate
-        expr: rate(rag_cache_hits_total[5m]{cache_type="miss"}) / rate(rag_requests_total[5m]) > 0.5
+        expr: rate(rag_cache_hits_total{cache_type="miss"}[5m]) / rate(rag_requests_total[5m]) > 0.5
         for: 10m
         labels:
           severity: warning
@@ -88,25 +100,35 @@ groups:
           description: "RAG processing duration p95 is {{ $value | humanizeDuration }}"
 
       - alert: QueueDepthHigh
-        expr: queue_size > 100
+        expr: smart_worker_stream_group_pending{group_name="expert_workers"} > 50
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "Queue {{ $labels.queue_name }} depth > 100"
-          description: "Queue {{ $labels.queue_name }} has {{ $value }} pending items"
+          summary: "Pending in stream group > 50"
+          description: "Stream {{ $labels.stream_name }} group {{ $labels.group_name }} has {{ $value }} pending items"
 
       - alert: QueueDepthCritical
-        expr: queue_size > 500
+        expr: smart_worker_stream_group_pending{group_name="expert_workers"} > 200
         for: 2m
         labels:
           severity: critical
         annotations:
-          summary: "Queue {{ $labels.queue_name }} depth critical > 500"
-          description: "Queue {{ $labels.queue_name }} has {{ $value }} pending items - CRITICAL"
+          summary: "Pending in stream group critical > 200"
+          description: "Stream {{ $labels.stream_name }} group {{ $labels.group_name }} has {{ $value }} pending items - CRITICAL"
+
+      - alert: OverflowLagDetected
+        expr: smart_worker_stream_group_lag{stream_name="expert_tasks:overflow",group_name="expert_workers"} > 0
+        for: 10m
+        labels:
+          severity: warning
+          service: worker
+        annotations:
+          summary: "Overflow lag detected"
+          description: "Overflow stream lag is {{ $value }} for over 10 minutes"
 
       - alert: WorkerTasksStalled
-        expr: victoria_enhanced_active_tasks > 0
+        expr: min_over_time(smart_worker_active_tasks[15m]) > 0
         for: 15m
         labels:
           severity: warning
@@ -124,6 +146,26 @@ groups:
         annotations:
           summary: "Worker task failures detected"
           description: "{{ $value }} tasks failed in the last 5 minutes"
+
+      - alert: RoutingGuardNotRollout
+        expr: routing_guard_action_state{action="rollout"} == 0
+        for: 15m
+        labels:
+          severity: warning
+          service: routing-guard
+        annotations:
+          summary: "Routing guard is not in rollout mode"
+          description: "Routing guard action is canary/rollback for more than 15 minutes"
+
+      - alert: RoutingGuardRollbackActive
+        expr: routing_guard_action_state{action="rollback"} == 1
+        for: 2m
+        labels:
+          severity: critical
+          service: routing-guard
+        annotations:
+          summary: "Routing guard rollback is active"
+          description: "Routing guard selected rollback action and requires immediate triage"
 
   - name: atra_infrastructure
     rules:

@@ -494,7 +494,7 @@ groups:
         for: 10m
         annotations:
           summary: "RAG cache miss rate > 50%"
-          description: "RAG cache miss rate is {{ $values.A | printf \"%.1f\" }}% - consider expanding cache"
+          description: 'RAG cache miss rate is {{ $values.A | printf "%.1f" }}% - consider expanding cache'
         labels:
           severity: warning
           service: rag
