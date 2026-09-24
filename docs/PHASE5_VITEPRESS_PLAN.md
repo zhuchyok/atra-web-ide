@@ -36,6 +36,7 @@
 ## Решение: VitePress
 
 **Паттерн из Element Plus:**
+
 - VitePress для статичного сайта из Markdown
 - Full-text search встроенный
 - Auto-navigation из структуры папок
@@ -54,6 +55,7 @@ npm init vitepress
 ```
 
 **Ответы на вопросы:**
+
 - Site title: ATRA Documentation
 - Description: Knowledge OS & Singularity 14.0 Documentation
 - Theme: Default with Search
@@ -63,69 +65,76 @@ npm init vitepress
 Создать `docs/.vitepress/config.ts`:
 
 ```typescript
-import { defineConfig } from 'vitepress'
+import { defineConfig } from "vitepress";
 
 export default defineConfig({
-  title: 'ATRA Documentation',
-  description: 'Knowledge OS & Singularity 14.0',
-  base: '/atra-web-ide/',  // Для GitHub Pages
-  
+  title: "ATRA Documentation",
+  description: "Knowledge OS & Singularity 14.0",
+  base: "/atra-web-ide/", // Для GitHub Pages
+
   themeConfig: {
     nav: [
-      { text: 'Guide', link: '/MASTER_REFERENCE' },
-      { text: 'API', link: '/api/' },
-      { text: 'Team', link: '/TEAM_PERSONALITIES' }
+      { text: "Guide", link: "/MASTER_REFERENCE" },
+      { text: "API", link: "/api/" },
+      { text: "Team", link: "/TEAM_PERSONALITIES" },
     ],
-    
+
     sidebar: [
       {
-        text: 'Introduction',
+        text: "Introduction",
         items: [
-          { text: 'Master Reference', link: '/MASTER_REFERENCE' },
-          { text: 'Changes Log', link: '/CHANGES_FROM_OTHER_CHATS' },
-          { text: 'Architecture', link: '/ARCHITECTURE_FULL' }
-        ]
+          { text: "Master Reference", link: "/MASTER_REFERENCE" },
+          { text: "Changes Log", link: "/CHANGES_FROM_OTHER_CHATS" },
+          { text: "Architecture", link: "/ARCHITECTURE_FULL" },
+        ],
       },
       {
-        text: 'Agents',
+        text: "Agents",
         items: [
-          { text: 'Victoria (Team Lead)', link: '/VICTORIA' },
-          { text: 'Veronica (Developer)', link: '/VERONICA' },
-          { text: 'Team', link: '/TEAM_PERSONALITIES' }
-        ]
+          { text: "Victoria (Team Lead)", link: "/VICTORIA" },
+          { text: "Veronica (Developer)", link: "/VERONICA" },
+          { text: "Team", link: "/TEAM_PERSONALITIES" },
+        ],
       },
       {
-        text: 'Development',
+        text: "Development",
         items: [
-          { text: 'Verification Checklist', link: '/VERIFICATION_CHECKLIST_OPTIMIZATIONS' },
-          { text: 'Curator Runbook', link: '/CURATOR_RUNBOOK' },
-          { text: 'Contributing', link: '/CONTRIBUTING' }
-        ]
+          {
+            text: "Verification Checklist",
+            link: "/VERIFICATION_CHECKLIST_OPTIMIZATIONS",
+          },
+          { text: "Curator Runbook", link: "/CURATOR_RUNBOOK" },
+          { text: "Contributing", link: "/CONTRIBUTING" },
+        ],
       },
       {
-        text: 'Optimizations',
+        text: "Optimizations",
         items: [
-          { text: 'Results', link: '/OPTIMIZATIONS_IMPLEMENTATION_RESULTS' },
-          { text: 'Victoria Enhanced', link: '/VICTORIA_ENHANCED_OPTIMIZATIONS' },
-          { text: 'Audit Results', link: '/AUDIT_SYSTEM_TEST_RESULTS' }
-        ]
-      }
+          { text: "Results", link: "/OPTIMIZATIONS_IMPLEMENTATION_RESULTS" },
+          {
+            text: "Victoria Enhanced",
+            link: "/VICTORIA_ENHANCED_OPTIMIZATIONS",
+          },
+          { text: "Audit Results", link: "/AUDIT_SYSTEM_TEST_RESULTS" },
+        ],
+      },
     ],
-    
+
     search: {
-      provider: 'local'
+      provider: "local",
     },
-    
+
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/yourusername/atra-web-ide' }
-    ]
-  }
-})
+      { icon: "github", link: "https://github.com/yourusername/atra-web-ide" },
+    ],
+  },
+});
 ```
 
 ### Этап 3: Организация файлов (1 час)
 
 **Структура:**
+
 ```
 docs/
 ├── .vitepress/
@@ -176,13 +185,13 @@ search: {
 
 ```css
 :root {
-  --vp-c-brand: #00d9ff;  /* ATRA primary color */
+  --vp-c-brand: #00d9ff; /* ATRA primary color */
   --vp-c-brand-light: #4df4ff;
   --vp-c-brand-dark: #00a8cc;
 }
 
 .VPDoc {
-  font-family: 'Inter', sans-serif;
+  font-family: "Inter", sans-serif;
 }
 ```
 
@@ -197,30 +206,30 @@ on:
   push:
     branches: [main]
     paths:
-      - 'docs/**'
-      - '.github/workflows/docs.yml'
+      - "docs/**"
+      - ".github/workflows/docs.yml"
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 18
-      
+
       - name: Install deps
         run: |
           cd docs
           npm install
-      
+
       - name: Build docs
         run: |
           cd docs
           npm run docs:build
-      
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
@@ -232,14 +241,14 @@ jobs:
 
 ## Преимущества после внедрения
 
-| Аспект | Сейчас | После VitePress | Улучшение |
-|--------|--------|-----------------|-----------|
-| **Поиск** | Нет (Ctrl+F в IDE) | Full-text search | ✅ Да |
-| **Навигация** | Ручная (README) | Auto-sidebar | ✅ Да |
-| **Версионирование** | Нет | Git tags → versions | ✅ Да |
-| **Mobile-friendly** | Нет | Responsive | ✅ Да |
-| **Dark mode** | Нет | Да | ✅ Да |
-| **Onboarding** | Сложный | Простой | ✅ +70% |
+| Аспект              | Сейчас             | После VitePress     | Улучшение |
+| ------------------- | ------------------ | ------------------- | --------- |
+| **Поиск**           | Нет (Ctrl+F в IDE) | Full-text search    | ✅ Да     |
+| **Навигация**       | Ручная (README)    | Auto-sidebar        | ✅ Да     |
+| **Версионирование** | Нет                | Git tags → versions | ✅ Да     |
+| **Mobile-friendly** | Нет                | Responsive          | ✅ Да     |
+| **Dark mode**       | Нет                | Да                  | ✅ Да     |
+| **Onboarding**      | Сложный            | Простой             | ✅ +70%   |
 
 ---
 

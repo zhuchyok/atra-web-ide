@@ -1,4 +1,5 @@
 # План усиления безопасности ATRA Corporation
+
 ## Фаза 1: Security Hardening
 
 ---
@@ -8,7 +9,9 @@
 ### Файл: `src/agents/bridge/victoria_server.py`
 
 ### Проблема 1 — Строка 1414
+
 Текущий код:
+
 ```python
 rows = await conn.fetch(
     """
@@ -27,6 +30,7 @@ rows = await conn.fetch(
 **Проблема**: Хотя psycopg2 автоматически экранирует параметры, использование `ILIKE` с подстановкой `%` может позволить экранирование through LIKE escape sequences. Также `goal[:50]` ограничение insufficient для полной защиты.
 
 **Исправление** — Предварительная валидация + sanitize:
+
 ```python
 # Добавить функцию валидации в начало файла
 def _sanitize_sql_like_pattern(text: str, max_len: int = 100) -> str:
@@ -67,7 +71,9 @@ rows = await conn.fetch(
 ```
 
 ### Проблема 2 — Строка 3538
+
 Текущий код:
+
 ```python
 prompt = f'''Пользователь просит: "{goal[:300]}"
 Переформулировка системы: "{restated[:200]}"
@@ -78,7 +84,8 @@ prompt = f'''Пользователь просит: "{goal[:300]}"
 **Проблема**: String interpolation into LLM prompt — indirect injection risk. Злоумышленник может inject prompt injection через goal.
 
 **Исправление**:
-```python
+
+````python
 def _sanitize_prompt_input(text: str, max_len: int = 500) -> str:
     """Удалить потенциальные prompt injection паттерны"""
     if not text or not isinstance(text, str):
@@ -110,19 +117,20 @@ prompt = f'''Пользователь просит: "{safe_goal[:300]}"
 Переформулировка системы: "{safe_restated[:200]}"
 Задача неоднозначна. Дай 2–3 кратких уточняющих вопроса (на русском).
 Ответь СТРОГО JSON: {{"questions": ["Вопрос 1?", "Вопрос 2?"]}}'''
-```
+````
 
 ### Стратегия тестирования SQL Injection
 
-| Тест | Ожидаемый результат | Команда |
-|------|---------------------|---------|
-| Normal query | Работает как раньше | `curl -X POST /api/victoria/query -d '{"goal": "найди информацию"}'` |
-| LIKE injection `%` | Фильтруется | `goal="test% DROP TABLE--"` — `%` удаляется |
-| SQL wildcard `_` | Фильтруется | `goal="test_"` — `_` удаляется |
-| Prompt injection | Фильтруется | `goal="ignore previous instructions"` — паттерн удаляется |
-| Oversized input | Усекается | `goal="a"*1000` — до max_len |
+| Тест               | Ожидаемый результат | Команда                                                              |
+| ------------------ | ------------------- | -------------------------------------------------------------------- |
+| Normal query       | Работает как раньше | `curl -X POST /api/victoria/query -d '{"goal": "найди информацию"}'` |
+| LIKE injection `%` | Фильтруется         | `goal="test% DROP TABLE--"` — `%` удаляется                          |
+| SQL wildcard `_`   | Фильтруется         | `goal="test_"` — `_` удаляется                                       |
+| Prompt injection   | Фильтруется         | `goal="ignore previous instructions"` — паттерн удаляется            |
+| Oversized input    | Усекается           | `goal="a"*1000` — до max_len                                         |
 
 **Автоматизированные тесты:**
+
 ```bash
 # Установить sqlmap для дополнительного тестирования (только в dev!)
 pip install sqlmap
@@ -137,6 +145,7 @@ sqlmap -u "http://victoria:8000/api/search" --data="goal=test" --level=5
 ### Файл: `src/agents/bridge/victoria_mcp_server.py`
 
 **Текущий код (строки 230-233)**:
+
 ```python
 elif action == "run":
     command = step.get("command", "")
@@ -145,6 +154,7 @@ elif action == "run":
 ```
 
 **Проблемы**:
+
 1. `command` выполняется напрямую без валидации — command injection
 2. `workspace_path` может содержать `/Users/bikos` — захардкоженный путь
 3. Нет allowlist разрешенных команд
@@ -239,6 +249,7 @@ DEV_ATRA_PATH=/Users/bikos/Documents/dev/atra
 ```
 
 **Исправление кода**:
+
 ```python
 # В victoria_mcp_server.py вместо захардкоженного пути:
 WORKSPACE_ROOT = os.getenv("WORKSPACE_ROOT", "/workspace")
@@ -247,16 +258,17 @@ WORKSPACE_ROOT = os.getenv("WORKSPACE_ROOT", "/workspace")
 
 ### Стратегия тестирования Command Injection
 
-| Тест | Ожидаемый результат |
-|------|---------------------|
-| `python3 script.py` | ✅ Выполняется |
-| `cat /etc/passwd` | ❌ Отклонено |
-| `rm -rf /` | ❌ Отклонено |
-| `echo "test" > /etc/passwd` | ❌ Отклонено |
-| `; cat /etc/passwd` | ❌ Отклонено (sanitized) |
-| `ls /Users/bikos` | ❌ Отклонено (path validation) |
+| Тест                        | Ожидаемый результат            |
+| --------------------------- | ------------------------------ |
+| `python3 script.py`         | ✅ Выполняется                 |
+| `cat /etc/passwd`           | ❌ Отклонено                   |
+| `rm -rf /`                  | ❌ Отклонено                   |
+| `echo "test" > /etc/passwd` | ❌ Отклонено                   |
+| `; cat /etc/passwd`         | ❌ Отклонено (sanitized)       |
+| `ls /Users/bikos`           | ❌ Отклонено (path validation) |
 
 **Сканеры**:
+
 ```bash
 # Bandit — static analysis для Python
 pip install bandit
@@ -272,11 +284,11 @@ bandit -r src/agents/bridge/victoria_mcp_server.py
 
 ### Файлы с Wildcard CORS
 
-| Файл | Строка | Проблема |
-|------|--------|----------|
-| `src/utils/rest_api.py` | 47 | `allow_origins=["*"]` |
-| `knowledge_os/app/rest_api.py` | 59 | `allow_origins=["*"]` |
-| `knowledge_os/app/mlx_api_server.py` | 132 | `allow_origins=["*"]` |
+| Файл                                 | Строка | Проблема              |
+| ------------------------------------ | ------ | --------------------- |
+| `src/utils/rest_api.py`              | 47     | `allow_origins=["*"]` |
+| `knowledge_os/app/rest_api.py`       | 59     | `allow_origins=["*"]` |
+| `knowledge_os/app/mlx_api_server.py` | 132    | `allow_origins=["*"]` |
 
 ### Список разрешенных источников
 
@@ -299,6 +311,7 @@ ALLOWED_ORIGINS = frozenset([
 ### Исправление
 
 **`src/utils/rest_api.py`**:
+
 ```python
 # Строка 44-50 — заменить:
 app.add_middleware(
@@ -311,6 +324,7 @@ app.add_middleware(
 ```
 
 **`knowledge_os/app/rest_api.py`**:
+
 ```python
 # Строка 56-63 — заменить:
 app.add_middleware(
@@ -323,6 +337,7 @@ app.add_middleware(
 ```
 
 **`knowledge_os/app/mlx_api_server.py`**:
+
 ```python
 # Строка ~132 — заменить:
 app.add_middleware(
@@ -360,6 +375,7 @@ curl -H "Origin: http://evil.com" -H "Content-Type: application/json" \
 ### Файл: `docker-compose.yml`
 
 **Текущие проблемы** (строки 23, 67, 84, 148):
+
 - `admin:secret` — hardcoded credentials
 - `GF_SECURITY_ADMIN_PASSWORD=admin` — default password
 
@@ -674,12 +690,12 @@ Priority 2 (День 3-4) — Важные
 
 ### Rollback Plan для каждого исправления
 
-| Исправление | Rollback Command |
-|------------|-----------------|
-| CORS | `git checkout -- src/utils/rest_api.py` + restart |
-| SQL Injection | `git diff` + `python -c "print('test%_')"` — проверить OLD behavior |
-| Command Injection | Docker container logs, `docker-compose logs victoria` |
-| Secrets | Восстановить из backup: `cp .env.backup .env` |
+| Исправление       | Rollback Command                                                    |
+| ----------------- | ------------------------------------------------------------------- |
+| CORS              | `git checkout -- src/utils/rest_api.py` + restart                   |
+| SQL Injection     | `git diff` + `python -c "print('test%_')"` — проверить OLD behavior |
+| Command Injection | Docker container logs, `docker-compose logs victoria`               |
+| Secrets           | Восстановить из backup: `cp .env.backup .env`                       |
 
 ---
 

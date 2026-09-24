@@ -146,18 +146,18 @@ Quality gates (must hold for treatment to pass):
 
 ## Data Capture Template
 
-| Task | Arm | LOC delta | Cycle min | Defects (count/severity) | Rework | Smoke pass |
-|------|-----|-----------|-----------|---------------------------|--------|------------|
-| T1   | Control | baseline | ~0.004 | 0 / none | 0 | pass |
-| T1   | Lean    | -1 line (~-2%) | ~0.004 | 0 / none | 0 | pass |
-| T2   | Control | baseline | ~7 | 1 / low (stale timeout copy) | 0 | pass |
-| T2   | Lean    | 1-line prod patch + test | ~7 | 0 / none | 1 (container rebuilt) | pass |
-| T3   | Control | baseline | ~8 | 1 / low (invalid directive delegated) | 0 | pass |
-| T3   | Lean    | small validation patch + regression test | ~8 | 0 / none | 1 (container rebuilt) | pass |
-| T4   | Control | baseline monitor metric only | ~10 | 1 / low (noisy gate due unrelated tracking fail) | 0 | pass |
-| T4   | Lean    | scoped gate metric (`*_gate`) added | ~10 | 0 / none (gate noise isolated) | 0 | pass |
-| T5   | Control | baseline gate logic | ~6 | 1 / low (error-rate gate not explicit in pass output) | 0 | pass |
-| T5   | Lean    | explicit error-rate gate in pass logic + summary | ~6 | 0 / none | 0 | pass |
+| Task | Arm     | LOC delta                                        | Cycle min | Defects (count/severity)                              | Rework                | Smoke pass |
+| ---- | ------- | ------------------------------------------------ | --------- | ----------------------------------------------------- | --------------------- | ---------- |
+| T1   | Control | baseline                                         | ~0.004    | 0 / none                                              | 0                     | pass       |
+| T1   | Lean    | -1 line (~-2%)                                   | ~0.004    | 0 / none                                              | 0                     | pass       |
+| T2   | Control | baseline                                         | ~7        | 1 / low (stale timeout copy)                          | 0                     | pass       |
+| T2   | Lean    | 1-line prod patch + test                         | ~7        | 0 / none                                              | 1 (container rebuilt) | pass       |
+| T3   | Control | baseline                                         | ~8        | 1 / low (invalid directive delegated)                 | 0                     | pass       |
+| T3   | Lean    | small validation patch + regression test         | ~8        | 0 / none                                              | 1 (container rebuilt) | pass       |
+| T4   | Control | baseline monitor metric only                     | ~10       | 1 / low (noisy gate due unrelated tracking fail)      | 0                     | pass       |
+| T4   | Lean    | scoped gate metric (`*_gate`) added              | ~10       | 0 / none (gate noise isolated)                        | 0                     | pass       |
+| T5   | Control | baseline gate logic                              | ~6        | 1 / low (error-rate gate not explicit in pass output) | 0                     | pass       |
+| T5   | Lean    | explicit error-rate gate in pass logic + summary | ~6        | 0 / none                                              | 0                     | pass       |
 
 ## Decision Rule
 
@@ -205,4 +205,3 @@ Otherwise keep as narrow, manual opt-in.
 - Interim interpretation:
   - Runtime quality gate for 15m window is green after metric hardening.
   - Keep final rollout decision tied to aggregate A/B criteria (defects, mean cycle, mean LOC across full task set).
-

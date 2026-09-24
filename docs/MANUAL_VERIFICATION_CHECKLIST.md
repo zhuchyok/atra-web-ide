@@ -30,7 +30,7 @@
 ## 4. Launchd (автозапуск system_auto_recovery)
 
 - [ ] Проверить, что задание launchd установлено (если настроено):  
-      `launchctl list | grep -i atra` (или имя из `setup_system_auto_recovery.sh`).
+       `launchctl list | grep -i atra` (или имя из `setup_system_auto_recovery.sh`).
 - [ ] При необходимости установить один раз: `bash scripts/setup_system_auto_recovery.sh` (создаёт plist, загружает задание). Тогда после перезагрузки хоста скрипт восстановления будет запускаться по расписанию (каждые 5 мин).
 - [ ] Документация: [LIVING_ORGANISM_PREVENTION.md](LIVING_ORGANISM_PREVENTION.md), [system_auto_recovery.sh](../scripts/system_auto_recovery.sh).
 

@@ -1,0 +1,75 @@
+{
+  "ts_utc": "2026-09-13T18:50:10.515177+00:00",
+  "mode": "apply",
+  "routing_metrics": {
+    "ts_utc": "2026-09-13T18:50:10.509655+00:00",
+    "window_hours": 24.0,
+    "excluded_reason_prefixes": [
+      "quality_seed_"
+    ],
+    "excluded_routes": [
+      "cloud"
+    ],
+    "events_total_window": 109,
+    "events_invalid_ignored": 0,
+    "events_synthetic_ignored": 0,
+    "events_excluded_route_ignored": 7,
+    "events_success_window": 109,
+    "routing_win_rate": 1.0,
+    "decision_regret_rate": 0.0,
+    "latency_p50_ms": 14702.76,
+    "latency_p95_ms": 389957.58,
+    "by_route": {
+      "ollama_studio": {
+        "total": 63,
+        "success": 63,
+        "success_rate": 1.0,
+        "p95_latency_ms": 210524.32
+      },
+      "mlx_studio": {
+        "total": 46,
+        "success": 46,
+        "success_rate": 1.0,
+        "p95_latency_ms": 396871.79
+      }
+    },
+    "by_model": {
+      "phi3.5:3.8b": {
+        "total": 70,
+        "success": 70,
+        "success_rate": 1.0,
+        "p95_latency_ms": 129623.05
+      },
+      "victoria-wisdom-24k:latest": {
+        "total": 39,
+        "success": 39,
+        "success_rate": 1.0,
+        "p95_latency_ms": 425201.48
+      }
+    }
+  },
+  "decision": {
+    "action": "rollout",
+    "reason": "ok",
+    "hard_fail": false
+  },
+  "thresholds": {
+    "min_events": 100,
+    "target_win_rate": 0.9,
+    "min_win_rate_rollback": 0.8,
+    "target_regret_rate": 0.15,
+    "max_regret_rate_rollback": 0.25,
+    "max_p95_ms": 450000.0,
+    "max_p95_ms_rollback": 600000.0
+  },
+  "apply_result": {
+    "applied": true,
+    "commands": [
+      "SET system:contract_rollout_mode enforce",
+      "SET system:contract_enforce 1",
+      "SET system:routing_guard:last_action rollout",
+      "SET system:routing_guard:last_reason ok",
+      "SET system:routing_guard:last_ts_utc 2026-09-13T18:50:10.759923+00:00"
+    ]
+  }
+}

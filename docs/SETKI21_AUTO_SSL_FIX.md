@@ -215,6 +215,7 @@ NPM_FORWARD_API_HOST=setki21-api-new
    ```
 
 2. **`docs/MASTER_REFERENCE.md`** (раздел Setki21 → NPM):
+
    ```markdown
    ### Автоматическая настройка SSL
 

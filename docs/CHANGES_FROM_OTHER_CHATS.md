@@ -20,6 +20,16 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-09-22 v142) — слот рук 11434 + сканер + wisdom lock ✅
+
+- 11434 = только `phi3.5:3.8b` + `nomic`. Wisdom только MLX 11435. Coder — 11436.
+- `_ollama_url_for_model` больше не шлёт `VICTORIA_EXECUTOR_MODEL=wisdom` в Ollama.
+- LOG_SCANNER: log-level only; нет петли на TimeoutError / FATAL prose / `_GatheringFuture`.
+- Guard `ollama_wisdom_guard.py`: evict всего кроме phi+nomic, unload timeout 60с.
+- Правило дожима: `.cursor/rules/91_finish_to_closed.mdc`. 100% = runtime-слой, не porcelain.
+- Коммиты: `d5544ff7`, `56a457b1`, `57646d6e`, `ed2976d8`.
+- Полная фиксация: `docs/MASTER_REFERENCE.md` § v142.
+
 ## § Последние изменения (2026-08-14 v141) — IDE frontend + VeronicaScout class + workspace ✅
 
 - Поднят `atra-web-ide-frontend` `:3000` (образа не было).

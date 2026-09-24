@@ -27,6 +27,7 @@
    - ✅ Протестирован
 
 3. **Git tracking включен**
+
    ```bash
    # Добавлено в .gitignore:
    !.cursor/rules/

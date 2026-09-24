@@ -30,15 +30,15 @@ CPU=9.05%  MEM=184.5MiB / 24GiB
 
 Все 39 контейнеров запущены. Ключевые:
 
-| Контейнер | Статус |
-|---|---|
-| victoria-agent | Up 5 min (только что пересобран) |
-| knowledge_postgres | Up 2 days (healthy) |
-| knowledge_os_redis | Up 3 days (healthy) |
-| knowledge_vector_core | Up 3 days (healthy) |
-| knowledge_mcp | Up 3 days (healthy) |
-| telegram-notifications | Up 7 hours |
-| setki21-api-new | Up 3 days |
+| Контейнер              | Статус                           |
+| ---------------------- | -------------------------------- |
+| victoria-agent         | Up 5 min (только что пересобран) |
+| knowledge_postgres     | Up 2 days (healthy)              |
+| knowledge_os_redis     | Up 3 days (healthy)              |
+| knowledge_vector_core  | Up 3 days (healthy)              |
+| knowledge_mcp          | Up 3 days (healthy)              |
+| telegram-notifications | Up 7 hours                       |
+| setki21-api-new        | Up 3 days                        |
 
 **Оценка:** ✅ — Вся инфраструктура работает стабильно.
 
@@ -79,7 +79,7 @@ TG_TOKEN = os.getenv("TG_TOKEN", "")
 
 ---
 
-## 7. _cleanup_zombie_orchestrators проверяет /proc/exe ✅
+## 7. \_cleanup_zombie_orchestrators проверяет /proc/exe ✅
 
 ```python
 'exe=$(readlink /proc/$pid/exe 2>/dev/null); '
@@ -94,21 +94,22 @@ TG_TOKEN = os.getenv("TG_TOKEN", "")
 
 ## Итоговая оценка
 
-| # | Проверка | Оценка | Комментарий |
-|---|---|---|---|
-| 1 | Зомби-процессы | ⚠️ | 1 легитимный оркестратор (норма), не аккумуляция |
-| 2 | CPU/RAM victoria-agent | ✅ | 9% CPU, 184 МБ — отлично |
-| 3 | Все контейнеры | ✅ | 39/39 запущены |
-| 4 | Ollama модели | ⚠️ | victoria-wisdom IMMORTAL (ожидаемо при работающем MLX) |
-| 5 | Dead tuples | ✅ | В норме, autovacuum работает |
-| 6 | TG_TOKEN | ✅ | os.getenv, hardcode убран |
-| 7 | Zombie cleanup /proc/exe | ✅ | Логика корректна, false-positive исключены |
+| #   | Проверка                 | Оценка | Комментарий                                            |
+| --- | ------------------------ | ------ | ------------------------------------------------------ |
+| 1   | Зомби-процессы           | ⚠️     | 1 легитимный оркестратор (норма), не аккумуляция       |
+| 2   | CPU/RAM victoria-agent   | ✅     | 9% CPU, 184 МБ — отлично                               |
+| 3   | Все контейнеры           | ✅     | 39/39 запущены                                         |
+| 4   | Ollama модели            | ⚠️     | victoria-wisdom IMMORTAL (ожидаемо при работающем MLX) |
+| 5   | Dead tuples              | ✅     | В норме, autovacuum работает                           |
+| 6   | TG_TOKEN                 | ✅     | os.getenv, hardcode убран                              |
+| 7   | Zombie cleanup /proc/exe | ✅     | Логика корректна, false-positive исключены             |
 
 ### Общий вывод: ✅ СИСТЕМА ЗДОРОВА
 
 **Изменения сессии 2026-03-21 применены успешно:**
+
 - Zombie-процессы: 32–75 → 1 (легитимный)
-- CPU victoria-agent: 46% → 9%  
+- CPU victoria-agent: 46% → 9%
 - RAM victoria-agent: 12 GB → 184 МБ
 - Victoria `/run` latency: 15+ сек (таймаут) → 1–2 сек
 - MLX max_concurrent: 2 → 4

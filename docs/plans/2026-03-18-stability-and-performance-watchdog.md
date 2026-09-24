@@ -4,7 +4,8 @@
 
 **Goal:** Создать автономную систему, которая предотвращает перегрузку Mac Studio (Backpressure) и автоматически оптимизирует производительность БД.
 
-**Architecture:** 
+**Architecture:**
+
 1. **Backpressure Layer:** Ограничение очереди задач в БД и контроль ресурсов перед запуском.
 2. **Observation Layer:** Активация `pg_stat_statements` и сбор метрик.
 3. **Action Layer:** Автономное применение индексов и настроек через `CodebaseMutationEngine`.
@@ -16,6 +17,7 @@
 ### Task 1: Backpressure - Ограничение очереди задач
 
 **Files:**
+
 - Modify: `knowledge_os/app/smart_worker_autonomous.py`
 - Modify: `knowledge_os/app/enhanced_orchestrator.py`
 
@@ -26,6 +28,7 @@
 Создать 11 тестовых задач и убедиться, что 11-я не создаётся или блокируется.
 
 **Step 3: Commit**
+
 ```bash
 git add knowledge_os/app/smart_worker_autonomous.py knowledge_os/app/enhanced_orchestrator.py
 git commit -m "feat: add backpressure - limit pending tasks to 10"
@@ -36,6 +39,7 @@ git commit -m "feat: add backpressure - limit pending tasks to 10"
 ### Task 2: Инфраструктура - Активация pg_stat_statements
 
 **Files:**
+
 - Modify: `knowledge_os/docker-compose.yml`
 
 **Step 1: Добавить shared_preload_libraries**
@@ -46,6 +50,7 @@ git commit -m "feat: add backpressure - limit pending tasks to 10"
 `SELECT * FROM pg_stat_statements LIMIT 1;`
 
 **Step 3: Commit**
+
 ```bash
 git add knowledge_os/docker-compose.yml
 git commit -m "infra: enable pg_stat_statements in postgres"
@@ -56,6 +61,7 @@ git commit -m "infra: enable pg_stat_statements in postgres"
 ### Task 3: Watchdog - Сбор и анализ медленных запросов
 
 **Files:**
+
 - Create: `knowledge_os/app/performance_watchdog.py`
 
 **Step 1: Реализовать сборщик (Collector)**
@@ -65,6 +71,7 @@ git commit -m "infra: enable pg_stat_statements in postgres"
 Отправка плана запроса (`EXPLAIN`) в `ai_core` для генерации гипотезы оптимизации.
 
 **Step 3: Commit**
+
 ```bash
 git add knowledge_os/app/performance_watchdog.py
 git commit -m "feat: implement performance watchdog collector and analyzer"
@@ -75,6 +82,7 @@ git commit -m "feat: implement performance watchdog collector and analyzer"
 ### Task 4: Action - Автономное применение оптимизаций
 
 **Files:**
+
 - Modify: `knowledge_os/app/performance_watchdog.py`
 - Modify: `knowledge_os/app/codebase_mutation_engine.py`
 
@@ -85,6 +93,7 @@ git commit -m "feat: implement performance watchdog collector and analyzer"
 Замер скорости после оптимизации. Если стало хуже — `DROP INDEX`.
 
 **Step 3: Commit**
+
 ```bash
 git add knowledge_os/app/performance_watchdog.py knowledge_os/app/codebase_mutation_engine.py
 git commit -m "feat: add autonomous SQL execution and rollback to watchdog"
@@ -95,6 +104,7 @@ git commit -m "feat: add autonomous SQL execution and rollback to watchdog"
 ### Task 5: Integration - Запуск Watchdog как сервиса
 
 **Files:**
+
 - Modify: `knowledge_os/docker-compose.yml`
 
 **Step 1: Добавить сервис performance-watchdog**
@@ -104,6 +114,7 @@ git commit -m "feat: add autonomous SQL execution and rollback to watchdog"
 Убедиться, что события оптимизации приходят в чат.
 
 **Step 3: Commit**
+
 ```bash
 git add knowledge_os/docker-compose.yml
 git commit -m "infra: deploy performance-watchdog service"

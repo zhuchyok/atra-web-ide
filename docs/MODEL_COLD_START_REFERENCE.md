@@ -20,7 +20,7 @@
 
 ---
 
-**Своя таблица с выгрузкой модели:** `scripts/measure_cold_start_all_models.py` — перед замером модель выгружается (Ollama), таймаут 30 мин, выход: tmp/cold_start_timings._. Без выгрузки: `scripts/measure_all_models_ollama_mlx.py` → tmp/model_timings_ollama_mlx._.
+**Своя таблица с выгрузкой модели:** `scripts/measure_cold_start_all_models.py` — перед замером модель выгружается (Ollama), таймаут 30 мин, выход: tmp/cold*start_timings.*. Без выгрузки: `scripts/measure_all_models_ollama_mlx.py` → tmp/model*timings_ollama_mlx.*.
 
 **Связанные документы:** [MODEL_TIMING_REFERENCE.md](MODEL_TIMING_REFERENCE.md), [MAC_STUDIO_LOAD_AND_VICTORIA.md](MAC_STUDIO_LOAD_AND_VICTORIA.md).
 

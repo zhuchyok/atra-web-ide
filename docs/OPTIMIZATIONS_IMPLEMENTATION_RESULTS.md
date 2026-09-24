@@ -40,12 +40,12 @@ cargo build --workspace --profile release-lto  # для production
 
 ### Результаты:
 
-| Метрика | До | После | Улучшение |
-|---------|-----|--------|-----------|
-| Первая сборка | 5-10 мин | 5-10 мин | 1× (без изменений) |
-| Rebuild (clean) | 5-10 мин | 1-2 мин | **5× быстрее** |
-| Incremental rebuild | 2-5 мин | 10-30 сек | **10× быстрее** |
-| Дублирование deps | Да (каждый Cargo.toml) | Нет (workspace) | ✅ устранено |
+| Метрика             | До                     | После           | Улучшение          |
+| ------------------- | ---------------------- | --------------- | ------------------ |
+| Первая сборка       | 5-10 мин               | 5-10 мин        | 1× (без изменений) |
+| Rebuild (clean)     | 5-10 мин               | 1-2 мин         | **5× быстрее**     |
+| Incremental rebuild | 2-5 мин                | 10-30 сек       | **10× быстрее**    |
+| Дублирование deps   | Да (каждый Cargo.toml) | Нет (workspace) | ✅ устранено       |
 
 **Паттерн из ripgrep:** 9 крейтов в workspace, shared dependencies, LTO для production
 
@@ -69,15 +69,16 @@ cargo build --workspace --profile release-lto  # для production
 
 ### Результаты (ожидаемые):
 
-| Метрика | До | После | Улучшение |
-|---------|-----|--------|-----------|
-| Latency к Ollama/MLX | 50-100 мс (new connection) | 5-10 мс (keep-alive) | **10× быстрее** |
-| Throughput (parallel) | 100% baseline | 130-150% | **+30-50%** |
-| ConnectError в логах | Часто | Редко | ✅ меньше |
+| Метрика               | До                         | После                | Улучшение       |
+| --------------------- | -------------------------- | -------------------- | --------------- |
+| Latency к Ollama/MLX  | 50-100 мс (new connection) | 5-10 мс (keep-alive) | **10× быстрее** |
+| Throughput (parallel) | 100% baseline              | 130-150%             | **+30-50%**     |
+| ConnectError в логах  | Часто                      | Редко                | ✅ меньше       |
 
 **Паттерн из FastAPI:** Единый `httpx.AsyncClient` с connection pooling, keep-alive, graceful shutdown
 
 **Осталось доделать:**
+
 - Ещё ~15 файлов с прямым созданием `httpx.AsyncClient()`
 - Можно заменить постепенно в следующих итерациях
 
@@ -106,6 +107,7 @@ cargo build --workspace --profile release-lto  # для production
 ### Следующие шаги (для CI):
 
 1. Создать `.github/workflows/performance.yml`:
+
    ```yaml
    name: Performance Tests
    on: [pull_request, push]
@@ -121,6 +123,7 @@ cargo build --workspace --profile release-lto  # для production
    ```
 
 2. Добавить badge в README:
+
    ```markdown
    [![CodSpeed Badge](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/ATRA/singularity-14)
    ```
@@ -143,6 +146,7 @@ cargo build --workspace --profile release-lto  # для production
 **Статус:** Pending
 
 **План:**
+
 1. Audit API endpoints (`backend/app/main.py`, `backend/app/api/routes/`)
 2. Создать Pydantic models (`backend/app/models/`)
 3. Обновить routes с type hints
@@ -150,6 +154,7 @@ cargo build --workspace --profile release-lto  # для production
 5. Генерить TypeScript типы для frontend (`openapi-typescript`)
 
 **Ожидаемый результат:**
+
 - Auto-generated API documentation
 - Type safety между backend и frontend
 - Меньше runtime ошибок
@@ -161,12 +166,14 @@ cargo build --workspace --profile release-lto  # для production
 **Статус:** Pending
 
 **План:**
+
 1. Инициализация VitePress в `docs/`
 2. Миграция существующих .md файлов
 3. Добавление full-text search
 4. Deploy на GitHub Pages
 
 **Ожидаемый результат:**
+
 - Searchable documentation
 - Красивая навигация
 - Easy onboarding
@@ -175,14 +182,14 @@ cargo build --workspace --profile release-lto  # для production
 
 ## Общие метрики до/после
 
-| Метрика | До | После | Улучшение |
-|---------|-----|--------|-----------|
-| **Rebuild Gateway (incremental)** | 5 мин | 30 сек | **10×** |
-| **Victoria Enhanced audit** | 2-3 мин | 1-2 мин | **2×** |
-| **Ollama/MLX latency** | 50-100 мс | 5-10 мс | **10×** |
-| **Expert delegation (3 experts)** | ~15 мин (sequential) | ~5 мин (parallel) | **3×** |
-| **API type safety** | 0% | Pending | - |
-| **Documentation search** | Нет | Pending | - |
+| Метрика                           | До                   | После             | Улучшение |
+| --------------------------------- | -------------------- | ----------------- | --------- |
+| **Rebuild Gateway (incremental)** | 5 мин                | 30 сек            | **10×**   |
+| **Victoria Enhanced audit**       | 2-3 мин              | 1-2 мин           | **2×**    |
+| **Ollama/MLX latency**            | 50-100 мс            | 5-10 мс           | **10×**   |
+| **Expert delegation (3 experts)** | ~15 мин (sequential) | ~5 мин (parallel) | **3×**    |
+| **API type safety**               | 0%                   | Pending           | -         |
+| **Documentation search**          | Нет                  | Pending           | -         |
 
 ---
 
@@ -205,13 +212,13 @@ cargo build --workspace --profile release-lto  # для production
 
 ### 📊 ROI анализ:
 
-| Фаза | Затраты времени | Ускорение | ROI |
-|------|----------------|-----------|-----|
-| Фаза 1 (Cargo) | 2 часа | 5-10× rebuild | **Очень высокий** |
-| Фаза 2 (HTTP pool) | 1 час | 30-50% throughput | **Высокий** |
-| Фаза 3 (Benchmarks) | 2 часа | Visibility | **Средний** |
-| Фаза 4 (Type-driven) | 3 дня | Type safety | **Высокий** (долгосрочно) |
-| Фаза 5 (Docs) | 2-3 дня | Onboarding | **Средний** |
+| Фаза                 | Затраты времени | Ускорение         | ROI                       |
+| -------------------- | --------------- | ----------------- | ------------------------- |
+| Фаза 1 (Cargo)       | 2 часа          | 5-10× rebuild     | **Очень высокий**         |
+| Фаза 2 (HTTP pool)   | 1 час           | 30-50% throughput | **Высокий**               |
+| Фаза 3 (Benchmarks)  | 2 часа          | Visibility        | **Средний**               |
+| Фаза 4 (Type-driven) | 3 дня           | Type safety       | **Высокий** (долгосрочно) |
+| Фаза 5 (Docs)        | 2-3 дня         | Onboarding        | **Средний**               |
 
 ---
 
@@ -242,7 +249,8 @@ cargo build --workspace --profile release-lto  # для production
 
 ---
 
-*Отчёт составлен на основе аудитов:*
+_Отчёт составлен на основе аудитов:_
+
 - `/Users/bikos/Downloads/ripgrep/AUDIT_REPORT.md`
 - `/Users/bikos/Downloads/fastapi/AUDIT_REPORT.md`
 - `/Users/bikos/Downloads/element-plus/AUDIT_REPORT.md`

@@ -60,18 +60,19 @@ atra chat "Проанализируй структуру проекта и пр�
 ```
 
 Критерии успеха:
+
 - В логах Gateway: `Victoria Agent responded successfully (full brain+hands)`.
 - Ответ содержательный, на русском, учитывает контекст проекта.
 - При выключенной Victoria (порт 8010 недоступен) запрос автоматически уходит в Ollama (fallback), в логах: `Victoria Agent unavailable or failed (...), falling back to Ollama`.
 
 ## 4. Что проверить при сбоях
 
-| Симптом | Возможная причина | Действие |
-|--------|--------------------|----------|
-| `connection refused` к 8081 | Gateway не запущен | Запустить Gateway (см. выше). |
-| `503 All models failed` | Ollama не отвечает или нет модели | Проверить `ollama list`, перезапустить `ollama serve`. |
-| Ошибка БД при RAG | Нет БД или нет таблицы `knowledge_nodes` | Проверить `DATABASE_URL`, миграции Knowledge OS. |
-| `atra: command not found` | PATH или alias | Выполнить `source ~/.zshrc` или использовать полный путь к `atra`. |
+| Симптом                     | Возможная причина                        | Действие                                                           |
+| --------------------------- | ---------------------------------------- | ------------------------------------------------------------------ |
+| `connection refused` к 8081 | Gateway не запущен                       | Запустить Gateway (см. выше).                                      |
+| `503 All models failed`     | Ollama не отвечает или нет модели        | Проверить `ollama list`, перезапустить `ollama serve`.             |
+| Ошибка БД при RAG           | Нет БД или нет таблицы `knowledge_nodes` | Проверить `DATABASE_URL`, миграции Knowledge OS.                   |
+| `atra: command not found`   | PATH или alias                           | Выполнить `source ~/.zshrc` или использовать полный путь к `atra`. |
 
 ## Минимальный сценарий «только Rust + Ollama»
 
@@ -89,28 +90,34 @@ atra chat "Проанализируй структуру проекта и пр�
 Для проверки расширенных возможностей CLI:
 
 1.  **Проверка статуса системы:**
+
     ```bash
     ./target/release/atra status
     ```
-    *Ожидаемый результат:* Вывод CPU, RAM, Disk и статистики Knowledge Base.
+
+    _Ожидаемый результат:_ Вывод CPU, RAM, Disk и статистики Knowledge Base.
 
 2.  **Проверка очистки данных (Data Retention):**
+
     ```bash
     ./target/release/atra cleanup --dry-run
     ```
-    *Ожидаемый результат:* Отчет о количестве записей, подлежащих удалению в `real_time_metrics` и `semantic_ai_cache`.
+
+    _Ожидаемый результат:_ Отчет о количестве записей, подлежащих удалению в `real_time_metrics` и `semantic_ai_cache`.
 
 3.  **Проверка мультимодальности (Vision):**
+
     ```bash
     ./target/release/atra describe path/to/image.png
     ```
-    *Ожидаемый результат:* Текстовое описание изображения от Victoria (через Moondream или Ollama fallback).
+
+    _Ожидаемый результат:_ Текстовое описание изображения от Victoria (через Moondream или Ollama fallback).
 
 4.  **Проверка планирования:**
     ```bash
     ./target/release/atra plan "Добавь поддержку темной темы в frontend"
     ```
-    *Ожидаемый результат:* Подробный план действий от Victoria.
+    _Ожидаемый результат:_ Подробный план действий от Victoria.
 
 ---
 

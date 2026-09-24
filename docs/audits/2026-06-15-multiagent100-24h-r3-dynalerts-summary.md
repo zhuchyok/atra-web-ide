@@ -5,6 +5,7 @@
 - samples_collected: `188`
 
 ## Latest Snapshot
+
 - pending: `21`
 - in_progress: `0`
 - completed_10m: `1`
@@ -23,12 +24,14 @@
 - dynamic_slot_running: `1` / `1`
 
 ## Gate Results
+
 - 15m: pass=`False` active=`True` reason=`threshold_violation` stability_ok=`False` throughput_ok=`True` throughput_eligible=`True` min_completed_required=`1` samples=`3` completed_delta=`1` completed10m_ratio=`1.00` max_pending=`21` max_in_progress=`0` max_stale=`0` distill_tail_ok=`True` max_eligible_now=`6` tail_breach_streak_max=`0` dynamic_alert_ok=`True` max_dynamic_alert_count=`0`
 - 1h: pass=`False` active=`True` reason=`threshold_violation` stability_ok=`False` throughput_ok=`False` throughput_eligible=`True` min_completed_required=`3` samples=`12` completed_delta=`4` completed10m_ratio=`0.42` max_pending=`21` max_in_progress=`2` max_stale=`0` distill_tail_ok=`True` max_eligible_now=`6` tail_breach_streak_max=`0` dynamic_alert_ok=`True` max_dynamic_alert_count=`0`
 - 6h: pass=`False` active=`True` reason=`distillation_tail_violation` stability_ok=`False` throughput_ok=`False` throughput_eligible=`True` min_completed_required=`18` samples=`72` completed_delta=`19` completed10m_ratio=`0.33` max_pending=`21` max_in_progress=`2` max_stale=`0` distill_tail_ok=`False` max_eligible_now=`21` tail_breach_streak_max=`28` dynamic_alert_ok=`True` max_dynamic_alert_count=`0`
 - 24h: pass=`False` active=`True` reason=`stability_violation` stability_ok=`False` throughput_ok=`False` throughput_eligible=`False` min_completed_required=`72` samples=`188` completed_delta=`37` completed10m_ratio=`0.25` max_pending=`21` max_in_progress=`2` max_stale=`0` distill_tail_ok=`False` max_eligible_now=`21` tail_breach_streak_max=`28` dynamic_alert_ok=`True` max_dynamic_alert_count=`0`
 
 ## Sustained Distillation Tail SLO
+
 - ok: `False`
 - reason: `high_watermark_breach_streak`
 - sample_count: `188`

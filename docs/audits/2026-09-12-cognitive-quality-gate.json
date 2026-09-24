@@ -1,0 +1,89 @@
+{
+  "ts_utc": "2026-09-12T20:37:54.916917+00:00",
+  "gate_pass": true,
+  "operational_pass": true,
+  "cognitive_pass": true,
+  "recommended_action": "rollout",
+  "checks": {
+    "container_health": {
+      "ok": true,
+      "containers": {
+        "victoria-agent": {
+          "status": "Up 20 minutes (healthy)",
+          "ok": true
+        },
+        "knowledge_os_orchestrator": {
+          "status": "Up 52 minutes (healthy)",
+          "ok": true
+        },
+        "knowledge_os_worker": {
+          "status": "Up 17 minutes (healthy)",
+          "ok": true
+        },
+        "knowledge_os-expert-worker-anna-1": {
+          "status": "Up About an hour (healthy)",
+          "ok": true
+        },
+        "knowledge_os-expert-worker-victoria-1": {
+          "status": "Up About an hour (healthy)",
+          "ok": true
+        },
+        "knowledge_os-expert-worker-heavy-1": {
+          "status": "Up About an hour (healthy)",
+          "ok": true
+        },
+        "board-scheduler": {
+          "status": "Up About an hour (healthy)",
+          "ok": true
+        },
+        "knowledge_rest": {
+          "status": "Up About an hour (healthy)",
+          "ok": true
+        }
+      }
+    },
+    "model_env_discipline": {
+      "ok": true,
+      "v35_hits": []
+    },
+    "task_kpis": {
+      "ok": true,
+      "pending": 0,
+      "in_progress": 0,
+      "stale_in_progress": 0,
+      "throughput_1h": 0,
+      "throughput_24h": 10,
+      "failed_1h": 0,
+      "failed_24h": 0,
+      "contract_ratio_24h": 0.0,
+      "contract_num_24h": 0,
+      "contract_den_24h": 10
+    },
+    "queue_health": {
+      "ok": true,
+      "lag": 0,
+      "pending": 0,
+      "consumers": 2
+    },
+    "contract_flags": {
+      "ok": true,
+      "mode": "enforce",
+      "enforce": "1"
+    },
+    "routing_quality": {
+      "ok": true,
+      "sufficient_data": false,
+      "status": "insufficient_data",
+      "events_total_window": 5,
+      "routing_win_rate": 1.0,
+      "decision_regret_rate": 0.0,
+      "latency_p95_ms": 49836.47,
+      "thresholds": {
+        "min_events": 20,
+        "min_win_rate": 0.8,
+        "max_regret_rate": 0.2,
+        "max_p95_ms": 20000.0
+      }
+    }
+  }
+}

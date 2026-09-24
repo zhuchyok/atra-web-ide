@@ -3,13 +3,14 @@
 > **Version:** 1.0  
 > **Date:** 2026-04-17  
 > **Status:** DRAFT  
-> **Integration Expert:** ATRA Corporation  
+> **Integration Expert:** ATRA Corporation
 
 ---
 
 ## Executive Summary
 
 This plan organizes **173 identified issues** (33 CRITICAL, 47 HIGH, 58 MEDIUM, 35 LOW) into executable phases with:
+
 - Dependency chains between fixes
 - Rollback strategies
 - Verification steps
@@ -22,10 +23,11 @@ This plan organizes **173 identified issues** (33 CRITICAL, 47 HIGH, 58 MEDIUM, 
 **Objective:** Ensure system is functional before major changes.
 
 ### Fix 0.1: Victoria Agent Restart Loop Prevention (CRITICAL)
+
 - **Files:** `src/agents/bridge/victoria_server.py`
 - **Risk:** HIGH (requires Victoria restart)
 - **Issue:** Victoria keeps restarting due to IndentationError or startup failures
-- **Fix:** 
+- **Fix:**
   ```python
   # Add startup health check with retry
   async def _verify_startup():
@@ -42,10 +44,11 @@ This plan organizes **173 identified issues** (33 CRITICAL, 47 HIGH, 58 MEDIUM, 
 - **Verification:** `curl http://localhost:8010/health` returns 200
 
 ### Fix 0.2: Database Connection Pool Exhaustion (CRITICAL)
+
 - **Files:** `knowledge_os/docker-compose.yml`, `src/database/connection_pool.py`
 - **Risk:** MEDIUM (configuration change)
 - **Issue:** TooManyConnectionsError in Debate Processor
-- **Fix:** 
+- **Fix:**
   - Reduce `max_size` to 3 per service
   - Ensure PgBouncer is properly routing
   - Add connection health checks
@@ -53,6 +56,7 @@ This plan organizes **173 identified issues** (33 CRITICAL, 47 HIGH, 58 MEDIUM, 
 - **Verification:** Monitor `pg_stat_activity` for connection count
 
 ### Fix 0.3: Smart Worker domain_id Error (HIGH)
+
 - **Files:** `knowledge_os/app/smart_worker_autonomous.py`
 - **Risk:** MEDIUM
 - **Issue:** SQL errors with `column "domain_id" does not exist`
@@ -67,6 +71,7 @@ This plan organizes **173 identified issues** (33 CRITICAL, 47 HIGH, 58 MEDIUM, 
 **Objective:** Fix critical path issues that block other improvements.
 
 ### Fix 1.1: RAG Project Context Isolation (CRITICAL)
+
 - **Files:** `knowledge_os/app/ai_core.py`, `knowledge_os/app/knowledge_service.py`
 - **Risk:** HIGH
 - **Issue:** RAG returns results from ALL projects instead of current project
@@ -78,14 +83,14 @@ This plan organizes **173 identified issues** (33 CRITICAL, 47 HIGH, 58 MEDIUM, 
       if project_context:
           query += """
           AND (
-              metadata->>'project_slug' = $2 
+              metadata->>'project_slug' = $2
               OR metadata->>'file_path' LIKE '%' || $2 || '%'
           )
           """
           params = (*base_params, project_context)
   ```
 - **Rollback:** Disable project filtering via feature flag
-- **Verification:** 
+- **Verification:**
   ```bash
   curl -X POST http://localhost:8010/chat \
     -d '{"goal": "analyze code", "project_context": "setki-21"}'
@@ -93,6 +98,7 @@ This plan organizes **173 identified issues** (33 CRITICAL, 47 HIGH, 58 MEDIUM, 
   ```
 
 ### Fix 1.2: Enhanced Orchestrator Task Assignment (HIGH)
+
 - **Files:** `knowledge_os/app/enhanced_orchestrator.py`
 - **Risk:** MEDIUM
 - **Issue:** `execute_task_assignment` doesn't pass project_context to sub-agents
@@ -102,6 +108,7 @@ This plan organizes **173 identified issues** (33 CRITICAL, 47 HIGH, 58 MEDIUM, 
 - **Verification:** Sub-task logs show correct project context
 
 ### Fix 1.3: Circuit Breaker Health Monitoring (HIGH)
+
 - **Files:** `knowledge_os/app/circuit_breaker.py`
 - **Risk:** LOW
 - **Issue:** Circuit breaker trips too aggressively, blocking user requests
@@ -111,6 +118,7 @@ This plan organizes **173 identified issues** (33 CRITICAL, 47 HIGH, 58 MEDIUM, 
 - **Verification:** Monitor circuit breaker trip count
 
 ### Fix 1.4: MLX Stability Under Load (HIGH)
+
 - **Files:** `knowledge_os/docker-compose.yml`
 - **Risk:** MEDIUM
 - **Issue:** MLX crashes under high concurrency
@@ -119,6 +127,7 @@ This plan organizes **173 identified issues** (33 CRITICAL, 47 HIGH, 58 MEDIUM, 
 - **Verification:** Check MLX error logs during peak load
 
 ### Verification Phase 1:
+
 ```bash
 # 1. Test Victoria health
 curl http://localhost:8010/health | jq .status
@@ -140,11 +149,13 @@ docker logs knowledge_os_orchestrator --tail=100 | grep project_context
 **Objective:** Implement world-class multi-agent patterns.
 
 ### Fix 2.1: A2A Protocol Implementation (HIGH)
+
 - **Files:** `knowledge_os/app/agent_protocol.py`
 - **Risk:** MEDIUM
 - **Issue:** Agent communication lacks standardized protocol
 - **Dependencies:** Phase 1 complete
 - **Fix:** Implement Google A2A + IBM ACP hybrid:
+
   ```python
   # Agent Card for discovery
   class AgentCard(BaseModel):
@@ -153,15 +164,17 @@ docker logs knowledge_os_orchestrator --tail=100 | grep project_context
       capabilities: List[str]
       endpoint: str
       protocol: Literal["A2A", "ACP"]
-  
+
   # ACP 4 verbs: PING, TELL, ASK, OBSERVE
   async def send_message(verb: str, target: str, payload: dict):
       # Implement µACP specification (34ms latency target)
   ```
+
 - **Rollback:** Disable A2A routing, fallback to direct dispatch
 - **Verification:** Agent discovery returns correct cards
 
 ### Fix 2.2: Swarm Intelligence Optimization (MEDIUM)
+
 - **Files:** `knowledge_os/app/swarm_intelligence.py`
 - **Risk:** LOW
 - **Issue:** Swarm size not optimized (16 agents optimal per Nature 2025)
@@ -171,6 +184,7 @@ docker logs knowledge_os_orchestrator --tail=100 | grep project_context
 - **Verification:** Monitor swarm task completion rates
 
 ### Fix 2.3: Consensus Mechanism Enhancement (MEDIUM)
+
 - **Files:** `knowledge_os/app/consensus_agent.py`
 - **Risk:** LOW
 - **Issue:** Sycophancy not properly mitigated
@@ -180,6 +194,7 @@ docker logs knowledge_os_orchestrator --tail=100 | grep project_context
 - **Verification:** Compare consensus scores before/after
 
 ### Fix 2.4: Hierarchical Orchestration Fallback (MEDIUM)
+
 - **Files:** `knowledge_os/app/hierarchical_orchestration.py`
 - **Risk:** LOW
 - **Issue:** Empty task decomposition without fallback
@@ -189,6 +204,7 @@ docker logs knowledge_os_orchestrator --tail=100 | grep project_context
 - **Verification:** Test with intentionally failing LLM
 
 ### Verification Phase 2:
+
 ```bash
 # 1. Test A2A agent discovery
 curl http://localhost:8010/api/agents | jq .
@@ -210,6 +226,7 @@ python3 scripts/test_orchestration.py --fail-llm=true
 **Objective:** Enhance autonomous capabilities.
 
 ### Fix 3.1: Self-Learning Agent Database Schema (HIGH)
+
 - **Files:** `knowledge_os/app/self_learning_agent.py`
 - **Risk:** MEDIUM
 - **Issue:** Missing tables for learning_tasks and learning_sessions
@@ -231,6 +248,7 @@ python3 scripts/test_orchestration.py --fail-llm=true
 - **Verification:** Tables exist and accept data
 
 ### Fix 3.2: Model Ensemble Dynamic Selection (MEDIUM)
+
 - **Files:** `knowledge_os/app/advanced_ensemble.py`
 - **Risk:** MEDIUM
 - **Issue:** Static model selection, not adaptive
@@ -240,6 +258,7 @@ python3 scripts/test_orchestration.py --fail-llm=true
 - **Verification:** Ensemble outperforms single model
 
 ### Fix 3.3: Extended Thinking Confidence Calculation (MEDIUM)
+
 - **Files:** `knowledge_os/app/extended_thinking.py`
 - **Risk:** LOW
 - **Issue:** Confidence not properly calculated from thinking steps
@@ -249,6 +268,7 @@ python3 scripts/test_orchestration.py --fail-llm=true
 - **Verification:** Compare confidence scores to actual accuracy
 
 ### Fix 3.4: Curiosity Engine Enhancement (MEDIUM)
+
 - **Files:** `knowledge_os/app/curiosity_engine.py`
 - **Risk:** LOW
 - **Issue:** Low debate generation rate
@@ -258,6 +278,7 @@ python3 scripts/test_orchestration.py --fail-llm=true
 - **Verification:** Monitor daily debate count
 
 ### Fix 3.5: Tacit Knowledge Extraction (LOW)
+
 - **Files:** `knowledge_os/app/tacit_knowledge_miner.py`
 - **Risk:** LOW
 - **Issue:** Not extracting implicit knowledge
@@ -267,6 +288,7 @@ python3 scripts/test_orchestration.py --fail-llm=true
 - **Verification:** Check knowledge nodes for tacit entries
 
 ### Verification Phase 3:
+
 ```bash
 # 1. Verify learning tables
 docker exec knowledge_postgres psql -U admin -d knowledge_os -c "\d learning_tasks"
@@ -288,6 +310,7 @@ docker logs knowledge_nightly | grep -i debate
 **Objective:** Achieve production-grade performance.
 
 ### Fix 4.1: Database Query Optimization (HIGH)
+
 - **Files:** `src/database/optimized_queries.py`
 - **Risk:** MEDIUM
 - **Issue:** Slow queries causing timeouts
@@ -300,6 +323,7 @@ docker logs knowledge_nightly | grep -i debate
 - **Verification:** Query execution time < 100ms p95
 
 ### Fix 4.2: Event Bus Redis Bridge (MEDIUM)
+
 - **Files:** `knowledge_os/app/event_bus_redis_bridge.py`
 - **Risk:** MEDIUM
 - **Issue:** Event delivery not durable across restarts
@@ -309,6 +333,7 @@ docker logs knowledge_nightly | grep -i debate
 - **Verification:** Events survive component restart
 
 ### Fix 4.3: Prompt Cache Optimization (MEDIUM)
+
 - **Files:** `knowledge_os/app/prompt_cache.py`
 - **Risk:** LOW
 - **Issue:** Cache hit rate below 90% target
@@ -318,6 +343,7 @@ docker logs knowledge_nightly | grep -i debate
 - **Verification:** Monitor cache hit rate
 
 ### Fix 4.4: Parallel Request Processing (MEDIUM)
+
 - **Files:** `knowledge_os/app/parallel_request_processor.py`
 - **Risk:** LOW
 - **Issue:** Requests processed sequentially
@@ -327,6 +353,7 @@ docker logs knowledge_nightly | grep -i debate
 - **Verification:** Compare latency before/after
 
 ### Fix 4.5: Memory Consolidation Tuning (LOW)
+
 - **Files:** `knowledge_os/app/memory_consolidator.py`
 - **Risk:** LOW
 - **Issue:** Memory bloat over time
@@ -336,6 +363,7 @@ docker logs knowledge_nightly | grep -i debate
 - **Verification:** Monitor memory usage over 7 days
 
 ### Verification Phase 4:
+
 ```bash
 # 1. Check query performance
 python3 scripts/check_query_times.py
@@ -357,6 +385,7 @@ python3 scripts/benchmark_parallel.py
 **Objective:** Enterprise-grade reliability and observability.
 
 ### Fix 5.1: OpenTelemetry Full Integration (HIGH)
+
 - **Files:** `knowledge_os/app/observability.py`
 - **Risk:** MEDIUM
 - **Issue:** Tracing incomplete across components
@@ -369,6 +398,7 @@ python3 scripts/benchmark_parallel.py
 - **Verification:** Traces visible in Grafana
 
 ### Fix 5.2: Disaster Recovery Automation (HIGH)
+
 - **Files:** `knowledge_os/app/disaster_recovery.py`
 - **Risk:** HIGH
 - **Issue:** Manual recovery procedures
@@ -381,6 +411,7 @@ python3 scripts/benchmark_parallel.py
 - **Verification:** Simulate failure, verify recovery
 
 ### Fix 5.3: SLA Monitoring & Alerting (MEDIUM)
+
 - **Files:** `knowledge_os/app/sla_monitor.py`
 - **Risk:** LOW
 - **Issue:** No SLA visibility
@@ -390,6 +421,7 @@ python3 scripts/benchmark_parallel.py
 - **Verification:** Alert fires when SLO breached
 
 ### Fix 5.4: Security Hardening (MEDIUM)
+
 - **Files:** `knowledge_os/app/guardrails.py`
 - **Risk:** HIGH
 - **Issue:** Missing input validation
@@ -402,6 +434,7 @@ python3 scripts/benchmark_parallel.py
 - **Verification:** Penetration testing passes
 
 ### Fix 5.5: Multi-Cluster Bridge (LOW)
+
 - **Files:** `knowledge_os/app/multi_cluster_bridge.py`
 - **Risk:** LOW
 - **Issue:** No cross-cluster communication
@@ -411,6 +444,7 @@ python3 scripts/benchmark_parallel.py
 - **Verification:** Test cross-cluster task delegation
 
 ### Verification Phase 5:
+
 ```bash
 # 1. Check traces in Grafana
 # Navigate: http://localhost:3001 → Explore → Traces
@@ -432,6 +466,7 @@ python3 scripts/security_scan.py
 **Objective:** Push boundaries with bleeding-edge techniques.
 
 ### Fix 6.1: Reinforcement Learning Integration (MEDIUM)
+
 - **Files:** `knowledge_os/app/reinforcement_learning.py`
 - **Risk:** MEDIUM
 - **Issue:** No self-improvement loop
@@ -441,6 +476,7 @@ python3 scripts/security_scan.py
 - **Verification:** Task success rate improves over time
 
 ### Fix 6.2: MCTS Planner Enhancement (MEDIUM)
+
 - **Files:** `knowledge_os/app/mcts_planner.py`
 - **Risk:** MEDIUM
 - **Issue:** Monte Carlo tree search not utilized
@@ -450,6 +486,7 @@ python3 scripts/security_scan.py
 - **Verification:** Benchmark against greedy baseline
 
 ### Fix 6.3: Emergent Hierarchy Formation (LOW)
+
 - **Files:** `knowledge_os/app/emergent_hierarchy.py`
 - **Risk:** LOW
 - **Issue:** Static hierarchy, no self-organization
@@ -459,6 +496,7 @@ python3 scripts/security_scan.py
 - **Verification:** Monitor hierarchy changes
 
 ### Fix 6.4: Adversarial Testing Framework (LOW)
+
 - **Files:** `knowledge_os/app/agent_chaos_injector.py`
 - **Risk:** LOW
 - **Issue:** No chaos engineering
@@ -468,6 +506,7 @@ python3 scripts/security_scan.py
 - **Verification:** System survives injected failures
 
 ### Verification Phase 6:
+
 ```bash
 # 1. Measure RL improvement
 python3 scripts/measure_rl_improvement.py
@@ -487,25 +526,30 @@ python3 scripts/chaos_experiment.py
 ## World Best Practices Applied
 
 ### Anthropic Multi-Agent Patterns
+
 - **Generator-Verifier:** Expert generates, validator checks
 - **Orchestrator-Subagent:** Central planner delegates to specialists
 - **Human-in-the-Loop:** Critical actions require approval
 
 ### Google A2A Protocol
+
 - **Agent Cards:** Service discovery
 - **Task Push/Pull:** Bidirectional task distribution
 - **Conversations:** Stateful multi-turn interactions
 
 ### IBM ACP (µACP)
+
 - **4 Verbs:** PING (health), TELL (fire-and-forget), ASK (request-response), OBSERVE (subscribe)
 - **34ms Latency Target:** Optimized for real-time
 
 ### CrewAI + AutoGen Hybrid
+
 - **Role-based agents:** Specialists with defined capabilities
 - **Memory sharing:** Collective memory system
 - **Tool integration:** MCP server for Cursor
 
 ### Consensus Mechanisms
+
 - **Aegean:** Quorum convergence for fast agreement
 - **CONSENSAGENT:** Sycophancy detection and mitigation
 - **Roundtable:** Multi-perspective analysis
@@ -514,28 +558,30 @@ python3 scripts/chaos_experiment.py
 
 ## Risk Matrix
 
-| Phase | Total Fixes | CRITICAL | HIGH | MEDIUM | LOW | Risk Level |
-|-------|-------------|----------|------|--------|-----|------------|
-| 0     | 3           | 2        | 1    | 0      | 0   | HIGH       |
-| 1     | 4           | 1        | 3    | 0      | 0   | HIGH       |
-| 2     | 4           | 0        | 1    | 3      | 0   | MEDIUM     |
-| 3     | 5           | 0        | 1    | 3      | 1   | MEDIUM     |
-| 4     | 5           | 0        | 1    | 3      | 1   | LOW        |
-| 5     | 5           | 0        | 2    | 2      | 1   | MEDIUM     |
-| 6     | 4           | 0        | 0    | 2      | 2   | LOW        |
-| **Total** | **30**   | **3**    | **9** | **13** | **5** | -       |
+| Phase     | Total Fixes | CRITICAL | HIGH  | MEDIUM | LOW   | Risk Level |
+| --------- | ----------- | -------- | ----- | ------ | ----- | ---------- |
+| 0         | 3           | 2        | 1     | 0      | 0     | HIGH       |
+| 1         | 4           | 1        | 3     | 0      | 0     | HIGH       |
+| 2         | 4           | 0        | 1     | 3      | 0     | MEDIUM     |
+| 3         | 5           | 0        | 1     | 3      | 1     | MEDIUM     |
+| 4         | 5           | 0        | 1     | 3      | 1     | LOW        |
+| 5         | 5           | 0        | 2     | 2      | 1     | MEDIUM     |
+| 6         | 4           | 0        | 0     | 2      | 2     | LOW        |
+| **Total** | **30**      | **3**    | **9** | **13** | **5** | -          |
 
 ---
 
 ## Rollback Strategy
 
 Each phase includes:
+
 1. **Feature flags:** Disable via environment variable
 2. **Git tags:** `fix-phase-X-Y` for each fix
 3. **Database migrations:** Reversible with down migrations
 4. **Health checks:** Automatic rollback on failure
 
 ### Emergency Rollback Procedure:
+
 ```bash
 # 1. Disable affected component
 curl -X POST http://localhost:8010/admin/feature-flag/set \
@@ -556,6 +602,7 @@ curl http://localhost:8010/health
 ## Success Criteria
 
 ### Phase Completion Gates:
+
 - [ ] All critical issues resolved
 - [ ] Zero breaking changes to existing functionality
 - [ ] Performance metrics within SLA
@@ -563,6 +610,7 @@ curl http://localhost:8010/health
 - [ ] All tests green
 
 ### Final Success Metrics:
+
 - **Availability:** 99.9% uptime
 - **Latency:** p95 < 500ms for chat responses
 - **Accuracy:** 90%+ task success rate
@@ -576,6 +624,7 @@ curl http://localhost:8010/health
 Create unified dashboard at `http://localhost:3001`:
 
 ### Panels:
+
 1. **System Health:** All services green
 2. **Task Pipeline:** Throughput, latency, error rate
 3. **Agent Activity:** Messages, collaborations, consensus
@@ -588,23 +637,27 @@ Create unified dashboard at `http://localhost:3001`:
 ## Appendix: File Reference Map
 
 ### Core Agents
+
 - `victoria.py` - Team Lead Agent client
 - `victoria_server.py` - Victoria HTTP server (port 8010)
 - `server.py` - Veronica server (port 8011)
 - `mcp_server.py` - MCP server for Cursor tools
 
 ### Orchestrators
+
 - `enhanced_orchestrator.py` - Main task orchestrator
 - `hierarchical_orchestration.py` - Multi-level planning
 - `streaming_orchestrator.py` - Real-time streaming
 - `swarm_orchestrator.py` - Swarm intelligence
 
 ### Workers
+
 - `smart_worker_autonomous.py` - Main worker
 - `expert_worker.py` - Expert task specialist
 - `nightly_learner.py` - Learning and debate
 
 ### Intelligence
+
 - `ai_core.py` - RAG and context management
 - `event_bus.py` - Event-driven architecture
 - `model_enhancer.py` - Quality improvements

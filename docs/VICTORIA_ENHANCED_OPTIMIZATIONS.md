@@ -11,12 +11,14 @@
 ### 1. **Chunking Strategy** (`knowledge_os/app/project_audit_optimizer.py`)
 
 Разбиение аудита на фазы:
+
 - **Phase 1:** Structure scan (1 мин) - README, package files, CI config
 - **Phase 2:** Key modules selection (мгновенно) - entry points, core logic
 - **Phase 3:** Expert review (5 мин на эксперта, параллельно)
 - **Phase 4:** Synthesis (3 мин) - финальный отчёт
 
 **Конфигурация:**
+
 ```bash
 # .env
 MAX_FILES_FOR_FULL_ANALYSIS=50  # Лимит файлов для полного анализа
@@ -31,6 +33,7 @@ AUDIT_TOTAL_TIMEOUT=1800        # Общий таймаут аудита (30 м�
 ### 2. **Параллельное делегирование** (`execute_assignments.py`)
 
 **До (последовательное):**
+
 ```python
 for expert in experts:
     result = await delegate_to_expert(expert, task)  # ждём каждого
@@ -39,6 +42,7 @@ for expert in experts:
 ```
 
 **После (параллельное):**
+
 ```python
 tasks = [delegate_to_expert(e, task) for e in experts]
 results = await asyncio.gather(*tasks)  # все сразу
@@ -46,12 +50,14 @@ results = await asyncio.gather(*tasks)  # все сразу
 ```
 
 **Адаптивный таймаут:**
+
 - Обычные задачи: 600 секунд (10 мин)
 - Аудит проекта: 300 секунд (5 мин)
 
 ### 3. **Timeout для Victoria Enhanced** (`victoria_server.py`)
 
 **Добавлен timeout на enhanced.solve:**
+
 ```python
 VICTORIA_AUDIT_TIMEOUT = int(os.getenv("VICTORIA_AUDIT_TIMEOUT", "1800"))  # 30 мин
 
@@ -68,6 +74,7 @@ except asyncio.TimeoutError:
 ### 4. **Streaming Progress** (`victoria_server.py`)
 
 **Функция обновления прогресса:**
+
 ```python
 async def _update_task_progress(
     task_id: str,
@@ -84,13 +91,15 @@ async def _update_task_progress(
 ```
 
 **Использование в enhanced.solve:**
+
 ```python
-await _update_task_progress(task_id, "enhanced_analysis", 40, 
+await _update_task_progress(task_id, "enhanced_analysis", 40,
                           "Анализ (Victoria Enhanced). Это может занять несколько минут…")
 # Пользователь видит прогресс через GET /run/status/{task_id}
 ```
 
 **Ответ GET /run/status/{task_id}:**
+
 ```json
 {
   "task_id": "...",
@@ -125,6 +134,7 @@ curl http://localhost:8010/run/status/{task_id}
 ```
 
 **Теперь с timeout:** Если enhanced.solve занимает > 30 минут, вернётся:
+
 ```json
 {
   "status": "failed",
@@ -149,6 +159,7 @@ result = await audit_project_chunked(
 ```
 
 **Вывод:**
+
 ```
 Progress: 20% - structure_complete
 Progress: 50% - module_analyzed
@@ -198,11 +209,13 @@ done
 ### 3. Проверка параллельного делегирования
 
 Посмотреть логи:
+
 ```bash
 docker logs victoria-agent 2>&1 | grep "MONSTER.*Запуск run_smart_agent_async"
 ```
 
 **До (последовательное):**
+
 ```
 ⏳ [MONSTER] Запуск run_smart_agent_async для Игорь
 ⏳ [MONSTER] Запуск run_smart_agent_async для Анна (через 5 мин)
@@ -210,6 +223,7 @@ docker logs victoria-agent 2>&1 | grep "MONSTER.*Запуск run_smart_agent_as
 ```
 
 **После (параллельное):**
+
 ```
 ⏳ [MONSTER] Запуск run_smart_agent_async для Игорь
 ⏳ [MONSTER] Запуск run_smart_agent_async для Анна (одновременно)
@@ -220,12 +234,12 @@ docker logs victoria-agent 2>&1 | grep "MONSTER.*Запуск run_smart_agent_as
 
 ## Метрики производительности
 
-| Сценарий | До | После | Улучшение |
-|----------|-----|-------|-----------|
-| Аудит ripgrep (100 файлов) | timeout (>4 мин) | ~2-3 мин | ✅ работает |
-| Делегирование 3 экспертов | ~15 мин (5×3) | ~5 мин (max) | **3× быстрее** |
-| Feedback пользователю | нет (зависание) | streaming progress | ✅ есть |
-| Timeout handling | зависание curl | понятная ошибка | ✅ есть |
+| Сценарий                   | До               | После              | Улучшение      |
+| -------------------------- | ---------------- | ------------------ | -------------- |
+| Аудит ripgrep (100 файлов) | timeout (>4 мин) | ~2-3 мин           | ✅ работает    |
+| Делегирование 3 экспертов  | ~15 мин (5×3)    | ~5 мин (max)       | **3× быстрее** |
+| Feedback пользователю      | нет (зависание)  | streaming progress | ✅ есть        |
+| Timeout handling           | зависание curl   | понятная ошибка    | ✅ есть        |
 
 ---
 
@@ -256,6 +270,7 @@ AUDIT_TOTAL_TIMEOUT=1800
 **Причина:** Проект слишком большой (1000+ файлов).
 
 **Решение:**
+
 1. Увеличить `VICTORIA_AUDIT_TIMEOUT` до 3600 (1 час)
 2. Использовать chunked flow (`audit_project_chunked`)
 3. Разбить аудит на части: "Проведи аудит только core/" вместо всего проекта
@@ -265,6 +280,7 @@ AUDIT_TOTAL_TIMEOUT=1800
 **Причина:** Redis manager не доступен или используется локальный store.
 
 **Решение:**
+
 - Проверить `docker ps | grep redis`
 - В логах должно быть: `✅ Redis Manager инициализирован`
 - Если нет — прогресс пишется в `_run_task_store` (только для одного процесса)
@@ -274,6 +290,7 @@ AUDIT_TOTAL_TIMEOUT=1800
 **Причина:** Ошибка в `execute_assignments_async`.
 
 **Решение:**
+
 - Проверить логи: должно быть `📥 [MONSTER] Задача X отправлена в очередь Redis` для всех экспертов сразу
 - Затем `⏳ [MONSTER] Запуск run_smart_agent_async` для всех параллельно
 - Если нет — проверить `asyncio.gather` в строке 176 `execute_assignments.py`

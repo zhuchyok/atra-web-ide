@@ -13,6 +13,7 @@
 `too many clients already` → Victoria не может загрузить Expert DNA → задачи зависают.
 
 **Текущие меры (временные):**
+
 - `max_connections=500` в PostgreSQL (повышено сегодня)
 - `idle_in_transaction_session_timeout=300s`
 - `auto_fix_db_connections.py` (чистит при >70%)
@@ -56,13 +57,13 @@ Transaction pooling несовместим с LISTEN — соединение в
 
 ## Затронутые файлы
 
-| Файл | Действие |
-|------|----------|
-| `knowledge_os/docker-compose.yml` | Новый сервис `pgbouncer`, 11 строк DATABASE_URL → `pgbouncer:6432`, `max_connections=100` |
-| `knowledge_os/pgbouncer/pgbouncer.ini` | Новый файл конфига |
-| `knowledge_os/pgbouncer/userlist.txt` | Новый файл с credentials |
-| `knowledge_os/app/employees_sync_daemon.py` | Использовать `POSTGRES_DIRECT_URL` для LISTEN |
-| `knowledge_os/app/db_pool.py` | `max_size` остаётся 5 (PgBouncer мультиплексирует) |
+| Файл                                        | Действие                                                                                  |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `knowledge_os/docker-compose.yml`           | Новый сервис `pgbouncer`, 11 строк DATABASE_URL → `pgbouncer:6432`, `max_connections=100` |
+| `knowledge_os/pgbouncer/pgbouncer.ini`      | Новый файл конфига                                                                        |
+| `knowledge_os/pgbouncer/userlist.txt`       | Новый файл с credentials                                                                  |
+| `knowledge_os/app/employees_sync_daemon.py` | Использовать `POSTGRES_DIRECT_URL` для LISTEN                                             |
+| `knowledge_os/app/db_pool.py`               | `max_size` остаётся 5 (PgBouncer мультиплексирует)                                        |
 
 ---
 

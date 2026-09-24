@@ -140,6 +140,7 @@ for line in sys.stdin:
 ### Аудит / анализ — async режим (1–5 мин, use_enhanced=true)
 
 **Шаг 1: отправить задачу**
+
 ```bash
 TASK_ID=$(curl -s -X POST "http://localhost:8010/run?async_mode=true" \
   -H "Content-Type: application/json" \
@@ -152,6 +153,7 @@ echo "task_id: $TASK_ID"
 ```
 
 **Шаг 2: получить результат**
+
 ```bash
 curl -s "http://localhost:8010/run/status/$TASK_ID" | \
   python3 -c "
@@ -163,6 +165,7 @@ if d.get('status') == 'completed': print(d.get('output','')[:2000])
 ```
 
 > **Почему async лучше для тяжёлых задач:**
+>
 > - Обычный `/run` блокирует терминал и может timeout
 > - Async гарантирует что Виктория доделает работу в фоне
 > - Статусы: `queued` → `processing` → `completed` / `failed`
@@ -197,6 +200,7 @@ python3 scripts/curator_send_tasks_to_victoria.py \
 ```
 
 > **Почему через скрипт, а не голый curl:**
+>
 > - Отчёт сохраняется в `docs/curator_reports/` автоматически
 > - При `completed` — печатает резюме прямо в терминал
 > - Cursor-агент читает отчёт и пишет выводы в FINDINGS
@@ -245,14 +249,14 @@ lsof -i :8080  # Backend
 
 ## 🎯 Когда что использовать
 
-| Задача | Режим | Таймаут |
-| --- | --- | --- |
-| Работа с кодом | **Cursor MCP** | — |
-| Быстрый вопрос (< 30 сек) | **`/stream`** `use_enhanced=false` | 30с |
-| Аудит / анализ (1–5 мин) | **`/run?async_mode=true`** + poll | фон |
-| Диалог в браузере | **Open WebUI** | — |
-| Мобильный | **Telegram** | — |
-| Автоматизация / скрипты | **async API** | фон |
+| Задача                    | Режим                              | Таймаут |
+| ------------------------- | ---------------------------------- | ------- |
+| Работа с кодом            | **Cursor MCP**                     | —       |
+| Быстрый вопрос (< 30 сек) | **`/stream`** `use_enhanced=false` | 30с     |
+| Аудит / анализ (1–5 мин)  | **`/run?async_mode=true`** + poll  | фон     |
+| Диалог в браузере         | **Open WebUI**                     | —       |
+| Мобильный                 | **Telegram**                       | —       |
+| Автоматизация / скрипты   | **async API**                      | фон     |
 
 ---
 
