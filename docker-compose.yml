@@ -153,6 +153,7 @@ services:
   prometheus:
     image: prom/prometheus:latest
     container_name: atra-web-ide-prometheus
+    mem_limit: 2g
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -183,6 +184,7 @@ services:
   grafana:
     image: grafana/grafana:10.2.3
     container_name: atra-web-ide-grafana
+    mem_limit: 512m
     depends_on:
       prometheus:
         condition: service_healthy
@@ -202,6 +204,12 @@ services:
     networks:
       - atra-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || exit 1"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
 
 # ============================================
 # Volumes
