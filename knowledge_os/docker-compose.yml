@@ -58,7 +58,7 @@ services:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"  # v148.1: только localhost, была открыта на 0.0.0.0
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/01-schema.sql
@@ -83,7 +83,7 @@ services:
       - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
       - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
     ports:
-      - "6432:6432"
+      - "127.0.0.1:6432:6432"  # v148.1: только localhost
     networks:
       - atra-network
     healthcheck:
@@ -115,7 +115,7 @@ services:
     environment:
       TZ: Europe/Moscow
     ports:
-      - "6381:6379"
+      - "127.0.0.1:6381:6379"  # v148.1: только localhost
     volumes:
       - redis_data:/data
     networks:
