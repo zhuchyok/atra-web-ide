@@ -6845,6 +6845,7 @@ async def _run_task_background(
                 enhanced.solve(
                     goal_for_enhanced_bg,
                     use_enhancements=True,
+                    expert_name=expert_name,
                     context=context_with_history if context_with_history else None,  # type: ignore[call-arg]
                 )
             )
