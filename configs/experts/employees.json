@@ -438,19 +438,9 @@
       "department": "Business Strategy"
     },
     {
-      "name": "Test Expert",
-      "role": "Test Role",
-      "department": "Test Department"
-    },
-    {
       "name": "Совет Директоров",
       "role": "Коллегиальный орган управления",
       "department": "Management"
-    },
-    {
-      "name": "Test Evolution Expert",
-      "role": "Tester",
-      "department": "QA"
     }
   ]
 }
