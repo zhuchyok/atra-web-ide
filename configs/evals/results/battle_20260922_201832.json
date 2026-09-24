@@ -1,0 +1,39 @@
+{
+ "timestamp": "20260922_201832",
+ "wins": {
+  "A": 2,
+  "B": 0,
+  "tie": 0,
+  "error": 0
+ },
+ "results": [
+  {
+   "id": "communication_01",
+   "category": "communication",
+   "goal": "привет",
+   "source": "standard",
+   "solo": "Привет! Чем могу помочь?",
+   "consilium": "[ERROR] dialogue: HTTP Error 422: Unprocessable Entity",
+   "verdict": {
+    "a": 10.0,
+    "b": 0.0,
+    "winner": "A",
+    "reason": "Ответ A корректен и вежлив, тогда как Ответ B содержит техническую ошибку и не является осмысленным ответом."
+   }
+  },
+  {
+   "id": "communication_02",
+   "category": "communication",
+   "goal": "какой статус проекта?",
+   "source": "standard",
+   "solo": "Статус проекта: активная разработка идёт стабильно, сбоев нет. health=ok pending=0 in_progress=0 failed_1h=0 completed_24h=69 error_rate_1h=0.0 knowledge_nodes=98078",
+   "consilium": "[ERROR] dialogue: HTTP Error 422: Unprocessable Entity",
+   "verdict": {
+    "a": 10.0,
+    "b": 0.0,
+    "winner": "A",
+    "reason": "Ответ A предоставляет конкретные метрики статуса, тогда как ответ B содержит ошибку сервера."
+   }
+  }
+ ]
+}

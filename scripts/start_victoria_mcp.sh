@@ -9,7 +9,7 @@ cd "$ROOT"
 
 echo "🚀 Запуск Victoria MCP Server..." >&2
 echo "📍 Workspace: $ROOT" >&2
-echo "🔗 URL: http://localhost:8012" >&2
+echo "🔗 URL: ${VICTORIA_URL:-http://localhost:8010}" >&2
 echo "" >&2
 
 # Проверяем что Victoria Agent запущен (только если не в режиме Cursor)

@@ -53,14 +53,14 @@ async def run():
             }
             # Force push by clearing lock first
             await redis_manager.release_task_lock(t['id'])
-            
+
             # Update metadata in DB
             await conn.execute(
                 "UPDATE tasks SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb, status = 'pending' WHERE id = $1",
                 t['id'],
                 json.dumps(task_data['metadata'])
             )
-            
+
             await redis_manager.push_to_stream('expert_tasks', task_data)
             print(f"✅ Task {t['id']} for {t['name']} pushed to Redis and DB updated")
 

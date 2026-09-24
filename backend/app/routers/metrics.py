@@ -1,21 +1,70 @@
 """
 Эндпоинты Prometheus метрик (День 5).
 """
+
 import logging
+import os
+
 from fastapi import APIRouter, Response
 from prometheus_client import CONTENT_TYPE_LATEST
 
-from app.metrics.prometheus_metrics import get_metrics
+from app.metrics.prometheus_metrics import get_metrics, update_routing_guard_metrics
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["metrics"])
 
 
+async def _refresh_routing_guard_metrics() -> None:
+    """Best-effort sync of routing guard status from Redis to Prometheus gauges."""
+    urls = []
+    env_url = (os.getenv("REDIS_URL") or "").strip()
+    if env_url:
+        urls.append(env_url)
+    urls.extend(
+        [
+            "redis://knowledge_os_redis:6379/0",
+            "redis://localhost:6379/0",
+            "unix:///data/redis.sock",
+            "unix:///data/redis/redis.sock",
+        ]
+    )
+    seen = set()
+    for url in urls:
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        try:
+            import redis.asyncio as aioredis
+
+            client = aioredis.from_url(url, decode_responses=True, socket_connect_timeout=1.0)
+            values = await client.mget(
+                "system:routing_guard:last_action",
+                "system:routing_guard:last_events_total_window",
+                "system:routing_guard:last_win_rate",
+                "system:routing_guard:last_regret_rate",
+                "system:routing_guard:last_latency_p95_ms",
+            )
+            await client.aclose()
+            if values:
+                action = (values[0] or "canary_only").strip() or "canary_only"
+                update_routing_guard_metrics(
+                    action=action,
+                    events_total_window=float(values[1] or 0.0),
+                    win_rate=float(values[2] or 0.0),
+                    regret_rate=float(values[3] or 0.0),
+                    latency_p95_ms=float(values[4] or 0.0),
+                )
+                return
+        except Exception:
+            continue
+
+
 @router.get("/metrics")
 async def metrics_endpoint():
     """Эндпоинт для сбора метрик Prometheus (scrape target)."""
     try:
+        await _refresh_routing_guard_metrics()
         metrics_data = get_metrics()
         return Response(
             content=metrics_data,
@@ -33,6 +82,7 @@ async def metrics_endpoint():
 def _get_expert_fallback_counts():
     """П.4 пушка: текущие значения счётчиков expert vs fallback (для виджета и алертов)."""
     from app.metrics.prometheus_metrics import CHAT_EXPERT_ANSWER_TOTAL, CHAT_FALLBACK_TOTAL
+
     expert = 0
     try:
         for _labels, child in getattr(CHAT_EXPERT_ANSWER_TOTAL, "_metrics", {}).items():
@@ -79,6 +129,7 @@ async def metrics_summary():
 
     try:
         from app.metrics.prometheus_metrics import ASK_VICTORIA_TOTAL
+
         ask_v_metrics = getattr(ASK_VICTORIA_TOTAL, "_metrics", {}) or {}
         summary["ask_victoria_total"] = {}
         for _labels, child in ask_v_metrics.items():

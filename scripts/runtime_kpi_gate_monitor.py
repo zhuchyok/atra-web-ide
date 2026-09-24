@@ -42,6 +42,7 @@ CONTAINER_ALIASES = {
     "atra-elasticsearch": ["atra-elasticsearch"],
 }
 CORE_CONTAINERS = list(CONTAINER_ALIASES.keys())
+OPTIONAL_CONTAINERS = {"atra-elasticsearch"}
 STALE_THRESHOLD_MINUTES = int(os.getenv("RUNTIME_STALE_THRESHOLD_MINUTES", "45"))
 DYNAMIC_ALERT_LOG_LOOKBACK_SEC = int(os.getenv("RUNTIME_DYNAMIC_ALERT_LOOKBACK_SEC", "900"))
 
@@ -672,9 +673,11 @@ def main() -> int:
             distillation_metrics = get_distillation_metrics()
             dynamic_metrics = get_dynamic_alert_metrics(args.interval_sec)
             rollout_mode, enforce = get_contract_flags()
+            # Legacy/standby stack (e.g. old ELK) must not fail runtime gate.
             containers_healthy = all(
                 (status != "NOT RUNNING") and ("unhealthy" not in status.lower())
-                for status in containers.values()
+                for name, status in containers.items()
+                if name not in OPTIONAL_CONTAINERS
             )
             sample = {
                 "ts_utc": ts,

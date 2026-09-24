@@ -2,11 +2,11 @@
 
 **Единый источник правды:** добавьте нового сотрудника в **`configs/experts/employees.json`**, затем запустите: **`python scripts/sync_employees.py`** — обновятся seed, KNOWN_EXPERT_NAMES и эта таблица.
 
-- **Итого сотрудников:** 90
-- **Отделов:** 42
+- **Итого сотрудников:** 88
+- **Отделов:** 41
 - **Обновлено:** 2026-07-14
 
-## Полный список (90)
+## Полный список (88)
 
 | № | Имя | Роль | Отдел |
 |---|-----|------|-------|
@@ -97,11 +97,9 @@
 | 85 | Арина | Prompt Engineer | ML/AI |
 | 86 | Степан | Senior Data Scientist | Tech & AI |
 | 87 | Михаил Гребенюк | Business Architect & Sales System Specialist | Business Strategy |
-| 88 | Test Expert | Test Role | Test Department |
-| 89 | Совет Директоров | Коллегиальный орган управления | Management |
-| 90 | Test Evolution Expert | Tester | QA |
+| 88 | Совет Директоров | Коллегиальный орган управления | Management |
 
-**Итого: 90 сотрудников.**
+**Итого: 88 сотрудников.**
 
 ## Правило для будущего
 

@@ -19,7 +19,7 @@ async def check_price():
     The default settings should be 350x1000, standard mesh.
     Report the exact price number shown.
     Also, take a screenshot if possible or just describe what you see."""
-    
+
     try:
         result = await operator.execute_task(goal)
         print(f"RESULT: {result}")

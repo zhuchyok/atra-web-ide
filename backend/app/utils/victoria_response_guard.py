@@ -69,6 +69,12 @@ def victoria_status(payload: Any) -> str:
 
 
 def reject_if_stub(payload: Any) -> Optional[str]:
+    # Valid clarification flow: empty output is acceptable when questions are provided.
+    if isinstance(payload, dict):
+        st = victoria_status(payload)
+        questions = payload.get("clarification_questions")
+        if st == "needs_clarification" and questions:
+            return None
     text = extract_victoria_text(payload)
     status = victoria_status(payload)
     if is_victoria_stub(text, status=status):

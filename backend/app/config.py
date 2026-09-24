@@ -9,9 +9,8 @@ import os
 from functools import lru_cache
 from typing import List, Optional, Union
 
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import field_validator
-from pydantic import model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +46,7 @@ class Settings(BaseSettings):
     ollama_url: str = (
         os.getenv("OLLAMA_URL") or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434"
     )
-    default_model: str = os.getenv("DEFAULT_MODEL", "victoria-wisdom-v3.5")
+    default_model: str = os.getenv("DEFAULT_MODEL", "victoria-wisdom-24k")
     ollama_timeout: float = float(os.getenv("OLLAMA_TIMEOUT", "600.0"))
 
     # Database (Knowledge OS)
@@ -106,7 +105,7 @@ class Settings(BaseSettings):
 
     cors_allow_credentials: bool = True
     cors_allow_methods: list[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    cors_allow_headers: list[str] = ["*"]
+    cors_allow_headers: list[str] = ["Authorization", "Content-Type", "X-Requested-With", "X-Correlation-ID"]
 
     # Rate Limiting
     rate_limit_enabled: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"

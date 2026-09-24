@@ -28,7 +28,7 @@ async def clear_and_push_one():
 
     # 3. Push ONLY ONE task
     t = {'id': 'a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d', 'expert': 'Игорь', 'name': 'backend_api', 'path': '/app/backend/app/routers'}
-    
+
     description = f"Deep audit of {t['path']}. Check architecture, security, error handling. Use read_file and list_directory. [force_ollama] preferred_source: ollama"
     task_data = {
         'task_id': t['id'],
@@ -44,7 +44,7 @@ async def clear_and_push_one():
         }
     }
     await redis_manager.release_task_lock(t['id'])
-    
+
     payload = json.dumps(task_data)
     await client.xadd('stream:expert_tasks', {'payload': payload})
     print(f"✅ Task {t['id']} for {t['name']} pushed to Redis with phi3.5:3.8b")

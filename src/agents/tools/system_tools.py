@@ -424,10 +424,25 @@ class DataTools:
     )
 
     @staticmethod
-    def _validate_readonly_sql(sql: str) -> Optional[str]:
+    def _strip_sql_leading_comments(sql: str) -> str:
         q = (sql or "").strip()
+        while True:
+            if q.startswith("--"):
+                nl = q.find("\n")
+                q = "" if nl == -1 else q[nl + 1 :].lstrip()
+                continue
+            if q.startswith("/*"):
+                end = q.find("*/")
+                q = "" if end == -1 else q[end + 2 :].lstrip()
+                continue
+            break
+        return q
+
+    @staticmethod
+    def _validate_readonly_sql(sql: str) -> Optional[str]:
+        q = DataTools._strip_sql_leading_comments(sql)
         first = q.split()[0].lower() if q.split() else ""
-        if first not in ("select", "with", "explain", "show", "table"):
+        if first not in ("select", "with", "explain"):
             return f"❌ db_query: только SELECT/WITH/EXPLAIN. Запрещено: {sql[:80]}"
         if DataTools._SQL_WRITE_PATTERNS.search(q.replace("--", "").replace("/*", "")):
             return f"❌ db_query: DDL/DML запрещены в чтении. Запрос: {sql[:80]}"
@@ -521,9 +536,29 @@ class GitTools:
     GIT_MAX_CHARS = int(os.getenv("GIT_TOOL_MAX_CHARS", "4000"))
 
     _GIT_BLOCK_TOKENS = ("rm -rf", "--force", "reset --hard", "clean -fd", "> /dev/sda?", "push --force")
+    _GIT_ALLOWED_SUBCOMMANDS = {"status", "diff", "log", "checkout", "add", "commit", "push"}
+
+    @staticmethod
+    def _validate_git_args(args: list) -> Optional[str]:
+        if not args:
+            return "Error: empty git command"
+        subcommand = str(args[0]).strip().lower()
+        if subcommand not in GitTools._GIT_ALLOWED_SUBCOMMANDS:
+            return f"Error: git subcommand '{subcommand}' is not allowed"
+        flat = " ".join(str(a) for a in args)
+        if not GitTools._safe_token(flat):
+            return "Error: dangerous git tokens detected"
+        if subcommand in {"checkout", "add", "commit"} and any(
+            str(a).startswith("/") or ".." in str(a) for a in args[1:]
+        ):
+            return "Error: only relative repository paths/args are allowed"
+        return None
 
     @staticmethod
     def _git_run(args: list, timeout: int = 20):
+        validation_error = GitTools._validate_git_args(args)
+        if validation_error:
+            return 2, validation_error
         repo = GitTools._resolve_repo()
         proc = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, timeout=timeout)
         out = (proc.stdout or proc.stderr or "").strip()

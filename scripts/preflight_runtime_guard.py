@@ -46,6 +46,11 @@ CRITICAL_CONTAINERS = [
 ]
 
 STALE_THRESHOLD_MINUTES = int(os.getenv("RUNTIME_STALE_THRESHOLD_MINUTES", "45"))
+ALLOW_HEALTH_STARTING = os.getenv("PREFLIGHT_ALLOW_HEALTH_STARTING", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 
 @dataclass
@@ -124,13 +129,32 @@ def parse_container_health(ps_output: str) -> dict[str, Any]:
 
     critical = []
     all_ok = True
+    starting_count = 0
     for name in CRITICAL_CONTAINERS:
         status = _resolve_status(name)
-        healthy = ("Up" in status) and ("unhealthy" not in status.lower())
-        critical.append({"container": name, "status": status, "ok": healthy})
+        status_l = status.lower()
+        is_up = "up" in status_l
+        is_unhealthy = "unhealthy" in status_l
+        is_starting = "health: starting" in status_l
+        if is_starting:
+            starting_count += 1
+        healthy = is_up and (not is_unhealthy) and (ALLOW_HEALTH_STARTING or not is_starting)
+        critical.append(
+            {
+                "container": name,
+                "status": status,
+                "ok": healthy,
+                "health_starting": is_starting,
+            }
+        )
         all_ok = all_ok and healthy
 
-    return {"ok": all_ok, "critical": critical}
+    return {
+        "ok": all_ok,
+        "critical": critical,
+        "allow_health_starting": ALLOW_HEALTH_STARTING,
+        "starting_count": starting_count,
+    }
 
 
 def db_metrics() -> dict[str, Any]:
@@ -237,7 +261,11 @@ import telegram_notifications_worker as t
 async def main():
     tg = await t.send_telegram('ATRA preflight synthetic alert: telegram')
     nt = await t.send_ntfy('ATRA preflight synthetic alert: ntfy', title='ATRA Preflight')
-    print(json.dumps({'telegram_ok': bool(tg), 'ntfy_ok': bool(nt)}))
+    print(json.dumps({
+        'telegram_ok': bool(tg),
+        'ntfy_ok': bool(nt),
+        'tg_force_ntfy_primary': bool(getattr(t, 'TG_FORCE_NTFY_PRIMARY', False)),
+    }))
 
 asyncio.run(main())
 PY"
@@ -260,9 +288,18 @@ PY"
         return {"ok": False, "error": "no_json_result", "raw_tail": r.out[-600:]}
 
     return {
-        "ok": bool(obj.get("telegram_ok") or obj.get("ntfy_ok")),
+        "ok": bool(
+            obj.get("ntfy_ok")
+            and (obj.get("telegram_ok") or obj.get("tg_force_ntfy_primary"))
+        ),
         "telegram_ok": bool(obj.get("telegram_ok")),
         "ntfy_ok": bool(obj.get("ntfy_ok")),
+        "tg_force_ntfy_primary": bool(obj.get("tg_force_ntfy_primary")),
+        "mode": (
+            "ntfy_primary"
+            if obj.get("tg_force_ntfy_primary")
+            else "telegram_primary_with_ntfy_fallback"
+        ),
     }
 
 

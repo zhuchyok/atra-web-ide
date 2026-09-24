@@ -13,21 +13,21 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:64
 async def backfill():
     logger.info("🚀 Starting backfill of project_slugs...")
     pool = await asyncpg.create_pool(DATABASE_URL)
-    
+
     async with pool.acquire() as conn:
         # 1. Get all projects and their workspace paths
         projects = await conn.fetch("SELECT slug, workspace_path FROM projects")
-        
+
         for project in projects:
             slug = project['slug']
             path = project['workspace_path']
             logger.info(f"📁 Processing project: {slug} (Path: {path})")
-            
+
             # Update nodes where file_path matches project workspace_path
             # We use metadata->>'file_path' for matching
             result = await conn.execute(
                 """
-                UPDATE knowledge_nodes 
+                UPDATE knowledge_nodes
                 SET metadata = metadata || jsonb_build_object('project_slug', $1::text)
                 WHERE (metadata->>'project_slug' IS NULL OR metadata->>'project_slug' = '')
                 AND metadata->>'file_path' LIKE $2 || '%'
@@ -41,7 +41,7 @@ async def backfill():
         for pattern in ai_research_patterns:
             result = await conn.execute(
                 """
-                UPDATE knowledge_nodes 
+                UPDATE knowledge_nodes
                 SET metadata = metadata || '{"project_slug": "ai-research"}'
                 WHERE (metadata->>'project_slug' IS NULL OR metadata->>'project_slug' = '')
                 AND metadata->>'file_path' LIKE $1
@@ -53,7 +53,7 @@ async def backfill():
         # 4. Default slug for remaining nodes
         result = await conn.execute(
             """
-            UPDATE knowledge_nodes 
+            UPDATE knowledge_nodes
             SET metadata = metadata || '{"project_slug": "atra-web-ide"}'
             WHERE (metadata->>'project_slug' IS NULL OR metadata->>'project_slug' = '')
             """

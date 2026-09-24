@@ -27,7 +27,7 @@ echo "📝 Generating Bash completion..."
 ./target/release/atra --generate-completion bash > "$COMPLETIONS_DIR/atra.bash" 2>/dev/null || {
     echo "⚠️  Warning: --generate-completion not yet implemented"
     echo "   Fallback: Creating manual completion script"
-    
+
     # Manual Bash completion (fallback)
     cat > "$COMPLETIONS_DIR/atra.bash" << 'EOF'
 # Bash completion for atra CLI
@@ -92,7 +92,7 @@ _atra() {
         'apply:Apply SEARCH/REPLACE patches'
         'git:Git commands via Gateway'
     )
-    
+
     git_commands=(
         'status:Show working tree status'
         'diff:Show diff'
@@ -115,7 +115,7 @@ _atra() {
                     _arguments -C \
                         '1: :->git_command' \
                         '*:: :->git_args'
-                    
+
                     case "$state" in
                         git_command)
                             _describe 'git commands' git_commands

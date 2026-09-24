@@ -3,6 +3,7 @@ Victoria MCP Server — подключение Victoria к Cursor через MCP
 Запуск: python -m src.agents.bridge.victoria_mcp_server
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -10,6 +11,15 @@ from typing import Optional
 
 import httpx
 from mcp.server.fastmcp import FastMCP
+
+try:
+    from src.agents.bridge.victoria_mcp_parse import (
+        extract_text,
+        format_run_result,
+        is_victoria_stub,
+    )
+except ImportError:
+    from victoria_mcp_parse import extract_text, format_run_result, is_victoria_stub
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("victoria_mcp")
@@ -88,45 +98,70 @@ def _validate_command(command: str) -> str:
 
 def _is_victoria_stub(text: str, status: Optional[str] = None) -> bool:
     """Reject queue/ack/rule-fallback stubs as if they were real answers."""
-    t = (text or "").strip()
-    if not t:
-        return True
-    low = t.lower()
-    markers = (
-        "queued to postgresql",
-        "queued to postgres",
-        "task queued",
-        "status_url",
-        "processing...",
-        "все источники недоступны",
-        "агенты временно недоступны",
-        "rule-based статусный ответ",
-        "rule-based research fallback",
-        "[degraded_rule_fallback]",
-        "ai временно недоступен",
-        "fix not implemented",
-    )
-    if any(m in low for m in markers):
-        return True
-    st = (status or "").strip().lower()
-    if st in ("processing", "queued") and len(t) < 120 and "queued" in low:
-        return True
-    return False
+    return is_victoria_stub(text, status=status)
 
 
 def _parse_run_result(result: dict) -> str:
-    """Разбор ответа /run: поддержка goal→output и prompt→response."""
-    out = result.get("output") or result.get("response") or result.get("result")
-    status = result.get("status", "completed")
-    if out is None:
-        return "❌ Victoria вернула пустой ответ (stub rejected)."
-    out_s = str(out)
-    if _is_victoria_stub(out_s, status=str(status) if status else None):
-        return (
-            "❌ Rejected Victoria stub/queue/rule-fallback response. "
-            "Retry with sync /run or wait for a real expert answer — do not treat this as success."
-        )
-    return f"✅ {status}\n\n{out_s}"
+    """Разбор ответа /run: поддержка goal→output, chat completions и task_id."""
+    return format_run_result(result)
+
+
+async def _chat_completions(
+    client: httpx.AsyncClient, message: str, history: Optional[list] = None
+) -> str:
+    messages: list[dict] = []
+    for turn in history or []:
+        if not isinstance(turn, dict):
+            continue
+        if turn.get("user"):
+            messages.append({"role": "user", "content": str(turn["user"])})
+        if turn.get("assistant"):
+            messages.append({"role": "assistant", "content": str(turn["assistant"])})
+    messages.append({"role": "user", "content": message})
+    resp = await client.post(
+        f"{VICTORIA_URL}/v1/chat/completions",
+        json={"model": "victoria", "messages": messages, "max_tokens": 1200},
+    )
+    resp.raise_for_status()
+    return format_run_result(resp.json())
+
+
+async def _run_async_and_poll(
+    client: httpx.AsyncClient,
+    goal: str,
+    max_steps: Optional[int],
+    wait_sec: float = 90,
+) -> str:
+    resp = await client.post(
+        f"{VICTORIA_URL}/run",
+        params={"async_mode": "true"},
+        json={"goal": goal, "max_steps": max_steps or 500, "project_context": "atra-web-ide"},
+    )
+    if resp.status_code == 422:
+        resp = await client.post(f"{VICTORIA_URL}/run", json={"prompt": goal})
+    resp.raise_for_status()
+    data = resp.json()
+    text, status = extract_text(data)
+    if text and not is_victoria_stub(text, status):
+        return format_run_result(data)
+    task_id = data.get("task_id")
+    if not task_id:
+        return await _chat_completions(client, goal)
+    deadline = asyncio.get_event_loop().time() + wait_sec
+    while asyncio.get_event_loop().time() < deadline:
+        st = await client.get(f"{VICTORIA_URL}/run/status/{task_id}")
+        if st.status_code == 404:
+            await asyncio.sleep(2.0)
+            continue
+        st.raise_for_status()
+        payload = st.json()
+        body, st_status = extract_text(payload)
+        if body and not is_victoria_stub(body, st_status):
+            return format_run_result(payload)
+        if str(st_status).lower() in ("completed", "failed", "cancelled", "error"):
+            return format_run_result(payload)
+        await asyncio.sleep(2.5)
+    return format_run_result({"status": "processing", "task_id": task_id})
 
 
 @mcp.tool()
@@ -141,20 +176,14 @@ async def victoria_run(goal: str, max_steps: Optional[int] = 500) -> str:
         Результат выполнения задачи от Victoria
     """
     try:
-        timeout_sec = VICTORIA_MCP_RUN_TIMEOUT_SEC
+        timeout_sec = min(VICTORIA_MCP_RUN_TIMEOUT_SEC, 120.0)
         async with httpx.AsyncClient(timeout=timeout_sec) as client:
-            # 1) Стандартный API (goal + max_steps)
-            resp = await client.post(
-                f"{VICTORIA_URL}/run", json={"goal": goal, "max_steps": max_steps}
-            )
-            # 2) При 422 пробуем API с prompt (Mac Studio / иные деплои)
-            if resp.status_code == 422:
-                resp = await client.post(f"{VICTORIA_URL}/run", json={"prompt": goal})
-            resp.raise_for_status()
-            data = resp.json()
-            return _parse_run_result(data)
+            return await _run_async_and_poll(client, goal, max_steps, wait_sec=90)
     except httpx.TimeoutException:
-        return f"⏱️ Таймаут: задача заняла больше {int(VICTORIA_MCP_RUN_TIMEOUT_SEC)} с. Увеличьте VICTORIA_MCP_RUN_TIMEOUT_SEC или упростите задачу."
+        return (
+            f"⏱️ Таймаут канала {int(timeout_sec)} с. "
+            "Повтори короче через victoria_chat или опроси victoria_task_status."
+        )
     except httpx.RequestError as e:
         return f"❌ Ошибка связи с Victoria: {e}"
     except Exception as e:
@@ -179,32 +208,18 @@ async def victoria_chat(
         Ответ Виктории
     """
     try:
-        payload: dict = {
-            "goal": message,
-            "project_context": project_context,
-        }
+        history = None
         if history_json:
             try:
-                history = json.loads(history_json)
-                if isinstance(history, list):
-                    payload["chat_history"] = history
+                parsed = json.loads(history_json)
+                if isinstance(parsed, list):
+                    history = parsed
             except json.JSONDecodeError:
                 pass
-        async with httpx.AsyncClient(timeout=VICTORIA_MCP_RUN_TIMEOUT_SEC) as client:
-            resp = await client.post(
-                f"{VICTORIA_URL}/run",
-                json=payload,
-            )
-            if resp.status_code == 422:
-                resp = await client.post(
-                    f"{VICTORIA_URL}/run",
-                    json={"prompt": message},
-                )
-            resp.raise_for_status()
-            data = resp.json()
-            return _parse_run_result(data)
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            return await _chat_completions(client, message, history)
     except httpx.TimeoutException:
-        return f"⏱️ Таймаут: Victoria не ответила за {int(VICTORIA_MCP_RUN_TIMEOUT_SEC)} с. Упрости запрос или увеличь VICTORIA_MCP_RUN_TIMEOUT_SEC."
+        return "⏱️ Таймаут: Victoria не ответила за 120 с. Упрости запрос."
     except httpx.RequestError as e:
         return f"❌ Ошибка связи с Victoria: {e}"
     except Exception as e:
@@ -249,6 +264,23 @@ async def victoria_health() -> str:
             return f"✅ {data.get('status', 'ok')} — {data.get('agent', 'Victoria')}"
     except Exception as e:
         return f"❌ Victoria не отвечает: {e}"
+
+
+@mcp.tool()
+async def victoria_task_status(task_id: str) -> str:
+    """Забрать результат фоновой задачи Victoria по task_id."""
+    try:
+        async with httpx.AsyncClient(timeout=25.0) as client:
+            resp = await client.get(f"{VICTORIA_URL}/run/status/{task_id}")
+            if resp.status_code == 404:
+                return f"❌ Задача {task_id} не найдена."
+            resp.raise_for_status()
+            return format_run_result(resp.json())
+    except httpx.RequestError as e:
+        return f"❌ Ошибка связи с Victoria: {e}"
+    except Exception as e:
+        logger.exception("Ошибка victoria_task_status")
+        return f"❌ Ошибка: {e}"
 
 
 @mcp.tool()

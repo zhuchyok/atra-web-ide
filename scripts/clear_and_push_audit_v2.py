@@ -57,7 +57,7 @@ async def clear_and_push():
         }
         # Release lock just in case
         await redis_manager.release_task_lock(t['id'])
-        
+
         # Push to stream
         payload = json.dumps(task_data)
         await client.xadd('stream:expert_tasks', {'payload': payload})

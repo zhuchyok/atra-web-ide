@@ -1,6 +1,9 @@
 import asyncio
+import hashlib
 import json
 import logging
+import os
+import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union
 
@@ -11,6 +14,12 @@ LOOP_BLOCK_STEPS = 5
 
 # Настройка логирования для терминала
 logger = logging.getLogger(__name__)
+DEFAULT_TOOL_TIMEOUT_SEC = float(os.getenv("AGENT_TOOL_TIMEOUT_SEC", "30"))
+WEB_TOOL_TIMEOUT_SEC = float(os.getenv("AGENT_WEB_TOOL_TIMEOUT_SEC", "20"))
+DATA_TOOL_TIMEOUT_SEC = float(os.getenv("AGENT_DATA_TOOL_TIMEOUT_SEC", "20"))
+GIT_TOOL_TIMEOUT_SEC = float(os.getenv("AGENT_GIT_TOOL_TIMEOUT_SEC", "30"))
+TOOL_RETRY_ATTEMPTS = max(1, int(os.getenv("AGENT_TOOL_RETRY_ATTEMPTS", "2")))
+TOOL_RETRY_DELAY_SEC = float(os.getenv("AGENT_TOOL_RETRY_DELAY_SEC", "0.4"))
 
 
 class AgentAction(BaseModel):
@@ -79,6 +88,107 @@ class AtraBaseAgent(ABC):
         if self.project_knowledge["server_status"]:
             summary += f"Серверы: {json.dumps(self.project_knowledge['server_status'])}\n"
         return summary
+
+    @staticmethod
+    def _tool_timeout_for(tool_name: str) -> float:
+        if tool_name == "web_search":
+            return WEB_TOOL_TIMEOUT_SEC
+        if tool_name == "db_query":
+            return DATA_TOOL_TIMEOUT_SEC
+        if tool_name.startswith("git_"):
+            return GIT_TOOL_TIMEOUT_SEC
+        return DEFAULT_TOOL_TIMEOUT_SEC
+
+    @staticmethod
+    def _is_retryable_tool_error(tool_name: str, text: str) -> bool:
+        if not text:
+            return False
+        msg = text.lower()
+        retry_markers = (
+            "timeout",
+            "timed out",
+            "temporarily",
+            "try again",
+            "connection reset",
+            "connection refused",
+            "service unavailable",
+            "502",
+            "503",
+            "504",
+            "network",
+        )
+        # Tool contract: retries are mainly for web/git/sql classes.
+        if tool_name == "web_search" or tool_name == "db_query" or tool_name.startswith("git_"):
+            return any(marker in msg for marker in retry_markers)
+        return False
+
+    @staticmethod
+    def _make_tool_audit(tool_name: str, tool_input: Dict[str, Any], latency_ms: int, status: str) -> Dict[str, Any]:
+        args_raw = json.dumps(tool_input or {}, sort_keys=True, ensure_ascii=False)
+        return {
+            "tool": tool_name,
+            "args_hash": hashlib.sha1(args_raw.encode("utf-8")).hexdigest(),
+            "latency_ms": latency_ms,
+            "status": status,
+            "ts_ms": int(time.time() * 1000),
+        }
+
+    async def _call_tool_with_policy(self, tool_name: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+        timeout_sec = self._tool_timeout_for(tool_name)
+        attempts_total = TOOL_RETRY_ATTEMPTS
+        last_error = ""
+        start_total = time.monotonic()
+
+        for attempt in range(1, attempts_total + 1):
+            call_started = time.monotonic()
+            try:
+                raw_result = await asyncio.wait_for(
+                    self.tools[tool_name](**tool_input),
+                    timeout=timeout_sec,
+                )
+                result_text = str(raw_result)
+                if self._is_retryable_tool_error(tool_name, result_text) and attempt < attempts_total:
+                    last_error = result_text
+                    await asyncio.sleep(TOOL_RETRY_DELAY_SEC)
+                    continue
+                latency_ms = int((time.monotonic() - call_started) * 1000)
+                status = "error" if result_text.lower().startswith(("error", "ошибка", "exception")) else "ok"
+                payload: Dict[str, Any] = {
+                    "tool": tool_name,
+                    "status": status,
+                    "audit": self._make_tool_audit(tool_name, tool_input, latency_ms, status),
+                }
+                payload["audit"]["attempt"] = attempt
+                payload["audit"]["attempts_total"] = attempts_total
+                payload["audit"]["timeout_sec"] = timeout_sec
+                if status == "ok":
+                    payload["tool_result"] = result_text
+                else:
+                    payload["tool_error"] = result_text
+                return payload
+            except asyncio.TimeoutError:
+                last_error = f"Tool timeout after {int(timeout_sec)}s"
+                if attempt < attempts_total:
+                    await asyncio.sleep(TOOL_RETRY_DELAY_SEC)
+                    continue
+            except Exception as e:
+                last_error = str(e)
+                if self._is_retryable_tool_error(tool_name, last_error) and attempt < attempts_total:
+                    await asyncio.sleep(TOOL_RETRY_DELAY_SEC)
+                    continue
+                break
+
+        total_latency = int((time.monotonic() - start_total) * 1000)
+        audit = self._make_tool_audit(tool_name, tool_input, total_latency, "error")
+        audit["attempt"] = attempts_total
+        audit["attempts_total"] = attempts_total
+        audit["timeout_sec"] = timeout_sec
+        return {
+            "tool": tool_name,
+            "status": "error",
+            "tool_error": last_error or "Unknown tool execution error",
+            "audit": audit,
+        }
 
     async def run(self, goal: str, max_steps: int = 500) -> str:
         logger.info(f"\n🚀 ЗАДАЧА: {goal}")
@@ -176,7 +286,7 @@ class AtraBaseAgent(ABC):
                     block_until = self._blocked_tools[result.tool]
                     error_msg = (
                         f"Инструмент {result.tool} заблокирован до шага {block_until}. "
-                        "Выбери другой: read_file, run_terminal_cmd, ssh_run или finish."
+                        "Выбери другой: read_file, run_terminal_cmd, ssh_run, write_file или finish."
                     )
                     logger.warning("⚠️ %s", error_msg)
                     self.memory.append({"role": "user", "content": error_msg})
@@ -198,34 +308,40 @@ class AtraBaseAgent(ABC):
                 print(f"📝 Аргументы: {json.dumps(tool_input, indent=2, ensure_ascii=False)}")
 
                 if result.tool in self.tools:
-                    try:
-                        observation = await self.tools[result.tool](**tool_input)
-                        obs_str = str(observation)
-                        print(
-                            f"👀 Результат: {obs_str[:300]}..."
-                            if len(obs_str) > 300
-                            else f"👀 Результат: {obs_str}"
-                        )
-
-                        obs_for_memory = (
-                            obs_str if len(obs_str) <= 2000 else obs_str[:2000] + "...[truncated]"
-                        )
-                        self.memory.append(
-                            {
-                                "role": "user",
-                                "content": f"Observation from {result.tool}: {obs_for_memory}",
-                            }
-                        )
+                    observation = await self._call_tool_with_policy(result.tool, tool_input)
+                    obs_payload = json.dumps(observation, ensure_ascii=False)
+                    obs_preview = obs_payload if len(obs_payload) <= 300 else obs_payload[:300] + "..."
+                    print(f"👀 Результат: {obs_preview}")
+                    obs_for_memory = (
+                        obs_payload if len(obs_payload) <= 3000 else obs_payload[:3000] + "...[truncated]"
+                    )
+                    self.memory.append(
+                        {
+                            "role": "user",
+                            "content": f"Observation from {result.tool}: {obs_for_memory}",
+                        }
+                    )
+                    if observation.get("status") == "ok":
                         current_input = "Результат получен. Продолжай выполнение задачи."
-                    except Exception as e:
-                        error_msg = f"Ошибка при вызове {result.tool}: {str(e)}"
-                        logger.error(f"❌ {error_msg}")
-                        self.memory.append({"role": "user", "content": error_msg})
-                        current_input = f"Произошла ошибка: {error_msg}. Попробуй другой способ."
+                    else:
+                        current_input = (
+                            "Инструмент вернул ошибку. Проанализируй tool_error и выбери другой ход или исправь аргументы."
+                        )
                 else:
                     error_msg = f"Инструмент {result.tool} не найден."
                     logger.error(f"❌ {error_msg}")
-                    self.memory.append({"role": "user", "content": error_msg})
+                    missing_payload = {
+                        "tool": result.tool,
+                        "status": "error",
+                        "tool_error": error_msg,
+                        "audit": self._make_tool_audit(result.tool, tool_input, 0, "error"),
+                    }
+                    self.memory.append(
+                        {
+                            "role": "user",
+                            "content": f"Observation from {result.tool}: {json.dumps(missing_payload, ensure_ascii=False)}",
+                        }
+                    )
                     current_input = f"Ошибка: инструмента {result.tool} не существует. Используй только доступные инструменты."
 
         return f"Превышен лимит шагов ({max_steps}). Упростите запрос или разбейте задачу на части."

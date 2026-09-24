@@ -68,12 +68,16 @@ async def lifespan(app: FastAPI):
     import asyncpg
 
     logger.info("🚀 ATRA Web IDE запускается...")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   Victoria: {settings.victoria_url}")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   Ollama: {settings.ollama_url}")
     logger.info(
         f"   Database: {settings.database_url.split('@')[-1] if '@' in settings.database_url else 'N/A'}"
     )
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   Workspace: {settings.workspace_root}")
+    # TODO: Convert f-string to %s formatting for performance
     logger.info(f"   Rate Limiting: {'enabled' if settings.rate_limit_enabled else 'disabled'}")
 
     app.state.knowledge_os_pool = None
@@ -86,6 +90,7 @@ async def lifespan(app: FastAPI):
         app.state.knowledge_os_pool = pool
         logger.info("✅ Knowledge OS DB pool создан")
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ Knowledge OS DB pool: {e}")
 
     try:
@@ -102,21 +107,25 @@ async def lifespan(app: FastAPI):
         mlx_health = await mlx.health()
 
         if victoria_health.get("status") != "healthy":
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Victoria недоступна: {victoria_health}")
         else:
             logger.info("✅ Victoria доступна")
 
         if ollama_health.get("status") != "healthy":
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ Ollama недоступна: {ollama_health}")
         else:
             logger.info("✅ Ollama доступна")
 
         if mlx_health.get("status") not in ("healthy", "degraded"):
+            # TODO: Convert f-string to %s formatting for performance
             logger.warning(f"⚠️ MLX недоступен: {mlx_health}")
         else:
             logger.info("✅ MLX доступен")
 
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ Ошибка проверки зависимостей: {e}")
 
     # Фоновая проверка Ollama и MLX каждые health_check_interval сек (логирование; подъём — через скрипты/supervisor на хосте)
@@ -145,6 +154,7 @@ async def lifespan(app: FastAPI):
                         "[Health] MLX недоступен — запустите MLX API Server или проверьте MLX_API_URL"
                     )
             except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"[Health] LLM check: {e}")
 
     _health_task = None
@@ -374,6 +384,7 @@ async def health():
         if not v_ok and not o_ok and not m_ok:
             health_status["status"] = "degraded"
     except Exception as e:
+        # TODO: Convert f-string to %s formatting for performance
         logger.error(f"Health check error: {e}")
         health_status["status"] = "unhealthy"
         health_status["error"] = str(e)

@@ -39,9 +39,9 @@ async def process_batch(pool, client: httpx.AsyncClient, nodes: List[asyncpg.Rec
     for node in nodes:
         content = node['content'][:2000] # Truncate if too long for embedding
         tasks.append(get_embedding(client, content))
-    
+
     embeddings = await asyncio.gather(*tasks)
-    
+
     async with pool.acquire() as conn:
         async with conn.transaction():
             for node, embedding in zip(nodes, embeddings):
@@ -54,7 +54,7 @@ async def process_batch(pool, client: httpx.AsyncClient, nodes: List[asyncpg.Rec
 
 async def main():
     logger.info(f"🚀 Starting mass embedding generation (Model: {OLLAMA_MODEL}, Max: {MAX_NODES})")
-    
+
     pool = await asyncpg.create_pool(DATABASE_URL)
     async with httpx.AsyncClient() as client:
         total_processed = 0
@@ -64,18 +64,18 @@ async def main():
                     "SELECT id, content FROM knowledge_nodes WHERE embedding IS NULL LIMIT $1",
                     BATCH_SIZE
                 )
-            
+
             if not nodes:
                 logger.info("✅ No more nodes without embeddings.")
                 break
-            
+
             processed = await process_batch(pool, client, nodes)
             total_processed += len(nodes)
             logger.info(f"📦 Processed batch: {len(nodes)} nodes, {processed} embeddings generated. Total: {total_processed}/{MAX_NODES}")
-            
+
             if total_processed >= MAX_NODES:
                 break
-                
+
             # Small delay between batches
             await asyncio.sleep(0.5)
 
