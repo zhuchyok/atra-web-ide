@@ -136,3 +136,5 @@ daemon.json
 file.write
 command.append
 tmp/
+audit_curl_err.txt
+.cache/

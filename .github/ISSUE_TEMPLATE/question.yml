@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Задайте свой вопрос о проекте ATRA Web IDE.
-  
+
   - type: textarea
     id: question
     attributes:
@@ -15,7 +15,7 @@ body:
       description: Опишите, что вы хотите узнать
     validations:
       required: true
-  
+
   - type: dropdown
     id: area
     attributes:
@@ -30,13 +30,13 @@ body:
         - Другое
     validations:
       required: true
-  
+
   - type: textarea
     id: context
     attributes:
       label: Контекст
       description: Что вы уже пробовали? Какие документы читали?
-  
+
   - type: textarea
     id: additional
     attributes:

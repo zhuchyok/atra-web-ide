@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Спасибо за идею! Опишите желаемую функциональность.
-  
+
   - type: textarea
     id: problem
     attributes:
@@ -16,7 +16,7 @@ body:
       placeholder: "Я всегда раздражался, когда..."
     validations:
       required: true
-  
+
   - type: textarea
     id: solution
     attributes:
@@ -25,13 +25,13 @@ body:
       placeholder: "Было бы здорово, если..."
     validations:
       required: true
-  
+
   - type: textarea
     id: alternatives
     attributes:
       label: Альтернативы
       description: Рассматривали ли вы альтернативные решения?
-  
+
   - type: dropdown
     id: component
     attributes:
@@ -50,7 +50,7 @@ body:
         - Другое
     validations:
       required: true
-  
+
   - type: dropdown
     id: priority
     attributes:
@@ -62,7 +62,7 @@ body:
         - "🟢 Низкий (nice to have)"
     validations:
       required: true
-  
+
   - type: textarea
     id: additional
     attributes:
