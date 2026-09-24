@@ -5,6 +5,25 @@ import os
 from datetime import datetime
 from typing import Optional
 
+
+# [v148.3] Sanity-гейт мутаций: мутация не должна быть метакомментарием,
+# иначе эволювер перезаписывает персону эксперта мусором (инцидент 24.09:
+# у 8 экспертов system_prompt был заменён текстом вида "Улучшенный промпт:").
+_MUTATION_META_MARKERS = (
+    "улучшенн", "revamped", "обновленный промпт", "как gemini", "как ai,",
+    "системный при", "improved prompt", "предлагаю оптимизировать",
+)
+
+
+def _is_sane_mutation(new_prompt: str) -> bool:
+    if not new_prompt or len(new_prompt) < 200:
+        return False
+    low = new_prompt.lower()
+    if any(m in low for m in _MUTATION_META_MARKERS):
+        return False
+    # персона должна обращаться к самому эксперту
+    return any(h in low for h in ("ты ", "you are", "твоя роль", "your role"))
+
 import asyncpg
 
 # [SINGULARITY 10.0+] GraphRAG Integration
@@ -171,6 +190,10 @@ async def evolve_experts(expert_name: Optional[str] = None):
                 assigned_skills = data.get("assigned_skills", [])
 
                 if new_prompt and len(new_prompt) > 100:
+                    if not _is_sane_mutation(new_prompt):
+                        logger.error("🚨 [EVOLVER] Mutation rejected by sanity gate (meta-garbage): %s", new_prompt[:80])
+                        await conn.close()
+                        return
                     await conn.execute(
                         """
                         UPDATE experts
