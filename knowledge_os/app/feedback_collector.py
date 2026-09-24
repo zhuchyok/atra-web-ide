@@ -266,7 +266,7 @@ class FeedbackCollector:
                         COUNT(*) FILTER (WHERE is_positive = FALSE) as negative,
                         COUNT(*) FILTER (WHERE rerouted_to_cloud = TRUE) as rerouted
                     FROM feedback_data
-                    WHERE created_at > NOW() - INTERVAL '%s days'
+                    WHERE created_at > NOW() - ($1 * INTERVAL '1 day')
                 """,
                     days,
                 )

@@ -92,7 +92,7 @@ async def inject_context_enrichment(
             async with pool.acquire() as conn:
                 # Meta-Strategies (compact top-2)
                 rows = await conn.fetch(
-                    "SELECT content FROM knowledge_nodes WHERE metadata->>'type' = 'meta_wisdom' AND is_verified = TRUE ORDER BY created_at DESC LIMIT 2"
+                    "SELECT content FROM knowledge_nodes WHERE metadata->>'type' = 'meta_wisdom' AND is_verified = TRUE AND content NOT LIKE '%job_id%' AND content NOT LIKE '%\'status\': \'processing\'%' ORDER BY created_at DESC LIMIT 2"
                 )
                 if rows:
                     texts = "\n".join(f"- {r['content'][:150]}" for r in rows)

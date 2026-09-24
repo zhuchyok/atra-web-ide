@@ -74,6 +74,17 @@ async def synthesize_wisdom():
                 "INSERT INTO domains (name) VALUES ('Strategy') RETURNING id"
             )
 
+        # [v148.1] Sanity-гейт: модель вернула служебный дикт/пустышку — не пишем.
+        _w = (wisdom or "").strip()
+        if (
+            not _w
+            or _w.startswith("{")
+            or "'status': 'processing'" in _w
+            or "job_id" in _w
+        ):
+            logger.warning("🏛 [META] Синтез вернул служебный мусор — узел не сохранён: %s", _w[:80])
+            return
+        wisdom = _w
         content_kn = f"🏛 META-STRATEGY: {wisdom}"
         meta_kn = json.dumps({"type": "meta_wisdom", "nodes_count": len(nodes)})
         embedding = None

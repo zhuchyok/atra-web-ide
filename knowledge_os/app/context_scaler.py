@@ -41,8 +41,8 @@ class ContextScaler:
                         performance_score,
                         created_at
                     FROM semantic_ai_cache
-                    WHERE created_at > NOW() - INTERVAL '%s days'
-                    AND query_text ILIKE '%' || $1 || '%'
+                    WHERE created_at > NOW() - ($1 * INTERVAL '1 day')
+                    AND query_text ILIKE '%' || $2 || '%'
                     ORDER BY created_at DESC
                     LIMIT 100
                 """,

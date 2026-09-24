@@ -413,7 +413,7 @@ class FeedbackLoop:
             deleted = await self.conn.execute(
                 """
                 DELETE FROM feedback_log
-                WHERE created_at < NOW() - INTERVAL '%s days'
+                WHERE created_at < NOW() - ($1 * INTERVAL '1 day')
                 """,
                 FEEDBACK_RETENTION_DAYS,
             )

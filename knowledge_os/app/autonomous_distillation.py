@@ -44,7 +44,7 @@ class AutonomousDistiller:
                         created_at
                     FROM semantic_ai_cache
                     WHERE performance_score >= $1
-                    AND created_at > NOW() - INTERVAL '%s days'
+                    AND created_at > NOW() - ($2 * INTERVAL '1 day')
                     AND usage_count > 0
                     ORDER BY performance_score DESC, usage_count DESC
                     LIMIT 50
