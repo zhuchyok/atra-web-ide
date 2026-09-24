@@ -426,8 +426,12 @@ class VictoriaEnhanced:
         [SINGULARITY 24.7] Added support for 'method' argument and proper LLM routing.
         [SINGULARITY 26.4] Extended Thinking полностью интегрирован.
         [SINGULARITY 28.0] LTM Integration: Recall memories before solving.
+        [v149] expert_name: персона эксперта прокидывается во все LLM-вызовы
+        (раньше жёстко "Виктория" — специалисты не использовали свои промпты).
         """
         method = kwargs.get("method", "auto")
+        expert_name = kwargs.get("expert_name") or "Виктория"
+        self._current_expert = expert_name
         category = kwargs.get("category") or self._categorize_task(goal)
         session_id = kwargs.get("session_id", "default")
 
@@ -466,9 +470,11 @@ class VictoriaEnhanced:
         # Operational goals (аудит дашборда): Department Heads + парсинг Veronica — лишняя задержка.
         skip_dept_heads = False
         try:
-            from src.agents.bridge.task_detector import is_operational_execution_goal
+            from src.agents.bridge.task_detector import (
+                is_operational_execution_goal as _is_op_goal,
+            )
 
-            skip_dept_heads = is_operational_execution_goal(goal)
+            skip_dept_heads = _is_op_goal(goal)
         except Exception:
             g = (goal or "").lower()
             skip_dept_heads = "аудит" in g and ("дашборд" in g or "dashboard" in g)
@@ -554,7 +560,7 @@ class VictoriaEnhanced:
                 llm_task = asyncio.create_task(
                     VictoriaEnhanced._run_smart_agent_async(
                         goal,
-                        expert_name="Виктория",
+                        expert_name=getattr(self, "_current_expert", None) or "Виктория",
                         category=category,
                         local_router=VictoriaEnhanced._local_router,
                     )
@@ -577,7 +583,10 @@ class VictoriaEnhanced:
             except Exception as e:
                 # TODO: Convert f-string to %s formatting for performance
                 import traceback as _tb
-        logger.error(f"❌ [VICTORIA] LLM call failed: {e}\n{_tb.format_exc()[-1500:]}")
+
+                logger.error(
+                    f"❌ [VICTORIA] LLM call failed: {e}\n{_tb.format_exc()[-1500:]}"
+                )
                 return {"result": f"Ошибка вызова LLM: {e}"}
 
         return {"result": f"Solved: {goal}"}
