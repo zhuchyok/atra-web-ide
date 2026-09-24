@@ -576,7 +576,8 @@ class VictoriaEnhanced:
                 return {"result": result}
             except Exception as e:
                 # TODO: Convert f-string to %s formatting for performance
-                logger.error(f"❌ [VICTORIA] LLM call failed: {e}")
+                import traceback as _tb
+        logger.error(f"❌ [VICTORIA] LLM call failed: {e}\n{_tb.format_exc()[-1500:]}")
                 return {"result": f"Ошибка вызова LLM: {e}"}
 
         return {"result": f"Solved: {goal}"}
