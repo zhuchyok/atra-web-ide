@@ -15,7 +15,11 @@ from typing import Any, Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 # Используем ТОЛЬКО MLX API Server (порт 11435)
-MLX_URL = os.getenv("MLX_API_URL", "http://localhost:11435")
+MLX_URL = (
+    os.getenv("MLX_API_URL", "").strip()
+    or os.getenv("MLX_BASE_URL", "").strip()
+    or "http://host.docker.internal:11435"
+).rstrip("/")  # [v149] fallback-цепочка: в контейнере localhost:11435 — это сам контейнер
 DEFAULT_LLM_URL = MLX_URL
 
 # Кэш для списка моделей (чтобы не делать частые запросы к /api/tags)

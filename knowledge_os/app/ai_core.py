@@ -4306,8 +4306,19 @@ Use HANDOFF only if delegation genuinely improves the result.
     # Cleanup internal metadata markers from response
     response = _clean_response(response)
     # [v148.4] response может быть None (LLM вернул None) — не ронять весь запрос
-    if response:
-        response = strip_think_blocks(response)
+    # [v149] None → строка с честной пометкой (иначе Enhanced-цепочка теряет текст
+    # и пользователь получает "текст ответа не был сохранён")
+    if not isinstance(response, str):
+        logger.error(
+            "⚠️ [SMART_AGENT] response=%s (type=%s) — локальные модели не дали текста",
+            response,
+            type(response).__name__,
+        )
+        response = (
+            "⚠️ Не удалось получить ответ от локальных моделей (MLX/Ollama). "
+            "Повторите запрос или проверьте MLX health: 11435."
+        )
+    response = strip_think_blocks(response)
 
     return response
 
