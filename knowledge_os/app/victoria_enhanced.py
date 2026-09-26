@@ -728,7 +728,7 @@ class VictoriaEnhanced:
         reviewed_assignments = []
         for assignment in assignments or []:
             executed = await task_dist.execute_task_assignment(assignment)
-            reviewed = await task_dist.manager_review_task(executed)
+            reviewed = await task_dist.manager_review_task(executed, goal)
             reviewed_assignments.append(reviewed)
 
         collection = await task_dist.department_head_collect_tasks(department, reviewed_assignments)
