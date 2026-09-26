@@ -4642,15 +4642,18 @@ def _normalize_output_for_user(raw: Any) -> str:
                                 step_text = str(st)
                             parts.append(f"{i}. {step_text}")
                         content = "\n".join(parts)
+                if content and len(content) > 20:
+                    return content[:4000]
             # Полезного контента нет — честная просьба конкретики + диаг в лог
             import logging as _lg2
 
             _lg2.getLogger("norm_dbg").warning(
-                "NORM_PLAN_PARSE_FAIL len=%d data_type=%s keys=%s plan_type=%s",
+                "NORM_PLAN_PARSE_FAIL len=%d data_type=%s keys=%s plan_type=%s s_head=%r",
                 len(s),
                 type(data).__name__,
                 list(data.keys()) if isinstance(data, dict) else None,
                 type(data.get("plan")).__name__ if isinstance(data, dict) else None,
+                s[:300],
             )
             return (
                 "Запрос принят, но модель вернула только план действий без ответа. "
