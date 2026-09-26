@@ -4018,6 +4018,32 @@ def _strip_internal_monologue(text: str) -> str:
     и оставить только итоговый ответ (FINAL ANSWER / Итог: / Вот краткий отчёт:).
     Служебные action/tool (file_read, general_knowledge и т.п.) не показывать пользователю.
     """
+
+    # [v149.2] plan/tool_input JSON (Extended Thinking/ReAct-планы): достаём шаги/контент
+    _text = text.strip()
+    try:
+        _pdata = json.loads(_text)
+    except Exception:  # noqa: BLE001
+        _pdata = None
+    if isinstance(_pdata, dict):
+        _pc = None
+        _pa = _pdata.get("action")
+        if isinstance(_pa, dict):
+            _pc = _pa.get("content") or _pa.get("output")
+        _pti = _pdata.get("tool_input")
+        if not _pc and isinstance(_pti, dict):
+            _pc = _pti.get("content") or _pti.get("output")
+        _pp = _pdata.get("plan")
+        if not _pc and isinstance(_pp, dict):
+            _pp = _pp.get("steps") or list(_pp.values())
+        if not _pc and isinstance(_pp, list):
+            _pc = "\n".join(
+                f"{i}. {(st.get('step', '') if isinstance(st, dict) else str(st))}"
+                for i, st in enumerate(_pp, 1)
+            )
+        if isinstance(_pc, str) and len(_pc) >= 40:
+            return _pc[:4000]
+
     import re
 
     s = text.strip()
@@ -4494,9 +4520,29 @@ def _normalize_output_for_user(raw: Any) -> str:
             last = _extract_last_answer_from_long(s)
             if last and len(last) < 2000 and not any(m in last for m in garbage_markers):
                 return last
-            # Показываем усечённый ответ вместо полного скрытия — пользователь видит часть результата/действий
-            head = 700
-            tail = 400
+            # [v149.2] plan/tool_input JSON: достаём шаги/контент как ответ
+            try:
+                _pdata = json.loads(s)
+            except Exception:  # noqa: BLE001
+                _pdata = None
+            if isinstance(_pdata, dict):
+                _pc = None
+                _pa = _pdata.get("action")
+                if isinstance(_pa, dict):
+                    _pc = _pa.get("content") or _pa.get("output")
+                _pti = _pdata.get("tool_input")
+                if not _pc and isinstance(_pti, dict):
+                    _pc = _pti.get("content") or _pti.get("output")
+                _pp = _pdata.get("plan")
+                if not _pc and isinstance(_pp, dict):
+                    _pp = _pp.get("steps") or list(_pp.values())
+                if not _pc and isinstance(_pp, list):
+                    _pc = "\n".join(
+                        f"{i}. {st.get('step', '') if isinstance(st, dict) else str(st)}"
+                        for i, st in enumerate(_pp, 1)
+                    )
+                if isinstance(_pc, str) and len(_pc) > 120:
+                    return _pc[:4000]
             footer = "\n\n💡 Если выше только план без действий — задайте один шаг: «покажи файлы в frontend» или «найди ошибки в frontend»."
             if len(s) <= head + tail:
                 return s.strip() + footer
@@ -4509,6 +4555,110 @@ def _normalize_output_for_user(raw: Any) -> str:
                 if len(s) > 1200:
                     return s[:1200].rstrip() + "\n\n[...]"
                 return s
+        # [v149.2] ReAct-цепочка мысли: несколько {"thought": ..., "tool": "finish", "tool_input": {...}}
+        # подряд — вытаскиваем output последней finish-мысли (частая утечка reasoning в ответ).
+        import re as _re
+        finish_outputs = _re.findall(
+            r'"tool"\s*:\s*"finish"\s*,?\s*"tool_input"\s*:\s*\{[^}]*?"output"\s*:\s*"((?:[^"\\]|\\.)*)"',
+            s,
+        )
+        def _unescape(t: str) -> str:
+            try:
+                return json.loads('"' + t + '"')
+            except Exception:  # noqa: BLE001
+                return t
+        if finish_outputs and len(finish_outputs) <= 6:
+            best = _unescape(finish_outputs[-1])
+            best = best.strip()
+            if len(best) > 80:
+                return best[:4000]
+
+        # [debug v149.2] лог сырого входа extractor + стек вызова
+        import logging as _lg
+        import traceback as _tb
+
+        _lg.getLogger("norm_dbg").warning(
+            "NORM_IN len=%d head=%r from=%s",
+            len(s),
+            s[:150],
+            [f"{f.filename.split('/')[-1]}:{f.lineno}" for f in _tb.extract_stack()[-5:-1]],
+        )
+
+        # [v149.2] одиночный JSON-дикт {thought, action:{...}}: достать полезный контент
+        # (content/file_content/output внутри action) — это реальный результат работы.
+        if s.lstrip().startswith("{") and (
+            '"action"' in s or '"tool_input"' in s or '"plan"' in s
+        ):
+            data = None
+            try:
+                data = json.loads(s)
+            except Exception:  # noqa: BLE001
+                pass
+            if data is None:
+                try:
+                    data = ast.literal_eval(s)
+                except Exception:  # noqa: BLE001
+                    data = None
+            if data is None:
+                # [v149.2] найти первый валидный JSON-объект внутри (дум/мусор вокруг)
+                raw = s
+                for idx, ch in enumerate(raw):
+                    if ch == "{":
+                        try:
+                            data, _ = json.JSONDecoder().raw_decode(raw[idx:])
+                            break
+                        except json.JSONDecodeError:
+                            continue
+            if isinstance(data, dict):
+                content = None
+                action = data.get("action")
+                if isinstance(action, dict):
+                    content = (
+                        action.get("content")
+                        or action.get("file_content")
+                        or action.get("output")
+                    )
+                ti = data.get("tool_input")
+                if not content and isinstance(ti, dict):
+                    content = ti.get("content") or ti.get("output") or ti.get("file_content")
+                # [v149.2] plan-массив: собрать шаги в читаемый чек-лист
+                if not content and data.get("plan") is not None:
+                    _plan = data["plan"]
+                    if isinstance(_plan, dict):
+                        _plan = _plan.get("steps") or _plan.get("items") or list(_plan.values())
+                    if isinstance(_plan, str):
+                        _plan = [_plan]
+                    if isinstance(_plan, list) and _plan:
+                        parts = []
+                        for i, st in enumerate(_plan, 1):
+                            if isinstance(st, dict):
+                                step_text = (
+                                    st.get("step")
+                                    or st.get("description")
+                                    or st.get("action")
+                                    or json.dumps(st, ensure_ascii=False)
+                                )
+                            else:
+                                step_text = str(st)
+                            parts.append(f"{i}. {step_text}")
+                        content = "\n".join(parts)
+            # Полезного контента нет — честная просьба конкретики + диаг в лог
+            import logging as _lg2
+
+            _lg2.getLogger("norm_dbg").warning(
+                "NORM_PLAN_PARSE_FAIL len=%d data_type=%s keys=%s plan_type=%s",
+                len(s),
+                type(data).__name__,
+                list(data.keys()) if isinstance(data, dict) else None,
+                type(data.get("plan")).__name__ if isinstance(data, dict) else None,
+            )
+            return (
+                "Запрос принят, но модель вернула только план действий без ответа. "
+                "Уточните запрос конкретным действием (например: «покажи чек-лист код-ревью для Python-модуля»)."
+            )
+            if len(th) > 60 and len(s) < 4000:
+                s = th
+
         # Жёсткий лимит длины
         if len(s) > 1200:
             return s[:1200].rstrip() + "\n\n[... ответ обрезан ...]"
