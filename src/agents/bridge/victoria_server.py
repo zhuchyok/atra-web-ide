@@ -5214,6 +5214,7 @@ class TaskRequest(BaseModel):
     )
     project_context: Optional[str] = None  # Контекст проекта (atra-web-ide, atra, и т.д.)
     session_id: Optional[str] = None  # ID сессии для памяти чата
+    expert_name: Optional[str] = None  # [v149] персона эксперта для роутинга ответа
     chat_history: Optional[List[Dict[str, str]]] = None  # История чата
     verbose: Optional[bool] = (
         None  # True = вернуть в knowledge.verbose_steps пошаговые шаги агента (thought, tool, tool_input)
@@ -5759,6 +5760,7 @@ async def _run_task_background(
     verbose: bool = False,
     restated_goal: Optional[str] = None,
     strategy_result: Optional[Dict[str, Any]] = None,
+    expert_name: str = "Виктория",
 ) -> None:
     """Фоновое выполнение задачи (202 + polling). Результат пишется в _run_task_store[task_id]. restated_goal/strategy_result передаются из run_task (логика мысли)."""
     global sys  # Fix UnboundLocalError при обращении к sys.path в блоке orchestration
@@ -8533,6 +8535,7 @@ async def run_task(
             task_type=_task_type_async,
             max_steps=_max_steps,
             session_id=body.session_id,
+            expert_name=getattr(body, "expert_name", None) or "Виктория",
             verbose=bool(body.verbose),
             restated_goal=None,
             strategy_result=None,
