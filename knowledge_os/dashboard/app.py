@@ -855,10 +855,14 @@ def main():
                 label_visibility="collapsed",
             )
         with col_task:
-            if st.button("📋 Поставить задачу", key="overview_put_task", width="stretch"):
+            def _go_to_tasks():
+                """Callback: выполняется до создания виджетов, поэтому session_state
+                можно менять безопасно (иначе Streamlit бросает исключение)."""
                 st.session_state.dashboard_section = "🛠️ Задачи и SLA"
                 st.session_state["nav_section"] = "🛠️ Задачи и SLA"
                 st.cache_data.clear()
+
+            if st.button("📋 Поставить задачу", key="overview_put_task", width="stretch", on_click=_go_to_tasks):
                 st.rerun()
 
         if search_query and len(search_query.strip()) >= 2:
