@@ -86,6 +86,26 @@ st.set_page_config(
 )
 
 VECTOR_CORE_URL = os.getenv("VECTOR_CORE_URL", "http://knowledge_vector_core:8001")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+EMBEDDING_DIM = 768  # nomic-embed-text; knowledge_nodes.embedding vector(768)
+
+
+def _ollama_embedding(text: str) -> list | None:
+    """Fallback: эмбеддинг через Ollama nomic-embed-text (те же 768 измерений)."""
+    try:
+        with httpx.Client() as client:
+            response = client.post(
+                f"{OLLAMA_BASE_URL}/api/embeddings",
+                json={"model": "nomic-embed-text", "prompt": text},
+                timeout=30.0,
+            )
+            response.raise_for_status()
+            embedding = response.json().get("embedding")
+            if embedding and len(embedding) == EMBEDDING_DIM:
+                return embedding
+    except (httpx.HTTPError, httpx.TimeoutException, httpx.RequestError, ValueError, KeyError):
+        return None
+    return None
 
 
 def get_embedding(text: str) -> list:
@@ -96,14 +116,15 @@ def get_embedding(text: str) -> list:
             response.raise_for_status()
             return response.json()["embedding"]
     except (httpx.HTTPError, httpx.TimeoutException, httpx.RequestError) as e:
-        st.error(f"Ошибка VectorCore (HTTP): {e}")
-        return [0.0] * 768  # 768 = nomic-embed-text; knowledge_nodes.embedding vector(768)
+        st.warning(f"VectorCore недоступен ({e}), использую Ollama embeddings")
+        fallback = _ollama_embedding(text)
+        return fallback if fallback else [0.0] * EMBEDDING_DIM
     except (ValueError, KeyError, TypeError) as e:
         st.error(f"Ошибка VectorCore (данные): {e}")
-        return [0.0] * 768
+        return [0.0] * EMBEDDING_DIM
     except Exception as e:
         st.error(f"Неожиданная ошибка VectorCore: {e}")
-        return [0.0] * 768
+        return [0.0] * EMBEDDING_DIM
 
 
 # Design system: токены (дизайнер) + компоненты (верстальщик)
