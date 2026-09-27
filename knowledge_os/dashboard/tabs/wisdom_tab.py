@@ -75,7 +75,7 @@ def render_wisdom_tab():
                 COUNT(*) FILTER (WHERE metadata->>'injected_into_dna' = 'unconfirmed_retry') AS pending
             FROM knowledge_nodes WHERE metadata ? 'injected_into_dna'
             """,
-            key="dna_injection_counters",
+            cache_key="dna_injection_counters",
         )
         if _dn:
             c1, c2, c3 = st.columns(3)
