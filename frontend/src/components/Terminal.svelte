@@ -51,8 +51,15 @@
         term.write('$ ')
       }
 
+      // Gateway отправляет бинарные кадры — декодируем, иначе xterm не отображает вывод PTY
+      ws.binaryType = 'arraybuffer'
+
       ws.onmessage = (event) => {
-        term.write(event.data)
+        if (event.data instanceof ArrayBuffer) {
+          term.write(new TextDecoder().decode(event.data))
+        } else {
+          term.write(event.data)
+        }
       }
 
       ws.onerror = () => {
@@ -173,7 +180,13 @@
     term.onData((data) => {
       const key = data
       if (key === '\r' || key === '\n') {
-        runCommand(term, currentLine)
+        // В PTY-режиме символы уже стримятся по одному — отправляем только Enter,
+        // иначе вся строка уйдёт в шелл второй раз (задвоение команды)
+        if (isConnected && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send('\r')
+        } else {
+          runCommand(term, currentLine)
+        }
         currentLine = ''
         return
       }

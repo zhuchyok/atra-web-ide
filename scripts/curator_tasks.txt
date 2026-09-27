@@ -6,13 +6,12 @@
 проверь файл /app/scripts/curator_send_tasks_to_victoria.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
 прочитай файл /app/scripts/curator_send_tasks_to_victoria.py — найди потенциальные проблемы: subprocess calls, hardcoded URLs, eval(), exec(). Ответь: ОК или ПРОБЛЕМА + список
 проверь файл /app/knowledge_os/app/victoria_enhanced.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/src/discover_patterns.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/src/ensure_data_availability.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/src/extract_key_insights.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/src/send_data_to_model.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/corporation_knowledge_system.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/convert.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/search_id.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/backend/app/metrics/prometheus_metrics.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/backend/app/middleware/error_handler.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
 прочитай файл /app/knowledge_os/app/expert_worker.py — найди потенциальные проблемы: subprocess calls, hardcoded URLs, eval(), exec(). Ответь: ОК или ПРОБЛЕМА + список
 прочитай файл /app/knowledge_os/app/victoria_enhanced.py — найди потенциальные проблемы: subprocess calls, hardcoded URLs, eval(), exec(). Ответь: ОК или ПРОБЛЕМА + список
-проверь файл /app/knowledge_os/app/ai_core.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/app/extended_thinking.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/src/analyze_news_patterns.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/src/load_and_prepare_data.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/src/discover_patterns.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/src/ensure_data_availability.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата

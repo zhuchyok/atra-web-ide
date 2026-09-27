@@ -448,6 +448,51 @@ class AskVictoriaRequest(BaseModel):
     )
 
 
+class PlanRequest(BaseModel):
+    """Запрос на составление плана (без выполнения) — как mode=plan в Cursor"""
+
+    goal: str = Field(..., min_length=1, max_length=10000)
+
+
+@router.post("/plan")
+async def make_plan(
+    request: PlanRequest, victoria: VictoriaClient = Depends(get_victoria_client)
+) -> dict[str, Any]:
+    """Составить план по цели: только планирование, без выполнения"""
+    acquired = await acquire_victoria_slot()
+    if not acquired:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "service_busy", "detail": "Too many concurrent requests."},
+            headers={"Retry-After": "60"},
+        )
+
+    correlation_id = str(uuid.uuid4())
+    plan_prompt = (
+        "Составь пошаговый план для следующей задачи. Только план — "
+        "НЕ выполняй задачу и не выдумывай результаты её выполнения.\n\n"
+        f"Задача: {request.goal}"
+    )
+
+    try:
+        result = await victoria.run(
+            prompt=plan_prompt,
+            session_id=None,
+            correlation_id=correlation_id,
+        )
+        if result.get("status") == "error":
+            raise HTTPException(status_code=500, detail=result.get("error"))
+        content_raw = result.get("result", "") or result.get("response", "")
+        return {"plan": content_raw if isinstance(content_raw, str) else str(content_raw)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Chat plan error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        release_victoria_slot()
+
+
 @router.post("/send", response_model=ChatResponse)
 async def send_message(
     message: ChatMessage, victoria: VictoriaClient = Depends(get_victoria_client)

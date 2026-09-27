@@ -1,0 +1,773 @@
+{
+ "timestamp": "20260926_223001",
+ "wins": {
+  "A": 8,
+  "B": 20,
+  "tie": 22,
+  "error": 0
+ },
+ "results": [
+  {
+   "id": "communication_01",
+   "category": "communication",
+   "goal": "привет",
+   "source": "standard",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] The Pragmatist philosophy emphasizes the importance of pragmatism in the design of systems and structures. It advocates for a pragmatic approach, where the goal is to create a system that is practical, efficient, and effective in achieving its intended purpose.\n\nThe Pragmatist philosophy is often associated with the works of William James, who argued that the best way to understand a concept or system is to apply it in real-world situations. This approach emphasizes the importance of practical experience and the need to adapt to changing circumstances.\n\nThe Pragmatist philosophy is also closely related to the concept of pragmatism, which is a philosophical movement that emphasizes the importance of practical experience and the need to adapt to changing circumstances.\n\nIn the context of the Pragmatist philosophy, the Pragmatist approach is characterized by a focus on practicality, efficiency, and effectiveness. It emphasizes the importance of creating systems and structures that are practical and effective in achieving their intended purpose.\n\nThe Pragmatist philosophy is often associated with the works of William James, who argued that the best way to understand a concept or system is to apply it in real-world situations. This approach emphasizes the importance of practical experience and the need to adapt to changing circumstances.\n\nThe Pragmatist philosophy is also closely related to the concept of pragmatism, which is a philosophical movement that emphasizes the i",
+   "verdict": {
+    "a": 0.0,
+    "b": 1.0,
+    "winner": "B",
+    "reason": "Ответ A представляет собой техническую ошибку, а Ответ B — бессвязный, повторяющийся текст, не соответствующий простому приветствию."
+   }
+  },
+  {
+   "id": "communication_02",
+   "category": "communication",
+   "goal": "какой статус проекта?",
+   "source": "standard",
+   "solo": "Статус проекта: активная разработка идёт стабильно, сбоев нет. health=ok pending=0 in_progress=0 failed_1h=0 completed_24h=246 error_rate_1h=0.0 knowledge_nodes=99301",
+   "consilium": "[debate] Ошибка в мнениях экспертов: Недоразучительно предполагается, что прогресс проекта в каждой фазе является однозначным и не учитывает возможные переходы или корректировку.",
+   "verdict": {
+    "a": 10.0,
+    "b": 0.0,
+    "winner": "A",
+    "reason": "Ответ A предоставляет конкретные метрики статуса, тогда как ответ B содержит бессвязный текст об ошибке рассуждений без ответа на вопрос."
+   }
+  },
+  {
+   "id": "communication_03",
+   "category": "communication",
+   "goal": "что ты умеешь?",
+   "source": "standard",
+   "solo": "Я Виктория, Team Lead Atra Core. Умею:\n• Отвечать на вопросы и вести чат (в т.ч. с экспертами и RAG по базе знаний)\n• Составлять планы и выполнять задачи: код, файлы, команды в терминале\n• Показывать список файлов, читать и анализировать проект\n• Делегировать простые запросы в Veronica, сложные — оркестрировать с командой\nРежимы: быстрый ответ на простые вопросы или полный цикл (ReAct) для сложных задач.\nРаботаю по логике корпорации: библия (MASTER_REFERENCE), уточняю при неясности, проверяю результат, обновляю документы после изменений.",
+   "consilium": "[debate] Architect: 1. Ошибка в логике: Не предоставлены конкретные детали об успешных исходах, типах обратной связи или длительности сеансов, что затрудняет понимание и применение темы в реальном времени.\n2. Ошибка в логике: Отсутствие конкретных деталей о инструментах мониторинга и прозрачности, что затрудnяет понимание текущей эффективности и проработанности системы.\n3. Ошибка в логике:",
+   "verdict": {
+    "a": 9.0,
+    "b": 1.0,
+    "winner": "A",
+    "reason": "Ответ A корректно и полно отвечает на вопрос, тогда как ответ B содержит бессвязный технический сбой и не отвечает на запрос."
+   }
+  },
+  {
+   "id": "communication_04",
+   "category": "communication",
+   "goal": "Скажи привет одной строкой.",
+   "source": "history",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Architect:\n1. Приветresосеть\n2. Доброе привет!\n3. Здравствуйте, коллега!\n4. Приветсетьем!\n5. Приветсетьем, сегодня!\nArchitect:\n1. Приветresосеть\n2. Доброе привет!\n3. Здравствуйте, коллега!\n4. Приветсетьем!\n5. Приветсетьем, сегодня!\nArchitect:\n1. Приветresосеть\n2. Доброе привет!\n3. Здравствуйте, коллега!\n4. Приветсетьем!\n5. Приветсетьем, сегодня!\nArchitect:\n1. Приветresосеть\n2.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "tie",
+    "reason": "Оба ответа не содержат корректного приветствия одной строкой: A — техническая ошибка, B — бессвязный шум."
+   }
+  },
+  {
+   "id": "communication_05",
+   "category": "communication",
+   "goal": "Скажи одну фразу: работаешь на 24k модели?",
+   "source": "history",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Старайтесь поработать на 24k моделях, выдумайте различные риски и реассможаться от производительности. Выберите следующие формы:\n\nДополнительное ресурсы, расширение производительности, работающими с 24k моделями. Попытки работать с 24k моделями позволяют сохранить работы при увеличении работы, чтобы не потеряньть пользователями.\nПроверяй наличие сильных точек отказа",
+   "verdict": {
+    "a": 0.0,
+    "b": 1.0,
+    "winner": "B",
+    "reason": "Ответ B содержит осмысленный текст, в то время как A является ошибкой таймаута."
+   }
+  },
+  {
+   "id": "code_generation_06",
+   "category": "code_generation",
+   "goal": "напиши одну строку кода на Python: вывод текущей даты",
+   "source": "standard",
+   "solo": "```python\nprint(datetime.datetime.now().date())\n```\nЭто строка кода на Python, которая выводит текущую дату.\n\n---\n**Выполненные действия:**\n- Файл создан: `src/generated_0.py`",
+   "consilium": "[debate] См. Практика выполнения для вычисления текущего даты. Например, вы можете проверить текущий дату с помощью функции `datetime.datetime.now().date()`. Они могут проверять напряму строки кода на Python, или проверять дату с помощью функции `datetime.datetime.now().date()`. Например, при помощи функции `datetime.datetime.now().date()` проверяет напряму текущего даты, что особенно полезно для новичков или в командной работе.\n\nПрактика выполнения для",
+   "verdict": {
+    "a": 10.0,
+    "b": 1.0,
+    "winner": "A",
+    "reason": "Ответ A предоставляет корректный и полный код, в то время как ответ B содержит бессвязный текст и не выполняет задачу."
+   }
+  },
+  {
+   "id": "code_generation_07",
+   "category": "code_generation",
+   "goal": "напиши функцию на Python, которая проверяет, является ли строка палиндромом",
+   "source": "composed",
+   "solo": "```python\ndef is_palindrome(s):\n    s = s.replace(\" \", \"\")  # Удалить пробелы\n    return s == s[::-1]\n```\noutput:\n```\n{\n  \"thought\": \"Для решения этой задачи мне нужно написать функцию на Python, которая проверяет, является ли строка палиндромом, удаляя пробелы и сравнивая строку с её обратной версией. Это можно сделать, срезая строку и сравнивая её с её обратной версией.\"\n  \"action\": \"write_file\",\n  \"file_path\": \"palindrome_check.py\",\n  \"contents\": \"def is_palindrome(s):\\n    s = s.replace(' ', '')  # Удалить пробелы\\n    return s == s[::-1]\\n\\nif __name__ == '__main__':\\n    test_string = input(\\\"Введите строку для проверки: \\\")\\n    print(isне 'palindrome' в строке:\\n    print(is_palindrome(test_string))\\n\"\n}\n```\noutput:\n```\n{\n  \"thought\": \"Код, написанный, решает задачу, проверяя, является ли введенная строка палиндромом, после удаления пробелов. Он правильно использует функцию Python для срезов и сравнения строк.\"\n  \"action\": \"finish\"\n}",
+   "consilium": "[debate] Architect: 1. Создай функцию `is_palindrome` в Python, которая принимает строку в качестве входных данных и возвращает `True`, если строка является палиндромом, и `False` в противном случае.\n2. Убедитесь, что функция игнорирует пробелы и различными символами, обрабатывая строку, очищая её перед проверкой.\n3. Проверьте функцию с различными примерами, включая строки с нечетными длинами,",
+   "verdict": {
+    "a": 2.0,
+    "b": 1.0,
+    "winner": "tie",
+    "reason": "Оба ответа содержат критические ошибки: A выдает невалидный JSON и содержит опечатки в коде, B обрывается на полуслове и не предоставляет готового решения."
+   }
+  },
+  {
+   "id": "code_generation_08",
+   "category": "code_generation",
+   "goal": "напиши bash-команду, которая найдёт 10 самых больших файлов в каталоге",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Architect: 1. Команда `find` ищет все файлы больше 1 мегабайта в указанном каталоге.\n2. `du -sh /path/to/directory` - оценивает размеры больших файлов в каталоге.\n3. `du -sch /path/to/directory/*` - выводит их в результате, показывая 10 самых больших файлов в каталоге.\n4. `ls -lh /path/to/directory/* | sort -n | head -n 10` - посредствает размеры файлов в порядке убывания и показывает последние 10 файлов.\n5. `du -sch /path/to/",
+   "verdict": {
+    "a": 0.0,
+    "b": 2.0,
+    "winner": "B",
+    "reason": "Ответ A содержит ошибку таймаута, а ответ B, хотя и содержит неточности и обрывок команды, предоставляет рабочие варианты решения задачи."
+   }
+  },
+  {
+   "id": "code_generation_09",
+   "category": "code_generation",
+   "goal": "сгенерируй SQL: топ-10 задач по длительности выполнения из таблицы tasks",
+   "source": "composed",
+   "solo": "Не удалось понять вопрос и сформировать запрос к базе данных.",
+   "consilium": "[debate] Также отсутствует разделение запросов по категориям и временам, что может затруднить понимание и выполнение.\n\nТакже отсутствует разделение запросов по категориям и временам, что может затруднить понимание и выполнение.\n\nТакже отсутствует разделение запросов по категориям и временам, что может затруднить понимание и выполнение.\n\nТакже отсутствует разделение запросов по категориям и времен",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "tie",
+    "reason": "Оба ответа полностью игнорируют запрос и не предоставляют SQL-код."
+   }
+  },
+  {
+   "id": "code_generation_10",
+   "category": "code_generation",
+   "goal": "напиши регулярное выражение для извлечения даты YYYY-MM-DD из строки",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Architect: 1. Регулярное выражение для извлечения даты в формате YYYY-MM-DD остается универсально достаточно простым и эффективным: `/(\\d{4}-\\d{2}-\\d{2})/`. Это регулярное выражение точно соответствует формату, не учитывая языковые особенности разделителей (таких как пробелы, запятые, точки) и используя `\\d{4}` для четырех цифр года, `\\d{2}` для двух цифр месяца и дн",
+   "verdict": {
+    "a": 0.0,
+    "b": 10.0,
+    "winner": "B",
+    "reason": "Ответ A содержит ошибку таймаута, тогда как Ответ B предоставляет корректное регулярное выражение, хотя и обрывается на конце."
+   }
+  },
+  {
+   "id": "code_audit_11",
+   "category": "code_audit",
+   "goal": "проверь файл /app/knowledge_os/app/expert_worker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+   "source": "standard",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] Такие сценарии присутствуют, что в файле /app/knowledge_os/app/expert_worker.py необвозначение pip install, что потребует проверки используемых методов для системы Aufgabe. Это предполагает, что установка пакетов Python, возможно, управляется по-другому или не включает это в код.\n\nЕсли в файле /app/knowledge_os/app/expert_worker.py нет явного упоминания pip install с использованием подпрограммы subprocess или os.system, так как необработанные вводы могут при",
+   "verdict": {
+    "a": 1.0,
+    "b": 2.0,
+    "winner": "B",
+    "reason": "Оба ответа не содержат требуемой проверки кода и цитаты, но B хотя бы пытается проанализировать контекст, в то время как A бессмысленен."
+   }
+  },
+  {
+   "id": "code_audit_12",
+   "category": "code_audit",
+   "goal": "проверь файл /app/knowledge_os/app/ai_core.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+   "source": "standard",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] Architect: 1. Все имеющиеся цитаты основаны на правильном понимании, что нет видимых текстовых данных, соответствующих запрашиваемой теме.\n\nArchitect: 2. Однако, каждое утверждение ограничивается описанием, а не фактическим доступом к коду невозможно фактически подтвердить или опровергнуть его содержание.\n\nArchitect: 3. Рекомендация по уточнении: Учитывая ограничение доступности кода, был",
+   "verdict": {
+    "a": 1.0,
+    "b": 1.0,
+    "winner": "tie",
+    "reason": "Оба ответа полностью игнорируют запрос, не проверяют файл и не предоставляют требуемый формат ответа."
+   }
+  },
+  {
+   "id": "code_audit_13",
+   "category": "code_audit",
+   "goal": "прочитай файл /app/knowledge_os/app/worker.py — найди потенциальные проблемы: subprocess calls, hardcoded URLs, eval(), exec(). Ответь: ОК или ПРОБЛЕМА + список",
+   "source": "standard",
+   "solo": "Ошибка при выполнении запроса: aggregate functions are not allowed in WHERE",
+   "consilium": "[debate] Architect: 2. Ошибка в первоначальном мнении: Простое указание на замене `eval()` без предложения конкретных безопасных парсинговых библиотек.\n   Уточнение: Рекомендую использование безопасных парсинговых библиотек, таких как `safe-eval` или `escapade`, которые явно обеспечивают ограничение обработки пользовательских вводов. Кроме того, важно применять стратегическое результат для простых использов",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "tie",
+    "reason": "Оба ответа полностью игнорируют инструкцию и не содержат требуемого анализа кода."
+   }
+  },
+  {
+   "id": "code_audit_14",
+   "category": "code_audit",
+   "goal": "проверь файл /app/knowledge_os/app/consensus_agent.py — есть ли там eval() или exec()? Ответь: ОК или ПРОБЛЕМА + цитата",
+   "source": "composed",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] Architect: Парсильные данные: 1. Всем правы, что фактические подходы к файлам не возможно предполагать присутствие eval() или exec().\n\n2. Упрощенная ошибка в мнениях: они предполагают, что отсутствие упоминания фактических подходов к файлам невозможно предполагать присутствие eval() или exec().\n\n3. Хотя фактический просмотр файла невозможно, мы можем подтвердить, что в общем-посмеченном-после",
+   "verdict": {
+    "a": 1.0,
+    "b": 1.0,
+    "winner": "tie",
+    "reason": "Оба ответа бессмысленны и не содержат требуемой проверки кода."
+   }
+  },
+  {
+   "id": "code_audit_15",
+   "category": "code_audit",
+   "goal": "проверь файл /app/scripts/curator_send_tasks_to_victoria.py — есть ли там pip install в рантайме? Ответь: ОК или ПРОБЛЕМА + цитата",
+   "source": "standard",
+   "solo": "ПРОБЛЕМА\nФайл: /app/scripts/curator_send_tasks_to_victoria.py\nНайдены признаки runtime pip install:\n- L475: \"python -m pip install\",\n- L476: \"python3 -m pip install\",\n- L492: \"Runtime вызовов pip install через subprocess/os.system/python -m pip install не обнаружено.\"",
+   "consilium": "[debate] Architect: 1. Убедитесь, что установка зависимостей с помощью pip или замените необходимые библиотеки внутри скрипта, чтобы избежать внешней зависимости, что снижает риск безопасности и производительности.\n   - Уточнение: Рекомендуется явно указать пользователям или системе, как и где безопасно установить зависимости с помощью pip, например, через виртуальную среды, что предостав",
+   "verdict": {
+    "a": 10.0,
+    "b": 1.0,
+    "winner": "A",
+    "reason": "Ответ A точно отвечает на вопрос, приводя конкретные факты и цитаты, в то время как ответ B содержит нерелевантный текст и обрывается на полуслове."
+   }
+  },
+  {
+   "id": "research_16",
+   "category": "research",
+   "goal": "Найди в интернете что такое p95 latency кратко.",
+   "source": "history",
+   "solo": "[ERROR] run post: HTTP Error 500: Internal Server Error",
+   "consilium": "[debate] Architect:\n1. P95 latency относится к временной задержке в 95% от времени-секции, в течение которых система уверенно завершает передавающие запросы.\n2. Уровень такого отклика может указывать на проблемы в сетевом маршрутизации, производительности оборудования или управлении пакатным маршрутизации.\n3. В случае приложениях, зависимых от низкой latencies, таких как игры или системы VoIP, передавают",
+   "verdict": {
+    "a": 0.0,
+    "b": 2.0,
+    "winner": "B",
+    "reason": "Ответ A содержит ошибку выполнения, тогда как ответ B, несмотря на неточности и обрыв фразы, содержит хотя бы попытку определения термина."
+   }
+  },
+  {
+   "id": "research_17",
+   "category": "research",
+   "goal": "объясни кратко, чем отличается asyncio.gather от asyncio.wait",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION (partial): topic 'объясни кратко, чем отличается asyncio.gather от asyncio.wait'.\nUse complete expert evidence below; do not treat as a strong unanimous vote.\nEvidence:\nArchitect: [INCOMPLETE] [Architect] local model did not finish in time; no fabricated opinion (role: Focus on structure, scalability, and patterns.).\nSecurity: 1. \"asyncio.gather\" объединяет несколько асинхронных задач, выполняющихся параллельно, в одну коллекцию, в то время как \"asyncio.wait\" ожидает завершения всех предоставленных задач перед продолжением.\n2. \"asyncio.wait\" требует явного указания, чтобы ожидать, что все задачи завершатся, в то время как \"asyncio.gather\" автоматически обрабатывает их параллельно.\n3. При использовании \"asyncio.wait\" необходимо использовать функции типа `await` для ожидания завершения каждой задачи, в то время как \"asyncio.gather\" позволяет просто передать задачи и получать их результаты.\n4. \"asyncio.wait\" не обрабатывает задачи параллельно, что делает его менее эффективным для многозадачных операций, в то время как \"asyncio.gather\" подходит для быстрого выполнения нескольких задач одновременно.\n5. При обнаружении ошибок или сбоев \"\nPragmatist: 1. `asyncio.gather` объединяет несколько асинхронных задач, выполняющихся параллельно, в одну группу.\n2. Возвращает результаты всех задач сразу, как только они завершатся.\n3. Используется `asyncio.wait` не для ожидания завершения нескольких задач, а для ожидания одного или нескольких задач.\n4. `async",
+   "verdict": {
+    "a": 0.0,
+    "b": 1.0,
+    "winner": "B",
+    "reason": "B содержит фактические ошибки и обрывается, но всё же пытается ответить, в отличие от A, который является ошибкой таймаута."
+   }
+  },
+  {
+   "id": "research_18",
+   "category": "research",
+   "goal": "что такое HNSW-индекс и зачем он в векторном поиске",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Architect: 1. HNSW-индекс (Hierarchical Navigable Small World) — это алгоритм строит индекс, который позволяет быстро находить ближайшие соседи, используя принцип близости и глубинной схемы.\n2. Эта структура построена на основе алгоритма, который постепенно строит сеть ближайших соседей для каждой точки, обеспечивая высокую эффективность поиска через локальное упрощение в пространстве.\n3. H",
+   "verdict": {
+    "a": 0.0,
+    "b": 2.0,
+    "winner": "B",
+    "reason": "Ответ A содержит ошибку таймаута, тогда как ответ B хотя и обрывается и содержит неточности в формулировках, всё же пытается дать определение и объяснение."
+   }
+  },
+  {
+   "id": "research_19",
+   "category": "research",
+   "goal": "объясни, что такое backpressure в очередях задач",
+   "source": "composed",
+   "solo": "pending=1 in_progress=0",
+   "consilium": "[debate] Architect: 1. Backpressure в очередях задач — это механизм для управления потоком рабочих задач, предотвращая перегрузку системы, когда она не может обработать задачи быстрее, чем они поступают.\n2. Он сигнализирует о перегрузке, заставляя систему временно замедлить или удалить новые задачи, чтобы восстановить баланс.\n3. Применяется для обработки ошибок в производительности и сохранности данных",
+   "verdict": {
+    "a": 0.0,
+    "b": 9.0,
+    "winner": "B",
+    "reason": "Ответ A бессмысленен, а ответ B корректно объясняет концепцию backpressure."
+   }
+  },
+  {
+   "id": "research_20",
+   "category": "research",
+   "goal": "объясни разницу между pgvector и отдельной векторной БД",
+   "source": "composed",
+   "solo": "Victoria уточняет: Можете уточнить, что именно нужно сделать?; Какие требования к результату?; Есть ли ограничения или условия?",
+   "consilium": "[debate] Ты — Виктория, Team Lead. Ты слушала дебаты экспертов по теме: объясни разницы между pgvector и отдельной векторной базой данных.\n\nМНЕНИЯ ЭКСПЕРТОВ (кратко):\nArchitect: 1. PgVector — это пакет PostgreSQL, интегрированный с использованием векторных баз данных, предназначен для оптимизации хранения и выборки геометрических данных (позиции, ориентации, расстояния).\n2. PgVector предоставляет",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "tie",
+    "reason": "Оба ответа являются неполными, фактически ошибочными (путаница с геометрией) и обрываются на середине предложения, не предоставляя полезной информации."
+   }
+  },
+  {
+   "id": "analysis_21",
+   "category": "analysis",
+   "goal": "Исследуй, почему background задачи могут зависать в processing",
+   "source": "history",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Architect: 1. Ошибка в первоначальных мнениях: Эксперты не учитывают, что внутренняя организация кода и принципы проектирования имеют значительное влияние на производительность фоновых задач. Если код не пилотлен для оптимизации, оn серверная производительность имеют замедление, но почему почему?\n2. Ошибка в первоначальных мнениях: Эксперты не учитывают, что внутренняя орган",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "tie",
+    "reason": "Оба ответа не содержат полезной информации и представляют собой технический сбой или бессвязный текст."
+   }
+  },
+  {
+   "id": "analysis_22",
+   "category": "analysis",
+   "goal": "Проанализируй маршрутизацию early_async_analysis подробно",
+   "source": "history",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Architect: 1. Ошибка в первоначальном анализе: Маршрутизация early_async_analysis не обязательно оптимизирует производительность сама по себе; это скорее направляет задачи к соответствующим обработчикам, что может способствовать равномерному распределению нагрузки. Хотя маршрутизация early_async_analysis предпочитает быстрый, простой подход к обработке асинхронных задач, оптимизируя производительность б",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "tie",
+    "reason": "Оба ответа не предоставляют запрашиваемого анализа: A содержит ошибку таймаута, B — обрывочный и неполный текст."
+   }
+  },
+  {
+   "id": "analysis_23",
+   "category": "analysis",
+   "goal": "Разбери SLA time-to-completed: что должно быть в /metrics",
+   "source": "history",
+   "solo": "p50=74.382 p95=600.598 samples=15 inflight_max=7655.144 inflight=14",
+   "consilium": "[debate] Architect: 1. В метриках SLA time-to-completed важно отслеживать среднее время завершения проекта, чтобы соответствовать или оптимизировать обещаемые сроки выполнения.\n2. Определить частоту и причины пропущенных сроков, чтобы улучшить точность прогнозирования и управление сроками.\n3. Анализировать корреляцию между отказами в выполнении и конкретными временными интервалами или операций, чтоб",
+   "verdict": {
+    "a": 8.0,
+    "b": 2.0,
+    "winner": "A",
+    "reason": "A точно отражает технический формат метрик мониторинга, тогда как B содержит размытые бизнес-рекомендации и не отвечает на вопрос."
+   }
+  },
+  {
+   "id": "analysis_24",
+   "category": "analysis",
+   "goal": "Объясни почему duration_seconds важнее latency POST 202",
+   "source": "history",
+   "solo": "p50=74.382 p95=600.598 samples=15 inflight_max=7715.603 inflight=14",
+   "consilium": "[debate] Ты — Виктория, Team Lead. Ты слушала дебаты экспертов по теме: Объясни почему duration_seconds важнее latency POST 202\nArchitect: 1. Duration_seconds, или время выполнения запроса, напрямую отражает эффективность системы, так как он показывает, как долго система занимается обработкой ввода-вывода, что критически важно для оптимизации производительности.\n2. Высокая latency POST часто указывает на проблемы с производител",
+   "verdict": {
+    "a": 0.0,
+    "b": 1.0,
+    "winner": "B",
+    "reason": "Оба ответа не отвечают на вопрос: A содержит только сырые метрики без объяснения, B обрывается на полуслове."
+   }
+  },
+  {
+   "id": "analysis_25",
+   "category": "analysis",
+   "goal": "Разбери, что сейчас не так в git и почему",
+   "source": "history",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Architect: 1. **Ошибка в первоначальном утверждении о несовместимости Git с фреймворками:**\n   - Другой эксперт утверждает, что Git взаимодействует успешно с широкими спектром фреймворков, включая Django и Spring. Это верное, но недостаточно. Хотя есть случаи успешного взаимодействия, некоторые фреймворки действительно требуют более тщательного настройки и обучения для эффективного исп",
+   "verdict": {
+    "a": 0.0,
+    "b": 2.0,
+    "winner": "B",
+    "reason": "A — техническая ошибка без содержания, B — обрывочный и не по теме ответ, но содержит текст."
+   }
+  },
+  {
+   "id": "devops_26",
+   "category": "devops",
+   "goal": "какие контейнеры сейчас unhealthy и почему?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Architect: 1. Knot in the first step: The problem is that the architect doesn't fully understand the constraints of the system, such as the limitations of the container, the complexity of the network, and the security concerns.\n\n2. Knot in the second step: The architect doesn't fully understand the constraints of the system, such as the limitations of the container, the complexity of the network, and the security concerns.\n\n3. Knot in the third step: The architect doesn't fully understand the constraints of the system, such as the limitations of the container, the complexity of the network, and the security concerns.\n\n4. Knot in the fourth step: The architect doesn't fully understand the constraints of the system, such as the limitations of the container, the complexity of the network, and the security concerns.\n\n5. Knot in the fifth step: The architect doesn't fully understand the constraints of the system, such as the limitations of the container, the complexity of the network, and the security concerns.\n\n6. Knot in the sixth step: The architect doesn't fully understand the constraints of the system, such as the limitations of the container, the complexity of the network, and the security concerns.\n\n7. Knot in the seventh step: The architect doesn't fully understand the constraints of the system, such as the limitations of",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "tie",
+    "reason": "Оба ответа не содержат ответа на вопрос: A выдает ошибку, B генерирует бессмысленный текст."
+   }
+  },
+  {
+   "id": "devops_27",
+   "category": "devops",
+   "goal": "сколько задач в очереди прямо сейчас?",
+   "source": "composed",
+   "solo": "pending=0 in_progress=1",
+   "consilium": "[debate] Architect: 1. Сейчас невозможно точно определить количество задач в очереди, так как это зависит от конкретного системы или приложения.\n2. Чтобы оценить текущие задачи в очереди, необходимо проверить механизм управления очередью, который может быть реализован через такие средства, как таймауты, лимиты или листы, FIFO/LIFO.\n3. Учитывая возможные уязвимости, необходимо у",
+   "verdict": {
+    "a": 10.0,
+    "b": 1.0,
+    "winner": "A",
+    "reason": "Ответ A предоставляет конкретный и полный ответ на вопрос, в то время как ответ B содержит бессвязный текст и не отвечает на вопрос."
+   }
+  },
+  {
+   "id": "devops_28",
+   "category": "devops",
+   "goal": "какой health у MLX на 11435 и сколько активных запросов?",
+   "source": "composed",
+   "solo": "ok",
+   "consilium": "[debate] Architect:\n1. 1. Health MLX 11435: Provides a wide range of health benefits, including improved immune function, enhanced cognitive function, and reduced risk of chronic diseases.\n2. 2. Health MLX 11435: Provides a wide range of health benefits, including improved immune function, enhanced cognitive function, and reduced risk of chronic diseases.\n3. 3. Health MLX 11435: Provides a wide range of health benefits, including improved immune function, enhanced cognitive function, and reduced risk of chronic diseases.\n4. 4. Health MLX 11435: Provides a wide range of health benefits, including improved immune function, enhanced cognitive function, and reduced risk of chronic diseases.\n5. 5. Health MLX 11435: Provides a wide range of health benefits, including improved immune function, enhanced cognitive function, and reduced risk of chronic diseases.\n6. 6. Health MLX 11435: Provides a wide range of health benefits, including improved immune function, enhanced cognitive function, and reduced risk of chronic diseases.\n7. 7. Health MLX 11435: Provides a wide range of health benefits, including improved immune function, enhanced cognitive function, and reduced risk of",
+   "verdict": {
+    "a": 1.0,
+    "b": 0.0,
+    "winner": "A",
+    "reason": "Ответ A содержит технически корректный статус 'ok', тогда как ответ B полностью выдуман и не отвечает на вопрос."
+   }
+  },
+  {
+   "id": "devops_29",
+   "category": "devops",
+   "goal": "какие модели загружены на Ollama 11434? Разрешены ли там они по контракту v142?",
+   "source": "composed",
+   "solo": "throughput_1h=29 throughput_24h=252 stale_in_progress=0 failed_1h=0 completed_1h=29 error_rate_1h=0.0 contract_enforced_24h=252/252 cancelled_1h_total=18 cancelled_1h_work=0 cancelled_1h_policy=0 cancelled_24h_total=168 cancelled_24h_work=0 cancelled_24h_policy=1 cancelled_24h_uncategorized=0",
+   "consilium": "[debate] Architect: 1. На Ollama 11434 нет прямого угнуток о контрактах v142.\n2. Для определения допустимых моделей по контрактах v142, так как они показываются в определенных обзорах.\n3. Почему необходимо проверить документацию или обратиться к администратору Ollama для получения информации о моделях, поддерживаемых под контрактом v142.\n4. Если моделя лишь от системы ответственности, то конфи",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "tie",
+    "reason": "Оба ответа не содержат ответа на вопрос, так как термины 'Ollama 11434' и 'контракт v142' являются вымышленными или ошибочными, а ответы представляют собой технический лог и бессвязный текст соответственно."
+   }
+  },
+  {
+   "id": "devops_30",
+   "category": "devops",
+   "goal": "проверь Prometheus: все ли targets up?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Architect: 1. Проверка функционирования всех целевых устройств в Prometheus, чтобы убедиться, что они корректно захватывают и передают метрики.\n2. Убедительная оценка надежности мониторинга системы, чтобы обеспечить непрерывную запись данных для аналитики.\n3. Проверка эффективности распределенной базы данных для хранения и быстрого поиска.\n4. Оценка наличия и исправления любых проблем с",
+   "verdict": {
+    "a": 1.0,
+    "b": 1.0,
+    "winner": "tie",
+    "reason": "Оба ответа не содержат технической информации или инструкций по проверке статуса targets в Prometheus."
+   }
+  },
+  {
+   "id": "security_31",
+   "category": "security",
+   "goal": "есть ли в .env.example секреты в открытом виде?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Architect: 1. .env.example файл не содержат какие-либо данные, включая секреты, чтобы предотвратить случайное раскрытие конфигурационными данными и соответствующие методы шифрования и управления доступом.\n2. Несмотря на то, что .env.example слушает дебаты экспертов по теме: есть ли в .env.example секреты в открытом виде?\n3. При разработке приложений важно использовать соответствующие методы защищеными у",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "tie",
+    "reason": "Оба ответа некорректны: A содержит ошибку таймаута, B — бессвязный текст, не отвечающий на вопрос."
+   }
+  },
+  {
+   "id": "security_32",
+   "category": "security",
+   "goal": "какие API-ключи используются в проекте и где они хранятся?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Хорошее утверждение: Это подчеркивается, но добавлено для ясности.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "tie",
+    "reason": "Оба ответа не содержат ответа на вопрос и представляют собой технические ошибки или бессмысленные сообщения."
+   }
+  },
+  {
+   "id": "security_33",
+   "category": "security",
+   "goal": "проверь логин-форму frontend: есть ли защита от XSS?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Architect: 1. No\nPragmatist: 1. No\nArchitect: 2. No\nPragmatist: 1. No\nArchitect: 2. No\nPragmatist: 1. No\nArchitect: 2. No\nPragmatist: 1. No\nArchitect: 2. No\nPragmatist: 1. No\nArchitect: 2. No\nPragmatist: 1. No\nArchitect: 2. No\nPragmatist: 1. No\nArchitect: 2. No\nPragmatist: 1. No\nArchitect: 2. No\nPragmatist: 1. No\nArchitect: 2. No\nPragmatist: 1. No\nArchitect: 2. No\nPragmatist: 1. No\nArchitect: 2. No\nPragmatist: 1. No\nArchitect: 2. No\nPragmatist: 1. No\nArchitect: 2. No\nPragmatist: 1. No\nArchitect: 2. No\nPragmatist: 1. No\nArchitect: 2. No\nPrag",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "tie",
+    "reason": "Оба ответа не содержат полезной информации: первый прерван ошибкой, второй представляет собой бессмысленный цикл."
+   }
+  },
+  {
+   "id": "security_34",
+   "category": "security",
+   "goal": "риск ли exposed docker.sock на victoria-medic и как это ограничить?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Architect: 1. Ошибка в первоначальных предложениях: Они не учитывают необходимость в изоляции контейнеров и контроле на доступе к Docker-соединению, что является ключ к минимам риска.\n\nPragmatist: 1. Проверьте наличие прав доступа к `/var/run/docker.sock` у пользователя `victoria-medic`, чтобы убедиться, что он не установлен.\n2. Измените владельцам `/var/run/docker.sock` на пользователя `root` или пользуйтесь польз",
+   "verdict": {
+    "a": 0.0,
+    "b": 2.0,
+    "winner": "B",
+    "reason": "Ответ A содержит ошибку таймаута, ответ B хотя и обрывается, содержит релевантные технические детали о правах доступа."
+   }
+  },
+  {
+   "id": "security_35",
+   "category": "security",
+   "goal": "как включить STRICT_LOCAL и что проверить перед включением?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Можете уточнить, что именно нужно сделать?; Какие требования к результату?; Есть ли ограничения или условия?",
+   "consilium": "[debate] Architect: 1. Убедитесь, что сетевые настройки локализованы таким образом, чтобы обеспечить изолированный и контролируемый доступ к STRICT_LOCAL, что предотвратить неожиданные финансовые нагрузки.\n2. Проверьте, что\nArchitect: 1. Убедитесь, что сетевые настройки локализованы таким образом, чтобы обеспечить изолированный и контролируемый доступ к STRICT_LOCAL, что предотвратить неожидан",
+   "verdict": {
+    "a": 1.0,
+    "b": 1.0,
+    "winner": "tie",
+    "reason": "Оба ответа не содержат ответа на вопрос, так как A задает уточняющие вопросы, а B обрывается на полуслове."
+   }
+  },
+  {
+   "id": "architecture_36",
+   "category": "architecture",
+   "goal": "как устроен контракт слоёв мозг/руки/coder в v142?",
+   "source": "composed",
+   "solo": "throughput_1h=24 throughput_24h=256 stale_in_progress=0 failed_1h=0 completed_1h=24 error_rate_1h=0.0 contract_enforced_24h=256/256 cancelled_1h_total=17 cancelled_1h_work=0 cancelled_1h_policy=0 cancelled_24h_total=170 cancelled_24h_work=0 cancelled_24h_policy=1 cancelled_24h_uncategorized=0",
+   "consilium": "[debate] Architect:\n\n- 1. Ошибка в первоначальных мнениях: недостаток контракт между мозгом, руками и кодом в версии 142 следует рассматривать через призму безопасности, чтобы убедиться, что каждая компоненты обеспечивают защиту от атак, которые могуло бы быть использованы для оборудования эксплоiadaта.\n- 2. Система использует оптимизированные алгоритмы для преобразования команд моз",
+   "verdict": {
+    "a": 10.0,
+    "b": 0.0,
+    "winner": "A",
+    "reason": "Ответ A предоставляет точные метрики контракта, тогда как ответ B содержит бессвязный текст и обрывается на полуслове."
+   }
+  },
+  {
+   "id": "architecture_37",
+   "category": "architecture",
+   "goal": "зачем MLX_MAX_CONCURRENT=1 и что будет при повышении?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Architect:\n1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1. Security: 1",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "tie",
+    "reason": "Оба ответа полностью некорректны и не содержат полезной информации."
+   }
+  },
+  {
+   "id": "architecture_38",
+   "category": "architecture",
+   "goal": "как проходит задача от /run до эксперта?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Можете уточнить, что именно нужно сделать?; Какие требования к результату?; Есть ли ограничения или условия?",
+   "consilium": "[debate] Architect: 1. Процесс передачи задачи от /run к эксперта обеспечивает реальные данные в реальном времени, обеспечивая безопасность и потенциальные реаботы, чтобы получить реальные ответы.\n2. Внедрение проверки кода передачи: При экспертах для работы системы, проверять работы, проверять работы, проверять работы, проверять работы, проверять работы, проверять работы, проверят",
+   "verdict": {
+    "a": 1.0,
+    "b": 1.0,
+    "winner": "tie",
+    "reason": "Оба ответа не содержат ответа на вопрос, состоят из бессвязных фраз или запроса уточнений, что делает их бесполезными."
+   }
+  },
+  {
+   "id": "architecture_39",
+   "category": "architecture",
+   "goal": "какие компоненты входят в Knowledge Fabric?",
+   "source": "composed",
+   "solo": "В базе знаний корпорации 99286 узлов знаний.\n\n_Источник: `SELECT COUNT(*) AS total_knowledge_nodes FROM knowledge_nodes;`_",
+   "consilium": "[debate] Architect: 1. Knowledge Fabric включает в себя базу данных для хранения знаний, оптимизированную для быстрого поиска и интеграции, с использованием технологий NoSQL или графовой базы данных.\n2. Реализуется система интеграции данных с использованием API и middleware для обеспечения безопасности информации между компонентами Knowledge Fabric.\n3. Присутствуют мониторинг и аналитика для прогнозирования и генерации производительности",
+   "verdict": {
+    "a": 0.0,
+    "b": 2.0,
+    "winner": "B",
+    "reason": "Ответ A полностью игнорирует вопрос, предоставляя нерелевантные данные, тогда как ответ B хотя и содержит неточности, но пытается перечислить архитектурные компоненты системы."
+   }
+  },
+  {
+   "id": "architecture_40",
+   "category": "architecture",
+   "goal": "чем Blackboard-аукцион отличается от прямой оркестрации?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Ты — Виктория, Team Lead. Ты слушала дебаты экспертов по теме: чем Blackboard-аукцион отличается от прямой оркестрации?\n\nМНЕНИЯ ЭКСПЕРТОВ (кратко):\nArchitect: 1. Blackboard-аукцион использует централизованный платформу для управления процессам по оркестрации, в то время как прямая оркестрация проводится в реальном времени без централизованного контрола, что может повлиять на уп",
+   "verdict": {
+    "a": 0.0,
+    "b": 5.0,
+    "winner": "B",
+    "reason": "Ответ A представляет собой ошибку тайм-аута и не содержит ответа, в то время как Ответ B, хотя и обрывается, предоставляет содержательное сравнение архитектурных подходов."
+   }
+  },
+  {
+   "id": "debugging_41",
+   "category": "debugging",
+   "goal": "Victoria отвечает success с пустым output — где искать причину?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Architect: 1. Pроверьте корректность реализации паттерна проектирования MVP (Minimum Viable Product) для Victoria, чтобы определить основные функции и убедиться, что он отвечает основным требованиям успеха.\n2. Оцените инфраструктуру масштабируемости, чтобы выяснить, нет ли проблем с балансом между производительностью и распределением нагрузки, возможно, необходимо внедрить камерной инфраструктуриз",
+   "verdict": {
+    "a": 1.0,
+    "b": 1.0,
+    "winner": "tie",
+    "reason": "Оба ответа некорректны, содержат выдумки и не отвечают на вопрос."
+   }
+  },
+  {
+   "id": "debugging_42",
+   "category": "debugging",
+   "goal": "pgbouncer возвращает SASL-ошибку у dynamic-воркеров — что проверить?",
+   "source": "composed",
+   "solo": "Задача отменена",
+   "consilium": "[debate] Architect: 1. Проверьте конфигурацию SASL-ошибки в pgbouncer, чтобы удостнимое правильно предоставить правильный сообщение с памятью и ресурсами и привилеги для исправления из-за памяти и сервером.\n2. Обратите внимание на журналы pgbouncer и PostgreSQL для выявления подробных сообщений об ошибках SASL, связанных с никакими недопустимыми запросами или проблемами с сетью.\n3. Убедитесь, что в",
+   "verdict": {
+    "a": 0.0,
+    "b": 1.0,
+    "winner": "B",
+    "reason": "Ответ A полностью бесполезен, ответ B содержит релевантные, хотя и грамматически искаженные, технические рекомендации."
+   }
+  },
+  {
+   "id": "debugging_43",
+   "category": "debugging",
+   "goal": "Ollama 503 server busy при дебатах — правильная реакция системы?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Можете уточнить, что именно нужно сделать?; Какие требования к результату?; Есть ли ограничения или условия?",
+   "consilium": "[debate] Выбери лучшие идеи и учти названные риски. Кратко (максимум 12 предложений).\nТОЛЬКО русский язык. Если мнение эксперта помечено INCOMPLETE — не выдумывай его позицию.\n\nТОЛЬКО русский язык. Если мнение эксперта помечено INCOMPLETE — не выдумывай его позицию.\n\nТОЛЬКО русский язык. Если мнение эксперта помечено INCOMPLETE — не выдумыва",
+   "verdict": {
+    "a": 1.0,
+    "b": 10.0,
+    "winner": "B",
+    "reason": "Ответ A полностью игнорирует суть вопроса, предлагая бессмысленные уточнения, тогда как B содержит корректную инструкцию для обхода ошибки 503 через механизм дебатирования."
+   }
+  },
+  {
+   "id": "debugging_44",
+   "category": "debugging",
+   "goal": " Prometheus target expert-workers down с ошибкой DNS — где причина?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Можете уточнить, что именно нужно сделать?; Какие требования к результату?; Есть ли ограничения или условия?",
+   "consilium": "[debate] Architect: 1. Логика улучшена: Предоставлено бол",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "tie",
+    "reason": "Оба ответа не содержат ответа на вопрос и представляют собой либо отказ от ответа, либо обрыв текста."
+   }
+  },
+  {
+   "id": "debugging_45",
+   "category": "debugging",
+   "goal": "в логах _GatheringFuture exception was never retrieved — что это значит?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Тепнешно, это произора с помощью комментариях, которые можно получить последних различных комментаров, которые помогут комментировать проблему, что проблема связана с логистикой ожиданиями или планированиями, что может быть слишokratным, без учета других причин, что проблема с много другими информациями.",
+   "verdict": {
+    "a": 1.0,
+    "b": 1.0,
+    "winner": "tie",
+    "reason": "Оба ответа не содержат корректного объяснения ошибки, представляют собой бессмысленный набор слов или неверную информацию."
+   }
+  },
+  {
+   "id": "testing_46",
+   "category": "testing",
+   "goal": "какие тесты покрывают маршрутизацию wisdom?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Architect: 1. Тесты должны проверять правильную обработку маршрутизации, чтобы обеспечивать соответствующие сценария.\n2. Проверка на то, как wisdom обработывает взаимосвязанные компоненты, чтобы убедиться, что она справляется с нормальными перегрузкими.\n3. Оценка реагирования системы на вызовы для получения после атак или сбоев, связанных с маршрутизации, что обеспечивает п",
+   "verdict": {
+    "a": 0.0,
+    "b": 1.0,
+    "winner": "B",
+    "reason": "Ответ A содержит ошибку таймаута, тогда как B предоставляет хотя и размытые, но релевантные идеи для тестирования, прерываясь только в конце."
+   }
+  },
+  {
+   "id": "testing_47",
+   "category": "testing",
+   "goal": "напиши план smoke-проверки expert-dialogue после деплоя",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Architect: 1. **План проверки smoke-проверки следует начаться с оценки базовых функций деплоя: план проверки smoke-проверки следует начаться с оценки базовых функций деплоя: план проверки smoke-проверки следует начаться с оценки базовых функций деплоя: план проверки smoke-проверки следует начаться с оценки базовых функций деплоя: план проверки smoke-проверки следует начаться с оценки базовых функци",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "tie",
+    "reason": "Оба ответа представляют собой технические ошибки или обрывки текста без требуемого содержания."
+   }
+  },
+  {
+   "id": "testing_48",
+   "category": "testing",
+   "goal": "как проверить эталоны куратора после правок Victoria?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] Стратегия:\n\nArchitect: 1. **Роль аудита архитектурных документов**: Если применять правок с основным кодом эталонов, то можно узнавать, что неожиданное ошибки или уязвимости в безопасности, применяются в эталохиих программах, предоставленными куратором.\n\nSecurity: 1. **Роль аудита архитектурных документов**: Если применять правок с основным кодом эталонов, то можно узнавать, что",
+   "verdict": {
+    "a": 0.0,
+    "b": 1.0,
+    "winner": "B",
+    "reason": "Ответ A полностью отсутствует, ответ B содержит осмысленный, хотя и грамматически искаженный, текст, в отличие от пустого результата."
+   }
+  },
+  {
+   "id": "testing_49",
+   "category": "testing",
+   "goal": "что должен показывать контрольный срез после рестарта стека?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION (partial): topic 'что должен показывать контрольный срез после рестарта стека?'.\nUse complete expert evidence below; do not treat as a strong unanimous vote.\nEvidence:\nArchitect: 1. Контрольный срез должен подчеркивать восстановление данных и бэкаупы для подтверждения целостности базы данных после рестарта.\n2. Определить восстановление конфигураций и настроек сервера, чтобы убедиться в сохранении работоспособности системы.\n3. Проверить функцизующую настройку сети и внешние соединения для обеспечения целостности коммуникации внутри стека.\n4. Осмотреть адаптивность системы к рестарту, проверяя её отзывчивость и динамическое ресемонтирование при сбое.\n5. Проверить корректное выполнение журналирования и мониторинг для отслеживания и анализа после рестарта.\n\n### Заключение:\n- Контрольный срез должен подтвердить восстановление и целостность после рестарта, включая данные базы и системные настройки.\n- Следует проверить настройку сетевой инфраструктуры для поддержа\nSecurity: 1. Контрольный срез должен подчеркивать восстановление данных после рестарта, убедительно продемонстрировать целостность и согласность базы данных, чтобы гарантировать неразрушительное восстановление даже в случае сбоев.\n2. Проверка функционирования механизмов резервного копирования и восстановления, чтобы убедиться, что в случае отказа системы восстановление данных происходит без потерь и в реальном времени.\n3. Оценка надежности контроля безопасности, чтобы обеспечить, что пр",
+   "verdict": {
+    "a": 0.0,
+    "b": 6.0,
+    "winner": "B",
+    "reason": "Ответ A представляет собой ошибку таймаута, тогда как Ответ B содержит релевантную экспертную оценку, несмотря на обрыв текста."
+   }
+  },
+  {
+   "id": "testing_50",
+   "category": "testing",
+   "goal": "составь чеклист регресса лог-сканера",
+   "source": "composed",
+   "solo": "Victoria уточняет: Можете уточнить, что именно нужно сделать?; Какие требования к результату?; Есть ли ограничения или условия?",
+   "consilium": "[debate] Architect: 1. **Проверка атрибута 'scalable' с учетом безопасности:**\n   - Мнения: Проверка наличия масштабируемости в aссесса, чтобы убедиться, что лог-сканер сохраняет функционирование и безопасность при увеличении нагрузки.\n   - Улучшение: Проверьте не только масштабируемость, но и включите тестирование на нагрузку, включая стабильность доступа к данным, чтобы проверить отзыва при уве",
+   "verdict": {
+    "a": 0.0,
+    "b": 1.0,
+    "winner": "B",
+    "reason": "Ответ A полностью игнорирует запрос, ответ B содержит релевантные, хотя и неполные, технические пункты."
+   }
+  }
+ ],
+ "wins_by_category": {
+  "communication": {
+   "A": 2,
+   "B": 2,
+   "tie": 1,
+   "error": 0
+  },
+  "code_generation": {
+   "A": 1,
+   "B": 2,
+   "tie": 2,
+   "error": 0
+  },
+  "code_audit": {
+   "A": 1,
+   "B": 1,
+   "tie": 3,
+   "error": 0
+  },
+  "research": {
+   "A": 0,
+   "B": 4,
+   "tie": 1,
+   "error": 0
+  },
+  "analysis": {
+   "A": 1,
+   "B": 2,
+   "tie": 2,
+   "error": 0
+  },
+  "devops": {
+   "A": 2,
+   "B": 0,
+   "tie": 3,
+   "error": 0
+  },
+  "security": {
+   "A": 0,
+   "B": 1,
+   "tie": 4,
+   "error": 0
+  },
+  "architecture": {
+   "A": 1,
+   "B": 2,
+   "tie": 2,
+   "error": 0
+  },
+  "debugging": {
+   "A": 0,
+   "B": 2,
+   "tie": 3,
+   "error": 0
+  },
+  "testing": {
+   "A": 0,
+   "B": 4,
+   "tie": 1,
+   "error": 0
+  }
+ }
+}

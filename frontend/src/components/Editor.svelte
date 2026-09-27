@@ -10,7 +10,7 @@
   import { json, jsonParseLinter } from '@codemirror/lang-json'
   import { markdown } from '@codemirror/lang-markdown'
   import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
-  import { lintGutter, lintKeymap } from '@codemirror/lint'
+  import { linter, lintGutter, lintKeymap } from '@codemirror/lint'
   import { Decoration, WidgetType, GutterMarker, gutter } from '@codemirror/view'
   import { currentFile, saveFile, markUnsaved } from '../stores/files.js'
 
@@ -212,7 +212,7 @@
     // Добавляем linting
     if (filename) {
       extensions.push(lintGutter())
-      extensions.push(getLinter(filename))
+      extensions.push(linter(getLinter(filename)))
     }
 
     return extensions

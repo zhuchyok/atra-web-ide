@@ -2224,6 +2224,10 @@ Use HANDOFF only if delegation genuinely improves the result.
         # [v148.5] Порядок = качество: запрос сначала, знания рядом, конституция
         # в конец как правила. Малые модели сильнее держат начало промпта —
         # конституция первой уводила ответ в декларации вместо решения задачи.
+        # [v149.3] Захватываем оригинальный вопрос ДО инъекции контекста —
+        # классификаторы (strategy/discovery) должны работать на нём, а не на
+        # обогащённой строке, где слова из knowledge-узлов ложно триггерят STRATEGY.
+        _raw_user_query = user_part
         swapper = ContextSwapper()
         _answer_first = (
             "### ⚡ ПРАВИЛА ВЫВОДА (строго):\n"
@@ -2251,7 +2255,7 @@ Use HANDOFF only if delegation genuinely improves the result.
     if QueryOrchestrator and not session_id:
         try:
             temp_orch = QueryOrchestrator()
-            query_type = temp_orch.classify_query(_original_user_part)
+            query_type = temp_orch.classify_query(_raw_user_query if _raw_user_query else _original_user_part)
             is_strategy_request = query_type == QueryType.STRATEGY
 
             if category == "orchestrator_assignment":
@@ -3667,7 +3671,7 @@ Use HANDOFF only if delegation genuinely improves the result.
     if QueryOrchestrator and get_prompt_template:
         try:
             query_orchestrator = QueryOrchestrator(session_manager=session_manager)
-            normalized_query = query_orchestrator.normalize_query(user_part)
+            normalized_query = query_orchestrator.normalize_query(_raw_user_query if _raw_user_query else user_part)
             optimized_role = query_orchestrator.select_role(normalized_query.query_type)
             logger.info(
                 f"🎯 [QUERY ORCHESTRATOR] Запрос нормализован: тип={normalized_query.query_type.value}, роль={optimized_role}"
