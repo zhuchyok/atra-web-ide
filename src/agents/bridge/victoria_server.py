@@ -790,6 +790,13 @@ VICTORIA_CONSILIUM_ROUTED = _create_metric(
     "Consilium router decisions (category x outcome: applied|fallback|disabled)",
     ["category", "outcome"],
 )
+VICTORIA_CONSILIUM_TTC = _create_metric(
+    "victoria_consilium_ttc_seconds",
+    Histogram,
+    "Consilium answer time-to-completed (solving → delivered)",
+    ["category"],
+    buckets=(30, 60, 120, 180, 300, 480, 600),
+)
 VICTORIA_ERRORS = _create_metric(
     "victoria_errors_total", Counter, "Total Victoria errors", ["error_type", "endpoint"]
 )
@@ -6225,6 +6232,7 @@ async def _run_task_background(
             consilium_category = None
         else:
             consilium_category = is_consilium_winnable_goal(goal)
+        _cons_started = time.monotonic()
         if consilium_category and os.getenv("CONSILIUM_ROUTING_ENABLED", "true").lower() in (
             "1",
             "true",
@@ -6287,6 +6295,12 @@ async def _run_task_background(
                     store["output"] = _normalize_output_for_user(_synth)
                     store["knowledge"] = _knowledge
                     store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                try:
+                    VICTORIA_CONSILIUM_TTC.labels(
+                        category=consilium_category
+                    ).observe(time.monotonic() - _cons_started)
+                except Exception:  # noqa: BLE001
+                    pass
                 logger.info(
                     "[CONSILIUM_ROUTER] completed task_id=%s category=%s engine=%s len=%d",
                     task_id[:8],

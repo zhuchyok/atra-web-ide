@@ -21,7 +21,8 @@ sys.path.append(str(Path(__file__).resolve().parent.parent / "knowledge_os"))
 PROM_URL = os.getenv("PROMETHEUS_URL", "http://localhost:9091")
 METRIC = "knowledge_os_tasks_deferred_new_24h_total"
 VICTORIA_METRICS_URL = os.getenv("VICTORIA_METRICS_URL", "http://127.0.0.1:8010/metrics")
-TTC_P95_THRESHOLD = float(os.getenv("VICTORIA_ASYNC_TTC_P95_SEC", "60"))
+TTC_P95_THRESHOLD = float(os.getenv("VICTORIA_ASYNC_TTC_P95_SEC", "180"))
+CONSILIUM_P95_THRESHOLD = float(os.getenv("VICTORIA_CONSILIUM_TTC_P95_SEC", "300"))
 TTC_MIN_SAMPLES = int(os.getenv("VICTORIA_ASYNC_TTC_MIN_SAMPLES", "5"))
 STATE_FILE = os.getenv("TG_DEFERRED_STATE", "/tmp/tg_deferred_alerts.state")
 RESET_AFTER_SEC = 4 * 3600
