@@ -516,6 +516,33 @@ def _render_task_card(task):
         unsafe_allow_html=True,
     )
 
+    # Действие: повторить задачу (только для финальных статусов)
+    if (task.get("status") or "") in ("completed", "failed", "cancelled"):
+        if st.button(
+            "🔁 Повторить задачу",
+            key=f"retry_task_{task.get('id')}",
+            help="Создаст копию задачи со статусом pending — оркестратор возьмёт её в работу",
+        ):
+            inserted = run_query(
+                """
+                INSERT INTO tasks (title, description, status, priority, assignee_expert_id, metadata, project_context)
+                SELECT title, description, 'pending', priority, assignee_expert_id,
+                       jsonb_set(
+                           COALESCE(metadata::jsonb, '{}'::jsonb),
+                           '{source}', '"dashboard_retry"'::jsonb
+                       ),
+                       project_context
+                FROM tasks WHERE id = %s
+                """,
+                (task.get("id"),),
+            )
+            if inserted:
+                st.cache_data.clear()
+                st.toast("🔁 Задача-копия создана и поставлена в очередь", icon="✅")
+                st.rerun()
+            else:
+                st.error("Не удалось создать копию задачи — проверьте подключение к БД.")
+
 
 def _render_put_task():
     """Render the 'Put Task' interface."""
