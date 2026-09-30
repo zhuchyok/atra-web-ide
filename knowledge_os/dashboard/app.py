@@ -193,6 +193,32 @@ st.markdown(
     [data-testid="stSidebar"] .stMarkdown { color: var(--dash-text-muted); }
     [data-testid="stSidebar"] label { color: var(--dash-text) !important; }
 
+    /* Навигация разделов: закреплена сверху сайдбара, видна при прокрутке длинных разделов */
+    [data-testid="stSidebar"] [data-testid="stRadio"] {
+        position: sticky;
+        top: 1rem;
+        z-index: 10;
+        background: var(--dash-surface);
+        padding: 0.25rem 0.5rem 0.5rem 0.25rem;
+        border-bottom: 1px solid var(--dash-border-muted);
+    }
+    [data-testid="stSidebar"] [data-testid="stRadio"] label p {
+        font-size: var(--dash-text-sm) !important;
+        line-height: 1.7 !important;
+    }
+    /* Заголовок раздела в шапке не прыгает при перерисовке */
+    [data-testid="stHeader"] { background: transparent; }
+
+    /* Таб-бары подразделов: остаются на экране при прокрутке длинных разделов */
+    .stTabs [role="tablist"] {
+        position: sticky;
+        top: 0.5rem;
+        z-index: 5;
+        background: var(--dash-bg);
+        border-bottom: 1px solid var(--dash-border-muted);
+        padding-top: 0.25rem;
+    }
+
     @media (max-width: 768px) {
         .premium-card { padding: var(--dash-space) !important; margin-bottom: var(--dash-space-sm) !important; }
         .stTabs [data-baseweb="tab-list"] { flex-wrap: wrap; gap: 8px !important; }
