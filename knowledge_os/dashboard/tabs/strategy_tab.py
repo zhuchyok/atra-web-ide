@@ -190,6 +190,8 @@ def render_finance_and_roi():
             color_continuous_scale="Viridis",
         )
         st.plotly_chart(fig_roi, width="stretch")
+    else:
+        st.info("Нет данных по ROI за выбранный период — увеличьте период или наполняйте базу знаний.")
 
 
 def render_structure():

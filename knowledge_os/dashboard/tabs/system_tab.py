@@ -810,4 +810,4 @@ def render_consilium_winrate_block():
             }
             for cat, w in sorted(by_cat.items(), key=lambda x: -(x[1].get("A", 0) + x[1].get("B", 0)))
         ]
-        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")

@@ -539,7 +539,7 @@ def _render_put_task():
         project_slugs = get_project_slugs()
         project_ctx = st.selectbox("Проект", project_slugs if project_slugs else ["atra-web-ide"])
 
-        submitted = st.form_submit_button("🚀 Создать задачу")
+        submitted = st.form_submit_button("🚀 Создать задачу", type="primary")
         if submitted:
             if not title or not description:
                 st.error("Название и описание обязательны")
@@ -622,5 +622,7 @@ def _render_tasks_analytics(time_range):
                     color_discrete_sequence=["#58a6ff"],
                 )
                 st.plotly_chart(fig, width="stretch")
+            else:
+                st.info("Нет задач за выбранный период — график нагрузки по экспертам появится, когда появятся задачи.")
         except Exception as e:
             st.error(f"Ошибка аналитики: {e}")
