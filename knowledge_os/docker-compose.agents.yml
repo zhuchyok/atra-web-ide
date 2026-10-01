@@ -78,7 +78,13 @@ services:
     networks:
       - atra-network
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:2376/_ping', timeout=3)"]
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request;urllib.request.urlopen('http://localhost:2376/_ping', timeout=3)",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -189,7 +195,7 @@ services:
       VICTORIA_SEMAPHORE_ACQUIRE_TIMEOUT_SEC: "2"
       UVICORN_WORKERS: "2"
       UVICORN_TIMEOUT_KEEP_ALIVE: "75"
-      DOCKER_HOST: "http://docker-proxy:2376"
+      DOCKER_HOST: "tcp://docker-proxy:2376"
     ports:
       - "8010:8000"
     volumes:
@@ -300,7 +306,7 @@ services:
       # Mac Docker Desktop: absolute host binds when orchestrator recreates dynamic workers
       HOST_PROJECT_ROOT: ${HOST_PROJECT_ROOT:-}
       HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-}
-      DOCKER_HOST: "http://docker-proxy:2376"
+      DOCKER_HOST: "tcp://docker-proxy:2376"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - ../certs:/certs:ro
@@ -547,7 +553,7 @@ services:
       USE_CUBE_SANDBOX: "false"
       ENABLE_METRICS: "true"
       METRICS_PORT: "8002"
-      DOCKER_HOST: "http://docker-proxy:2376"
+      DOCKER_HOST: "tcp://docker-proxy:2376"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - redis_data:/data/redis
@@ -594,7 +600,7 @@ services:
       MLX_API_URL: ${MLX_API_URL:-http://host.docker.internal:11435}
       HOST_PROJECT_ROOT: ${HOST_PROJECT_ROOT:-}
       HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-}
-      DOCKER_HOST: "http://docker-proxy:2376"
+      DOCKER_HOST: "tcp://docker-proxy:2376"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - redis_data:/data/redis
@@ -627,7 +633,7 @@ services:
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       SELF_CHECK_INTERVAL_SEC: ${SELF_CHECK_INTERVAL_SEC:-300}
-      DOCKER_HOST: "http://docker-proxy:2376"
+      DOCKER_HOST: "tcp://docker-proxy:2376"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - redis_data:/data/redis
@@ -723,7 +729,7 @@ services:
       NIGHTLY_ROUTING_GUARD_NOTIFY_ENABLED: ${NIGHTLY_ROUTING_GUARD_NOTIFY_ENABLED:-true}
       NIGHTLY_ROUTING_GUARD_NOTIFY_COOLDOWN_SEC: ${NIGHTLY_ROUTING_GUARD_NOTIFY_COOLDOWN_SEC:-3600}
       NIGHTLY_ROUTING_GUARD_REPORT_DIR: ${NIGHTLY_ROUTING_GUARD_REPORT_DIR:-/app/docs/audits}
-      DOCKER_HOST: "http://docker-proxy:2376"
+      DOCKER_HOST: "tcp://docker-proxy:2376"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - ../docs:/app/docs:ro
@@ -777,7 +783,7 @@ services:
       MLX_BASE_URL: ${MLX_BASE_URL:-http://host.docker.internal:11435}
       DIALOGUE_MLX_TIMEOUT_SEC: ${DIALOGUE_MLX_TIMEOUT_SEC:-120}
       DIALOGUE_MAX_TOKENS: ${DIALOGUE_MAX_TOKENS:-512}
-      DOCKER_HOST: "http://docker-proxy:2376"
+      DOCKER_HOST: "tcp://docker-proxy:2376"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - redis_data:/data/redis
@@ -838,7 +844,7 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       CHAT_ID: ${TELEGRAM_USER_ID}
       NTFY_URL: ${NTFY_URL:-https://ntfy.sh/atra_victoria_curator}
-      DOCKER_HOST: "http://docker-proxy:2376"
+      DOCKER_HOST: "tcp://docker-proxy:2376"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - ../logs:/app/logs
@@ -892,7 +898,7 @@ services:
       REDIS_URL: unix:///data/redis/redis.sock
       HOST_PROJECT_ROOT: ${HOST_PROJECT_ROOT:-}
       HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-}
-      DOCKER_HOST: "http://docker-proxy:2376"
+      DOCKER_HOST: "tcp://docker-proxy:2376"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - redis_data:/data/redis

@@ -17,6 +17,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -160,7 +161,9 @@ async def rate_limit_middleware(request: Request, call_next):
 
 @app.api_route("/{path:path}", methods=["GET"])
 async def proxy_get(path: str, request: Request):
-    full_path = f"/{path}"
+    # Нормализуем версию API (/v1.55/containers/... -> /containers/...):
+    # и whitelist, и роутинг ниже сравнивают пути без префикса версии.
+    full_path = re.sub(r"^/v\d+\.\d+", "", f"/{path}")
     method = "GET"
 
     # Audit log
