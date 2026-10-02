@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -29,6 +29,8 @@ from app.services.conversation_context import get_conversation_context_manager
 from app.services.knowledge_os import KnowledgeOSClient, get_knowledge_os_client
 from app.services.ollama import OllamaClient, get_ollama_client
 from app.services.victoria import VictoriaClient, get_victoria_client
+from app.utils.prompt_filter import detect as detect_injection
+from app.utils.prompt_filter import harden as harden_user_content
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -457,7 +459,7 @@ class PlanRequest(BaseModel):
 @router.post("/plan")
 async def make_plan(
     request: PlanRequest, victoria: VictoriaClient = Depends(get_victoria_client)
-) -> dict[str, Any]:
+) -> Response:
     """Составить план по цели: только планирование, без выполнения"""
     acquired = await acquire_victoria_slot()
     if not acquired:
@@ -517,8 +519,13 @@ async def send_message(
             recent = await ctx_mgr.get_recent(session_id, last_n=10, max_chars=10000)
             chat_history = ctx_mgr.to_victoria_chat_history(recent)
 
+        # Prompt injection defense (директива Совета 02.10): оборачиваем
+        # недоверенный ввод в границы, попытки инъекций — в warning-лог.
+        matches = detect_injection(message.content)
+        if matches:
+            logger.warning(f"[PROMPT_INJECTION] patterns={matches[:3]} session={session_id}")
         result = await victoria.run(
-            prompt=message.content,
+            prompt=harden_user_content(message.content),
             expert_name=message.expert_name,
             session_id=session_id,
             chat_history=chat_history,
@@ -575,11 +582,17 @@ async def stream_message(
         recent = await ctx_mgr.get_recent(session_id, last_n=10, max_chars=10000)
         chat_history = ctx_mgr.to_victoria_chat_history(recent)
 
+    # Prompt injection defense (директива Совета 02.10) — как в /send
+    _matches = detect_injection(message.content)
+    if _matches:
+        logger.warning(f"[PROMPT_INJECTION][stream] patterns={_matches[:3]}")
+    _hardened_content = harden_user_content(message.content)
+
     async def proxy_generator():
         full_response = []
         try:
             async for line in victoria.run_stream(
-                prompt=message.content,
+                prompt=_hardened_content,
                 expert_name=message.expert_name,
                 session_id=session_id,
                 chat_history=chat_history,
