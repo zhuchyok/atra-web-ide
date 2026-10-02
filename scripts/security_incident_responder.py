@@ -45,6 +45,24 @@ def log_alert(line: str) -> None:
     ALERT_LOG.open("a").write(line + "\n")
 
 
+def notify_telegram(text: str) -> None:
+    """Пуш владельцу. Не критично к ошибкам: уведомление не должно ломать реакцию."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_USER_ID") or os.environ.get("TG_CHAT_ID")
+    if not token or not chat_id:
+        return
+    try:
+        import urllib.parse
+        import urllib.request
+
+        data = urllib.parse.urlencode({"chat_id": chat_id, "text": text[:3500]}).encode()
+        urllib.request.urlopen(
+            f"https://api.telegram.org/bot{token}/sendMessage", data=data, timeout=10
+        )
+    except Exception as e:
+        log_alert(f"[{datetime.now(timezone.utc).isoformat()}] TELEGRAM ERROR: {e}")
+
+
 def fetch_new_incidents() -> list:
     conn = psycopg2.connect(DB_DSN)
     try:
@@ -133,6 +151,11 @@ def main() -> int:
                 f"создана задача на разбор"
             )
             print(f"🛡️ Реакция: {incident['anomaly_type']} ({incident['severity']}) — задача создана")
+            notify_telegram(
+                f"🛡️ ATRA Security [{incident['severity'].upper()}]\n"
+                f"{incident['anomaly_type']} #{incident['id']} @ {incident['detected_at']}\n"
+                f"Создана задача на разбор (высокий приоритет)."
+            )
         else:
             print(f"⚠️ Не удалось создать задачу для #{incident['id']} — повторится при следующем запуске")
 
