@@ -50,7 +50,7 @@ groups:
               - uid: telegram-receiver
                 type: telegram
                 settings:
-                  bottoken: "8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs"
+                  bottoken: "8461566302:AAFcSQsIvJiMPPVh4-BdEUDVYGSGmGY9Nbg"
                   chatid: "556251171"
         dashboardUid: knowledge_os-tasks
         panelId: 1

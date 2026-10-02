@@ -10,7 +10,7 @@ contactPoints:
         type: telegram
         disableResolveMessage: false
         settings:
-          bottoken: "8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs"
+          bottoken: "8461566302:AAFcSQsIvJiMPPVh4-BdEUDVYGSGmGY9Nbg"
           chatid: "556251171"
 
 policies:
