@@ -50,6 +50,7 @@ async def check_and_assign_unassigned_tasks(conn) -> int:
             SELECT COUNT(*) FROM tasks
             WHERE status = 'pending'
             AND assignee_expert_id IS NULL
+            AND COALESCE(metadata->>'source', '') <> 'dev_loop'
         """)
 
         if unassigned_count > 10:  # Если много задач без экспертов

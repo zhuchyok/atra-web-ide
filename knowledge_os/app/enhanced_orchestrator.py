@@ -1941,6 +1941,7 @@ async def reconcile_stale_in_progress(conn) -> Tuple[int, int]:
                     assignee_expert_id IS NULL
                     OR COALESCE(metadata->>'processing_worker', '') = ''
                   )
+                  AND COALESCE(metadata->>'source', '') <> 'dev_loop'
               AND COALESCE(metadata->>'last_llm_call_at', '') = ''
             RETURNING id
         )

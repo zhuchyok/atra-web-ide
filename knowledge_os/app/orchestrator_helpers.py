@@ -55,6 +55,7 @@ async def prioritize_tasks(conn, victoria_id: str) -> int:
         tasks = await conn.fetch(
             """SELECT id, goal, priority, created_at FROM tasks
                WHERE assignee_expert_id IS NULL AND status = 'pending'
+            AND COALESCE(metadata->>'source', '') <> 'dev_loop'
                AND priority IS NULL OR priority = '' ORDER BY created_at ASC LIMIT 50"""
         )
         for task in tasks:

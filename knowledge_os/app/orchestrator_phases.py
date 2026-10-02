@@ -123,6 +123,7 @@ async def phase_1_prioritize(conn, *, calculate_task_priority: PriorityFn) -> Di
         FROM tasks
         WHERE priority = 'medium'
         AND status = 'pending'
+            AND COALESCE(metadata->>'source', '') <> 'dev_loop'
         AND created_at > NOW() - INTERVAL '24 hours'
     """)
 
@@ -194,6 +195,7 @@ async def phase_1_5_decompose(
             FROM tasks
             WHERE assignee_expert_id IS NULL
             AND status = 'pending'
+            AND COALESCE(metadata->>'source', '') <> 'dev_loop'
             AND (metadata->>'decomposed') IS DISTINCT FROM 'true'
             AND (
                 priority IN ('high', 'urgent')
@@ -520,6 +522,7 @@ async def phase_1_6_batch_group(conn) -> Dict[str, Any]:
                 FROM tasks
                 WHERE assignee_expert_id IS NULL
                 AND status = 'pending'
+            AND COALESCE(metadata->>'source', '') <> 'dev_loop'
                 AND priority IN ('low', 'medium')
                 AND (metadata->>'complex') IS DISTINCT FROM 'true'
                 AND domain_id IS NOT NULL
@@ -537,6 +540,7 @@ async def phase_1_6_batch_group(conn) -> Dict[str, Any]:
                         updated_at = NOW()
                     WHERE assignee_expert_id IS NULL
                     AND status = 'pending'
+            AND COALESCE(metadata->>'source', '') <> 'dev_loop'
                     AND domain_id = $1
                     AND priority IN ('low', 'medium')
                     AND (metadata->>'complex') IS DISTINCT FROM 'true'
@@ -615,6 +619,7 @@ async def phase_2_assign(
         FROM tasks t
         WHERE t.assignee_expert_id IS NULL
         AND t.status = 'pending'
+        AND COALESCE(t.metadata->>'source', '') <> 'dev_loop'
         AND (t.metadata->>'decomposed') IS DISTINCT FROM 'true'
         ORDER BY
             CASE t.priority
@@ -666,6 +671,7 @@ async def phase_2_assign(
         WHERE t.assignee_expert_id = e.id
         AND e.priority = 'VIP'
         AND t.status = 'pending'
+        AND COALESCE(t.metadata->>'source', '') <> 'dev_loop'
         AND t.priority != 'urgent'
     """)
 
