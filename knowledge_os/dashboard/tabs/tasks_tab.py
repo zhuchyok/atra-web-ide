@@ -253,6 +253,12 @@ def _render_tasks_list(time_range):
         "🔍 Поиск по задачам", placeholder="Введите ключевые слова...", key="task_search"
     )
 
+    # Сброс страницы при смене фильтров, иначе можно остаться на пустой странице
+    _filter_signature = f"{status_filter}|{expert_filter}|{project_filter}|{search_query}"
+    if st.session_state.get("tasks_filter_sig") != _filter_signature:
+        st.session_state["tasks_filter_sig"] = _filter_signature
+        st.session_state["tasks_page"] = 0
+
     # Запрос данных
     from database_service import get_time_filter
 
@@ -310,7 +316,10 @@ def _render_tasks_list(time_range):
         if status_filter in ("completed", "Ручная проверка (deferred)")
         else "t.created_at"
     )
-    query_parts.append(f"ORDER BY {order_col} DESC LIMIT 100")
+    # Пагинация: 25 карточек на страницу (100 карточек = 200+ кнопок = тяжело для браузера)
+    tasks_page_size = 25
+    tasks_page = st.session_state.get("tasks_page", 0)
+    query_parts.append(f"ORDER BY {order_col} DESC LIMIT {tasks_page_size} OFFSET {tasks_page * tasks_page_size}")
 
     tasks = fetch_data_tasks(" ".join(query_parts), tuple(query_params) if query_params else None)
 
@@ -422,6 +431,20 @@ def _render_tasks_list(time_range):
 
         for task in tasks:
             _render_task_card(task)
+
+        total_rows = len(tasks)
+        if total_rows == tasks_page_size or tasks_page > 0:
+            col_prev, col_info, col_next = st.columns([1, 2, 1])
+            with col_prev:
+                if st.button("⬅️ Назад", key="tasks_page_prev", disabled=tasks_page == 0):
+                    st.session_state["tasks_page"] = max(0, tasks_page - 1)
+                    st.rerun()
+            with col_info:
+                st.caption(f"Страница {tasks_page + 1} (по {tasks_page_size} задач)")
+            with col_next:
+                if st.button("Вперёд ➡️", key="tasks_page_next", disabled=total_rows < tasks_page_size):
+                    st.session_state["tasks_page"] = tasks_page + 1
+                    st.rerun()
     else:
         st.info("Задач не найдено.")
 
