@@ -6264,7 +6264,8 @@ async def _run_task_background(
                 logger.warning(
                     "[CONSILIUM_ROUTER] debate failed: %s — fallback to solo", cons_err
                 )
-            if _synth and not _degraded:
+            # [v149.4] INCOMPLETE/пустой дебат — fallback на соло
+            if _synth and ("[INCOMPLETE]" not in _synth and len(_synth) > 100) and not _degraded:
                 _knowledge = {
                     "strategy": "consilium",
                     "confidence": 0.9,
