@@ -27,6 +27,32 @@ def git(*args: str) -> str:
     return subprocess.run(["git", *args], cwd=REPO, capture_output=True, text=True).stdout.strip()
 
 
+def review_patch_text(patch_text: str, title: str) -> str:
+    """Вердикт Victoria по тексту патча."""
+    body = json.dumps({
+        "model": WISDOM_MODEL,
+        "messages": [{"role": "user", "content": (
+            f"Ты — строгий код-ревьюер. Автопатч «{title}»:\n```\n{patch_text}\n```\n"
+            "Оцени: можно ли безопасно применить в main? Ответь ровно:\n"
+            "VERDICT: ok | risky\nПОЧЕМУ: одна короткая строка."
+        )}],
+        "stream": False,
+        "max_tokens": 200,
+        "options": {"temperature": 0.1, "num_predict": 200},
+    }).encode()
+    req = urllib.request.Request(
+        f"{MLX_URL}/api/chat", data=body, headers={"Content-Type": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            content = json.loads(resp.read())["message"]["content"].strip()
+        verdict = "risky" if "risky" in content.lower() else ("ok" if "ok" in content.lower() else "?")
+        why = content.split("ПОЧЕМУ:")[-1].strip().splitlines()[0][:150] if "ПОЧЕМУ" in content else content[:150]
+        return f"[{verdict.upper()}] {why}"
+    except Exception as e:
+        return f"[SKIP] ревью не удалось: {e}"
+
+
 def review_commit(commit_hash: str, diff_stat: str) -> str:
     """Просит Victoria оценить риск патча: VERDICT: ok|-risky + одна строка почему."""
     diff = git("show", commit_hash, "--format=", "--unified=1")[:6000]
@@ -60,27 +86,25 @@ def collect() -> str:
     lines = ["🧪 Self-Dev: сводка за неделю\n"]
     since = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
 
-    commits = git("log", f"main..{BRANCH}", "--oneline", "--no-merges").splitlines()
-    main_head = git("merge-base", "main", BRANCH)
-    ahead = commits
-    lines.append(f"Коммитов в {BRANCH} не в main: {len(ahead)}")
+    # Первоисточник — файлы патчей (ветку в общем репо сбрасывают синхронизаторы)
+    patches_dir = REPO / "logs" / "self_dev_patches"
+    metas = sorted(patches_dir.glob("*.json"))
+    lines.append(f"Готовых патчей на ревью: {len(metas)}")
     reviewed = 0
-    for c in ahead[:10]:
-        lines.append(f"  • {c}")
+    for mf in metas[:10]:
+        try:
+            meta = json.loads(mf.read_text())
+        except ValueError:
+            continue
+        lines.append(f"  • [{mf.stem.split('_')[0]}] {meta.get('title','?')[:70]}")
         # AI-ревью до 5 патчей за прогон (не жечь модели)
         if reviewed < 5:
-            chash = c.split()[0]
-            stat = git("diff", "--stat", f"{chash}~1..{chash}").splitlines()[-1]
-            verdict = review_commit(chash, stat)
+            patch_text = (patches_dir / (mf.stem + ".patch")).read_text()[:4000]
+            verdict = review_patch_text(patch_text, meta.get("title", ""))
             lines.append(f"      🤖 ревью: {verdict}")
             reviewed += 1
-    if len(ahead) > 10:
-        lines.append(f"  … и ещё {len(ahead) - 10}")
+    lines.append("Применить: git am logs/self_dev_patches/<файл>.patch")
 
-    diff_stat = git("diff", "--stat", f"{main_head}..{BRANCH}").splitlines()
-    if diff_stat:
-        lines.append("\nСуммарный diff против main:")
-        lines += ["  " + l for l in diff_stat[-5:]]
 
     conn = psycopg2.connect(DB_DSN)
     try:

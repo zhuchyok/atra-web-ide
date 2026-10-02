@@ -67,18 +67,18 @@ def db_fetch_task(task_id: str | None) -> dict | None:
         with conn.cursor() as cur:
             if task_id:
                 cur.execute(
-                    """SELECT id, title, description FROM tasks
+                    """SELECT id, title, description, COALESCE(metadata->>'patch_attempts','0') FROM tasks
                        WHERE id=%s AND metadata->>'source'='dev_loop' AND status='pending'""",
                     (task_id,),
                 )
             else:
                 cur.execute(
-                    """SELECT id, title, description FROM tasks
+                    """SELECT id, title, description, COALESCE(metadata->>'patch_attempts','0') FROM tasks
                        WHERE metadata->>'source'='dev_loop' AND status='pending'
                        ORDER BY created_at ASC LIMIT 1"""
                 )
             row = cur.fetchone()
-            return {"id": str(row[0]), "title": row[1], "description": row[2]} if row else None
+            return {"id": str(row[0]), "title": row[1], "description": row[2], "attempts": int(row[3] or 0)} if row else None
     finally:
         conn.close()
 
@@ -247,7 +247,18 @@ def process(task: dict) -> None:
     ok, report = apply_and_check(diff)
     if not ok:
         reset_worktree()
-        db_finish_task(task["id"], "completed", f"Попытка автопатча не прошла проверки: {report}. Патч откачен, main не тронут.")
+        conn = psycopg2.connect(DB_DSN)
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """UPDATE tasks SET metadata = COALESCE(metadata,'{}'::jsonb)
+                       || jsonb_build_object('patch_attempts', (%s)::int) WHERE id=%s""",
+                    (task["attempts"] + 1, task["id"]),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+        db_finish_task(task["id"], "pending", f"Попытка #{task['attempts'] + 1}: {report}. Патч откачен, main не тронут.")
         notify_telegram(f"🧯 Self-dev: патч для «{task['title'][:80]}» не прошёл проверки ({report[:120]}). Откат выполнен.")
         log("❌ Проверки не пройдены, откат")
         return
@@ -260,7 +271,21 @@ def process(task: dict) -> None:
         f"self-dev: {task['title'][:70]}\n\nАвтопатч по задаче {task['id']}\nПроверки: {report}\n\nMerge в main — только по человеческому ревью.",
         cwd=WORKTREE,
     )
-    db_finish_task(task["id"], "completed", f"✅ Патч применён и прошёл проверки ({report}). Закоммичен в ветку {BRANCH}. Merge в main — после ревью.")
+    # Бронежилет: агентские "runtime sync" сбрасывали ветку и стирали патчи.
+    # Каждый принятый патч дублируем файлом .patch — он переживёт что угодно.
+    patches_dir = REPO / "logs" / "self_dev_patches"
+    patches_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M")
+    commit_hash = git("rev-parse", "HEAD", cwd=WORKTREE)
+    patch_file = patches_dir / f"{commit_hash[:10]}_{stamp}.patch"
+    patch_file.write_text(git("format-patch", "-1", "HEAD", "--stdout", cwd=WORKTREE))
+    meta_file = patches_dir / f"{commit_hash[:10]}_{stamp}.json"
+    meta_file.write_text(json.dumps({
+        "task_id": task["id"], "title": task["title"], "commit": commit_hash,
+        "report": report, "created": datetime.now(timezone.utc).isoformat(),
+    }, ensure_ascii=False, indent=1))
+
+    db_finish_task(task["id"], "completed", f"✅ Патч применён и прошёл проверки ({report}). Ветка {BRANCH}, копия: {patch_file.name}. Merge в main — после ревью.")
     notify_telegram(
         f"🧪 Self-dev: патч для «{task['title'][:80]}» готов и прошёл проверки.\n"
         f"Ветка {BRANCH}, {report}. Ждёт ревью перед merge в main."
@@ -300,6 +325,11 @@ def main() -> int:
         task = db_fetch_task(task_id)
         if not task:
             log("Нет задач dev_loop в очереди.")
+            return 0
+        if task["attempts"] >= 3:
+            db_finish_task(task["id"], "completed",
+                           "3 попытки автопатча не прошли проверки. Задача передана человеку — требует ручного решения.")
+            notify_telegram(f"🧪 Self-dev: «{task['title'][:80]}» — 3 неудачных попытки, передано человеку.")
             return 0
         if night_battle_window():
             log("Ночное окно battles (01:00–06:00) — self-dev ждёт утра.")
