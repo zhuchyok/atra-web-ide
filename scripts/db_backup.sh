@@ -24,7 +24,19 @@ if docker exec knowledge_postgres pg_dump -U admin knowledge_os | gzip > "$FILE"
     fi
     # ротация: оставить последние KEEP
     ls -t "$BACKUP_DIR"/knowledge_os_*.sql.gz 2>/dev/null | tail -n +$((KEEP + 1)) | xargs rm -f 2>/dev/null
-    echo "$(date) - OK: $FILE ($SIZE)" >> "$ROOT/logs/db_backup.log"
+
+    # Внешние копии (offsite): iCloud Drive и Yandex Disk, хранить 3
+    # Если локальный диск умрёт — дамп переживёт в облаке.
+    OFFSITE_OK=0
+    for DEST_BASE in "$HOME/Library/Mobile Documents/com~apple~CloudDocs/ATRA-backups" "/Volumes/Yandex/ATRA-backups"; do
+        if mkdir -p "$DEST_BASE" 2>/dev/null && cp "$FILE" "$DEST_BASE/" 2>/dev/null; then
+            ls -t "$DEST_BASE"/knowledge_os_*.sql.gz 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null
+            OFFSITE_OK=1
+            echo "$(date) - offsite копия: $DEST_BASE" >> "$ROOT/logs/db_backup.log"
+        fi
+    done
+
+    echo "$(date) - OK: $FILE ($SIZE, offsite=$OFFSITE_OK)" >> "$ROOT/logs/db_backup.log"
 else
     echo "$(date) - ERROR: pg_dump failed" >> "$ROOT/logs/db_backup.log"
     curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
