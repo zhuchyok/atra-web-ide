@@ -141,18 +141,26 @@ SKIP_CONTAINERS = {
 }
 
 # Dedup window: don't report same error in same container within N seconds
-DEDUP_WINDOW = int(os.getenv("LOG_SCANNER_DEDUP_WINDOW", "300"))
+DEDUP_WINDOW = int(os.getenv("LOG_SCANNER_DEDUP_WINDOW", "21600"))
 
 # Max history per container
 MAX_HISTORY = 100
 
 
 class ErrorDeduplicator:
-    """Дедупликация ошибок — не спамить одну и ту же ошибку."""
+    """Дедупликация ошибок — не спамить одну и ту же ошибку.
 
-    def __init__(self, window_seconds: int = 300):
+    История персистентна (JSON-файл): рестарт сканера больше не сбрасывает
+    дедуп и не плодит дубли задач по тем же ошибкам контейнеров.
+    """
+
+    def __init__(self, window_seconds: int = 300, state_path: Optional[str] = None):
         self.window = window_seconds
+        self.state_path = state_path or os.getenv(
+            "LOG_SCANNER_DEDUP_STATE", "/tmp/log_scanner_dedup.json"
+        )
         self.history: Dict[str, List[float]] = defaultdict(list)
+        self._load()
 
     def is_duplicate(self, container: str, error_hash: str) -> bool:
         """Проверить, была ли уже такая ошибка недавно."""
@@ -168,10 +176,31 @@ class ErrorDeduplicator:
             return True
 
         self.history[key].append(now)
+        self._save()
         return False
+
+    def _load(self):
+        try:
+            with open(self.state_path) as f:
+                raw = json.load(f)
+            now = time.time()
+            for key, stamps in raw.items():
+                fresh = [t for t in stamps if now - t < self.window]
+                if fresh:
+                    self.history[key] = fresh
+        except (OSError, ValueError):
+            pass
+
+    def _save(self):
+        try:
+            with open(self.state_path, "w") as f:
+                json.dump({k: v for k, v in self.history.items() if v}, f)
+        except OSError:
+            pass
 
     def cleanup(self):
         """Очистить историю старше window."""
+        self._save()
         now = time.time()
         keys_to_delete = []
         for key, timestamps in self.history.items():

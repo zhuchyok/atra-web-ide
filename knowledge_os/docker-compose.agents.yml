@@ -890,7 +890,7 @@ services:
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
       VICTORIA_URL: http://victoria-agent:8000
       LOG_SCANNER_INTERVAL: "30"
-      LOG_SCANNER_DEDUP_WINDOW: "300"
+      LOG_SCANNER_DEDUP_WINDOW: "21600"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - /var/run/docker.sock:/var/run/docker.sock:ro
