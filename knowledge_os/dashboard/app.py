@@ -223,10 +223,16 @@ st.markdown(
         .premium-card { padding: var(--dash-space) !important; margin-bottom: var(--dash-space-sm) !important; }
         .stTabs [data-baseweb="tab-list"] { flex-wrap: wrap; gap: 8px !important; }
         .stTabs [data-baseweb="tab"] { font-size: var(--dash-text-sm) !important; padding: 8px var(--dash-space-sm) !important; }
-        [data-testid="stSidebar"] { min-width: 200px !important; }
+        /* Сайдбар: компактнее, раскрывается поверх контента */
+        [data-testid="stSidebar"] { min-width: 200px !important; z-index: 99990; }
         .expert-header { font-size: var(--dash-text-lg) !important; }
         .card-text { font-size: var(--dash-text-base) !important; }
         .premium-card .premium-value { font-size: var(--dash-text-3xl) !important; }
+        /* KPI-колонки в столбик, чтобы не сжимались в кашу */
+        [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
+        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] { min-width: 46% !important; }
+        /* Заголовки компактнее */
+        h1, [data-testid="stMarkdown"] h1 { font-size: var(--dash-text-2xl) !important; }
     }
     @media (max-width: 480px) {
         .premium-card { padding: var(--dash-space-sm) !important; }
