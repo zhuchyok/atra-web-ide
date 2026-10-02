@@ -48,7 +48,7 @@ DB_DSN = os.environ.get("ATRA_DB_DSN", "postgresql://admin:secret@127.0.0.1:6432
 MLX_URL = os.environ.get("MLX_BASE_URL", "http://127.0.0.1:11435").rstrip("/")
 WISDOM_MODEL = os.getenv("WISDOM_MODEL", "victoria-wisdom-24k")
 # Лестница эскалации: wisdom быстрая, но слабая в диффах; coder-модель мощнее.
-OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+OLLAMA_URL = os.getenv("DEV_LOOP_CODER_URL", "http://127.0.0.1:11436").rstrip("/")  # выделенный coder-слой (v149.4)
 CODER_MODEL = os.getenv("DEV_LOOP_CODER_MODEL", "qwen3-coder:30b")
 MODEL_LADDER = [
     {"backend": "mlx", "model": WISDOM_MODEL},
