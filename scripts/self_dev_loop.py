@@ -47,6 +47,14 @@ _load_dotenv()
 DB_DSN = os.environ.get("ATRA_DB_DSN", "postgresql://admin:secret@127.0.0.1:6432/knowledge_os")  # pragma: allowlist secret
 MLX_URL = os.environ.get("MLX_BASE_URL", "http://127.0.0.1:11435").rstrip("/")
 WISDOM_MODEL = os.getenv("WISDOM_MODEL", "victoria-wisdom-24k")
+# Лестница эскалации: wisdom быстрая, но слабая в диффах; coder-модель мощнее.
+OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+CODER_MODEL = os.getenv("DEV_LOOP_CODER_MODEL", "qwen3-coder:30b")
+MODEL_LADDER = [
+    {"backend": "mlx", "model": WISDOM_MODEL},
+    {"backend": "ollama", "model": CODER_MODEL},
+    {"backend": "mlx", "model": WISDOM_MODEL},
+]
 
 # Пути, которые автономному патчеру трогать запрещено
 FORBIDDEN_PREFIXES = (
@@ -135,6 +143,14 @@ def reset_worktree() -> None:
     git("reset", "--hard", "main", cwd=WORKTREE)
 
 
+def ask_victoria_patch(task: dict) -> str | None:
+    """Модель по номеру попытки (лестница эскалации)."""
+    attempt = task.get("attempts", 0)
+    step = MODEL_LADDER[min(attempt, len(MODEL_LADDER) - 1)]
+    log(f"Генерация: {step['backend']}/{step['model']} (попытка {attempt + 1})")
+    return ask_model_patch(task, step["backend"], step["model"])
+
+
 def _mentioned_files(task: dict, worktree: Path) -> list[Path]:
     """Файлы, упомянутые в задаче и существующие в worktree (до 3, до 120 строк)."""
     text = f"{task['title']} {task['description']}"
@@ -154,7 +170,7 @@ def _mentioned_files(task: dict, worktree: Path) -> list[Path]:
     return found
 
 
-def ask_victoria_patch(task: dict) -> str | None:
+def ask_model_patch(task: dict, backend: str, model: str) -> str | None:
     """Просит Victoria-wisdom сгенерировать unified diff. Возвращает diff или None."""
     # КРИТИЧНО: для правки существующих файлов даём модели их РЕАЛЬНОЕ содержимое —
     # иначе она галлюцинирует контекстные строки и git apply честно отклоняет патч.
@@ -180,28 +196,34 @@ def ask_victoria_patch(task: dict) -> str | None:
         "Если задача слишком крупная — верни ровно слово: TOO_BIG\n"
         "Если не хватает контекста — верни ровно слово: NEED_CONTEXT"
     )
+    base = MLX_URL if backend == "mlx" else OLLAMA_URL
     body = json.dumps({
-        "model": WISDOM_MODEL,
+        "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "stream": False,
-        "max_tokens": 2048,
-        "options": {"temperature": 0.2, "num_predict": 2048},
+        "max_tokens": 4096,
+        "options": {"temperature": 0.2, "num_predict": 4096},
     }).encode()
     req = urllib.request.Request(
-        f"{MLX_URL}/api/chat", data=body, headers={"Content-Type": "application/json"}
+        f"{base}/api/chat", data=body, headers={"Content-Type": "application/json"}
     )
     try:
         with urllib.request.urlopen(req, timeout=420) as resp:
             content = json.loads(resp.read())["message"]["content"].strip()
     except Exception as e:
-        log(f"MLX ошибка: {e}")
+        log(f"Ошибка генерации ({backend}/{model}): {e}")
         return None
 
     if content.strip() in ("TOO_BIG", "NEED_CONTEXT"):
         log(f"Victoria: {content.strip()}")
         return None
-    m = re.search(r"```(?:diff)?\s*\n(.*?)\n```", content, re.DOTALL)
-    diff = (m.group(1) if m else content).strip()
+    # НЕ регексом по ``` — SEARCH/REPLACE может содержать собственные фенсы
+    # (например, README с блоками кода), и жадное извлечение режет блок посередине.
+    if content.startswith("```"):
+        content = content[content.find("\n") + 1 :]
+    if content.endswith("```"):
+        content = content[: content.rfind("```")]
+    diff = content.strip()
     # модели (wisdom) любят оборачивать ответ в <think> — git apply такое не ест
     diff = re.sub(r"<think>[\s\S]*?</think>", "", diff).strip()
     # и нередко выдают только hunk'и без файлового заголовка — синтезируем его
@@ -212,7 +234,10 @@ def ask_victoria_patch(task: dict) -> str | None:
             diff = f"--- a/{rel}\n+++ b/{rel}\n" + diff
     has_blocks = "<<<<<<< SEARCH" in diff
     has_diff = diff.startswith(("---", "diff --git")) and "@@" in diff
-    return diff if (has_blocks or has_diff) else None
+    if not (has_blocks or has_diff):
+        log(f"Валидация отклонила ответ ({model}): {content[:200]!r}")
+        return None
+    return diff
 
 
 def forbidden_touched(diff: str) -> bool:
@@ -525,7 +550,7 @@ def main() -> int:
         if not task:
             log("Нет задач dev_loop в очереди.")
             return 0
-        if task["attempts"] >= 3:
+        if task["attempts"] >= len(MODEL_LADDER):
             db_finish_task(task["id"], "completed",
                            "3 попытки автопатча не прошли проверки. Задача передана человеку — требует ручного решения.")
             notify_telegram(f"🧪 Self-dev: «{task['title'][:80]}» — 3 неудачных попытки, передано человеку.")
