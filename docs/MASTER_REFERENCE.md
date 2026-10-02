@@ -50,6 +50,15 @@
 
 ---
 
+## § Последние изменения (2026-10-03 v149.6) — MLX-прокси молча подменял мозг ✅
+
+1. **Открыто при полной перепроверке:** `_generate_via_mlx_or_ollama` («if True: всегда MLX первым») слал ЛЮБУЮ модель на MLX-прокси 11435. Прокси не знает `victoria-qwen38` и молча подменял её дефолтом `CATEGORY_TO_MODEL["default"]=victoria-wisdom-24k` → часть ответов генерировала старая wisdom на MLX, контракт v149.4 нарушался, две модели-мозга держались в памяти одновременно.
+2. **Фикс (двусторонний):** victoria_server — гейт `_mlx_served_markers` (MLX первым только для реально обслуживаемых моделей: phi3.5/qwen_3b/tinyllama/wisdom/fast/tiny/…; qwen38 → сразу Ollama 11434); mlx_api_server — warning `[MODEL_SUBSTITUTION]` при подмене неизвестной модели (молчаливость больше невозможна). Evidence live: «[MLX_DEBUG] victoria-qwen38 не обслуживается MLX-прокси — сразу Ollama → [OLLAMA_DEBUG] Starting Ollama path».
+3. **Обнаружен авто-деплой:** `watch_victoria_rebuild.py` (launchd) следит за victoria_server.py/system_tools.py/local_router.py и при изменении сам прогоняет compose recreate — правки этих файлов деплоятся сами (рестарт 01:13 был им). Не править эти файлы во время ночных битв.
+4. **Прочее при перепроверке:** cron-копия ~/bin/atra_check_backups_health.sh была старой (без PATH/возраста) — синхронизирована; 14 контейнеров перезапущены со свежим ai_core; employees-sync-daemon падает в ~5% циклов («init_import_site» при пиковой памяти) — самолечится следующим циклом, в очередь.
+
+---
+
 ## § Последние изменения (2026-10-03 v149.5) — молчаливые отказы закрыты: отчёт, source guard, бэкапы ✅
 
 1. **Утренний отчёт падал молча (ImportError → заглушки):** `run_smart_agent_sync` был удалён из `ai_core.py`, а `victoria_morning_report.py` ловил ImportError и подставлял заглушки с `None` — каждый день в 08:30 уходил пустой fallback без единого LLM-вызова. Заодно пострадали `process_expert_task`, `expert_generator`, `enhanced_orchestrator`, `prompt_engineer_batch`. **Фикс:** `run_smart_agent_sync` восстановлен в ai_core (sync-обёртка, безопасна в работающем loop), заглушка в отчёте теперь ОРЁТ в лог с traceback. **Evidence:** реран → «✅ Доклад Виктории с OKR и ROI успешно отправлен» (Qwen3.8, ntfy).
@@ -62,8 +71,6 @@
 **Правило «чтобы не повторялось»:** любые новые писатели файлов в автономных контурах обязаны проходить через `source_guard.guard_file_write`; sync-скрипты бэкапов — удалять СТАРЫЕ до/независимо от загрузки новых; health-check'и проверяют возраст, а не наличие.
 
 ---
-
-
 
 ## § Последние изменения (2026-09-23 v147.1) — RAG hubness: корень нерелевантности ✅
 

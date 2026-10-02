@@ -7525,7 +7525,21 @@ async def _generate_via_mlx_or_ollama(
     # victoria-wisdom-24k (35b MoE) в MLX работает отлично на 128GB RAM
     logger.info("[MLX_DEBUG] Model: %s, is_heavy: %s", ideal_model, is_heavy_model)
 
-    if True:  # Всегда пробуем MLX первым, если он доступен
+    # [v149.6] MLX-прокси обслуживает только известные ему модели; неизвестное имя
+    # он молча подменяет дефолтом (victoria-wisdom-24k) — мозг qwen38 через это
+    # тихо деградировал до старой wisdom. Неподдерживаемые модели — сразу в Ollama.
+    _mlx_served_markers = (
+        "phi3.5", "phi3:mini", "qwen2.5:3b", "qwen_3b", "tinyllama",
+        "wisdom-v3.5", "wisdom-24k", "fast", "tiny", "default",
+        "reasoning", "coding", "code",
+    )
+    _mlx_serves = any(m in ideal_model.lower() for m in _mlx_served_markers)
+    if not _mlx_serves:
+        logger.info(
+            "[MLX_DEBUG] %s не обслуживается MLX-прокси — сразу Ollama", ideal_model
+        )
+
+    if _mlx_serves:  # MLX первым только для реально обслуживаемых моделей
         for attempt in range(max_retries):
             try:
                 mlx_url = getattr(agent.executor, "_mlx_url", None) or getattr(

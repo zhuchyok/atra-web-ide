@@ -1056,7 +1056,16 @@ async def generate_text(request: GenerateRequest, http_request: Request):
     if request.model:
         _queue_model_key = OLLAMA_TO_MLX_MAP.get(request.model, request.model)
         if _queue_model_key not in MODEL_PATHS:
-            _queue_model_key = CATEGORY_TO_MODEL.get(request.model, "default")
+            # [v149.6] Подмена неизвестной модели — раньше была молчаливой:
+            # qwen38 тихо обслуживался wisdom-24k. Теперь видно в логах.
+            _substituted = CATEGORY_TO_MODEL.get(request.model, "default")
+            logger.warning(
+                "⚠️ [MODEL_SUBSTITUTION] модель '%s' не обслуживается MLX — "
+                "запрос уходит на '%s'",
+                request.model,
+                _substituted,
+            )
+            _queue_model_key = _substituted
     elif request.category:
         _queue_model_key = CATEGORY_TO_MODEL.get(request.category, "default")
     else:
