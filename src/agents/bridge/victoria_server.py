@@ -2073,8 +2073,8 @@ class VictoriaAgent(BaseAgent):
 
         if model_name is None:
             model_name = (
-                env_victoria_model or "victoria-wisdom-24k:latest"
-            )  # fallback до первого сканирования
+                env_victoria_model or "victoria-qwen38:latest"
+            )  # [v149.4] контракт: мозг = qwen38 на 11434; wisdom-24k — легаси
 
         logger.info("[VICTORIA_INIT] Initial model_name: %s", model_name)
 
@@ -3614,6 +3614,7 @@ Q: "покажи файлы в текущей директории" → План
 
             if not executor_model:
                 preferred_executor = [
+                    "victoria-qwen38:latest",  # [v149.4] мозг-контракт
                     "victoria-wisdom-24k:latest",
                     "glm-4.7-flash:latest",
                     "phi3.5:3.8b",
@@ -4054,6 +4055,18 @@ def _strip_internal_monologue(text: str) -> str:
     import re
 
     s = text.strip()
+
+    # [v149.5] Эхо промпта: модель возвращает куски системного шаблона
+    # (SWARM & HANDOFF PROTOCOL / ПРАВИЛА / «ТЫ — ВИКТОРИЯ») перед самим ответом.
+    # Отрезаем всё до последнего такого блока вместе с его разделителем «---».
+    _echo_marker = "ТЫ — ВИКТОРИЯ"
+    if _echo_marker in s:
+        tail = s.rsplit(_echo_marker, 1)[-1]
+        tail = re.sub(r"^\s*-{3,}\s*", "", tail)
+        tail = tail.lstrip("\n").strip()
+        if len(tail) >= 100:
+            s = tail
+
     # Сырые шаги агента (action/tool) — не отдавать пользователю как ответ (в т.ч. короткий вывод)
     action_tool_markers = (
         '"action": "file_read"',

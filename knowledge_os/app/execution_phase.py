@@ -586,6 +586,21 @@ async def _execute_file_write(
 ) -> Dict[str, Any]:
     """Write content to a file and optionally commit to git."""
     result = {"file": file_path, "success": False, "error": None}
+    # [v149.5] SOURCE_GUARD: LLM-контент не пишет в системный код (инцидент ai_core.py)
+    try:
+        from source_guard import guard_file_write
+
+        full_check_path = (
+            file_path
+            if os.path.isabs(file_path)
+            else os.path.join(project_root, file_path)
+        )
+        allowed, reason = guard_file_write(full_check_path, content)
+        if not allowed:
+            result["error"] = f"source_guard: {reason}"
+            return result
+    except ImportError:
+        pass  # guard недоступен — работаем как раньше
     try:
         full_path = os.path.join(project_root, file_path)
         os.makedirs(os.path.dirname(full_path), exist_ok=True)

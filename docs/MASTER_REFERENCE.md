@@ -30,24 +30,40 @@
 
 ## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
-**Дата последнего обновления:** 2026-09-22
-**Уровень эволюции:** 31.2.2 (hands-slot lock + scanner honesty + v143 repair)
-**Состояние:** Runtime-слой закрыт (v142/v143). Не 100% git-porcelain (~400 файлов).
-**Целевая платформа:** Mac Studio (мозг MLX 11435 + руки Ollama 11434 + coder 11436)
+**Дата последнего обновления:** 2026-10-03
+**Уровень эволюции:** 31.2.2 (v149.4/v149.5 — Qwen3.8-27B контракт + source guard + отчёт-фикс)
+**Состояние:** Модель мозга заменена (v149.4), молчаливые отказы закрыты (v149.5). Не 100% git-porcelain (~400 файлов).
+**Целевая платформа:** Mac Studio (мозг Qwen3.8-27B Ollama 11434 + легаси wisdom MLX 11435 + coder 11436)
 
-### Контракт слоёв (обязателен, 2026-09-22)
+### Контракт слоёв (обновлён v149.4, 2026-10-03)
 
 | Слой | Порт | Что живёт | Что запрещено |
 |---|---|---|---|
-| Мозг | **11435 MLX** | `victoria-wisdom-24k` | дублировать wisdom в Ollama |
-| Руки | **11434 Ollama** | **только** `phi3.5:3.8b` (или тег `3.8b-stable` того же blob) + `nomic-embed-text` | wisdom / minicpm / smollm / tinyllama / второй phi |
-| Coder | **11436 Ollama** | `qwen3-coder:30b` | wisdom |
+| Мозг (planner+executor) | **11434 Ollama** | `victoria-qwen38:latest` (VICTORIA_MODEL, VICTORIA_PLANNER_MODEL) | wisdom-24k как основной; USE_MLX_FOR_PLANNER=false |
+| Руки (light/embed) | **11434 Ollama** | `phi3.5:3.8b` + `nomic-embed-text` | смолы на слоте мозга надолго |
+| Легаси wisdom | **11435 MLX-прокси** | `victoria-wisdom-24k` (fallback only) | route туда по умолчанию |
+| Coder | **11436 Ollama** | `qwen3-coder:30b` | — |
 | Victoria | **8010** | `/run`, health | «готово» без очереди/inflight/ps |
 | Закрыто | — | `pending/in_progress/queued`=0 **или** явно чужой work (не LOG_SCANNER); inflight=0; сканер: 0 новых ложных хитов за 1–2 цикла | объявлять 100% репозитория |
 
 Правило дожима: `.cursor/rules/91_finish_to_closed.mdc`. Guard: `scripts/ollama_wisdom_guard.py` + LaunchAgent `com.atra.ollama-wisdom-guard` (unload timeout 60с; на 11434 оставляет только phi+nomic).
 
 ---
+
+## § Последние изменения (2026-10-03 v149.5) — молчаливые отказы закрыты: отчёт, source guard, бэкапы ✅
+
+1. **Утренний отчёт падал молча (ImportError → заглушки):** `run_smart_agent_sync` был удалён из `ai_core.py`, а `victoria_morning_report.py` ловил ImportError и подставлял заглушки с `None` — каждый день в 08:30 уходил пустой fallback без единого LLM-вызова. Заодно пострадали `process_expert_task`, `expert_generator`, `enhanced_orchestrator`, `prompt_engineer_batch`. **Фикс:** `run_smart_agent_sync` восстановлен в ai_core (sync-обёртка, безопасна в работающем loop), заглушка в отчёте теперь ОРЁТ в лог с traceback. **Evidence:** реран → «✅ Доклад Виктории с OKR и ROI успешно отправлен» (Qwen3.8, ntfy).
+2. **SOURCE_GUARD (санитария инцидента ai_core.py):** строка 1 ai_core.py была перезаписана LLM-текстом («исправляет ошибку вызова LLM…») → SyntaxError у свежих импортов (утренний отчёт 08:30). Писатели без проверок: `execution_phase._execute_file_write` и `SystemTools.write_file` (весь репо bind-mount в victoria-agent). **Фикс:** `knowledge_os/app/source_guard.py` — запрет системных путей (`knowledge_os/app/`, `src/agents/`, `backend/app/`…; override env `ATRA_ALLOW_SOURCE_WRITE=true`), syntax-gate для .py, отказ при усечённой перезаписи (<30% исходника), алерт в ntfy. Подключён в оба писателя. Тесты: 5/5 сценариев.
+3. **Планировщик на старой модели:** `VICTORIA_PLANNER_MODEL` пуст → дефолты уводили planner на wisdom-24k @11435 (qwen38 живёт на 11434). **Фикс:** compose v149.4-контракт (`VICTORIA_MODEL`, `VICTORIA_PLANNER_MODEL=victoria-qwen38:latest`, `USE_MLX_FOR_PLANNER=false`, `VICTORIA_MLX_BRAIN/WISDOM_MLX_PRIMARY=false`), в коде qwen38 первым в preferred-списках. Верифицировано: «Current planner model: victoria-qwen38:latest».
+4. **Эхо промпта в ответах:** тяжёлые /run возвращали куски системного шаблона (SWARM & HANDOFF PROTOCOL / ПРАВИЛА / «ТЫ — ВИКТОРИЯ») перед самим ответом. **Фикс:** `_strip_internal_monologue` отрезает всё до последнего эхо-блока (unit-тест: мусор убран, чистый ответ не тронут).
+5. **Бэкапы: офсайт молчал 9 дней:** Google Drive quota exceeded (12.1 GiB живых дампов с 09-10, retention KEEP_DAYS_REMOTE=7 не срабатывал т.к. sync падал до удаления). Health-check говорил «✅ OK» на 8-дневную копию (проверял только наличие). **Фикс:** cleanup корзины + ручная ротация (оставлен 09-24, удалено 16 дампов) → **Free 11.98 GiB**; health-check теперь считает возраст офсайт-копии по имени файла (лимит 49ч) и алертит; rclone-path фикс подтверждён ручным прогоном.
+6. **Ночная битва (01.10):** соло 16 — консилиум 16, tie 18 (битва шла ещё на wisdom; честный тест qwen38 — завтра ночью). Факт-пути: привет → quick 3.5с, «статус проекта» → живые метрики (completed_24h=175, error_rate 0).
+
+**Правило «чтобы не повторялось»:** любые новые писатели файлов в автономных контурах обязаны проходить через `source_guard.guard_file_write`; sync-скрипты бэкапов — удалять СТАРЫЕ до/независимо от загрузки новых; health-check'и проверяют возраст, а не наличие.
+
+---
+
+
 
 ## § Последние изменения (2026-09-23 v147.1) — RAG hubness: корень нерелевантности ✅
 

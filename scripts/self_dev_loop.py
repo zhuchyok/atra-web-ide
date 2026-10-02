@@ -50,10 +50,11 @@ WISDOM_MODEL = os.getenv("WISDOM_MODEL", "victoria-wisdom-24k")
 # Лестница эскалации: wisdom быстрая, но слабая в диффах; coder-модель мощнее.
 OLLAMA_URL = os.getenv("DEV_LOOP_CODER_URL", "http://127.0.0.1:11436").rstrip("/")  # выделенный coder-слой (v149.4)
 CODER_MODEL = os.getenv("DEV_LOOP_CODER_MODEL", "qwen3-coder:30b")
+# Лестница по контракту слоёв v149.4: мозг qwen38 (11434) -> coder (11436) -> легаси wisdom (11435)
 MODEL_LADDER = [
-    {"backend": "mlx", "model": WISDOM_MODEL},
-    {"backend": "ollama", "model": CODER_MODEL},
-    {"backend": "mlx", "model": WISDOM_MODEL},
+    {"backend": "ollama", "model": "victoria-qwen38:latest", "url": "http://127.0.0.1:11434"},
+    {"backend": "ollama", "model": CODER_MODEL, "url": "http://127.0.0.1:11436"},
+    {"backend": "mlx", "model": WISDOM_MODEL, "url": MLX_URL},
 ]
 
 # Пути, которые автономному патчеру трогать запрещено
@@ -147,8 +148,8 @@ def ask_victoria_patch(task: dict) -> str | None:
     """Модель по номеру попытки (лестница эскалации)."""
     attempt = task.get("attempts", 0)
     step = MODEL_LADDER[min(attempt, len(MODEL_LADDER) - 1)]
-    log(f"Генерация: {step['backend']}/{step['model']} (попытка {attempt + 1})")
-    return ask_model_patch(task, step["backend"], step["model"])
+    log(f"Генерация: {step['backend']}/{step['model']} @ {step.get('url', '')} (попытка {attempt + 1})")
+    return ask_model_patch(task, step["backend"], step["model"], url=step.get("url"))
 
 
 def _mentioned_files(task: dict, worktree: Path) -> list[Path]:
@@ -170,7 +171,7 @@ def _mentioned_files(task: dict, worktree: Path) -> list[Path]:
     return found
 
 
-def ask_model_patch(task: dict, backend: str, model: str) -> str | None:
+def ask_model_patch(task: dict, backend: str, model: str, url: str | None = None) -> str | None:
     """Просит Victoria-wisdom сгенерировать unified diff. Возвращает diff или None."""
     # КРИТИЧНО: для правки существующих файлов даём модели их РЕАЛЬНОЕ содержимое —
     # иначе она галлюцинирует контекстные строки и git apply честно отклоняет патч.
@@ -196,7 +197,7 @@ def ask_model_patch(task: dict, backend: str, model: str) -> str | None:
         "Если задача слишком крупная — верни ровно слово: TOO_BIG\n"
         "Если не хватает контекста — верни ровно слово: NEED_CONTEXT"
     )
-    base = MLX_URL if backend == "mlx" else OLLAMA_URL
+    base = url or (MLX_URL if backend == "mlx" else OLLAMA_URL)
     body = json.dumps({
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
@@ -308,7 +309,7 @@ def _parse_sr_blocks(text: str) -> list:
     return blocks
 
 
-def _apply_search_replace(diff: str) -> tuple[bool, str]:
+def _apply_search_replace(diff: str, task: dict | None = None) -> tuple[bool, str]:
     """Применяет SEARCH/REPLACE блоки. Точное совпадение -> difflib fuzzy-поиск региона."""
     import difflib
 
@@ -356,17 +357,26 @@ def _apply_search_replace(diff: str) -> tuple[bool, str]:
                 target = cand
         if target is None and not search.strip():
             # Пустой SEARCH: создание НОВОГО файла или (если файл есть) append в конец —
-            # так модели часто выражают «добавь в конец». Перезапись запрещена.
-            mentioned = _mentioned_files({"title": "", "description": diff}, WORKTREE)
-            dest = mentioned[0] if mentioned else None
+            # так модели часто выражают «добавь в конец». Перезапись существующего запрещена.
+            mention_text = (task.get("title", "") if task else "") + "\n" + \
+                (task.get("description", "") if task else "") + "\n" + diff
+            dest = None
+            for cand_path in re.findall(r"[\w./-]*[\w-]+\.(?:py|sh|js|ts|svelte|md|yml|yaml|json)", mention_text):
+                if cand_path.startswith(("..", "/")) or ".." in cand_path:
+                    continue  # path traversal
+                full = Path(str(WORKTREE)) / cand_path
+                if full.is_file():
+                    dest = full  # append-кандидат
+                    break
+                if dest is None and not full.exists():
+                    dest = full  # create-кандидат (первый несуществующий)
             if dest is not None:
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 if dest.exists():
                     existing = dest.read_text(errors="replace").rstrip("\n")
                     dest.write_text(existing + "\n\n" + replace.strip() + "\n")
-                    applied += 1
-                    continue
-                dest.write_text(replace + "\n")
+                else:
+                    dest.write_text(replace + "\n")
                 applied += 1
                 continue
         if target is None:
@@ -404,12 +414,12 @@ def _apply_search_replace(diff: str) -> tuple[bool, str]:
     return True, f"блоков применено: {applied}" + (f" (ошибки: {errors})" if errors else "")
 
 
-def apply_and_check(diff: str) -> tuple[bool, str]:
+def apply_and_check(diff: str, task: dict | None = None) -> tuple[bool, str]:
     """Применяет diff в worktree и гоняет проверки. (ok, report)"""
     if forbidden_touched(diff):
         return False, "патч трогает запрещённые пути"
     if "<<<<<<< SEARCH" in diff:
-        return _apply_search_replace(diff)
+        return _apply_search_replace(diff, task)
     diff = _normalize_diff(diff)
     # LLM-диффы часто врут в номерах строк — сначала строгий apply, затем --recount
     attempts = [
@@ -467,7 +477,7 @@ def process(task: dict) -> None:
         notify_telegram(f"🧪 Self-dev: не смог сгенерировать патч для «{task['title'][:80]}» — передано человеку.")
         return
 
-    ok, report = apply_and_check(diff)
+    ok, report = apply_and_check(diff, task)
     if not ok:
         reset_worktree()
         conn = psycopg2.connect(DB_DSN)

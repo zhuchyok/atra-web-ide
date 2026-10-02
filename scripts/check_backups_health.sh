@@ -43,6 +43,7 @@ else
 fi
 
 echo "[check] Google Drive: ${GDRIVE_REMOTE}:${GDRIVE_PATH}"
+GDRIVE_MAX_AGE_HOURS="${GDRIVE_MAX_AGE_HOURS:-49}"
 if command -v rclone >/dev/null 2>&1; then
   LATEST_GDRIVE=$(rclone lsf "${GDRIVE_REMOTE}:${GDRIVE_PATH}" --include "*.dump" --max-depth 1 2>/dev/null | sort | tail -n 1 || echo "")
   if [[ -z "$LATEST_GDRIVE" ]]; then
@@ -51,10 +52,30 @@ if command -v rclone >/dev/null 2>&1; then
     MESSAGES="$MESSAGES
 ❌ Офсайт-копия на gdrive не найдена"
   else
-    echo "✅ Google Drive бэкап OK: $LATEST_GDRIVE"
+    # [v149.5] Возраст офсайт-копии по имени файла: YYYY-MM-DD_HH-MM-SS.
+    # Только «наличие» маскировало неделю без аплоадов (quota exceeded).
+    GD_DATE=$(echo "$LATEST_GDRIVE" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}' | head -n 1)
+    if [[ -n "$GD_DATE" ]]; then
+      GD_EPOCH=$(date -j -f "%Y-%m-%d_%H-%M-%S" "$GD_DATE" +%s 2>/dev/null || echo 0)
+      GD_AGE_HOURS=$(( ($(date +%s) - GD_EPOCH) / 3600 ))
+      echo "  офсайт: $LATEST_GDRIVE (${GD_AGE_HOURS}ч)"
+      if [[ "$GD_AGE_HOURS" -gt "$GDRIVE_MAX_AGE_HOURS" ]]; then
+        echo "❌ Офсайт-бэкап устарел: ${GD_AGE_HOURS}ч (лимит ${GDRIVE_MAX_AGE_HOURS}ч)"
+        ERRORS=$((ERRORS + 1))
+        MESSAGES="$MESSAGES
+❌ Офсайт-копия на gdrive устарела: ${GD_AGE_HOURS}ч (файл $LATEST_GDRIVE) — проверь gdrive sync (квота?)"
+      else
+        echo "✅ Google Drive бэкап OK: $LATEST_GDRIVE"
+      fi
+    else
+      echo "✅ Google Drive бэкап OK (возраст не распознан): $LATEST_GDRIVE"
+    fi
   fi
 else
   echo "⚠️ rclone не найден — офсайт-проверка пропущена"
+  ERRORS=$((ERRORS + 1))
+  MESSAGES="$MESSAGES
+⚠️ rclone не найден — офсайт-проверка пропущена"
 fi
 
 if [[ "$ERRORS" -eq 0 ]]; then

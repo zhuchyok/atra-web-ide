@@ -1719,6 +1719,25 @@ async def run_smart_agent_async(
     )
 
 
+def run_smart_agent_sync(prompt: str, **kwargs):
+    """Синхронная обёртка над run_smart_agent_async (контракт для launchd-джоб и скриптов).
+
+    [v149.5] Восстановлена: утренний отчёт и 5 других модулей импортируют это имя;
+    после его удаления ImportError молча подменял агента заглушкой с None.
+    Безопасна и внутри работающего цикла (отдельный поток с собственным loop).
+    """
+    import concurrent.futures
+
+    try:
+        asyncio.get_running_loop()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as _ex:
+            return _ex.submit(
+                asyncio.run, run_smart_agent_async(prompt, **kwargs)
+            ).result()
+    except RuntimeError:
+        return asyncio.run(run_smart_agent_async(prompt, **kwargs))
+
+
 @profile_function("ai_core")
 async def run_smart_agent_async_impl(
     prompt: str,

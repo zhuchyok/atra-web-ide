@@ -19,7 +19,13 @@ except ImportError:
 # Local project imports with fallback
 try:
     from ai_core import run_smart_agent_async, run_smart_agent_sync
-except ImportError:
+except ImportError:  # pragma: no cover
+
+    logging.getLogger(__name__).error(
+        "❌ ai_core import failed — AI-генерация доклада будет пустой "
+        "(заглушки вместо агентов). Причина:",
+        exc_info=True,
+    )
 
     def run_smart_agent_sync(prompt, **kwargs):  # pylint: disable=unused-argument
         """Fallback for run_smart_agent_sync."""

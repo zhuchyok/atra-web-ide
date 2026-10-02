@@ -195,10 +195,13 @@ services:
       OLLAMA_EMBED_TIMEOUT_SEC: "8"
       OLLAMA_EMBED_MAX_RETRIES: "2"
       MLX_BASE_URL: http://host.docker.internal:11435
-      # v135: brain on MLX (world practice); Ollama = hands/light/embed
-      VICTORIA_MLX_BRAIN: ${VICTORIA_MLX_BRAIN:-true}
-      VICTORIA_WISDOM_MLX_PRIMARY: ${VICTORIA_WISDOM_MLX_PRIMARY:-true}
-      USE_MLX_FOR_PLANNER: ${USE_MLX_FOR_PLANNER:-true}
+      # v149.4: контракт — мозг (planner+executor) = victoria-qwen38 на 11434.
+      # wisdom-24k на MLX 11435 — легаси; туда ходит только explicit fallback.
+      VICTORIA_MLX_BRAIN: ${VICTORIA_MLX_BRAIN:-false}
+      VICTORIA_WISDOM_MLX_PRIMARY: ${VICTORIA_WISDOM_MLX_PRIMARY:-false}
+      USE_MLX_FOR_PLANNER: ${USE_MLX_FOR_PLANNER:-false}
+      VICTORIA_MODEL: ${VICTORIA_MODEL:-victoria-qwen38:latest}
+      VICTORIA_PLANNER_MODEL: ${VICTORIA_PLANNER_MODEL:-victoria-qwen38:latest}
       USE_MLX_FALLBACK: ${USE_MLX_FALLBACK:-true}
       HOST_PROJECT_ROOT: ${HOST_PROJECT_ROOT:-}
       HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-}

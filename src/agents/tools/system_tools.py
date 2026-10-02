@@ -137,6 +137,27 @@ class SystemTools:
 
         resolved_path = SystemTools._resolve_workspace_path(file_path)
 
+        # [v149.5] SOURCE_GUARD: системный код и битый .py агенту писать нельзя
+        # (инцидент: LLM-текст был записан поверх ai_core.py)
+        guard_file_write = None
+        try:
+            from source_guard import guard_file_write
+        except ImportError:
+            import sys as _sys
+            from pathlib import Path as _Path
+
+            _ko_app = _Path(__file__).resolve().parents[3] / "knowledge_os" / "app"
+            if _ko_app.is_dir():
+                _sys.path.insert(0, str(_ko_app))
+                try:
+                    from source_guard import guard_file_write
+                except ImportError:
+                    guard_file_write = None
+        if guard_file_write is not None:
+            allowed, reason = guard_file_write(resolved_path, content)
+            if not allowed:
+                return f"Error: write rejected by SOURCE_GUARD ({reason}). Файл: {file_path}"
+
         # Создаём директории если нужно
         dir_name = os.path.dirname(resolved_path)
         if dir_name:
