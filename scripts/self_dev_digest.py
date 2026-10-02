@@ -10,7 +10,7 @@ import subprocess
 import sys
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 import psycopg2
@@ -20,6 +20,21 @@ WISDOM_MODEL = os.environ.get("WISDOM_MODEL", "victoria-wisdom-24k")
 
 REPO = Path(__file__).resolve().parent.parent
 BRANCH = "auto/dev-loop"
+
+def _load_dotenv() -> None:
+    """Фолбэк для launchd: токены берём из .env, не из plist (секреты не в git)."""
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, value = line.partition("=")
+            os.environ.setdefault(key.strip(), value.strip())
+
+
+_load_dotenv()
+
 DB_DSN = os.environ.get("ATRA_DB_DSN", "postgresql://admin:secret@127.0.0.1:6432/knowledge_os")  # pragma: allowlist secret
 
 
@@ -84,7 +99,6 @@ def review_commit(commit_hash: str, diff_stat: str) -> str:
 
 def collect() -> str:
     lines = ["🧪 Self-Dev: сводка за неделю\n"]
-    since = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
 
     # Первоисточник — файлы патчей (ветку в общем репо сбрасывают синхронизаторы)
     patches_dir = REPO / "logs" / "self_dev_patches"
@@ -128,6 +142,7 @@ def collect() -> str:
 
 
 def main() -> int:
+    _load_dotenv()
     text = collect()
     print(text)
     token, chat_id = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_USER_ID")

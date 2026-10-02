@@ -20,6 +20,21 @@ import psycopg2
 
 STATE_PATH = Path(__file__).resolve().parent.parent / "logs" / "security_responder_state.json"
 ALERT_LOG = Path(__file__).resolve().parent.parent / "logs" / "security_alerts.log"
+
+def _load_dotenv() -> None:
+    """Фолбэк для launchd: токены берём из .env, не из plist (секреты не в git)."""
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, value = line.partition("=")
+            os.environ.setdefault(key.strip(), value.strip())
+
+
+_load_dotenv()
+
 DB_DSN = os.environ.get("ATRA_DB_DSN", "postgresql://admin:secret@127.0.0.1:6432/knowledge_os")  # pragma: allowlist secret
 LOOKBACK_HOURS = 24
 MIN_SEVERITY = {"high", "critical"}
@@ -121,6 +136,7 @@ def create_response_task(incident: dict) -> bool:
 
 
 def main() -> int:
+    _load_dotenv()
     state = load_state()
     incidents = fetch_new_incidents()
     first_run = state.pop("first_run", False)

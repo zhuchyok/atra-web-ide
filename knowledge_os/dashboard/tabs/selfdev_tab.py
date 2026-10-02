@@ -78,14 +78,23 @@ def render_selfdev_tab():
             st.info("Выполненных dev_loop-задач пока нет.")
 
     with tabs[1]:
-        st.subheader(f"🌿 Коммиты ветки {BRANCH} (не в main)")
-        commits = _branch_log()
-        if commits:
-            st.caption("Просмотреть diff: git diff main..auto/dev-loop")
-            for c in commits:
-                st.code(c, language=None)
+        st.subheader("📦 Патчи на ревью (logs/self_dev_patches)")
+        st.caption("Файлы — первоисточник (ветку могут трогать синхронизаторы). Применить: git am <файл.patch>")
+        import json as _json
+        from pathlib import Path as _Path
+        patch_dir = _Path("/app/project/logs/self_dev_patches")
+        metas = sorted(patch_dir.glob("*.json")) if patch_dir.exists() else []
+        if metas:
+            for mf in reversed(metas[-10:]):
+                try:
+                    meta = _json.loads(mf.read_text())
+                except Exception:
+                    continue
+                with st.expander(f"🧪 {meta.get('title','?')[:80]} — {meta.get('created','')[:16]}"):
+                    st.caption(meta.get("report", ""))
+                    st.code(mf.stem + ".patch", language=None)
         else:
-            st.info("Ветка чиста относительно main — патчей пока нет.")
+            st.info("Патчей пока нет.")
 
     with tabs[2]:
         st.subheader("➕ Поставить задачу агенту-патчеру")

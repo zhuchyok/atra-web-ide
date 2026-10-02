@@ -15,6 +15,21 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
+
+def _load_dotenv() -> None:
+    """Фолбэк для launchd: токены берём из .env, не из plist (секреты не в git)."""
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, value = line.partition("=")
+            os.environ.setdefault(key.strip(), value.strip())
+
+
+_load_dotenv()
+
 REPO = Path(__file__).resolve().parent.parent
 STATE_PATH = Path(__file__).resolve().parent.parent / "logs" / "launchd_watchdog_state.json"
 WATCH_LIST = {
@@ -106,6 +121,7 @@ def create_task(problems: str) -> bool:
 
 
 def main() -> int:
+    _load_dotenv()
     state = load_state()
     problems = []
     for label, (max_hours, log_path) in WATCH_LIST.items():

@@ -17,10 +17,6 @@
 		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
 		<key>ATRA_DB_DSN</key>
 		<string>postgresql://admin:secret@127.0.0.1:6432/knowledge_os</string>
-		<key>TELEGRAM_BOT_TOKEN</key>
-		<string>8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs</string>
-		<key>TELEGRAM_USER_ID</key>
-		<string>556251171</string>
 	</dict>
 	<key>StandardOutPath</key>
 	<string>/Users/bikos/Library/Logs/atra-self-dev-digest-out.log</string>

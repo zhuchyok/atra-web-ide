@@ -29,6 +29,21 @@ REPO = Path(__file__).resolve().parent.parent
 BRANCH = "auto/dev-loop"
 WORKTREE = REPO / ".selfdev-worktree"
 STATE_PATH = REPO / "logs" / "self_dev_state.json"
+
+def _load_dotenv() -> None:
+    """Фолбэк для launchd: токены берём из .env, не из plist (секреты не в git)."""
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, value = line.partition("=")
+            os.environ.setdefault(key.strip(), value.strip())
+
+
+_load_dotenv()
+
 DB_DSN = os.environ.get("ATRA_DB_DSN", "postgresql://admin:secret@127.0.0.1:6432/knowledge_os")  # pragma: allowlist secret
 MLX_URL = os.environ.get("MLX_BASE_URL", "http://127.0.0.1:11435").rstrip("/")
 WISDOM_MODEL = os.getenv("WISDOM_MODEL", "victoria-wisdom-24k")
@@ -495,6 +510,7 @@ def mlx_busy() -> bool:
 
 
 def main() -> int:
+    _load_dotenv()
     task_id = None
     if "--task-id" in sys.argv:
         task_id = sys.argv[sys.argv.index("--task-id") + 1]

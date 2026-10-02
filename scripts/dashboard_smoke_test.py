@@ -23,7 +23,6 @@ SECTIONS = [
     "⚙️ Система и Безопасность",
     "🧪 Self-Dev",
 ]
-BAD_PATTERNS = ["Traceback", "КРИТИЧНО:", "cannot be modified", "unexpected keyword"]
 MIN_CONTENT_CHARS = 400
 
 
