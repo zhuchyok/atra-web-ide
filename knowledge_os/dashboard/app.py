@@ -667,6 +667,7 @@ def main():
             "🧠 Интеллект (RAG)",
             "🕵️ Инструменты экспертов",
             "⚙️ Система и Безопасность",
+            "🧪 Self-Dev",
         ]
         section = st.radio("📂 Раздел", _sections, key="nav_section", label_visibility="collapsed")
         st.session_state.dashboard_section = section
@@ -1067,6 +1068,12 @@ def main():
         from tabs.system_tab import render_system_tab
 
         render_system_tab()
+        st.stop()
+
+    elif "Self-Dev" in st.session_state.get("dashboard_section", ""):
+        from tabs.selfdev_tab import render_selfdev_tab
+
+        render_selfdev_tab()
         st.stop()
 
     else:
