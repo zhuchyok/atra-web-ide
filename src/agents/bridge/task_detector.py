@@ -476,11 +476,24 @@ _CONSILIUM_CATEGORY_PATTERNS: dict[str, tuple[str, ...]] = {
         "план проверки",
         "план регресса",
     ),
+    "analysis": (
+        "проанализируй",
+        "разбери",
+        "анализ",
+    ),
+    "security": (
+        "безопасность",
+        "security",
+        "уязвимост",
+        "вторжение",
+        " prompt injection",
+        "hardcoded секрет",
+    ),
 }
 
 
 def consilium_categories() -> tuple[str, ...]:
-    raw = os.getenv("CONSILIUM_CATEGORIES", "research,testing")
+    raw = os.getenv("CONSILIUM_CATEGORIES", "research,testing,analysis,security")
     return tuple(x.strip() for x in raw.split(",") if x.strip() in _CONSILIUM_CATEGORY_PATTERNS)
 
 
