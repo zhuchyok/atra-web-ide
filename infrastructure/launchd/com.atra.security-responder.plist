@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.atra.security-responder</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/bikos/Documents/atra-web-ide/.venv/bin/python</string>
+		<string>/Users/bikos/Documents/atra-web-ide/scripts/security_incident_responder.py</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/bikos/Documents/atra-web-ide</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<key>ATRA_DB_DSN</key>
+		<string>postgresql://admin:secret@127.0.0.1:6432/knowledge_os</string>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>/Users/bikos/Library/Logs/atra-security-responder-out.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/bikos/Library/Logs/atra-security-responder-err.log</string>
+	<key>StartInterval</key>
+	<integer>600</integer>
+</dict>
+</plist>

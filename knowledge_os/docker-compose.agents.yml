@@ -92,6 +92,26 @@ services:
       DOCKER_PROXY_RATE_LIMIT: "120"
       DOCKER_PROXY_AUDIT_LOG: "/var/log/docker-proxy-audit.jsonl"
 
+  # VectorCore: embedding-сервис (контракт старого vector_core.py, бэкенд Ollama).
+  # Дашборд и Knowledge OS ходят сюда за эмбеддингами (nomic-embed-text, 768d).
+  knowledge_vector_core:
+    build:
+      context: ../infrastructure/docker/vector-core
+      dockerfile: Dockerfile
+    container_name: knowledge_vector_core
+    restart: unless-stopped
+    mem_limit: 256m
+    networks:
+      - atra-network
+    ports:
+      - "127.0.0.1:8001:8001"
+    environment:
+      OLLAMA_URL: "http://host.docker.internal:11434"
+      EMBED_MODEL: "nomic-embed-text"
+      EMBEDDING_DIM: "768"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
   victoria-agent:
     logging:
       driver: "json-file"
