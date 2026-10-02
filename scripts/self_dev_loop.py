@@ -268,6 +268,12 @@ def process(task: dict) -> None:
     log(f"✅ Закоммичено в {BRANCH}: {report}")
 
 
+def night_battle_window() -> bool:
+    """Ночь (01:00–06:00) — время ночных battles/learners; self-dev ждёт утра,
+    чтобы не конкурировать за модели."""
+    return 1 <= datetime.now().hour < 6
+
+
 def mlx_busy() -> bool:
     """True, если MLX перегружен (очередь/обработка) — патчер подождёт, чтобы
     не отбирать модели у ночных battles и текущих задач экспертов."""
@@ -294,6 +300,9 @@ def main() -> int:
         task = db_fetch_task(task_id)
         if not task:
             log("Нет задач dev_loop в очереди.")
+            return 0
+        if night_battle_window():
+            log("Ночное окно battles (01:00–06:00) — self-dev ждёт утра.")
             return 0
         if mlx_busy():
             log("MLX занят (battles/эксперты) — переносим патч на следующий цикл.")
