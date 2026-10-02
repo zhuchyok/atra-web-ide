@@ -36,6 +36,21 @@ def render_selfdev_tab():
     tabs = st.tabs(["📋 Очередь и результаты", "🌿 Ветка auto/dev-loop", "➕ Поставить задачу агенту"])
 
     with tabs[0]:
+        # Телеметрия контура за 30 дней: сколько задач на каком этапе
+        stats = fetch_data(
+            """SELECT status, count(*) AS n FROM tasks
+               WHERE metadata->>'source'='dev_loop'
+                 AND created_at > NOW() - INTERVAL '30 days'
+               GROUP BY 1"""
+        )
+        if stats:
+            cols = st.columns(len(stats))
+            for i, row in enumerate(stats):
+                with cols[i]:
+                    st.metric(row["status"], row["n"])
+        else:
+            st.caption("За 30 дней dev_loop-задач не было.")
+
         queue = fetch_data(
             """SELECT id, title, created_at FROM tasks
                WHERE metadata->>'source'='dev_loop' AND status='pending'
