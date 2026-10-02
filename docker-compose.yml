@@ -34,7 +34,7 @@ services:
       - "8081:8081"
     environment:
       - TZ=Europe/Moscow
-      - DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
+      - DATABASE_URL=postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_postgres:5432/knowledge_os
       - VICTORIA_URL=http://victoria-agent:8000
       - OLLAMA_URL=http://host.docker.internal:11434
       - USE_VICTORIA_AGENT=true
@@ -126,7 +126,7 @@ services:
       - EXPERT_DIALOGUE_ENGINE_TIMEOUT_SEC=${EXPERT_DIALOGUE_ENGINE_TIMEOUT_SEC:-90}
       - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-300}
       - MLX_API_URL=http://host.docker.internal:11435 # MLX API Server на хосте (из контейнера — через host.docker.internal)
-      - DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
+      - DATABASE_URL=postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_postgres:5432/knowledge_os
       - REDIS_URL=redis://knowledge_os_redis:6379 # Redis из knowledge_os (контейнер knowledge_os_redis; atra — отдельный проект)
       - KNOWLEDGE_OS_API_URL=http://knowledge_rest:8002 # Логирование чата в interaction_logs (Singularity 10.0)
       - API_KEY=${API_KEY:-your-secret-api-key}
@@ -210,7 +210,6 @@ services:
       interval: 60s
       timeout: 5s
       retries: 3
-
 
 # ============================================
 # Volumes
