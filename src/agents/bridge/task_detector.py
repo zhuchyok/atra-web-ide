@@ -516,6 +516,14 @@ def is_consilium_winnable_goal(goal: str) -> Optional[str]:
         testing_markers = _CONSILIUM_CATEGORY_PATTERNS["testing"]
         if any(m in g for m in testing_markers):
             return "testing"
+    if "analysis" in enabled:
+        analysis_starters = _CONSILIUM_CATEGORY_PATTERNS["analysis"]
+        if any(g.startswith(v) for v in analysis_starters) or any(v in g for v in analysis_starters):
+            return "analysis"
+    if "security" in enabled:
+        security_markers = _CONSILIUM_CATEGORY_PATTERNS["security"]
+        if any(m in g for m in security_markers):
+            return "security"
     return None
 
 
