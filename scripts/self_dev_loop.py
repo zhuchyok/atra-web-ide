@@ -268,6 +268,18 @@ def process(task: dict) -> None:
     log(f"✅ Закоммичено в {BRANCH}: {report}")
 
 
+def mlx_busy() -> bool:
+    """True, если MLX перегружен (очередь/обработка) — патчер подождёт, чтобы
+    не отбирать модели у ночных battles и текущих задач экспертов."""
+    try:
+        with urllib.request.urlopen(f"{MLX_URL}/queue/stats", timeout=5) as resp:
+            stats = json.loads(resp.read())
+        return bool(stats.get("is_processing")) or int(stats.get("queue_size", 0)) > 0
+    except Exception as e:
+        log(f"queue/stats недоступен ({e}) — пробуем всё равно")
+        return False
+
+
 def main() -> int:
     task_id = None
     if "--task-id" in sys.argv:
@@ -282,6 +294,9 @@ def main() -> int:
         task = db_fetch_task(task_id)
         if not task:
             log("Нет задач dev_loop в очереди.")
+            return 0
+        if mlx_busy():
+            log("MLX занят (battles/эксперты) — переносим патч на следующий цикл.")
             return 0
         process(task)
     finally:
