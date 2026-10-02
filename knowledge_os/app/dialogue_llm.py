@@ -57,6 +57,14 @@ _FALLBACK_MODELS = [
 
 INCOMPLETE_MARKER = "[INCOMPLETE]"
 
+# Признаки того, что модель вернула эхо задания вместо ответа
+# (замечено на fast-моделях: phi3.5 копирует блоки промпта в вывод).
+_ECHO_MARKERS = ("ЗАДАЧА:", "ИСТОРИЯ ДЕБАТОВ", "ТЕКУЩЕЕ ПРЕДЛОЖЕНИЕ", "ИДЕТ СОВЕТ")
+
+
+def _looks_like_prompt_echo(text: str) -> bool:
+    return any(marker in text for marker in _ECHO_MARKERS)
+
 
 @dataclass
 class DialogueGenResult:
@@ -107,6 +115,12 @@ async def generate_dialogue(
             continue
         if text:
             cleaned = _strip_model_artifacts(text)
+            if cleaned and _looks_like_prompt_echo(cleaned):
+                # Модель скопировала блоки задания в ответ — считаем бэкенд
+                # неудачным и пробуем следующий, иначе в дебаты попадёт эхо.
+                logger.warning("dialogue_llm: prompt echo from %s for %s", backend, expert_name)
+                last_reason = "prompt_echo"
+                continue
             if cleaned:
                 return DialogueGenResult(text=cleaned, ok=True, reason="ok")
         if reason:
