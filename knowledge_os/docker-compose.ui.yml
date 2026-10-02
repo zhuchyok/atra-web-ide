@@ -46,7 +46,9 @@ services:
     networks:
       - atra-network
     ports:
-      - "8501:8501"
+      # Доступ только с этой машины (пульт управления без своей аутентификации).
+      # С других устройств — через SSH-туннель: ssh -L 8501:127.0.0.1:8501 <host>
+      - "127.0.0.1:8501:8501"
     healthcheck:
       test: ["CMD-SHELL", "grep -a -q streamlit /proc/1/cmdline"]
       interval: 60s

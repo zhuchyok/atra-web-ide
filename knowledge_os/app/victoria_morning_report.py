@@ -87,10 +87,20 @@ async def get_pool():
 
 
 async def run_cursor_agent(prompt: str):
-    """Запуск Cursor Agent для генерации контента через умное ядро"""
+    """Запуск Cursor Agent для генерации контента через умное ядро.
+    [v149.2] Очищаем <think> блоки и ReAct-артефакты до возврата."""
+    import re as _re
+
+    result = None
     if run_smart_agent_async:
-        return await run_smart_agent_async(prompt, expert_name="Виктория", category="report")
-    return run_smart_agent_sync(prompt, expert_name="Виктория", category="report")
+        result = await run_smart_agent_async(prompt, expert_name="Виктория", category="report")
+    else:
+        result = run_smart_agent_sync(prompt, expert_name="Виктория", category="report")
+    # Очистить thinking-блоки (wisdom-24k начинает с <think>...</think>)
+    if result:
+        result = _re.sub(r"<think>.*?</think>", "", str(result), flags=_re.DOTALL).strip()
+        result = _re.sub(r"</?think>", "", result).strip()
+    return result
 
 
 def send_telegram_msg(msg: str):
@@ -350,12 +360,15 @@ async def generate_morning_plan():
         # Пытаемся сгенерировать отчет с таймаутом 60 секунд
         try:
             plan = await asyncio.wait_for(run_cursor_agent(prompt), timeout=300)
+            if not (plan and str(plan).strip() and len(str(plan)) > 50):
+                # [v149.2] Retry: второй вызов (модель может вернуть пусто с первой попытки)
+                plan = await asyncio.wait_for(run_cursor_agent(prompt), timeout=300)
             if plan and str(plan).strip() and len(str(plan)) > 50:
                 full_msg = f"👩‍💼 *Утренний доклад Виктории (Team Lead)*\n\n{plan}"
                 send_telegram_msg(full_msg)
                 logger.info("✅ Доклад Виктории с OKR и ROI успешно отправлен.")
             else:
-                raise ValueError("Пустой или слишком короткий ответ от агента")
+                raise ValueError("Пустой или слишком короткий ответ от агента (после retry)")
         except asyncio.TimeoutError:
             logger.warning("⏱️ Таймаут генерации отчета (60s), отправляю упрощенный отчет")
             # Fallback: упрощенный отчет без AI генерации

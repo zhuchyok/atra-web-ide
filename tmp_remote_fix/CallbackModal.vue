@@ -167,6 +167,9 @@ async function handleSubmit() {
     })
 
     if (response?.success) {
+      try {
+        window.reachMetrikaGoal?.('CALLBACK_SUBMITTED')
+      } catch (_) { /* Metrika optional */ }
       submitSuccess.value = true
       form.name = ''
       form.phone = ''
