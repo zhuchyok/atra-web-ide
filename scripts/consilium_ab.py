@@ -4,7 +4,7 @@
 Для каждого вопроса из configs/evals/consilium_v1.jsonl:
   A — POST /run (async) на Victoria 8010 — одиночный ответ.
   B — POST /api/expert-dialogue/start (mode=debate) на backend 8080 — консилиум.
-Судья — victoria-wisdom-24k через MLX 11435 (/api/chat): rubric-оценка 0-10 обоим
+Судья — victoria-qwen38 через Ollama 11434 (/api/chat), тёплая: rubric-оценка 0-10 обоим
 ответам (correctness, grounding, completeness) + победитель.
 
 Результат: configs/evals/results/battle_<TS>.json
@@ -21,9 +21,12 @@ from datetime import datetime, timezone
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VICTORIA = os.getenv("VICTORIA_URL", "http://localhost:8010")
 DIALOGUE = os.getenv("EXPERT_DIALOGUE_URL", "http://localhost:8080")
-MLX = os.getenv("MLX_BASE_URL", "http://localhost:11435")
-JUDGE_MODEL = os.getenv("VICTORIA_WISDOM_MODEL", "victoria-wisdom-24k")
-POLL_TIMEOUT = float(os.getenv("AB_POLL_TIMEOUT", "180"))
+OLLAMA = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+JUDGE_MODEL = os.getenv("AB_JUDGE_MODEL", "victoria-qwen38:latest")
+# [v149.7] 180с < фактическое время тяжёлого пути (200-300с) — половина раундов
+# сдавалась раньше ответа. Судья: qwen38 на тёплом Ollama (wisdom на MLX теперь
+# выгружается — каждый суд холодно грузил её ~45с).
+POLL_TIMEOUT = float(os.getenv("AB_POLL_TIMEOUT", "360"))
 
 
 def _post_json(url, payload, timeout=30):
@@ -117,7 +120,7 @@ def judge(goal: str, answer_a: str, answer_b: str) -> dict:
     )
     try:
         resp = _post_json(
-            f"{MLX}/api/chat",
+            f"{OLLAMA}/api/chat",
             {"model": JUDGE_MODEL, "messages": [{"role": "user", "content": prompt}], "stream": False},
             timeout=120,
         )
@@ -140,7 +143,7 @@ def judge(goal: str, answer_a: str, answer_b: str) -> dict:
             # Судья ушёл в рассуждения без JSON — один жёсткий ретрай.
             try:
                 resp2 = _post_json(
-                    f"{MLX}/api/chat",
+                    f"{OLLAMA}/api/chat",
                     {
                         "model": JUDGE_MODEL,
                         "messages": [
