@@ -222,6 +222,9 @@ services:
       # [v149.11] Тяжёлые задачи qwen38 идут 4-6 мин; потолок 240с гасил их на полпути
       VICTORIA_BACKGROUND_AGENT_RUN_TIMEOUT_SEC: "600"
       VICTORIA_BACKGROUND_AGENT_RUN_TIMEOUT_OPERATIONAL_SEC: "600"
+      # [v149.13] Silent-watchdog 180с гасил задачи с медленным пониманием цели (ENGLISH-класс)
+      VICTORIA_ASYNC_WATCHDOG_SEC: "480"
+      VICTORIA_ASYNC_HARD_TIMEOUT_SEC: "900"
       UVICORN_WORKERS: "2"
       UVICORN_TIMEOUT_KEEP_ALIVE: "75"
       DOCKER_HOST: "tcp://docker-proxy:2376"

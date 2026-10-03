@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import copy
 import json
 import logging
 import os
@@ -192,12 +193,17 @@ class AtraBaseAgent(ABC):
 
     async def run(self, goal: str, max_steps: int = 500) -> str:
         logger.info(f"\n🚀 ЗАДАЧА: {goal}")
-        # Каждый новый run() начинается без блокировок (блокировки только в рамках одного run)
-        self._blocked_tools.clear()
+        # [v149.13] Per-run изоляция: агент — синглтон, и конкурентные run() затирали
+        # друг другу self.memory/_blocked_tools (чужой контекст → чужой ответ).
+        # Решение по мировой практике: shallow-клон на запуск (executors/planner общие,
+        # они stateless; память и блокировки — свои у каждого run).
+        agent = copy.copy(self)
+        agent._blocked_tools = {}
+        agent.executed_commands_hash = []
 
         # Мы не стираем память полностью, а добавляем контекст знаний
-        knowledge_context = self._get_context_summary()
-        self.memory = [
+        knowledge_context = agent._get_context_summary()
+        agent.memory = [
             {"role": "system", "content": f"Ты уже знаешь следующее о проекте: {knowledge_context}"}
         ]
 
@@ -209,10 +215,10 @@ class AtraBaseAgent(ABC):
             logger.info("[TRACE] run: step %s (max %s)", steps_taken, max_steps)
             logger.info(f"\n--- ШАГ {steps_taken} ---")
 
-            result = await self.step(
+            result = await agent.step(
                 current_input,
                 step_number=steps_taken,
-                blocked_tools=self._get_blocked_tools_for_step(steps_taken),
+                blocked_tools=agent._get_blocked_tools_for_step(steps_taken),
             )
 
             # Если возникла ошибка в step (не JSON и т.д.)
@@ -227,7 +233,7 @@ class AtraBaseAgent(ABC):
                     "tool": getattr(result, "tool", "finish"),
                     "tool_input": getattr(result, "tool_input", {}),
                 }
-                self.memory.append(
+                agent.memory.append(
                     {
                         "role": "assistant",
                         "content": json.dumps(content_to_save, ensure_ascii=False),
@@ -264,10 +270,10 @@ class AtraBaseAgent(ABC):
 
                 # Генерируем хэш команды для проверки на циклы
                 cmd_hash = f"{result.tool}:{json.dumps(result.tool_input, sort_keys=True)}"
-                if self.executed_commands_hash.count(cmd_hash) >= 2:
+                if agent.executed_commands_hash.count(cmd_hash) >= 2:
                     # Принудительная блокировка повторяющегося инструмента (разрыв цикла)
                     block_until = steps_taken + LOOP_BLOCK_STEPS
-                    self._blocked_tools[result.tool] = block_until
+                    agent._blocked_tools[result.tool] = block_until
                     logger.warning(
                         "⚠️ ОСТАНОВКА: Ты повторяешь команду %s уже 3-й раз с теми же аргументами. СМЕНИ СТРАТЕГИЮ!",
                         result.tool,
@@ -280,20 +286,20 @@ class AtraBaseAgent(ABC):
                     return "Обнаружен цикл повторяющихся действий. Задача не может быть выполнена текущими средствами. Смени стратегию или используй другой инструмент (например read_file для просмотра файла, finish для завершения)."
                 # Проверка: модель вернула инструмент, который сейчас заблокирован (на случай если step() не исключил его из промпта)
                 if (
-                    result.tool in self._blocked_tools
-                    and steps_taken <= self._blocked_tools[result.tool]
+                    result.tool in agent._blocked_tools
+                    and steps_taken <= agent._blocked_tools[result.tool]
                 ):
-                    block_until = self._blocked_tools[result.tool]
+                    block_until = agent._blocked_tools[result.tool]
                     error_msg = (
                         f"Инструмент {result.tool} заблокирован до шага {block_until}. "
                         "Выбери другой: read_file, run_terminal_cmd, ssh_run, write_file или finish."
                     )
                     logger.warning("⚠️ %s", error_msg)
-                    self.memory.append({"role": "user", "content": error_msg})
+                    agent.memory.append({"role": "user", "content": error_msg})
                     current_input = error_msg
                     continue
 
-                self.executed_commands_hash.append(cmd_hash)
+                agent.executed_commands_hash.append(cmd_hash)
                 # Нормализация: LLM может вернуть cmd вместо command для run_terminal_cmd
                 tool_input = dict(result.tool_input) if result.tool_input else {}
                 if (
@@ -307,15 +313,15 @@ class AtraBaseAgent(ABC):
                 print(f"🛠  Инструмент: {result.tool}")
                 print(f"📝 Аргументы: {json.dumps(tool_input, indent=2, ensure_ascii=False)}")
 
-                if result.tool in self.tools:
-                    observation = await self._call_tool_with_policy(result.tool, tool_input)
+                if result.tool in agent.tools:
+                    observation = await agent._call_tool_with_policy(result.tool, tool_input)
                     obs_payload = json.dumps(observation, ensure_ascii=False)
                     obs_preview = obs_payload if len(obs_payload) <= 300 else obs_payload[:300] + "..."
                     print(f"👀 Результат: {obs_preview}")
                     obs_for_memory = (
                         obs_payload if len(obs_payload) <= 3000 else obs_payload[:3000] + "...[truncated]"
                     )
-                    self.memory.append(
+                    agent.memory.append(
                         {
                             "role": "user",
                             "content": f"Observation from {result.tool}: {obs_for_memory}",
@@ -334,9 +340,9 @@ class AtraBaseAgent(ABC):
                         "tool": result.tool,
                         "status": "error",
                         "tool_error": error_msg,
-                        "audit": self._make_tool_audit(result.tool, tool_input, 0, "error"),
+                        "audit": agent._make_tool_audit(result.tool, tool_input, 0, "error"),
                     }
-                    self.memory.append(
+                    agent.memory.append(
                         {
                             "role": "user",
                             "content": f"Observation from {result.tool}: {json.dumps(missing_payload, ensure_ascii=False)}",
