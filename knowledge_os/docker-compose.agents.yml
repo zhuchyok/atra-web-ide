@@ -184,8 +184,10 @@ services:
       VICTORIA_ENHANCED_SOLVE_TIMEOUT_OPERATIONAL_SEC: "1200"
       VICTORIA_ENHANCED_LLM_TIMEOUT_SEC: "1200"
       VICTORIA_ENHANCED_LLM_TIMEOUT_OPERATIONAL_SEC: "1200"
-      ORCHESTRATION_V2_ENABLED: "true"
-      ORCHESTRATION_V2_PERCENTAGE: "10"
+      # [v149.11] V2-оркестратор (Зоя) отлючён в проде: решал через phi3.5 и
+      # возвращал план вместо ответа (MATH/ENGLISH-факапы батареи 03.10).
+      ORCHESTRATION_V2_ENABLED: "false"
+      ORCHESTRATION_V2_PERCENTAGE: "0"
       EXECUTE_ASSIGNMENTS_IN_RUN: "true"
       PREFER_EXPERTS_FIRST: "true"
       RAG_RERANKER_ENABLED: "false"
@@ -215,7 +217,8 @@ services:
       VICTORIA_SYNC_SAFE_TIMEOUT_SEC: "20"
       VICTORIA_SYNC_SAFE_MODEL: ${VICTORIA_SYNC_SAFE_MODEL:-victoria-qwen38:latest}
       VICTORIA_TIMEOUT_FALLBACK_MODEL: ${VICTORIA_TIMEOUT_FALLBACK_MODEL:-victoria-qwen38:latest}
-      VICTORIA_SEMAPHORE_ACQUIRE_TIMEOUT_SEC: "2"
+      # [v149.11] 2с = отмена при живом трафике (батарея: 3/4 параллельных задач отменены)
+      VICTORIA_SEMAPHORE_ACQUIRE_TIMEOUT_SEC: "60"
       UVICORN_WORKERS: "2"
       UVICORN_TIMEOUT_KEEP_ALIVE: "75"
       DOCKER_HOST: "tcp://docker-proxy:2376"

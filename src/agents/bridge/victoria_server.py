@@ -4080,6 +4080,29 @@ def _strip_internal_monologue(text: str) -> str:
                 s = _cand
                 break
 
+    # [v149.11] Внутренние леса (V2/оркестратор): убираем строки-маркеры и
+    # reasoning-блоки, чтобы пользователь видел ответ, а не процесс.
+    s = re.sub(r"<reasoning_trace>.*?</reasoning_trace>", "", s, flags=re.DOTALL)
+    s = re.sub(r"</?reasoning_trace>", "", s)
+    _scaffold_markers = (
+        "### План от оркестратора",
+        "**Назначение оркестратора:",
+        "**Модель для принятия решений:",
+        "### ПРОЕКТ ПАМЯТИ:",
+        "### COLLECTIVE REFLECTION PROTOCOL",
+        "**Задача для Ари",
+        "**Задача:**",
+        "### Отвечай строго по фактам",
+    )
+    _kept = [
+        ln
+        for ln in s.splitlines()
+        if not any(m in ln for m in _scaffold_markers)
+    ]
+    _cleaned = "\n".join(_kept).strip()
+    if len(_cleaned) >= 60:
+        s = _cleaned
+
     # Сырые шаги агента (action/tool) — не отдавать пользователю как ответ (в т.ч. короткий вывод)
     action_tool_markers = (
         '"action": "file_read"',
