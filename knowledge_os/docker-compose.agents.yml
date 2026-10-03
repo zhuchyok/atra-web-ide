@@ -219,6 +219,9 @@ services:
       VICTORIA_TIMEOUT_FALLBACK_MODEL: ${VICTORIA_TIMEOUT_FALLBACK_MODEL:-victoria-qwen38:latest}
       # [v149.11] 2с = отмена при живом трафике (батарея: 3/4 параллельных задач отменены)
       VICTORIA_SEMAPHORE_ACQUIRE_TIMEOUT_SEC: "60"
+      # [v149.11] Тяжёлые задачи qwen38 идут 4-6 мин; потолок 240с гасил их на полпути
+      VICTORIA_BACKGROUND_AGENT_RUN_TIMEOUT_SEC: "600"
+      VICTORIA_BACKGROUND_AGENT_RUN_TIMEOUT_OPERATIONAL_SEC: "600"
       UVICORN_WORKERS: "2"
       UVICORN_TIMEOUT_KEEP_ALIVE: "75"
       DOCKER_HOST: "tcp://docker-proxy:2376"
