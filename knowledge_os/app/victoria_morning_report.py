@@ -94,15 +94,21 @@ async def get_pool():
 
 async def run_cursor_agent(prompt: str):
     """Запуск Cursor Agent для генерации контента через умное ядро.
-    [v149.2] Очищаем <think> блоки и ReAct-артефакты до возврата."""
+    [v149.2] Очищаем <think> блоки и ReAct-артефакты до возврата.
+    [v149.9] Любая ошибка ядра → None (штатный retry/fallback отчёта сработает;
+    раньше редкий len(None) в глубине ai_core ронял весь прогон)."""
     import re as _re
 
     result = None
-    if run_smart_agent_async:
-        result = await run_smart_agent_async(prompt, expert_name="Виктория", category="report")
-    else:
-        result = run_smart_agent_sync(prompt, expert_name="Виктория", category="report")
-    # Очистить thinking-блоки (wisdom-24k начинает с <think>...</think>)
+    try:
+        if run_smart_agent_async:
+            result = await run_smart_agent_async(prompt, expert_name="Виктория", category="report")
+        else:
+            result = run_smart_agent_sync(prompt, expert_name="Виктория", category="report")
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.error("run_cursor_agent: агент упал (%s) — отдаём None в retry/fallback", exc)
+        result = None
+    # Очистить thinking-блоки (модели начинают с <think>...</think>)
     if result:
         result = _re.sub(r"<think>.*?</think>", "", str(result), flags=_re.DOTALL).strip()
         result = _re.sub(r"</?think>", "", result).strip()
@@ -436,4 +442,17 @@ _Примечание: Полный AI-доклад недоступен из-з
 
 
 if __name__ == "__main__":
+    # [v149.9] Дедуп: запуск дважды за 10 минут (launchd double-fire) — второй молча выходит
+    import time as _time
+
+    _LOCK = "/tmp/victoria_morning_report.lock"
+    try:
+        if os.path.exists(_LOCK) and _time.time() - os.path.getmtime(_LOCK) < 600:
+            logger.warning("Дубль запуска (<10мин с прошлого) — выходим")
+            raise SystemExit(0)
+        open(_LOCK, "w").close()
+    except SystemExit:
+        raise
+    except Exception:  # noqa: BLE001
+        pass
     asyncio.run(generate_morning_plan())

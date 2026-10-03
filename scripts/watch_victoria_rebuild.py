@@ -32,6 +32,9 @@ logger = logging.getLogger("victoria_watcher")
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_FILE = ROOT / "knowledge_os" / "docker-compose.yml"
+# [v149.9] victoria-agent определён в agents-оверлее — без него up падает
+# «no such service» и вотчер молча не работал вообще.
+COMPOSE_FILE_AGENTS = ROOT / "knowledge_os" / "docker-compose.agents.yml"
 
 WATCH_FILES = [
     ROOT / "src" / "agents" / "bridge" / "victoria_server.py",
@@ -72,7 +75,9 @@ def rebuild_victoria() -> bool:
     try:
         result = subprocess.run(
             [
-                "docker-compose", "-f", str(COMPOSE_FILE),
+                "docker-compose",
+                "-f", str(COMPOSE_FILE),
+                "-f", str(COMPOSE_FILE_AGENTS),
                 "up", "-d", "--no-deps", "--force-recreate", "victoria-agent",
             ],
             capture_output=True, text=True, timeout=120,
