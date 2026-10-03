@@ -1650,7 +1650,10 @@ async def _memory_watchdog():
             client = await redis_manager.get_client()
             ice_mode = await client.get("system:ice_mode")
 
-            if ice_mode and (time.time() - _last_model_call_at) > 600:  # 10 min idle
+            if ice_mode == "hard" and (time.time() - _last_model_call_at) > 600:  # 10 min idle
+                # [v149.8] Выгружаем мозг ТОЛЬКО в hard ice (RAM>85%, реальная авария).
+                # Soft-ice меряет RAM Docker-VM (кэши) — под ним выгрузка мозга
+                # приводила к перезагрузке 31GB под давлением и segfault-каскаду.
                 import httpx
 
                 _ollama_base = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
@@ -4066,6 +4069,16 @@ def _strip_internal_monologue(text: str) -> str:
         tail = tail.lstrip("\n").strip()
         if len(tail) >= 100:
             s = tail
+
+    # [v149.8] Хвостовое эхо: протокольные блоки ПОСЛЕ ответа
+    # («...ответ... ### SWARM & HANDOFF PROTOCOL: ... HANDOFF: @Dmitry ...»)
+    for _tm in ("### SWARM & HANDOFF PROTOCOL", "SWARM & HANDOFF PROTOCOL", "### ПРАВИЛА:"):
+        _ti = s.find(_tm)
+        if _ti >= 100:
+            _cand = s[:_ti].rstrip()
+            if len(_cand) >= 100:
+                s = _cand
+                break
 
     # Сырые шаги агента (action/tool) — не отдавать пользователю как ответ (в т.ч. короткий вывод)
     action_tool_markers = (

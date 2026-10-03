@@ -148,6 +148,8 @@ except ImportError:
 IMMORTAL_MODELS = {"nomic-embed-text", "nomic-embed-text:latest", "moondream", "moondream:latest"}
 # [SINGULARITY 21.4] Tool Guard: Only these models can execute tools
 TOOL_CALL_ALLOWED_MODELS = [
+    "victoria-qwen38",
+    "victoria-qwen38:latest",
     "victoria-wisdom-24k",
     "victoria-wisdom-24k:latest",
     "victoria-wisdom-v3.5",
@@ -216,7 +218,8 @@ _MODELS_CACHE_TTL = 120  # 2 минуты
 
 # Руки Ollama 11434: лёгкие модели. Мозг victoria-wisdom* — только MLX 11435.
 OLLAMA_MODELS_FALLBACK = {
-    "reasoning": os.getenv("MODEL_REASONING", "phi3.5:3.8b"),
+    # [v149.8] Мозг теперь на Ollama 11434 (контракт v149.4): reasoning/default = qwen38
+    "reasoning": os.getenv("MODEL_REASONING", "victoria-qwen38:latest"),
     "coding": os.getenv("MODEL_CODER", "phi3.5:3.8b"),
     "chat": "phi3.5:3.8b",
     "fast": os.getenv("MODEL_FAST", "tinyllama:1.1b-chat"),
@@ -224,7 +227,7 @@ OLLAMA_MODELS_FALLBACK = {
     "vision_hd": "minicpm-v:latest",
     "vision_pdf": os.getenv("MODEL_VISION_PDF", "minicpm-v:latest"),
     "thinking": os.getenv("MODEL_THINKING", "lfm2.5-thinking:1.2b"),
-    "default": "phi3.5:3.8b",
+    "default": "victoria-qwen38:latest",
     "vip": "phi3.5:3.8b",
 }
 

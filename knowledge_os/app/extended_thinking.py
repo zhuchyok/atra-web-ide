@@ -21,6 +21,8 @@ MLX_URL = (
     or "http://host.docker.internal:11435"
 ).rstrip("/")  # [v149] fallback-цепочка: в контейнере localhost:11435 — это сам контейнер
 DEFAULT_LLM_URL = MLX_URL
+# [v149.8] Мозг на Ollama 11434; MLX 11435 — только лёгкие/легаси-wisdom
+OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
 
 # Кэш для списка моделей (чтобы не делать частые запросы к /api/tags)
 _models_cache = {"data": None, "timestamp": 0}
@@ -67,7 +69,7 @@ class ExtendedThinkingEngine:
 
     def __init__(
         self,
-        model_name: str = "victoria-wisdom-24k",  # Самая мощная reasoning модель (Wisdom Era)
+        model_name: str = os.getenv("EXTENDED_THINKING_MODEL", "victoria-qwen38:latest"),  # [v149.8] мозг-контракт
         thinking_budget: int = 15000,  # [SINGULARITY 14.1] Увеличен бюджет до 15к
         max_steps: int = 12,  # [SINGULARITY 14.1] Увеличено кол-во шагов
         use_intelligent_routing: bool = True,  # Использовать интеллектуальный роутинг
@@ -75,8 +77,13 @@ class ExtendedThinkingEngine:
     ):
         self.model_name = model_name  # Базовая модель (fallback)
         self.use_intelligent_routing = use_intelligent_routing
-        # Используем только MLX
-        self.llm_url = DEFAULT_LLM_URL
+        # [v149.8] URL по модели: лёгкие/легаси-wisdom -> MLX, мозг qwen38 -> Ollama
+        _m = (self.model_name or "").lower()
+        self.llm_url = (
+            MLX_URL
+            if any(k in _m for k in ("phi3", "tinyllama", "wisdom", "qwen_3b", "qwen2.5:3b"))
+            else OLLAMA_URL
+        )
         self.thinking_budget = thinking_budget
         self.max_steps = max_steps
         self.dual_channel = dual_channel
@@ -221,6 +228,7 @@ class ExtendedThinkingEngine:
         # ВАЖНО: tinyllama исключена - используется только для внутренней коммуникации агентов
         # Тяжёлые 70B/104B удалены из-за Apple Silicon Metal limits
         fallback_models = [
+            "victoria-qwen38:latest",
             "victoria-wisdom-24k",
             "victoria-wisdom-v3.5",
             "qwen3-coder:30b",

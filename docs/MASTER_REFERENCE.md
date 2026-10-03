@@ -48,6 +48,20 @@
 
 Правило дожима: `.cursor/rules/91_finish_to_closed.mdc`. Guard: `scripts/ollama_wisdom_guard.py` + LaunchAgent `com.atra.ollama-wisdom-guard` (unload timeout 60с; на 11434 оставляет только phi+nomic).
 
+
+---
+
+## § Последние изменения (2026-10-03 v149.8) — «везде и все в курсе»: полная миграция qwen38 ✅
+
+1. **Аудит по требованию владельца нашёл недоселённые уголки:** local_router (reasoning/default = phi/wisdom → now qwen38@11434), extended_thinking (дефолт wisdom, URL зашит в MLX → qwen38 + URL выбирается по модели), strategic_board/board-scheduler (BOARD_CONSULT_* = wisdom → qwen38 в коде и compose), 6 контейнеров жили со старым env (restart не обновляет env — recreate: orchestrator/worker/anna/heavy/victoria-1/rest/board-scheduler + рестарт dynamic-1..5).
+2. **Контракт enforcement:** запрещённые дубликаты `victoria-wisdom-24k:latest` и `victoria-wisdom-v3.5:latest` УДАЛЕНЫ с Ollama 11434 (~35GB диска). Wisdom остаётся только на MLX 11435 как явный легаси-fallback.
+3. **Segfault-каскад мозга (10578 за день!):** llama-server qwen38 (31GB Q8) сегфолтился при загрузке под давлением памяти (Docker VM распухла до 53GB) — с 02:51 (во время битвы — вторая причина ночных таймаутов). Каждый повторный запрос ронял раннер снова → мгновенные 503 «queue full». **Лечение:** рестарт ollama + чистая загрузка qwen38.
+4. **SHADOW UNLOAD выгружал мозг:** performance_watchdog меряет RAM Docker-VM (кэши) → вечный soft-ice → victoria выгружала qwen38 после 10 мин простоя → перезагрузка под давлением → segfault. **Фикс:** выгрузка мозга только в hard-ice (RAM>85%, реальная авария).
+5. **Эхо-хвосты и кэш:** хвостовое эхо (SWARM & HANDOFF PROTOCOL ПОСЛЕ ответа) срезается; семантический кэш чистит до-фиксовые ответы на выдаче (кэш-хит мог вечно отдавать мусор).
+6. **Финальная верификация:** «дерево решений vs случайный лес» → completed, ответ по теме, чистый (нет SWARM/Discovery), единственный LLM_CALL — victoria-qwen38, MLX-подмен 0. Резидентно: qwen38 30.3GB + phi3.5 9.1GB + nomic 0.4GB.
+
+**Правило:** после изменения compose-env сервисы обязаны рекрейтиться (restart не обновляет env); новые «мозговые» модели добавлять в guard-списки (MLX-маркеры, TOOL_CALL_ALLOWED, keep-листы) сразу при внедрении.
+
 ---
 
 ## § Последние изменения (2026-10-03 v149.7) — битва на qwen38: консилиум выигрывает, ранер починен ✅

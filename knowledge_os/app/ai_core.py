@@ -23,7 +23,12 @@ from typing import Any, Dict, List, Optional
 
 # [v147.1] Генерические типы — семантические хабы (cosine завышен для любого запроса):
 # board_directive/mentorship — дайджесты и мета-комментарии, а не операционные знания.
-_GENERIC_HUB_TYPES = {"board_directive", "mentorship_note", "strategy_summary", "database_optimization"}
+_GENERIC_HUB_TYPES = {
+    "board_directive",
+    "mentorship_note",
+    "strategy_summary",
+    "database_optimization",
+}
 _GENERIC_HUB_CATEGORIES = ("strategy", "mentorship")
 
 # [SINGULARITY 29.5] Recursion Guard for Multi-Agent Loops
@@ -1373,17 +1378,16 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                                     return node_sim - 0.12
                                 return node_sim
 
-                            scored = [
-                                (n, _eff_sim(s, n.get("metadata") or {}))
-                                for n, s in sims
-                            ]
+                            scored = [(n, _eff_sim(s, n.get("metadata") or {})) for n, s in sims]
                             kept = [n for n, s in scored if s >= 0.65][:6]
                             if not kept:
                                 best = max(scored, key=lambda p: p[1], default=None)
                                 if best and best[1] >= 0.6:
                                     kept = [best[0]]
                             if not kept:
-                                logger.info("📭 [RUST RAG] Все узлы ниже порога 0.6 — контекст пуст.")
+                                logger.info(
+                                    "📭 [RUST RAG] Все узлы ниже порога 0.6 — контекст пуст."
+                                )
                                 return ""
                             context = "\n📚 [KNOWLEDGE CONTEXT (RUST-ACCELERATED)]:\n"
                             for node in kept:
@@ -1391,9 +1395,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                                 sim = node.get("similarity") or 0
                                 meta = node.get("metadata") or {}
                                 file_path = meta.get("file_path", "N/A")
-                                context += (
-                                    f"\n[NODE: {file_path}] (релевантность: {sim:.2f}):\n"
-                                )
+                                context += f"\n[NODE: {file_path}] (релевантность: {sim:.2f}):\n"
                                 context += f"{node['content'][:1200]}\n"
                             logger.info("🚀 [RUST RAG] Successfully retrieved context.")
 
@@ -1731,9 +1733,7 @@ def run_smart_agent_sync(prompt: str, **kwargs):
     try:
         asyncio.get_running_loop()
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as _ex:
-            return _ex.submit(
-                asyncio.run, run_smart_agent_async(prompt, **kwargs)
-            ).result()
+            return _ex.submit(asyncio.run, run_smart_agent_async(prompt, **kwargs)).result()
     except RuntimeError:
         return asyncio.run(run_smart_agent_async(prompt, **kwargs))
 
@@ -1918,7 +1918,9 @@ Use HANDOFF only if delegation genuinely improves the result.
 """
     # [v148.5] Тест-правило уходит в хвост правил — оно для генерации кода,
     # и в начале промпта оно вылезало первым «ответом».
-    recursive_test_instruction = recursive_test_instruction.replace("### 🧪 RECURSIVE TESTING RULE:", "🧪 Для задач с кодом:")
+    recursive_test_instruction = recursive_test_instruction.replace(
+        "### 🧪 RECURSIVE TESTING RULE:", "🧪 Для задач с кодом:"
+    )
     # --- END RECURSIVE TESTING ---
 
     # --- MODEL ENSEMBLE LOGIC (Phase 2.7) ---
@@ -2045,6 +2047,25 @@ Use HANDOFF only if delegation genuinely improves the result.
     if cached_response:
         # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🎯 [CACHE HIT] Found similar query for expert {expert_name}")
+
+        # [v149.8] Кэш хранит ответы ДО фикса эха: чистим протокольные хвосты
+        # (SWARM & HANDOFF PROTOCOL / ПРАВИЛА) и префикс «ТЫ — ВИКТОРИЯ» на выдаче
+        try:
+            import re as _re_echo
+
+            _cr = str(cached_response).strip()
+            if "ТЫ — ВИКТОРИЯ" in _cr:
+                _t = _re_echo.sub(r"^\s*-{3,}\s*", "", _cr.rsplit("ТЫ — ВИКТОРИЯ", 1)[-1]).strip()
+                if len(_t) >= 100:
+                    _cr = _t
+            for _tm in ("### SWARM & HANDOFF PROTOCOL", "SWARM & HANDOFF PROTOCOL", "### ПРАВИЛА:"):
+                _ti = _cr.find(_tm)
+                if _ti >= 100 and len(_cr[:_ti].rstrip()) >= 100:
+                    _cr = _cr[:_ti].rstrip()
+                    break
+            cached_response = _cr
+        except Exception:  # noqa: BLE001 — чистка не должна ломать кэш-хит
+            pass
 
         # [SINGULARITY 21.3] Record tokens saved for local provider on cache hit
         try:
@@ -2256,14 +2277,31 @@ Use HANDOFF only if delegation genuinely improves the result.
             "4. Структура ответа: заголовок-тема → шаги/пункты по задаче. Декларации и конституцию не начинай.\n"
         )
         full_context = "\n".join(
-            x for x in (kb_context, ltm_context, mentorship_context, meta_wisdom_context, experience_context, constitution_context) if x
+            x
+            for x in (
+                kb_context,
+                ltm_context,
+                mentorship_context,
+                meta_wisdom_context,
+                experience_context,
+                constitution_context,
+            )
+            if x
         )
         kb_context = await swapper.swap_if_needed(full_context, f"kb_context_{request_id}")
         kb_context = kb_context or ""
         user_part = (
             f"{_answer_first}\nЗАПРОС: {user_part}"
-            + (f"\n\n### СПРАВОЧНЫЙ КОНТЕКСТ (используй только релевантное):\n{kb_context}" if kb_context else "")
-            + (f"\n\n### ПРАВИЛА ПОВЕДЕНИЯ:\n{constitution_context}" if constitution_context else "")
+            + (
+                f"\n\n### СПРАВОЧНЫЙ КОНТЕКСТ (используй только релевантное):\n{kb_context}"
+                if kb_context
+                else ""
+            )
+            + (
+                f"\n\n### ПРАВИЛА ПОВЕДЕНИЯ:\n{constitution_context}"
+                if constitution_context
+                else ""
+            )
         )
 
     # Проверка на запрос стратегии: автоматический запуск Discovery → MASTER_PLAN → декомпозиция
@@ -2274,7 +2312,9 @@ Use HANDOFF only if delegation genuinely improves the result.
     if QueryOrchestrator and not session_id:
         try:
             temp_orch = QueryOrchestrator()
-            query_type = temp_orch.classify_query(_raw_user_query if _raw_user_query else _original_user_part)
+            query_type = temp_orch.classify_query(
+                _raw_user_query if _raw_user_query else _original_user_part
+            )
             is_strategy_request = query_type == QueryType.STRATEGY
 
             if category == "orchestrator_assignment":
@@ -3690,7 +3730,9 @@ Use HANDOFF only if delegation genuinely improves the result.
     if QueryOrchestrator and get_prompt_template:
         try:
             query_orchestrator = QueryOrchestrator(session_manager=session_manager)
-            normalized_query = query_orchestrator.normalize_query(_raw_user_query if _raw_user_query else user_part)
+            normalized_query = query_orchestrator.normalize_query(
+                _raw_user_query if _raw_user_query else user_part
+            )
             optimized_role = query_orchestrator.select_role(normalized_query.query_type)
             logger.info(
                 f"🎯 [QUERY ORCHESTRATOR] Запрос нормализован: тип={normalized_query.query_type.value}, роль={optimized_role}"

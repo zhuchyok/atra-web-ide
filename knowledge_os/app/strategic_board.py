@@ -486,7 +486,7 @@ async def _call_victoria_board_directive(
 УВЕРЕННОСТЬ: число от 0.0 до 1.0
 """
     timeout = float(os.getenv("BOARD_VICTORIA_TIMEOUT_SEC", "480"))
-    board_model = os.getenv("BOARD_CONSULT_MODEL", "victoria-wisdom-24k")
+    board_model = os.getenv("BOARD_CONSULT_MODEL", "victoria-qwen38:latest")  # [v149.8]
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(
@@ -756,8 +756,8 @@ async def consult_board(
             "yes",
         )
         mlx_model_hint = os.getenv("BOARD_CONSULT_MLX_MODEL", "victoria-wisdom-24k")
-        consult_model = os.getenv("BOARD_CONSULT_MODEL", mlx_model_hint)
-        quality_model = os.getenv("BOARD_CONSULT_QUALITY_MODEL", "victoria-wisdom-24k:latest")
+        consult_model = os.getenv("BOARD_CONSULT_MODEL", "victoria-qwen38:latest")  # [v149.8]
+        quality_model = os.getenv("BOARD_CONSULT_QUALITY_MODEL", "victoria-qwen38:latest")  # [v149.8]
         fallback_model = os.getenv("BOARD_CONSULT_FALLBACK_MODEL", "phi3.5:3.8b")
         # No-colon hint → dialogue_llm prefers MLX (Victoria brain, usually warm).
         if use_mlx and consult_model.replace(":latest", "").startswith("victoria-wisdom"):
