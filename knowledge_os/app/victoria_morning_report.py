@@ -105,6 +105,11 @@ async def run_cursor_agent(prompt: str):
             result = await run_smart_agent_async(prompt, expert_name="Виктория", category="report")
         else:
             result = run_smart_agent_sync(prompt, expert_name="Виктория", category="report")
+    except asyncio.CancelledError:
+        # [v149.14] В 3.11 CancelledError — BaseException: wait_for-таймауты ядра
+        # прилетали сюда и роняли весь прогон. Гасим → штатный retry/fallback.
+        logger.warning("run_cursor_agent: отменено (wait_for-таймаут ядра) — None в retry")
+        result = None
     except Exception as exc:  # pylint: disable=broad-exception-caught
         logger.error("run_cursor_agent: агент упал (%s) — отдаём None в retry/fallback", exc)
         result = None
@@ -371,10 +376,10 @@ async def generate_morning_plan():
 
         # Пытаемся сгенерировать отчет с таймаутом 60 секунд
         try:
-            plan = await asyncio.wait_for(run_cursor_agent(prompt), timeout=300)
+            plan = await asyncio.wait_for(run_cursor_agent(prompt), timeout=480)
             if not (plan and str(plan).strip() and len(str(plan)) > 50):
                 # [v149.2] Retry: второй вызов (модель может вернуть пусто с первой попытки)
-                plan = await asyncio.wait_for(run_cursor_agent(prompt), timeout=300)
+                plan = await asyncio.wait_for(run_cursor_agent(prompt), timeout=480)
             if plan and str(plan).strip() and len(str(plan)) > 50:
                 full_msg = f"👩‍💼 *Утренний доклад Виктории (Team Lead)*\n\n{plan}"
                 send_telegram_msg(full_msg)
