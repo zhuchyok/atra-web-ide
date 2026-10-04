@@ -74,7 +74,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
-      - "2376:2376"
+      - "127.0.0.1:2376:2376"
     networks:
       - atra-network
     healthcheck:
