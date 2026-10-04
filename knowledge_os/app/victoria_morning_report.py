@@ -92,6 +92,31 @@ async def get_pool():
     return await asyncpg.create_pool(os.getenv("DATABASE_URL", default_url), min_size=1, max_size=3)
 
 
+async def _direct_llm(prompt: str, timeout: int = 150) -> str:
+    """[v149.15] Прямой выз мозга (qwen38@11434) без RAG/пайплайна ядра:
+    отчёту RAG не нужен (данные в промпте), а ядро утопает в RAG-ретраях."""
+    import httpx
+
+    url = os.getenv("OLLAMA_BASE_URL_DIRECT", "http://host.docker.internal:11434") + "/api/chat"
+    payload = {
+        "model": os.getenv("VICTORIA_BRAIN_MODEL", "victoria-qwen38:latest"),
+        "messages": [
+            {"role": "system", "content": "Ты — Виктория, Team Lead корпорации ATRA. Пиши кратко, по-русски, без служебных пометок."},
+            {"role": "user", "content": prompt[-6000:]},
+        ],
+        "stream": False,
+        "options": {"temperature": 0.4},
+    }
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        r = await client.post(url, json=payload)
+        r.raise_for_status()
+        text = (r.json().get("message") or {}).get("content", "") or ""
+    import re as _re2
+    if "</think>" in text:
+        text = text.rsplit("</think>", 1)[-1]
+    return text.strip()
+
+
 async def run_cursor_agent(prompt: str):
     """Запуск Cursor Agent для генерации контента через умное ядро.
     [v149.2] Очищаем <think> блоки и ReAct-артефакты до возврата.
@@ -374,18 +399,66 @@ async def generate_morning_plan():
         6. 🚀 Операционный план: Приоритеты для департаментов на сегодня.
         """
 
-        # Пытаемся сгенерировать отчет с таймаутом 60 секунд
+        # [v149.15] Дробление: один гигантский промпт не укладывался в 480с.
+        # Три малых блока (каждый <=300с) + склейка; пустой блок не валит доклад.
+        async def _gen_block(block_prompt: str, label: str) -> str:
+            # Сначала прямой вызов (быстро, без RAG); ядро — запасной путь
+            try:
+                out = str(await asyncio.wait_for(_direct_llm(block_prompt), timeout=170) or "").strip()
+                if len(out) > 40:
+                    return out
+                logger.warning("Блок %s: прямой LLM пуст — пробуем ядро", label)
+            except Exception as dllm_err:  # pylint: disable=broad-exception-caught
+                logger.warning("Блок %s: прямой LLM упал (%s) — ядро", label, str(dllm_err)[:80])
+            try:
+                out = str(await asyncio.wait_for(run_cursor_agent(block_prompt), timeout=300) or "").strip()
+                if len(out) > 40:
+                    return out
+                logger.warning("Блок %s пуст — пропуск", label)
+            except asyncio.TimeoutError:
+                logger.warning("Блок %s: таймаут 300с — пропуск", label)
+            except Exception as blk_err:  # pylint: disable=broad-exception-caught
+                logger.warning("Блок %s упал: %s — пропуск", label, blk_err)
+            return ""
+
         try:
-            plan = await asyncio.wait_for(run_cursor_agent(prompt), timeout=480)
-            if not (plan and str(plan).strip() and len(str(plan)) > 50):
-                # [v149.2] Retry: второй вызов (модель может вернуть пусто с первой попытки)
-                plan = await asyncio.wait_for(run_cursor_agent(prompt), timeout=480)
-            if plan and str(plan).strip() and len(str(plan)) > 50:
+            part1 = await _gen_block(
+                victoria_prompt
+                + "\n\nЗАДАЧА: Подготовь разделы утреннего доклада.\n\nДАННЫЕ:\n"
+                + f"💰 Расход токенов за 24ч: {finance_stats['total_tokens']:,} "
+                + f"(виртуальная стоимость ${finance_stats['total_cost']:.4f})\n"
+                + f"📈 Дистилляция:\n{distillation_report}\n\n{okr_str}\n\n"
+                + f"Ликвидность знаний:\n{roi_str if roi_str else 'накапливается'}\n\n"
+                + "ФОРМАТ (кратко, по 2-3 предложения):\n"
+                + "1. 💰 Финансовая аналитика\n2. 📊 Статус OKR\n3. 📉 Ликвидность и ROI",
+                "финансы+OKR",
+            )
+            part2 = await _gen_block(
+                victoria_prompt
+                + "\n\nЗАДАЧА: Подготовь разделы утреннего доклада.\n\nДАННЫЕ:\n"
+                + f"🌙 Рой сделал за 12ч:\n{night_work_str or 'данных нет'}\n\n"
+                + f"🏛 Решения Совета:\n{board_str}\n\n"
+                + f"🚦 Error budgets:\n{budget_str}\n\n"
+                + f"⚔️ Консилиум:\n{consilium_str}\n\n"
+                + "ФОРМАТ (кратко, по 2-3 предложения):\n"
+                + "4. 🌙 Ночная автономия\n5. 🚦 Здоровье автономии",
+                "ночь+автономия",
+            )
+            part3 = await _gen_block(
+                victoria_prompt
+                + "\n\nЗАДАЧА: На основе статуса сформулируй операционный план.\n\nКОНТЕКСТ:\n"
+                + (part1 + "\n" + part2)[:2000]
+                + "\n\nФОРМАТ: 6. 🚀 Операционный план — 3-5 приоритетов "
+                + "для департаментов на сегодня, каждый одной строкой.",
+                "план",
+            )
+            plan = "\n\n".join(x for x in (part1, part2, part3) if x)
+            if plan and len(plan) > 80:
                 full_msg = f"👩‍💼 *Утренний доклад Виктории (Team Lead)*\n\n{plan}"
                 send_telegram_msg(full_msg)
                 logger.info("✅ Доклад Виктории с OKR и ROI успешно отправлен.")
             else:
-                raise ValueError("Пустой или слишком короткий ответ от агента (после retry)")
+                raise ValueError("Доклад пуст после генерации блоков")
         except asyncio.TimeoutError:
             logger.warning("⏱️ Таймаут генерации отчета (60s), отправляю упрощенный отчет")
             # Fallback: упрощенный отчет без AI генерации

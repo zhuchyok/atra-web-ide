@@ -827,6 +827,10 @@ class SemanticAICache:
         ttl_seconds: Optional[int] = None,
     ):
         """Save a new interaction to the semantic cache with routing metrics."""
+        # [v149.15] Не кэшировать пустоту/обрезки: пустые ответы отравляли кэш
+        # и потом молча возвращались (утренний отчёт — пустые блоки).
+        if not (isinstance(response, str) and len(response.strip()) > 40):
+            return
         # btree максимум 2704 байта на уникальный индекс (query_text, expert_name).
         # Запросы длиннее — SRC-текст: обрезать query_text до 1800 символов, чтобы
         # unique-индекс всегда влезал (иначе INSERT error "index row size exceeds").

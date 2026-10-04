@@ -2066,6 +2066,10 @@ Use HANDOFF only if delegation genuinely improves the result.
             cached_response = _cr
         except Exception:  # noqa: BLE001 — чистка не должна ломать кэш-хит
             pass
+        # [v149.15] Пустой/обрезанный кэш — не ответ: идём генерить заново
+        if not (isinstance(cached_response, str) and len(cached_response.strip()) > 40):
+            logger.info("🎯 [CACHE HIT] но пусто (<40 симв) — игнорируем кэш")
+            cached_response = None
 
         # [SINGULARITY 21.3] Record tokens saved for local provider on cache hit
         try:
