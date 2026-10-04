@@ -127,7 +127,17 @@ def main() -> int:
     for label, (max_hours, log_path) in WATCH_LIST.items():
         status = launchctl_status(label)
         if status is None:
-            problems.append(f"{label}: НЕ ЗАГРУЖЕНА в launchd")
+            # Самолечение: plist на месте, но джоба выгружена — грузим заново
+            plist = Path.home() / "Library" / "LaunchAgents" / f"{label}.plist"
+            if plist.exists():
+                subprocess.run(["launchctl", "unload", str(plist)], capture_output=True)
+                r = subprocess.run(["launchctl", "load", str(plist)], capture_output=True, text=True)
+                if r.returncode == 0 and launchctl_status(label) is not None:
+                    log_line = f"[{datetime.now(timezone.utc).isoformat()}] SELF-HEAL: {label} перезагружена"
+                    print(log_line)
+                    (REPO / "logs" / "launchd_watchdog.log").open("a").write(log_line + "\n")
+                    continue  # вылечено — не алертим
+            problems.append(f"{label}: НЕ ЗАГРУЖЕНА в launchd (автоперезагрузка не удалась)")
             continue
         if status["last_exit"] not in (None, 0):
             problems.append(f"{label}: последний exit code = {status['last_exit']}")
