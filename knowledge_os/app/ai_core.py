@@ -3621,47 +3621,49 @@ Use HANDOFF only if delegation genuinely improves the result.
                     local_resp = await _verify_and_refine(prompt, local_resp)
 
                 # Estimate savings for direct local usage
-            estimated_cloud_tokens = len(prompt) // 4 + len(local_resp) // 4
-            logger.info(
-                f"💰 [TOKEN SAVINGS] Used local model, saved ~{estimated_cloud_tokens} tokens"
-            )
-            # Save to cache with routing info and quality metrics
-            if cache:
-                final_routing_source = routing_source or "local"
-
-                # Получаем метрики качества для сохранения
-                performance_score = 0.9  # Default
-                if qa:
-                    _, metrics, _ = await qa.validate_response(
-                        local_resp, user_part, response_type="code", source="local"
-                    )
-                    performance_score = metrics.overall_score
-
-                await cache.save_to_cache(
-                    user_part,
-                    local_resp,
-                    expert_name,
-                    routing_source=final_routing_source,
-                    tokens_saved=estimated_cloud_tokens,
-                    performance_score=performance_score,
+                # [v149.20] Блок должен быть ВНУТРИ if local_resp: при None (fallback
+                # на облако) len(None) ронял воркер TypeError'ом
+                estimated_cloud_tokens = len(prompt) // 4 + len(local_resp) // 4
+                logger.info(
+                    f"💰 [TOKEN SAVINGS] Used local model, saved ~{estimated_cloud_tokens} tokens"
                 )
+                # Save to cache with routing info and quality metrics
+                if cache:
+                    final_routing_source = routing_source or "local"
 
-                # Сохраняем метрики результата для ML-обучения
-                if get_collector:
-                    collector = await get_collector()
-                    # Определяем final_routing_source если не был передан
-                    actual_routing_source = final_routing_source or routing_source or "local"
-                    await collector.collect_routing_decision(
-                        task_type="general",
-                        prompt_length=len(user_part),
-                        category=category,
-                        selected_route=actual_routing_source,
-                        performance_score=performance_score,
+                    # Получаем метрики качества для сохранения
+                    performance_score = 0.9  # Default
+                    if qa:
+                        _, metrics, _ = await qa.validate_response(
+                            local_resp, user_part, response_type="code", source="local"
+                        )
+                        performance_score = metrics.overall_score
+
+                    await cache.save_to_cache(
+                        user_part,
+                        local_resp,
+                        expert_name,
+                        routing_source=final_routing_source,
                         tokens_saved=estimated_cloud_tokens,
-                        quality_score=metrics.overall_score if metrics else None,
-                        success=True,
-                        features={"expert_name": expert_name, "direct_local": True},
+                        performance_score=performance_score,
                     )
+
+                    # Сохраняем метрики результата для ML-обучения
+                    if get_collector:
+                        collector = await get_collector()
+                        # Определяем final_routing_source если не был передан
+                        actual_routing_source = final_routing_source or routing_source or "local"
+                        await collector.collect_routing_decision(
+                            task_type="general",
+                            prompt_length=len(user_part),
+                            category=category,
+                            selected_route=actual_routing_source,
+                            performance_score=performance_score,
+                            tokens_saved=estimated_cloud_tokens,
+                            quality_score=metrics.overall_score if metrics else None,
+                            success=True,
+                            features={"expert_name": expert_name, "direct_local": True},
+                        )
 
             # Сбор метрик производительности
             try:
