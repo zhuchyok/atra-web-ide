@@ -1718,7 +1718,11 @@ async def process_task(task_data: dict):
                                             ($1, $2, $3, $4, 'pending', 5, $5::jsonb, NOW(), NOW())
                                         """,
                                         _subtask_id,
-                                        uuid.UUID(str(db_task_id)) if is_valid_uuid else None,
+                                        # [v149.21] uuid здесь — UnboundLocalError: локальный
+                                        # `import uuid` в другой ветке process_task делает имя
+                                        # локальным для всей функции. Используем _uuid_mod (импорт
+                                        # в этом же блоке, строкой выше).
+                                        _uuid_mod.UUID(str(db_task_id)) if is_valid_uuid else None,
                                         _subtask_title,
                                         task_msg,
                                         _subtask_meta,

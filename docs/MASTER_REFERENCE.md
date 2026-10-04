@@ -57,6 +57,23 @@
 
 
 
+
+---
+
+## § Последние изменения (2026-10-05 v149.21) — деградация конвейера экспертов: 4 корня ✅
+
+**Симптомы за сутки:** Trust Gate REJECTED (local_fallback), uuid UnboundLocalError на handoff, DNA SQL invalid input, качества ответов просели.
+
+**Корни (все закрыты):**
+1. **uuid-тенение** (`expert_worker.py`): локальный `import uuid` в ветке 1322 делает имя локальным для ВСЕЙ 1000-строчной `process_task` — на ветке handoff (1721) `uuid.UUID()` падал UnboundLocalError → swarm-подзадачи не создавались. Фикс: `_uuid_mod` (уже импортирован в том же блоке).
+2. **MLX-GATE отсутствовал в local_router** (v149.6 чинил только victoria_server): экспертные вызовы с qwen38/coder уходили на прокси 11435 и молча обслуживались старой wisdom → слабые ответы → Trust Gate резал. Фикс: гейт в route-цикле (`continue` на не-MLX модели), подтверждён.
+3. **DNA SQL**: asyncpg ждёт str для jsonb — dict ронял `INSERT INTO knowledge_nodes` (antifragile-ноты не писались). Фикс: `json.dumps` + `$2::jsonb`.
+4. **(из v149.20) TypeError len(None)** — тот же конвейер.
+
+**Ложные тревоги разобраны:** MODEL_SUBSTITUTION на tinyllama — штатно (лёгкая модель не на прокси, заменена дефолтом на 0.58с); 500 «No response returned» — разовый (после рестартов воркеров), повтор стабилен.
+
+**Верификация:** HNSW-запрос через /run: async→completed, по теме; воркеры здоровы, гейт в логах.
+
 ---
 
 ## § Последние изменения (2026-10-04 v149.18) — живая битва «сейчас», прогрев в ранере, single-pass nightly ✅

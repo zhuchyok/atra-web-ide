@@ -222,15 +222,18 @@ class CodebaseMutationEngine:
                         await conn.execute(
                             """
                             INSERT INTO knowledge_nodes (content, metadata)
-                            VALUES ($1, $2)
+                            VALUES ($1, $2::jsonb)
                         """,
                             f"Antifragile Note: {error_msg[:100]}",
-                            {
-                                "type": "antifragile_note",
-                                "department": department,
-                                "original_expert": expert_name,
-                                "antibody": antibody,
-                            },
+                            # [v149.21] asyncpg ждёт str для jsonb — dict ронял вставку
+                            json.dumps(
+                                {
+                                    "type": "antifragile_note",
+                                    "department": department,
+                                    "original_expert": expert_name,
+                                    "antibody": antibody,
+                                }
+                            ),
                         )
 
                     # Get current override

@@ -1806,6 +1806,28 @@ class LocalAIRouter:
             logger.info(
                 f"🎯 [SMART SELECTION] Узел: {node['name']} | Модель: {model} | Тип задачи: {category or 'auto'}"
             )
+
+            # [v149.21] Гейт деградации v149.x: MLX-прокси обслуживает только свой
+            # список моделей; неизвестные он МОЛЧА подменяет дефолтом (old wisdom).
+            # Экспертные вызовы с qwen38/coder на 11435 тихо деградировали.
+            if is_mlx:
+                _mlx_served = any(
+                    m in (model or "").lower()
+                    for m in (
+                        "phi3.5", "phi3:mini", "qwen2.5:3b", "qwen_3b", "tinyllama",
+                        "wisdom-v3.5", "wisdom-24k", "fast", "tiny", "default",
+                        "reasoning", "coding", "code",
+                    )
+                )
+                if not _mlx_served:
+                    logger.info(
+                        "🚦 [MLX-GATE] %s не обслуживается прокси 11435 — узел пропущен (Ollama)"
+                        ", model=%s",
+                        model,
+                        node.get("name"),
+                    )
+                    continue
+
             if is_ollama and _skip_as_ollama_hands(model):
                 logger.info(
                     "⚡ [WISDOM-TAP] skip Ollama node %s for %s (мозг в MLX / тяжёлая не для 11434)",
