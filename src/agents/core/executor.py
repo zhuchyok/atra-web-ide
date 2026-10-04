@@ -621,7 +621,15 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
         }
 
         # Адаптивный keep_alive на основе веса модели (Singularity 10.0)
+        # [v149.19] Единая политика — источник истины (мозг qwen38 бессмертен там);
+        # дублирующая таблица ниже остаётся только как fallback, если политика
+        # недоступна (разные контексты импорта).
         def get_smart_keep_alive(m_name: str) -> Any:
+            try:
+                from ollama_keep_alive_policy import get_keep_alive as _policy_keep_alive
+                return _policy_keep_alive(m_name)
+            except Exception:
+                pass
             raw = os.getenv("VICTORIA_OLLAMA_KEEP_ALIVE") or os.getenv("OLLAMA_KEEP_ALIVE")
             if raw:
                 try:

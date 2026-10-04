@@ -20,6 +20,11 @@ _last_mlx_failure_time: float = 0
 # victoria-wisdom*: при живом MLX → keep_alive=0 (мозг на 11435, не держать дубль на 11434).
 # Immortal в Ollama только если MLX упал (fallback-мозг).
 IMMORTAL_MODELS = {
+    # [v149.19] Мозг-контракт v149.4: qwen38 — БЕССМЕРТНАЯ на 11434 (128GB хоста,
+    # свободно 66-82%; загрузка 30GB = 5 мин простоя на каждый холодный вызов).
+    # Выгрузка по RAM-аварии всё равно сработает раньше (гвард в keep-alive ветке 5).
+    "victoria-qwen38",
+    "victoria-qwen38:latest",
     "nomic-embed-text",
     "moondream",
     "tinyllama",
