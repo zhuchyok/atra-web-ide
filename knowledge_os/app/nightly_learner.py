@@ -612,19 +612,17 @@ async def main_loop() -> None:
 
 
 if __name__ == "__main__":
-    # [v149.16] Дедуп: learner запускается И контейнером (цикл), И cron-ом в 03:00 —
-    # двойной прогон жёг токены. Второй запуск за 4ч молча выходит.
+    # [v149.18] Два режима: контейнер крутит цикл (NIGHTLY_LOOP=1), cron-вызов в 03:00
+    # делает ОДИН проход (раньше docker exec стартовал вечный цикл внутри
+    # victoria-agent — накопление петель каждую ночь).
     import os as _os
-    import time as _time
 
-    _lock = "/tmp/nightly_learner.lock"
-    try:
-        if _os.path.exists(_lock) and _time.time() - _os.path.getmtime(_lock) < 4 * 3600:
-            print("[nightly-learner] дубль (<4ч) — выход")
-            raise SystemExit(0)
-        open(_lock, "w").close()
-    except SystemExit:
-        raise
-    except Exception:
-        pass
-    asyncio.run(main_loop())
+    # Дефолт "0" (single-pass): cron-вызовы docker exec без -e получают один проход.
+    # Контейнеру цикл прописан явно (NIGHTLY_LOOP=1 в compose).
+    if _os.getenv("NIGHTLY_LOOP", "0") == "1":
+        asyncio.run(main_loop())
+    else:
+        print("[nightly-learner] single-pass режим (NIGHTLY_LOOP=0)")
+        asyncio.run(run_nightly_cycle())
+        # DNA-петля непрерывного режима не нужна одиночному прогону
+        print("[nightly-learner] single-pass завершён")

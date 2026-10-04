@@ -195,6 +195,35 @@ def main():
         print("Нет вопросов для прогона.")
         return 1
 
+    # [v149.18] Прогрев мозга ДО раундов: холодная загрузка 30GB (~5 мин) съедала
+    # POLL_TIMEOUT первого раунда → error. Ждём до 8 мин, потом стартуем.
+    def _warm_brain() -> None:
+        import urllib.request, time as _t
+        model = JUDGE_MODEL  # та же qwen38, что мозг и судья
+        deadline = _t.time() + 480
+        print("[warmup] грею", model, flush=True)
+        while _t.time() < deadline:
+            try:
+                with urllib.request.urlopen(os.getenv("OLLAMA_BASE_URL", "http://localhost:11434") + "/api/ps", timeout=5) as r:
+                    if model in r.read().decode():
+                        print("[warmup] готова", flush=True)
+                        return
+            except Exception:
+                pass
+            try:
+                req = urllib.request.Request(
+                    os.getenv("OLLAMA_BASE_URL", "http://localhost:11434") + "/api/generate",
+                    data=json.dumps({"model": model, "prompt": "ok", "stream": False, "keep_alive": "12h"}).encode(),
+                    headers={"Content-Type": "application/json"},
+                )
+                urllib.request.urlopen(req, timeout=60)
+            except Exception:
+                pass
+            _t.sleep(15)
+        print("[warmup] не дождались — стартуем как есть", flush=True)
+
+    _warm_brain()
+
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     out_path = os.path.join(ROOT, "configs/evals/results", f"battle_{ts}.json")
     results, wins = [], {"A": 0, "B": 0, "tie": 0, "error": 0}

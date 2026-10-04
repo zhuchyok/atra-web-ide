@@ -34,7 +34,7 @@ x-dynamic-worker-defaults: &dynamic-worker-defaults
     context: ..
     dockerfile: infrastructure/docker/agents/Dockerfile
   restart: unless-stopped
-  mem_limit: 2g
+  mem_limit: 3g
   networks:
     - atra-network
   healthcheck:
@@ -695,6 +695,7 @@ services:
       timeout: 10s
       retries: 3
     environment:
+      NIGHTLY_LOOP: "1"
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
