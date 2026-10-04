@@ -2331,14 +2331,23 @@ class VictoriaAgent(BaseAgent):
                                COALESCE(kn.usage_count, 0) AS usage_count
                         FROM knowledge_nodes kn
                         WHERE kn.embedding IS NOT NULL AND kn.confidence_score >= 0.3
-                        ORDER BY (kn.embedding <=> $1::vector) * (CASE WHEN metadata->>'low_priority' = 'true' THEN 2.0 ELSE 1.0 END),
-                                 kn.usage_count DESC NULLS LAST
+                        -- [v149.16] Только индексный ORDER BY: умножение на CASE отключало
+                        -- HNSW-индекс → seq scan 100k векторов → TimeoutError у RAG.
+                        -- Штраф low_priority применяется в Python при реранке (ниже).
+                        ORDER BY kn.embedding <=> $1::vector
                         LIMIT $2
                     """,
                         str(embedding),
                         fetch_limit,
                     )
                     if rows:
+                        # [v149.16] low_priority-штраф здесь, а не в SQL (индекс важнее)
+                        for _r in rows:
+                            try:
+                                if (_r.get("metadata") or {}).get("low_priority") == "true":
+                                    _r["similarity"] = float(_r["similarity"]) * 0.5
+                            except Exception:
+                                pass
                         if rerank_enabled and len(rows) > limit:
                             # Реранкинг по флагу: бонус за оптимальную длину контента, топ limit
                             def _rerank_score(r):
@@ -2387,7 +2396,7 @@ class VictoriaAgent(BaseAgent):
                         await _rag_cache_set(rag_cache_key, context, ttl_sec)
                     return context
         except Exception as e:
-            logger.warning(f"Ошибка поиска знаний: {e}")
+            logger.warning("Ошибка поиска знаний: %s: %r", type(e).__name__, e)  # [v149.16] пустые ошибки замалчивали причину
         return ""
 
     def _categorize_task(self, goal: str) -> str:

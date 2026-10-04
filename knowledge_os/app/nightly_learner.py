@@ -612,4 +612,19 @@ async def main_loop() -> None:
 
 
 if __name__ == "__main__":
+    # [v149.16] Дедуп: learner запускается И контейнером (цикл), И cron-ом в 03:00 —
+    # двойной прогон жёг токены. Второй запуск за 4ч молча выходит.
+    import os as _os
+    import time as _time
+
+    _lock = "/tmp/nightly_learner.lock"
+    try:
+        if _os.path.exists(_lock) and _time.time() - _os.path.getmtime(_lock) < 4 * 3600:
+            print("[nightly-learner] дубль (<4ч) — выход")
+            raise SystemExit(0)
+        open(_lock, "w").close()
+    except SystemExit:
+        raise
+    except Exception:
+        pass
     asyncio.run(main_loop())
