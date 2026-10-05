@@ -64,7 +64,10 @@ MLX_BEST_FIRST: List[str] = [
 _OLLAMA_LIGHT_HANDS = ["phi3.5:3.8b", "gemma3n:e4b", "tinyllama:1.1b-chat"]
 OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
     "fast": ["phi3.5:3.8b", "tinyllama:1.1b-chat", "gemma3n:e4b", "lfm2.5-thinking:1.2b"],
+    # [v149.23] Мозг-контракт v149.4: qwen38 первый для умственных категорий
+    # (phi3.5-руки отдавали мусор на Q&A — контроль 05.10)
     "default": [
+        "victoria-qwen38:latest",
         "victoria-wisdom-24k:latest",
         "victoria-wisdom-24k",
         "victoria-wisdom-v3.5:latest",
@@ -72,6 +75,7 @@ OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
         *_OLLAMA_LIGHT_HANDS,
     ],
     "general": [
+        "victoria-qwen38:latest",
         "victoria-wisdom-24k:latest",
         "victoria-wisdom-24k",
         "victoria-wisdom-v3.5:latest",
@@ -79,25 +83,25 @@ OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
         *_OLLAMA_LIGHT_HANDS,
     ],
     "coding": [
+        "victoria-qwen38:latest",
+        "qwen3-coder:30b",
         "victoria-wisdom-24k:latest",
         "victoria-wisdom-24k",
         "victoria-wisdom-v3.5:latest",
         "victoria-wisdom-v3.5",
         "qwen3.5:35b",
-        "qwen3-coder:30b",
         *_OLLAMA_LIGHT_HANDS,
     ],
     "reasoning": [
+        "victoria-qwen38:latest",
         "victoria-wisdom-24k:latest",
         "victoria-wisdom-24k",
         "victoria-wisdom-v3.5:latest",
         "victoria-wisdom-v3.5",
-        "deepseek-r1:32b",
-        "qwq:32b",
-        "qwen3.5:35b",
         *_OLLAMA_LIGHT_HANDS,
     ],
     "complex": [
+        "victoria-qwen38:latest",
         "victoria-wisdom-24k:latest",
         "victoria-wisdom-24k",
         "victoria-wisdom-v3.5:latest",
@@ -109,7 +113,7 @@ OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
     ],
     "vision": ["moondream:latest", "minicpm-v:latest"],
     "thinking": ["lfm2.5-thinking:1.2b", "tinyllama:1.1b-chat", "phi3.5:3.8b"],
-    "vip": ["victoria-wisdom-24k:latest", "victoria-wisdom-24k", *_OLLAMA_LIGHT_HANDS],
+    "vip": ["victoria-qwen38:latest", "victoria-wisdom-24k:latest", "victoria-wisdom-24k", *_OLLAMA_LIGHT_HANDS],
     "fallback": ["deepseek-r1:32b", "qwq:32b", "glm-4.7-flash:latest", *_OLLAMA_LIGHT_HANDS],
 }
 

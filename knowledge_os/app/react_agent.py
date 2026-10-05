@@ -984,6 +984,27 @@ class ReActAgent:
 
         # TODO: Convert f-string to %s formatting for performance
         logger.warning(f"⚠️ Не удалось распарсить действие из ответа: {response_clean[:200]}...")
+
+        # [v149.23] Если ответ — валидный JSON c action-полем, модель вернула служебный
+        # ReAct-контракт вместо ответа пользователю. Не пишем «Ошибка парсинга…» как
+        # результат: достаём человекочитаемый content, если он есть.
+        try:
+            import json as _json
+
+            _rd = _json.loads(response_clean)
+            if isinstance(_rd, dict) and "action" in _rd:
+                _inp = _rd.get("input") or {}
+                _content = (
+                    _inp.get("content")
+                    or _inp.get("text")
+                    or _inp.get("output")
+                    or (str(_inp)[:800] if _inp else "")
+                )
+                if isinstance(_content, str) and len(_content.strip()) >= 20:
+                    logger.info("✅ [PARSE-FALLBACK] Извлечён content из action-JSON")
+                    return "finish", {"output": _content.strip()}
+        except Exception:
+            pass
         return "finish", {"output": f"Ошибка парсинга ответа модели. Ответ: {response_clean[:500]}"}
 
     async def _execute_action(self, action: str, action_input: Dict) -> Any:
