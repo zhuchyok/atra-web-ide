@@ -586,6 +586,11 @@ services:
       ENABLE_METRICS: "true"
       METRICS_PORT: "8002"
       DOCKER_HOST: "tcp://docker-proxy:2376"
+      # [v149.22] Спасатель убивал РАБОТАЮЩИЕ экспертные задачи: после v149.x вызовы
+      # qwen38 легитимно 2-5 мин (MLX-гейт→Ollama), пайплайны паузят >10 мин → 288 сбросов 04.10
+      SMART_WORKER_LLM_STUCK_MINUTES: ${SMART_WORKER_LLM_STUCK_MINUTES:-25}
+      SMART_WORKER_STUCK_MINUTES: ${SMART_WORKER_STUCK_MINUTES:-30}
+      SMART_WORKER_BACKLOG_LLM_STUCK_MINUTES: ${SMART_WORKER_BACKLOG_LLM_STUCK_MINUTES:-25}
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - redis_data:/data/redis

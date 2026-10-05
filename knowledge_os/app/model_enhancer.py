@@ -360,8 +360,10 @@ class EnhancedRAGEngine:
                                 * (1.0 + LEAST(COALESCE(usage_count, 0) / 100.0, 0.2))) as relevance_score
                         FROM knowledge_nodes
                         WHERE is_verified = TRUE AND confidence_score >= $1
-                        AND (content ILIKE ANY($2)
-                            OR metadata::text ILIKE ANY($2))
+                        -- [v149.22] metadata::text ILIKE ломал план: seq scan 100k узлов
+                        # (7+ мин, LWLock-конкуренция воркеров) — главный корень деградации
+                        # экспертного конвейера. GIN trgm по content работает через ILIKE.
+                        AND content ILIKE ANY($2)
                         ORDER BY relevance_score DESC
                         LIMIT $3
                     """,

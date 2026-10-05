@@ -89,7 +89,7 @@ class AntiHallucinationSystem:
                     AND confidence_score >= 0.8
                     AND (
                         content ILIKE ANY(ARRAY[SELECT '%' || keyword || '%' FROM unnest(string_to_array($1, '|')) AS keyword])
-                        OR metadata::text ILIKE ANY(ARRAY[SELECT '%' || keyword || '%' FROM unnest(string_to_array($1, '|')) AS keyword])
+                        -- [v149.22] metadata::text ILIKE = seq scan 100k (см. model_enhancer)
                     )
                     ORDER BY confidence_score DESC, usage_count DESC
                     LIMIT $2
