@@ -2176,8 +2176,14 @@ Use HANDOFF only if delegation genuinely improves the result.
             # TODO: Convert f-string to %s formatting for performance
             logger.info(f"🐉 [MONSTER] Подмешан скелет файла {file_path} для экономии памяти")
             # Обрезаем основной промпт, если там был весь файл
+            # [v149.23] Обрезка до 1000 символов вырезала ВОПРОС (он в хвосте,
+            # после персоны-6k) → модель отвечала «опишите задачу». Сохраняем хвост.
             if len(prompt) > 5000:
-                prompt = prompt[:1000] + "... [весь файл заменен скелетом для стабильности] ..."
+                prompt = (
+                    prompt[:1000]
+                    + "... [средняя часть промпта заменена скелетом для стабильности] ...\n"
+                    + prompt[-2500:]
+                )
         except Exception as fe:
             # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"⚠️ [MONSTER] Ошибка создания скелета: {fe}")
