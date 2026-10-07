@@ -58,6 +58,22 @@ def notify_telegram(message: str) -> None:
 
 
 
+_validate_reply_code = r"""
+(see below)
+"""
+
+def _validate_reply(reply: str, customer_text: str) -> tuple:
+    """Проверка ответа на галлюцинации."""
+    import re as _re
+    # телефон: только официальный
+    phones = _re.findall(r"[\d\-()\s]{10,}", reply)
+    for ph in phones:
+        clean = _re.sub(r"[^0-9]", "", ph)
+        if len(clean) >= 10 and "8352384020" not in clean:
+            return False, "чужой телефон"
+    return True, ""
+
+
 def send_reply(token: str, chat_id: str, text: str) -> bool:
     """Отправить ответ в чат через Avito Messenger API."""
     hdrs = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
@@ -133,11 +149,43 @@ def main() -> int:
         except Exception as e:
             print(f"ntfy ERR: {e}")
 
-        # автоответ клиенту
+        # автоответ клиенту через Татьяну (qwen38 + промт авитолога)
         if customer_text:
-            reply = f"Здравствуйте! Спасибо за обращение по «{item_title[:40]}». Мы на рынке с 2009 года, гарантия 5 лет. Напишите размеры — посчитаем точную цену. Или позвоните: +7 (8352) 38-40-20."
-            if send_reply(token, chat_id, reply):
-                print(f"  ✅ Автоответ отправлен")
+            # загрузить промт Татьяны
+            prompt_path = REPO / "docs" / "AVITO_TATYANA_PROMPT.md"
+            tatyana_prompt = prompt_path.read_text()[:4000] if prompt_path.exists() else ""
+
+            anti_rules = "СТРОЙКА АНТИ-ВЫДУМКИ:\\n- Цены только из раздела Акции\\n- Сроки только из правил\\n- Не выдумывай услуги и телефоны\\n- Если не знаешь — передай расчётному отделу\\n- Телефон: +7 (8352) 38-40-20"
+            sys_prompt = "Ты — Татьяна, специалист по остеклению. Отвечай коротко (2-3 предложения), тепло и профессиональly." + "\n\n" + tatyana_prompt[:3000] + "\n\n" + anti_rules.replace("\\n", "\n")
+            messages_payload = json.dumps({
+                "model": "victoria-qwen38:latest",
+                "messages": [
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": f"Клиент написал по объявлению «{item_title}»: {customer_text}. Ответь как Татьяна."}
+                ],
+                "stream": False,
+                "options": {"temperature": 0.4, "num_predict": 300}
+            }).encode()
+            llm_req = urllib.request.Request(
+                "http://localhost:11434/api/chat", data=messages_payload,
+                headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(llm_req, timeout=120) as r:
+                reply = json.loads(r.read())["message"]["content"].strip()
+                import re as _re
+                reply = _re.sub(r"<think>[\s\S]*?</think>", "", reply).strip()
+
+            ok, reason = _validate_reply(reply)
+            if ok:
+                if send_reply(token, chat_id, reply):
+                    print(f"  ✅ Автоответ Татьяны отправлен")
+                else:
+                    print(f"  ❌ Отправка не удалась")
+            else:
+                print(f"  ⛔ Блокировано: {reason}")
+                fallback = "Здравствуйте! Спасибо за обращение. Я передал ваш запрос расчётному отделу — они свяжутся с вами с точным расчётом. Или позвоните: +7 (8352) 38-40-20."
+                send_reply(token, chat_id, fallback)
+                print(f"  🛡️ Fallback отправлен")
 
         # Telegram (если доступен)
         try:
