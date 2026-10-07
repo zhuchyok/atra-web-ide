@@ -261,7 +261,7 @@ async def _try_ollama(prompt: str, *, model_hint: Optional[str]) -> tuple[str, s
                             attempt,
                             max_retries,
                         )
-                        await asyncio.sleep(min(busy_sleep, max(0.5, deadline - time.monotonic())))
+                        await asyncio.sleep(min(busy_sleep * (2 ** (attempt - 1)), max(0.5, deadline - time.monotonic())))  # [v149.28] экспоненциальный бэкофф: 8/16/32/64с вместо долбёжки 8с
                         continue
                     if resp.status_code != 200:
                         logger.warning(
@@ -285,7 +285,7 @@ async def _try_ollama(prompt: str, *, model_hint: Optional[str]) -> tuple[str, s
                         attempt,
                         e,
                     )
-                    await asyncio.sleep(min(busy_sleep, max(0.5, deadline - time.monotonic())))
+                    await asyncio.sleep(min(busy_sleep * (2 ** (attempt - 1)), max(0.5, deadline - time.monotonic())))  # [v149.28] экспоненциальный бэкофф: 8/16/32/64с вместо долбёжки 8с
     if saw_busy:
         return "", "ollama_busy"
     return "", "unavailable"
