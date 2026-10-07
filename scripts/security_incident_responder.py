@@ -16,6 +16,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import urllib.request
+
 import psycopg2
 
 STATE_PATH = Path(__file__).resolve().parent.parent / "logs" / "security_responder_state.json"
@@ -58,6 +60,22 @@ def save_state(state: dict) -> None:
 def log_alert(line: str) -> None:
     ALERT_LOG.parent.mkdir(parents=True, exist_ok=True)
     ALERT_LOG.open("a").write(line + "\n")
+
+
+
+
+def _notify_ntfy(message: str) -> None:
+    """Push через ntfy (основной канал — Telegram-маршрут с Mac блокирует провайдер)."""
+    try:
+        topic = os.environ.get("NTFY_TOPIC", "atra_victoria_curator")
+        data = json.dumps({"topic": topic, "message": message[:3500]}).encode()
+        req = urllib.request.Request(
+            "https://ntfy.sh/" + topic, data=data,
+            headers={"Content-Type": "application/json", "Title": "ATRA"},
+        )
+        urllib.request.urlopen(req, timeout=15)
+    except Exception as e:
+        print("ntfy error:", e)
 
 
 def notify_telegram(text: str) -> None:
@@ -135,6 +153,36 @@ def create_response_task(incident: dict) -> bool:
         conn.close()
 
 
+def create_response_task_consolidated(incidents: list, top_types: str) -> bool:
+    """Одна сводная задача на партию инцидентов (анти-спам)."""
+    sample_ids = ", ".join("#" + i["id"] for i in incidents[:5])
+    conn = psycopg2.connect(DB_DSN)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO tasks (title, description, status, priority, metadata, project_context)
+                VALUES (%s, %s, 'pending', 'high', %s, 'atra-web-ide')
+                """,
+                (
+                    f"🛡️ Security: {len(incidents)} инцидентов ({top_types[:80]})",
+                    (
+                        f"Период: последние {LOOKBACK_HOURS}ч. Инциденты: {sample_ids}.\n"
+                        "Требуется: групповой анализ кампании атак (источники, паттерны), "
+                        "усиление фильтров, отчёт с мерами."
+                    ),
+                    json.dumps({"source": "security_responder", "consolidated": True}),
+                ),
+            )
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"DB error: {e}")
+        return False
+    finally:
+        conn.close()
+
+
 def main() -> int:
     _load_dotenv()
     state = load_state()
@@ -156,27 +204,32 @@ def main() -> int:
         print("Новых high/critical инцидентов нет.")
         return 0
 
-    created = 0
+    # Консолидация: одна сводная задача на запуск (200+ инцидентов/день = спам задач недопустим)
+    types_summary = {}
     for incident in fresh:
-        if create_response_task(incident):
-            created += 1
-            state["processed"].append(incident["id"])
-            log_alert(
-                f"[{datetime.now(timezone.utc).isoformat()}] {incident['severity'].upper()} "
-                f"{incident['anomaly_type']} #{incident['id']} @ {incident['detected_at']} — "
-                f"создана задача на разбор"
-            )
-            print(f"🛡️ Реакция: {incident['anomaly_type']} ({incident['severity']}) — задача создана")
-            notify_telegram(
-                f"🛡️ ATRA Security [{incident['severity'].upper()}]\n"
-                f"{incident['anomaly_type']} #{incident['id']} @ {incident['detected_at']}\n"
-                f"Создана задача на разбор (высокий приоритет)."
-            )
-        else:
-            print(f"⚠️ Не удалось создать задачу для #{incident['id']} — повторится при следующем запуске")
+        types_summary[incident["anomaly_type"]] = types_summary.get(incident["anomaly_type"], 0) + 1
+    top_types = "; ".join(f"{t} x{n}" for t, n in sorted(types_summary.items(), key=lambda x: -x[1]))
+    sample_ids = ", ".join("#" + i["id"] for i in fresh[:5])
 
-    save_state(state)
-    print(f"Итог: новых инцидентов {len(fresh)}, задач создано {created}")
+    if create_response_task_consolidated(fresh, top_types):
+        for incident in fresh:
+            state["processed"].append(incident["id"])
+        log_alert(
+            f"[{datetime.now(timezone.utc).isoformat()}] Консолидировано {len(fresh)} инцидентов "
+            f"({top_types}) — сводная задача создана"
+        )
+        _notify_ntfy(
+            f"🛡️ ATRA Security: {len(fresh)} инцидентов ({top_types}). "
+            f"Создана сводная задача на разбор."
+        )
+        notify_telegram(
+            f"🛡️ ATRA Security: {len(fresh)} инцидентов ({top_types}) — сводная задача создана."
+        )
+        save_state(state)
+        print(f"🛡️ Сводная задача создана ({len(fresh)} инцидентов)")
+    else:
+        # не помечаем processed — повторится при следующем запуске
+        print("⚠️ Не удалось создать сводную задачу — повторится при следующем запуске")
     return 0
 
 

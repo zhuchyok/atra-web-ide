@@ -12,6 +12,10 @@ FILE="$BACKUP_DIR/knowledge_os_$STAMP.sql.gz"
 mkdir -p "$BACKUP_DIR"
 source "$ROOT/.env" 2>/dev/null
 
+ntfy_alert() {
+  curl -s -m 10 -H "Title: ATRA DB" -d "$1" https://ntfy.sh/atra_victoria_curator > /dev/null
+}
+
 if docker exec knowledge_postgres pg_dump -U admin knowledge_os | gzip > "$FILE"; then
     SIZE=$(du -h "$FILE" | cut -f1)
     # проверяем, что дамп не пустой и читается
@@ -20,7 +24,8 @@ if docker exec knowledge_postgres pg_dump -U admin knowledge_os | gzip > "$FILE"
         curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
             -d "chat_id=$TELEGRAM_USER_ID" \
             --data-urlencode "text=🧯 ATRA: бэкап БД подозрительно мал ($SIZE) — проверь knowledge_postgres" > /dev/null
-        exit 1
+        ntfy_alert "🧯 ATRA: проблема с бэкапом БД — см. logs/db_backup.log"
+exit 1
     fi
     # ротация: оставить последние KEEP
     ls -t "$BACKUP_DIR"/knowledge_os_*.sql.gz 2>/dev/null | tail -n +$((KEEP + 1)) | xargs rm -f 2>/dev/null

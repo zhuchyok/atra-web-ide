@@ -25,4 +25,5 @@ if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_USER_ID" ]; then
         --data-urlencode "text=🧯 ATRA: провален smoke-тест дашборда (8501)
 $FAILURES" > /dev/null
 fi
+ntfy_alert "🧯 ATRA: провален smoke-тест дашборда (8501) — детали в logs/dashboard_smoke_last.log"
 exit 1

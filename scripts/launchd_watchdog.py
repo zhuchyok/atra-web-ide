@@ -79,6 +79,22 @@ def save_state(state: dict) -> None:
     STATE_PATH.write_text(json.dumps(state, ensure_ascii=False, indent=1))
 
 
+
+
+def _notify_ntfy(message: str) -> None:
+    """Push через ntfy (основной канал — Telegram-маршрут с Mac блокирует провайдер)."""
+    try:
+        topic = os.environ.get("NTFY_TOPIC", "atra_victoria_curator")
+        data = json.dumps({"topic": topic, "message": message[:3500]}).encode()
+        req = urllib.request.Request(
+            "https://ntfy.sh/" + topic, data=data,
+            headers={"Content-Type": "application/json", "Title": "ATRA"},
+        )
+        urllib.request.urlopen(req, timeout=15)
+    except Exception as e:
+        print("ntfy error:", e)
+
+
 def notify(text: str) -> None:
     token, chat_id = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_USER_ID")
     if not token or not chat_id:
