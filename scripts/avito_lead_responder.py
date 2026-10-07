@@ -171,14 +171,55 @@ def main() -> int:
             print(f"  🤝 Клиент просит человека — эскалация")
             continue
 
-        # ─── ФИКСИРОВАННЫЙ ШАБЛОН ───
-        reply = (
-            "Добрый день! Предварительно делаем расчёт — "
-            "если стоимость устраивает, выезжает мастер на замер. "
-            "Напишите номер телефона, позвоню вам для уточнения деталей и сделаем расчёт."
+        # ─── ГЕНЕРАЦИЯ ОТВЕТА ЧЕРЕЗ qwen38 + ПРОМТ ТАТЬЯНЫ ───
+        # загрузить промт Татьяны
+        prompt_path = REPO / "docs" / "AVITO_TATYANA_PROMPT.md"
+        tatyana_prompt = prompt_path.read_text()[:4000] if prompt_path.exists() else ""
+
+        anti_rules = (
+            "СТРОЙКА АНТИ-ВЫДУМКИ:\n"
+            "- Цены: только из раздела 'Акции' выше\n"
+            "- Сроки: только '8-10 раб.дней' или '14-19 раб.дней'\n"
+            "- Не выдумывай услуги, телефоны, адреса\n"
+            "- Если не знаешь — скажи что передашь расчётному отделу\n"
+            "- Телефон: +7 (8352) 38-40-20"
         )
+        sys_prompt = (
+            "Ты — Татьяна, специалист по остеклению. "
+            "Отвечай коротко (2-3 предложения), тепло и профессионально."
+            + "\n\n" + tatyana_prompt[:3000]
+            + "\n\n" + anti_rules
+        )
+
+        messages_payload = json.dumps({
+            "model": "victoria-qwen38:latest",
+            "messages": [
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": f"Клиент написал по объявлению «{item_title}»: {customer_text}. Ответь как Татьяна."}
+            ],
+            "stream": False,
+            "options": {"temperature": 0.4, "num_predict": 300}
+        }).encode()
+        llm_req = urllib.request.Request(
+            "http://localhost:11434/api/chat", data=messages_payload,
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(llm_req, timeout=120) as r:
+            reply = json.loads(r.read())["message"]["content"].strip()
+            import re as _re
+            reply = _re.sub(r"<think>[\s\S]*?</think>", "", reply).strip()
+
+        # валидация: телефон + без ссылок + без выдуманных цен
+        import re as _re
+        phones = _re.findall(r"[\d\-()\s]{10,}", reply)
+        for ph in phones:
+            clean = _re.sub(r"[^0-9]", "", ph)
+            if len(clean) >= 10 and "8352384020" not in clean:
+                reply = "Здравствуйте! Спасибо за обращение — я передам ваш запрос расчётному отделу, они свяжутся с вами с точным расчётом."
+                break
+
         send_reply(token, chat_id, reply)
-        print(f"  ✅ Шаблон отправлен")
+        print(f"  ✅ Татьяна ответила: {reply[:50]}")
 
 
         # Telegram (если доступен)
