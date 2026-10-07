@@ -194,6 +194,8 @@ services:
       # v147: второй RAG («ЗНАНИЯ ОТ КОЛЛЕГ») отключён — двойная доза шума; главный контур остаётся
       FORCE_PROACTIVE_RAG: "false"
       KNOWLEDGE_CONTEXT_MAX_CHARS: "4000"
+      # [v149.29] Простые категории (fast/general) — brainstorm в 1 фазу вместо 4
+      BRAINSTORM_AUTO_FAST: "true"
       OLLAMA_EMBED_TIMEOUT_SEC: "8"
       OLLAMA_EMBED_MAX_RETRIES: "2"
       MLX_BASE_URL: http://host.docker.internal:11435

@@ -67,7 +67,12 @@ class CollectiveBrainstorming:
         }
         self.per_call_timeout = float(os.getenv("BRAINSTORM_EXPERT_TIMEOUT_SEC", "90"))
         # Quality-local: full phases by default; set BRAINSTORM_FAST=true for UI smoke.
+        # [v149.29] Авто-fast для простых задач: BRAINSTORM_AUTO_FAST=true включает
+        # fast-режим (1 фаза вместо 4) для категорий fast/general — половина цикла.
         self.fast_mode = os.getenv("BRAINSTORM_FAST", "false").lower() in ("1", "true", "yes")
+        if not self.fast_mode and os.getenv("BRAINSTORM_AUTO_FAST", "false").lower() in ("1", "true", "yes"):
+            self.fast_mode = True
+            logger.info("⚡ [BRAINSTORMING] AUTO_FAST: простая задача — 1 фаза")
 
     async def run_session(self) -> Dict[str, Any]:
         """Runs the brainstorming cycle and returns API-compatible payload."""
