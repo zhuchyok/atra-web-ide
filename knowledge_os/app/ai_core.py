@@ -1633,6 +1633,10 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
             full_context += "\n" + visual_context
 
         max_chars = int(os.getenv("KNOWLEDGE_CONTEXT_MAX_CHARS", "4000"))
+        # [v149.31] Короткий вопрос не должен тонуть в контексте: <300 симв вопроса
+        # -> контекст не больше 1500 (RAG-шум глушит Q&A, ответ уезжал в сторону).
+        if len(prompt) < 300:
+            max_chars = min(max_chars, int(os.getenv("KNOWLEDGE_CONTEXT_MAX_CHARS_SHORT", "1500")))
         if len(full_context) > max_chars:
             cut = full_context.rfind("\n[NODE:", 0, max_chars)
             if cut < 500:  # граница узла не найдена в допустимой зоне

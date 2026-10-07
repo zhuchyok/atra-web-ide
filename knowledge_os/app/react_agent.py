@@ -1018,6 +1018,11 @@ class ReActAgent:
                 return "finish", {"output": _human}
         except Exception:
             pass
+        # [v149.32] Ответ — обычный текст (не JSON-действие)? Это валидный ответ:
+        # не заворачиваем в «Ошибка парсинга», отдаём как есть.
+        if not response_clean.lstrip().startswith(("{", "```")) and len(response_clean) >= 20:
+            logger.info("✅ [PARSE] Ответ — чистый текст без JSON: отдаём как есть")
+            return "finish", {"output": response_clean}
         return "finish", {"output": f"Ошибка парсинга ответа модели. Ответ: {response_clean[:500]}"}
 
     async def _execute_action(self, action: str, action_input: Dict) -> Any:
