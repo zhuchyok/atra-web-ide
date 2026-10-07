@@ -2,6 +2,10 @@
 # [v149.19] Целостность исходников: порча .py в системных путях → мгновенный откат из git + алерт.
 # (SOURCE_GUARD ловит записи через write_file/execution, но не прямой open() из LLM-контента.)
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+
+# [v149.34] MAINTENANCE MODE: при ручных операциях с инфраструктурой все
+# автоматические акторы молчат (файл-флаг ставит scripts/maintenance.sh).
+if [ -f /tmp/atra_maintenance_mode ]; then echo "$(date '+%F %T') maintenance mode — skip"; exit 0; fi
 cd /Users/bikos/Documents/atra-web-ide || exit 1
 PROTECTED="knowledge_os/app/ai_core.py knowledge_os/app/local_router.py src/agents/core/base_agent.py src/agents/core/executor.py src/agents/bridge/victoria_server.py knowledge_os/app/victoria_morning_report.py knowledge_os/app/ollama_keep_alive_policy.py knowledge_os/app/semantic_cache.py knowledge_os/app/nightly_learner.py"
 DIRTY=""

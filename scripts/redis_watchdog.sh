@@ -2,6 +2,10 @@
 # [v149.25] Redis-сторож: смерть Redis (OOM-137) стояла весь конвейер 20ч молча.
 # Проверка изнутри оркестратора (тот же путь, что у диспетчера) + автоподъём + ntfy.
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+
+# [v149.34] MAINTENANCE MODE: при ручных операциях с инфраструктурой все
+# автоматические акторы молчат (файл-флаг ставит scripts/maintenance.sh).
+if [ -f /tmp/atra_maintenance_mode ]; then echo "$(date '+%F %T') maintenance mode — skip"; exit 0; fi
 R=$(docker exec knowledge_os_orchestrator python3 -c "
 import socket
 s = socket.socket(socket.AF_UNIX)

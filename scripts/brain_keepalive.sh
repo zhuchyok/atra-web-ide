@@ -3,6 +3,10 @@
 #  - грузим только если свободной RAM ≥ 40% (загрузка 29GB под давлением = segfault всего сервера)
 #  - после неудачи: бэкофф 30 мин + kickstart ollama (сегфолт отравляет очередь сервера на 503)
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+
+# [v149.34] MAINTENANCE MODE: при ручных операциях с инфраструктурой все
+# автоматические акторы молчат (файл-флаг ставит scripts/maintenance.sh).
+if [ -f /tmp/atra_maintenance_mode ]; then echo "$(date '+%F %T') maintenance mode — skip"; exit 0; fi
 M="${VICTORIA_BRAIN_MODEL:-victoria-qwen38:latest}"
 U="${OLLAMA_BASE_URL:-http://localhost:11434}"
 LOCK=/tmp/brain_keepalive.backoff

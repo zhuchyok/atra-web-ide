@@ -2,6 +2,10 @@
 # [v149.10] Еженедельная ротация логов-пожирателей (>256MB → обнуление).
 # truncate-safe: файлы, открытые процессами, сохраняют inode.
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+
+# [v149.34] MAINTENANCE MODE: при ручных операциях с инфраструктурой все
+# автоматические акторы молчат (файл-флаг ставит scripts/maintenance.sh).
+if [ -f /tmp/atra_maintenance_mode ]; then echo "$(date '+%F %T') maintenance mode — skip"; exit 0; fi
 LIMIT=268435456  # 256MB
 for f in \
   /opt/homebrew/var/log/ollama.log \
