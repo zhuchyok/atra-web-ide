@@ -149,43 +149,37 @@ def main() -> int:
         except Exception as e:
             print(f"ntfy ERR: {e}")
 
-        # автоответ клиенту через Татьяну (qwen38 + промт авитолога)
-        if customer_text:
-            # загрузить промт Татьяны
-            prompt_path = REPO / "docs" / "AVITO_TATYANA_PROMPT.md"
-            tatyana_prompt = prompt_path.read_text()[:4000] if prompt_path.exists() else ""
+        # ─── ПРОВЕРКИ ОСТАНОВКИ ───
+        # 1) Менеджер уже ответил → бот молчит
+        last_author = ""
+        if msgs:
+            last_m = msgs[-1]
+            last_author = last_m.get("author", {}).get("type", "") if isinstance(last_m.get("author"), dict) else ""
+        if last_author and last_author != "customer":
+            print(f"  🤝 Менеджер уже ответил — бот молчит")
+            continue
 
-            anti_rules = "СТРОЙКА АНТИ-ВЫДУМКИ:\\n- Цены только из раздела Акции\\n- Сроки только из правил\\n- Не выдумывай услуги и телефоны\\n- Если не знаешь — передай расчётному отделу\\n- Телефон: +7 (8352) 38-40-20"
-            sys_prompt = "Ты — Татьяна, специалист по остеклению. Отвечай коротко (2-3 предложения), тепло и профессиональly." + "\n\n" + tatyana_prompt[:3000] + "\n\n" + anti_rules.replace("\\n", "\n")
-            messages_payload = json.dumps({
-                "model": "victoria-qwen38:latest",
-                "messages": [
-                    {"role": "system", "content": sys_prompt},
-                    {"role": "user", "content": f"Клиент написал по объявлению «{item_title}»: {customer_text}. Ответь как Татьяна."}
-                ],
-                "stream": False,
-                "options": {"temperature": 0.4, "num_predict": 300}
-            }).encode()
-            llm_req = urllib.request.Request(
-                "http://localhost:11434/api/chat", data=messages_payload,
-                headers={"Content-Type": "application/json"}
-            )
-            with urllib.request.urlopen(llm_req, timeout=120) as r:
-                reply = json.loads(r.read())["message"]["content"].strip()
-                import re as _re
-                reply = _re.sub(r"<think>[\s\S]*?</think>", "", reply).strip()
+        # 2) Бот уже дал 5+ ответов → хватит
+        out_count = sum(1 for m in msgs if m.get("direction") == "out")
+        if out_count >= 5:
+            print(f"  ⛔ {out_count} ответов бота — нужен менеджер")
+            continue
 
-            ok, reason = _validate_reply(reply)
-            if ok:
-                if send_reply(token, chat_id, reply):
-                    print(f"  ✅ Автоответ Татьяны отправлен")
-                else:
-                    print(f"  ❌ Отправка не удалась")
-            else:
-                print(f"  ⛔ Блокировано: {reason}")
-                fallback = "Здравствуйте! Спасибо за обращение. Я передал ваш запрос расчётному отделу — они свяжутся с вами с точным расчётом. Или позвоните: +7 (8352) 38-40-20."
-                send_reply(token, chat_id, fallback)
-                print(f"  🛡️ Fallback отправлен")
+        # 3) Клиент просит человека → эскалация
+        escalate = ["менеджер", "руководител", "человек", "живой", "оператор", "поговорит"]
+        if any(kw in customer_text.lower() for kw in escalate):
+            print(f"  🤝 Клиент просит человека — эскалация")
+            continue
+
+        # ─── ФИКСИРОВАННЫЙ ШАБЛОН ───
+        reply = (
+            "Добрый день! Предварительно делаем расчёт — "
+            "если стоимость устраивает, выезжает мастер на замер. "
+            "Напишите номер телефона, позвоню вам для уточнения деталей и сделаем расчёт."
+        )
+        send_reply(token, chat_id, reply)
+        print(f"  ✅ Шаблон отправлен")
+
 
         # Telegram (если доступен)
         try:
