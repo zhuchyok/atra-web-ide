@@ -1005,6 +1005,19 @@ class ReActAgent:
                     return "finish", {"output": _content.strip()}
         except Exception:
             pass
+
+        # [v149.30] JSON мог быть обрамлён (```) или иметь хвост — json.loads не взял.
+        # Достаём content/input.text регэкспом: не отдаём «Ошибка парсинга» пользователю.
+        try:
+            _cm = re.search(r'"content"\s*:\s*"((?:[^"\\]|\\.)*)"', response_clean, re.DOTALL)
+            _tm = re.search(r'"text"\s*:\s*"((?:[^"\\]|\\.)*)"', response_clean, re.DOTALL)
+            _human = ((_cm.group(1) if _cm else "") or (_tm.group(1) if _tm else ""))
+            _human = _human.encode("utf-8").decode("unicode_escape").strip()
+            if len(_human) >= 20:
+                logger.info("✅ [PARSE-FALLBACK-REGEX] Извлечён content из action-JSON")
+                return "finish", {"output": _human}
+        except Exception:
+            pass
         return "finish", {"output": f"Ошибка парсинга ответа модели. Ответ: {response_clean[:500]}"}
 
     async def _execute_action(self, action: str, action_input: Dict) -> Any:

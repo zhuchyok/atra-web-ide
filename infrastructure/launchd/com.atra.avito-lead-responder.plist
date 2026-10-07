@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.atra.avito-lead-responder</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/bikos/Documents/atra-web-ide/.venv/bin/python</string>
+		<string>/Users/bikos/Documents/atra-web-ide/scripts/avito_lead_responder.py</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/bikos/Documents/atra-web-ide</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<key>AVITO_CLIENT_ID</key>
+		<string>5ngdM8UI0jdelZBZ77fy</string>
+		<key>AVITO_CLIENT_SECRET</key>
+		<string>pJO4nCmQ6H8yZfllAYqEY7EA5XO6ahBAVl02XbqC</string>
+		<key>NTFY_TOPIC</key>
+		<string>atra_victoria_curator</string>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>/Users/bikos/Library/Logs/atra-avito-lead-out.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/bikos/Library/Logs/atra-avito-lead-err.log</string>
+	<key>StartInterval</key>
+	<integer>600</integer>
+</dict>
+</plist>
