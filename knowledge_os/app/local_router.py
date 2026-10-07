@@ -316,6 +316,8 @@ class LocalAIRouter:
             )
         self._active_node = None
         self._performance_cache = {}  # Cache for node performance metrics
+        self._node_models_cache = {}  # [v149.26] url -> set(lower model names) | None
+        self._node_models_ts = {}     # [v149.26] url -> timestamp
         self._cache_ttl = 300  # 5 minutes
 
         # ML Model for intelligent routing
@@ -1807,10 +1809,27 @@ class LocalAIRouter:
                 f"🎯 [SMART SELECTION] Узел: {node['name']} | Модель: {model} | Тип задачи: {category or 'auto'}"
             )
 
-            # [v149.21] Гейт деградации v149.x: MLX-прокси обслуживает только свой
-            # список моделей; неизвестные он МОЛЧА подменяет дефолтом (old wisdom).
-            # Экспертные вызовы с qwen38/coder на 11435 тихо деградировали.
-            if is_mlx:
+            # [v149.26] УНИВЕРСАЛЬНЫЙ гейт «модель × узел» (замена v149.21+v149.25):
+            # узел обслуживает запрошенную модель? нет — пропустить. Список — /api/tags
+            # узла с кэшем 120с. Fallback на старые маркеры, если теги недоступны.
+            _node_models = self._node_models_cache.get(node_url_base)
+            if _node_models is None or (time.time() - self._node_models_ts.get(node_url_base, 0)) > 120:
+                try:
+                    async with httpx.AsyncClient(timeout=3.0) as _tc:
+                        _tr = await _tc.get(f"{node_url_base}/api/tags")
+                        _node_models = {
+                            (m.get("name") or "").lower() for m in (_tr.json().get("models") or [])
+                        }
+                except Exception:
+                    _node_models = None
+                self._node_models_cache[node_url_base] = _node_models
+                self._node_models_ts[node_url_base] = time.time()
+            if _node_models:
+                _mkey = (model or "").strip().lower()
+                if _mkey and _mkey not in _node_models and _mkey.split(":")[0] not in _node_models:
+                    logger.info("🚦 [NODE-GATE] %s не обслуживается узлом %s — пропущен", model, node.get("name"))
+                    continue
+            elif is_mlx:
                 _mlx_served = any(
                     m in (model or "").lower()
                     for m in (
