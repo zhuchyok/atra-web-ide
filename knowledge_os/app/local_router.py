@@ -1828,6 +1828,12 @@ class LocalAIRouter:
                     )
                     continue
 
+            # [v149.25] Node 11436 (coder-ollama) не знает qwen38 — 404 вместо ответа.
+            # Мозг-контракт: qwen38 живёт на 11434 — узел-исполнитель пропускаем.
+            if "11436" in node_url_base and "qwen38" in (model or "").lower():
+                logger.info("🚦 [EXECUTOR-GATE] %s не на 11436 — узел пропущен", model)
+                continue
+
             if is_ollama and _skip_as_ollama_hands(model):
                 logger.info(
                     "⚡ [WISDOM-TAP] skip Ollama node %s for %s (мозг в MLX / тяжёлая не для 11434)",

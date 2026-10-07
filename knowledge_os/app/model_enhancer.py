@@ -361,8 +361,6 @@ class EnhancedRAGEngine:
                         FROM knowledge_nodes
                         WHERE is_verified = TRUE AND confidence_score >= $1
                         -- [v149.22] metadata::text ILIKE ломал план: seq scan 100k узлов
-                        # (7+ мин, LWLock-конкуренция воркеров) — главный корень деградации
-                        # экспертного конвейера. GIN trgm по content работает через ILIKE.
                         AND content ILIKE ANY($2)
                         ORDER BY relevance_score DESC
                         LIMIT $3
