@@ -533,4 +533,13 @@ if __name__ == "__main__":
         raise
     except Exception:  # noqa: BLE001
         pass
-    asyncio.run(generate_morning_plan())
+    try:
+        asyncio.run(generate_morning_plan())
+    finally:
+        # [v149.35] Лок снимается ПОСЛЕ завершения: иначе он блокирует завтрашний
+        # штатный запуск (случалось 08.10: 'Дубль запуска — выходим' в 08:30)
+        import os as _os2
+        try:
+            _os2.remove("/tmp/victoria_morning_report.lock")
+        except OSError:
+            pass
