@@ -92,7 +92,10 @@ async def inject_context_enrichment(
             async with pool.acquire() as conn:
                 # Meta-Strategies (compact top-2)
                 rows = await conn.fetch(
-                    "SELECT content FROM knowledge_nodes WHERE metadata->>'type' = 'meta_wisdom' AND is_verified = TRUE AND content NOT LIKE '%job_id%' AND content NOT LIKE '%\'status\': \'processing\'%' ORDER BY created_at DESC LIMIT 2"
+                    # [v149.36] Кавычки внутри LIKE-паттерна экранируются УДВОЕНИЕМ ('') в SQL,
+                    # а не бэкслешем: \' в Python-строке съедался и ломал SQL
+                    # ("syntax error at or near 'status'" каждые 10 мин от log_scanner-цикла).
+                    "SELECT content FROM knowledge_nodes WHERE metadata->>'type' = 'meta_wisdom' AND is_verified = TRUE AND content NOT LIKE '%job_id%' AND content NOT LIKE '%''status'': ''processing''%' ORDER BY created_at DESC LIMIT 2"
                 )
                 if rows:
                     texts = "\n".join(f"- {r['content'][:150]}" for r in rows)
