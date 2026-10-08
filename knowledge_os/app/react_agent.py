@@ -767,6 +767,10 @@ class ReActAgent:
 
         # Очищаем ответ от лишнего текста
         response_clean = response.strip()
+        # [v149.39] Markdown-fence ```json вокруг action-JSON — json.loads падал
+        if response_clean.startswith("```"):
+            response_clean = re.sub(r"^```[a-z]*\s*", "", response_clean)
+            response_clean = re.sub(r"```\s*$", "", response_clean).strip()
 
         # Сингулярность 10.0: Удаляем <think>...</think> блоки перед парсингом
         if "<think>" in response_clean:
