@@ -5,6 +5,8 @@ FastAPI сервер для обслуживания запросов от аг�
 """
 
 import asyncio
+import concurrent.futures
+import functools
 import gc
 import json
 import logging
@@ -168,6 +170,14 @@ _vip_semaphore = asyncio.Semaphore(1)
 # Metal не поддерживает одновременную генерацию даже для разных моделей в одном процессе
 # без специальной настройки command buffers.
 _metal_global_lock = threading.Lock()
+# [v150.1] Аудит 2026-10-08: mlx>=0.32 сделал стримы/command-encoder'ы ПЛЕЧОМ ПОТОКА
+# (thread_local). Модель грузилась в main-потоке, генерация уходила в произвольный
+# воркер default-executor'а → «There is no Stream(gpu, 1) in current thread» на каждом
+# запросе (17k+ ошибок с 05.10). Вся MLX-работа (load + generate) — в ОДНОМ выделенном
+# потоке. Пропускная способность не меняется: GPU и так сериализован _metal_global_lock.
+_GPU_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+    max_workers=1, thread_name_prefix="mlx-gpu"
+)
 # Таймаут ожидания слота: из env или макс по оценкам моделей (загрузка + инференс + запас)
 _queue_wait_timeout = (
     None  # задаётся через _max_queue_wait_timeout() после определения MODEL_TIME_ESTIMATES
@@ -1208,6 +1218,18 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
             model_key = OLLAMA_TO_MLX_MAP.get(request.model, request.model)
             # Если не нашли в маппинге, пробуем использовать как есть
             if model_key not in MODEL_PATHS:
+                # [v150.1] STRICT-режим (MLX_STRICT_MODEL_MATCH=true): незнакомая модель —
+                # 404, клиент перейдёт к другому узлу. Молчаливая подмена «мозга» дефолтом
+                # (v149.6) стоила недель деградации — по умолчанию выключен для
+                # совместимости, включается env-ом.
+                if (
+                    os.getenv("MLX_STRICT_MODEL_MATCH", "false").lower() == "true"
+                    and request.model not in CATEGORY_TO_MODEL
+                ):
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Model '{request.model}' is not served by this MLX node",
+                    )
                 # Пробуем найти по категории или использовать default
                 model_key = CATEGORY_TO_MODEL.get(request.model, "default")
         elif request.category:
@@ -1253,9 +1275,13 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
             _active_model_requests[model_key] += 1
 
         try:
-            # Получаем модель (с защитой от OOM)
+            # Получаем модель (с защитой от OOM).
+            # [v150.1] get_model — в GPU-поток: mlx>=0.32 привязывает стримы к потоку
+            # загрузки; грузить в main, генерить в воркере нельзя (Stream(gpu) error).
             try:
-                model_data = get_model(model_key)
+                model_data = await asyncio.get_event_loop().run_in_executor(
+                    _GPU_EXECUTOR, functools.partial(get_model, model_key)
+                )
                 model = model_data["model"]
                 tokenizer = model_data["tokenizer"]
             except (MemoryError, RuntimeError) as e:
@@ -1321,7 +1347,7 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
                                 )
 
                     response_text = await asyncio.wait_for(
-                        loop.run_in_executor(None, generate_with_lock), timeout=gen_timeout
+                        loop.run_in_executor(_GPU_EXECUTOR, generate_with_lock), timeout=gen_timeout
                     )
 
                     duration = time.time() - start_time
@@ -1411,7 +1437,7 @@ async def generate_stream(
                 )
             return generate(model, tokenizer, prompt=prompt, max_tokens=max_tokens)
 
-    response = await loop.run_in_executor(None, generate_with_lock)
+    response = await loop.run_in_executor(_GPU_EXECUTOR, generate_with_lock)
 
     # Разбиваем на токены для эмуляции streaming
     for char in response:
@@ -1686,7 +1712,10 @@ async def preload_models():
             start_time = time.time()
 
             # Загружаем модель (get_model сам управляет выгрузкой LRU если нужно)
-            model_data = get_model(actual_model)
+            # [v150.1] через GPU-поток — стримы mlx>=0.32 привязаны к потоку загрузки
+            model_data = await asyncio.get_event_loop().run_in_executor(
+                _GPU_EXECUTOR, functools.partial(get_model, actual_model)
+            )
 
             duration = time.time() - start_time
             # TODO: Convert f-string to %s formatting for performance

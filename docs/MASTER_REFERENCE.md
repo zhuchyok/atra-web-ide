@@ -30,9 +30,9 @@
 
 ## 🌌 ТЕКУЩИЙ СТАТУС: Singularity 31.2.2+ (Hardening Mac Studio)
 
-**Дата последнего обновления:** 2026-10-03
-**Уровень эволюции:** 31.2.2 (v149.4/v149.5 — Qwen3.8-27B контракт + source guard + отчёт-фикс)
-**Состояние:** Модель мозга заменена (v149.4), молчаливые отказы закрыты (v149.5). Не 100% git-porcelain (~400 файлов).
+**Дата последнего обновления:** 2026-10-08
+**Уровень эволюции:** 31.2.2 (v150.1 — волна-1 фиксов полного аудита; контракт v149.4 восстановлен)
+**Состояние:** Полный аудит 2026-10-08 (`docs/AUDIT_FULL_2026-10-08.md`, 16 находок) — волна-1 (P0) закрыта живой верификацией: война wisdom-guard × brain-keepalive остановлена (гард выгрузил мозг 1130 раз за 5 суток), MLX-прокси воскрешён (было 17k ошибок Stream(gpu)), ctx-анархия capped на 16K. Остатки в волну-2: фантомный клиент с num_ctx=65536 (гигантские эмбеды, ротирует phi/brain), /run sync-таймаут 20с → handoff, медленный spawn phi под фантомным давлением.
 **Целевая платформа:** Mac Studio (мозг Qwen3.8-27B Ollama 11434 + легаси wisdom MLX 11435 + coder 11436)
 
 ### Контракт слоёв (обновлён v149.4, 2026-10-03)
@@ -46,7 +46,9 @@
 | Victoria | **8010** | `/run`, health | «готово» без очереди/inflight/ps |
 | Закрыто | — | `pending/in_progress/queued`=0 **или** явно чужой work (не LOG_SCANNER); inflight=0; сканер: 0 новых ложных хитов за 1–2 цикла | объявлять 100% репозитория |
 
-Правило дожима: `.cursor/rules/91_finish_to_closed.mdc`. Guard: `scripts/ollama_wisdom_guard.py` + LaunchAgent `com.atra.ollama-wisdom-guard` (unload timeout 60с; на 11434 оставляет только phi+nomic).
+Правило дожима: `.cursor/rules/91_finish_to_closed.mdc`. Guard: `scripts/ollama_wisdom_guard.py` + LaunchAgent `com.atra.ollama-wisdom-guard` (unload timeout 60с; на 11434 держит мозг v150.1 + phi+nomic с явным num_ctx, чужое выгружает).
+
+**Бэкфилл пропущенного (v149.23–v149.34, по git log):** v149.23 regex-fallback JSON; v149.25 executor-gate 11436×qwen38; **v149.26 универсальный гейт «модель×узел» по /api/tags (кэш 120с, timeout 3с) — замена хардкодов**; v149.27 кипер: успех = резидентность в api/ps; v149.30 regex-fallback обрамлённого JSON; v149.31/32 короткий вопрос→ctx 1500, ответ без JSON как есть; v149.33 (промты Татьяны/авито); **v149.34 maintenance-mode** (файл-флаг `/tmp/atra_maintenance_mode`, акторы молчат при ручных операциях).
 
 
 
@@ -58,6 +60,22 @@
 
 
 
+
+---
+
+## § Волна-1 фиксов аудита (2026-10-08 v150.1) — P0: война акторов остановлена, MLX воскрешён, ctx-анархия capped ✅
+
+**Контекст:** полный аудит `docs/AUDIT_FULL_2026-10-08.md` (16 находок, 8 слоёв, живые пробы). Волна-1 = три P0-корня. Исполнено под `scripts/maintenance.sh on/off`; все проверки — живьём.
+
+1. **Гард больше не убивает мозг.** `scripts/ollama_wisdom_guard.py::_should_unload` работал по контракту ДО v149.8 («11434 = только phi+nomic») и выгрузил `victoria-qwen38` **1130 раз** (война с brain-keepalive: 30GB-перезагрузки каждые ~10 мин 5 суток, load 25, рестарты Ollama каждые 30 мин, вероятная причина зависания демона 07.10 22:25 МСК). Фикс: белый список `BRAIN_ALLOW = victoria-qwen38*, qwen3.8*` + phi3.5:3.8b* + nomic* + moondream* (IMMORTAL); чужое (включая victoria-wisdom*) выгружается как раньше. Плюс таймстампы в лог (были без дат — форензика невозможна) и **явный `num_ctx:16384` в пине phi** (без опций ollama 0.33 авто-размеряет KV под свободную RAM — phi раздувалась до **111.9GB VRAM / ctx 131072** и душила хост до 3-5% free).
+2. **MLX-прокси 11435 воскрешён.** Корень `Stream(gpu,1)`: mlx≥0.32 сделал Metal-стримы ПЛЕЧОМ ПОТОКА; модель грузилась в main-потоке, генерация уходила в дефолтный executor-поток (17 346 ошибок с 05.10, все — модель phi3.5). Фикс в `mlx_api_server.py`: `_GPU_EXECUTOR = ThreadPoolExecutor(1, "mlx-gpu")` — load (:1282, :1716) и generate (:1350, :1440) в одном потоке. Плюс **`MLX_STRICT_MODEL_MATCH=true`** (env в plist `com.atra.mlx-api-server`): незнакомая модель → **404** вместо молчаливой подмены (v149.6 закрыт до конца).
+3. **Ctx-анархия capped на 16K, env в один источник.** `local_router.py::SAFE_MAX_CTX 32768→16384` (комментарий врал про «NUM_PARALLEL=6, Qwen3.5-35B»; 32K=33.8GiB > system_free ~27GiB при Docker VM 32GB wired → гарантированные эвикции мозга). Modelfile-капы: `victoria-qwen38` num_ctx 32768→**16384** (мозг прогрет 29.7GB @16K, держится), `phi3.5:3.8b` +16384 (пересоздана FROM -stable), `minicpm-v` +8192, `nomic-embed-text` +8192. Env: выгружен `com.atra.ollama-env` (глобальные дубли NUM_PARALLEL=2/CONTEXT_LENGTH=16384), `launchctl unsetenv` ×4; единый источник — `homebrew.mxcl.ollama.plist` (PARALLEL=4, KEEP_ALIVE=-1, MAX_QUEUE=100, NUM_CTX=16384). Роутер прокатен рестартом 11 контейнеров (bind-mount).
+
+**Evidence (живьём, 23:30 МСК 08.10):** мозг `victoria-qwen38` резидентен @16K 29.7GB, generate **1.4с** (было: unload каждые 60с / «warmed» каждые 10 мин); `phi3.5:3.8b` **200 за 0.18с** тёплая; `nomic` @2048 резидентен; MLX: `fast` 200/6.6с, `phi3.5` 200/5.9с (было 500×100%), чужая модель **404**; `Stream(gpu)` у оркестратора: прирост **0** за час (было 99/сутки); RAM хоста 5%→67%+ free. Дорожные события: kill зомби-контейнера knowledge_os_worker (PID-zombie от дневного RAM-давления) + recreate через compose.
+
+**Не закрыто (волна-2):** (а) **фантом num_ctx=65536** — некий клиент шлёт гигантские эмбеды/запросы (nomic-запросы раздували KV до 26GiB, планировщик клинило; после капов nomic@8192 безвредно, но давление ротации phi↔brain осталось; идентификация: tcpdump в спокойный час); (б) `/run` sync-таймаут 20с → `handoff timeout_sync_safe_mode` даже на тривиальных вопросах (константа в victoria_server — поднять или прогрев); (в) spawn phi при живом фантомном давлении до 124с (временно: ping-guard с большим timeout).
+
+**Уроки (в правила):** (1) при миграции модели X на слот Y — ревизия ВСЕХ стражей слота в тот же коммит (цена промедления: 5 суток деградации); (2) `ollama create` живого тега на загруженном сервере может заклинить планировщик — только под maintenance; (3) опции num_ctx обязательны в КАЖДОМ пине/прогреве — авто-размер KV ollama 0.33 под свободную RAM взрывоопасен; (4) health-check обязан пробовать ФУНКЦИЮ (generate 1 токен), а не /api/tags — 17k ошибок жили под зелёным тегом.
 
 ---
 
@@ -80,6 +98,7 @@
 **Симптомы за сутки:** Trust Gate REJECTED (local_fallback), uuid UnboundLocalError на handoff, DNA SQL invalid input, качества ответов просели.
 
 **Корни (все закрыты):**
+
 1. **uuid-тенение** (`expert_worker.py`): локальный `import uuid` в ветке 1322 делает имя локальным для ВСЕЙ 1000-строчной `process_task` — на ветке handoff (1721) `uuid.UUID()` падал UnboundLocalError → swarm-подзадачи не создавались. Фикс: `_uuid_mod` (уже импортирован в том же блоке).
 2. **MLX-GATE отсутствовал в local_router** (v149.6 чинил только victoria_server): экспертные вызовы с qwen38/coder уходили на прокси 11435 и молча обслуживались старой wisdom → слабые ответы → Trust Gate резал. Фикс: гейт в route-цикле (`continue` на не-MLX модели), подтверждён.
 3. **DNA SQL**: asyncpg ждёт str для jsonb — dict ронял `INSERT INTO knowledge_nodes` (antifragile-ноты не писались). Фикс: `json.dumps` + `$2::jsonb`.
@@ -152,6 +171,7 @@
 **Вердикты:** KNOWLEDGE ✓40s, CODING ✓, DEVOPS ✓, CONSILIUM ✓ (монолит vs микросервисы по теме), REASON-TRAP ✓(5 мин), MATH ✗→✗386 после фикса, INJECTION: утечки НЕТ (но уводит в метрики — fact-probe hijack), GUARD: файл НЕ записан (ai_core.py цел; ответ мусорный из кэша), HALLUCIN ✗ (план вместо ответа), ENGLISH ✗✗ (даже после фиксов).
 
 **Найденные корни и фиксы:**
+
 1. **ORCHESTRATION_V2 10%-лотерея** (Зоя решала через phi3.5, возвращала план вместо ответа) → `ORCHESTRATION_V2_ENABLED=false`.
 2. **Семафор 2с** — при живом трафике 3/4 параллельных задач отменялись → 60с.
 3. **Потолок фоновых задач 240с** — тяжёлые qwen38-задачи (4-6 мин) гасились на полпути («превысил лимит времени», CancelledError) → 600с.
@@ -166,6 +186,7 @@
 **Метод:** владелец попросил дать эксперту задачу составить промпт-проверку. Попытки вскрыли 3 новых перехвата цели (expert-task RAG inject чужого ТЗ, факт-проб на «проверка системы», clarify-ловушку) + финал генерации ушёл в phi3.5 (слабый чеклист) — само упражнение стало находкой. Чеклист исполнен вручную по направлению Анны.
 
 **Найдено и закрыто:**
+
 1. **Двойной бэкап каждую ночь:** cron 03:00 (~/bin → ~/atra_backups → gdrive+health) И launchd 03:30 (scripts/db_backup.sh → repo/backups/db, 2.7GB, никто не проверяет). Отсюда пары дампов `03-00-00/03-00-0X` на gdrive и двойной расход квоты. Launchd-конвейер выгружен (обратимо).
 2. **auto-recovery демон мёртв годами:** каждый цикл «docker-compose.yml не найден» → 2.9GB ошибок. Выгружен (есть recovery-listener/boot-incident-guard). Прочие пожиратели (mlx-логи 1.1GB и др., суммарно ~4.5GB) обнулены; scripts/atra_logs_rotate.sh + launchd еженедельно (>256MB).
 3. **docker build cache 52.6GB** — очищен (диск 189→220Gi). Образы 119GB оставлены (используются).
@@ -191,7 +212,7 @@
 
 ## § Последние изменения (2026-10-03 v149.8) — «везде и все в курсе»: полная миграция qwen38 ✅
 
-1. **Аудит по требованию владельца нашёл недоселённые уголки:** local_router (reasoning/default = phi/wisdom → now qwen38@11434), extended_thinking (дефолт wisdom, URL зашит в MLX → qwen38 + URL выбирается по модели), strategic_board/board-scheduler (BOARD_CONSULT_* = wisdom → qwen38 в коде и compose), 6 контейнеров жили со старым env (restart не обновляет env — recreate: orchestrator/worker/anna/heavy/victoria-1/rest/board-scheduler + рестарт dynamic-1..5).
+1. **Аудит по требованию владельца нашёл недоселённые уголки:** local*router (reasoning/default = phi/wisdom → now qwen38@11434), extended_thinking (дефолт wisdom, URL зашит в MLX → qwen38 + URL выбирается по модели), strategic_board/board-scheduler (BOARD_CONSULT*\* = wisdom → qwen38 в коде и compose), 6 контейнеров жили со старым env (restart не обновляет env — recreate: orchestrator/worker/anna/heavy/victoria-1/rest/board-scheduler + рестарт dynamic-1..5).
 2. **Контракт enforcement:** запрещённые дубликаты `victoria-wisdom-24k:latest` и `victoria-wisdom-v3.5:latest` УДАЛЕНЫ с Ollama 11434 (~35GB диска). Wisdom остаётся только на MLX 11435 как явный легаси-fallback.
 3. **Segfault-каскад мозга (10578 за день!):** llama-server qwen38 (31GB Q8) сегфолтился при загрузке под давлением памяти (Docker VM распухла до 53GB) — с 02:51 (во время битвы — вторая причина ночных таймаутов). Каждый повторный запрос ронял раннер снова → мгновенные 503 «queue full». **Лечение:** рестарт ollama + чистая загрузка qwen38.
 4. **SHADOW UNLOAD выгружал мозг:** performance_watchdog меряет RAM Docker-VM (кэши) → вечный soft-ice → victoria выгружала qwen38 после 10 мин простоя → перезагрузка под давлением → segfault. **Фикс:** выгрузка мозга только в hard-ice (RAM>85%, реальная авария).

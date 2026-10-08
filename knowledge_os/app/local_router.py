@@ -317,7 +317,7 @@ class LocalAIRouter:
         self._active_node = None
         self._performance_cache = {}  # Cache for node performance metrics
         self._node_models_cache = {}  # [v149.26] url -> set(lower model names) | None
-        self._node_models_ts = {}     # [v149.26] url -> timestamp
+        self._node_models_ts = {}  # [v149.26] url -> timestamp
         self._cache_ttl = 300  # 5 minutes
 
         # ML Model for intelligent routing
@@ -1115,7 +1115,9 @@ class LocalAIRouter:
                 logger.debug("persona load failed for %s: %s", expert_name, _e)
                 system_prompt = None
             if system_prompt:
-                logger.info(f"🎭 [PERSONA] Injected DB persona for {expert_name} ({len(system_prompt)} chars)")
+                logger.info(
+                    f"🎭 [PERSONA] Injected DB persona for {expert_name} ({len(system_prompt)} chars)"
+                )
             else:
                 system_prompt = f"ТЫ - {expert_name}. Действуй и отвечай в соответствии со своей ролью и характером."
                 logger.info(f"🎭 [PERSONA] Injected fallback persona for {expert_name}")
@@ -1813,7 +1815,10 @@ class LocalAIRouter:
             # узел обслуживает запрошенную модель? нет — пропустить. Список — /api/tags
             # узла с кэшем 120с. Fallback на старые маркеры, если теги недоступны.
             _node_models = self._node_models_cache.get(node_url_base)
-            if _node_models is None or (time.time() - self._node_models_ts.get(node_url_base, 0)) > 120:
+            if (
+                _node_models is None
+                or (time.time() - self._node_models_ts.get(node_url_base, 0)) > 120
+            ):
                 try:
                     async with httpx.AsyncClient(timeout=3.0) as _tc:
                         _tr = await _tc.get(f"{node_url_base}/api/tags")
@@ -1827,15 +1832,29 @@ class LocalAIRouter:
             if _node_models:
                 _mkey = (model or "").strip().lower()
                 if _mkey and _mkey not in _node_models and _mkey.split(":")[0] not in _node_models:
-                    logger.info("🚦 [NODE-GATE] %s не обслуживается узлом %s — пропущен", model, node.get("name"))
+                    logger.info(
+                        "🚦 [NODE-GATE] %s не обслуживается узлом %s — пропущен",
+                        model,
+                        node.get("name"),
+                    )
                     continue
             elif is_mlx:
                 _mlx_served = any(
                     m in (model or "").lower()
                     for m in (
-                        "phi3.5", "phi3:mini", "qwen2.5:3b", "qwen_3b", "tinyllama",
-                        "wisdom-v3.5", "wisdom-24k", "fast", "tiny", "default",
-                        "reasoning", "coding", "code",
+                        "phi3.5",
+                        "phi3:mini",
+                        "qwen2.5:3b",
+                        "qwen_3b",
+                        "tinyllama",
+                        "wisdom-v3.5",
+                        "wisdom-24k",
+                        "fast",
+                        "tiny",
+                        "default",
+                        "reasoning",
+                        "coding",
+                        "code",
                     )
                 )
                 if not _mlx_served:
@@ -2697,26 +2716,25 @@ class LocalAIRouter:
     def _get_adaptive_options(self, model_name: str) -> Dict:
         """
         [SINGULARITY 24.9] Adaptive Context Window — NUM_PARALLEL-aware.
-
-        КРИТИЧНО: OLLAMA_NUM_PARALLEL=6 → Ollama pre-allocates KV cache for ALL 6 slots per model.
-        Формула: total_vram = num_parallel × kv_cache(num_ctx) + model_weights
-        При num_ctx=32768 × 6 parallel → phi3.5 = 47GB, victoria = 50GB → OOM → 503 → CB OPEN.
-        При num_ctx=16384 × 6 parallel → phi3.5 = 21GB, victoria = 40GB → 128GB RAM → OK.
+        total_vram ≈ num_parallel × kv_cache(num_ctx) + model_weights.
+        [v150.1] Реальность: NUM_PARALLEL=4, Docker VM 32GB wired, MLX-резиденты —
+        бюджет системной памяти для мозга ~28-35GB. Тяжёлым (мозг/coder) — 16K.
         """
         options = {}
         try:
-            # SAFE CONTEXT: 32768 is safe for Qwen3.5-35B-A3B on 128GB Mac Studio.
-            # Qwen3.5-35B-A3B uses only 2 KV heads (GQA) + head_dim=256 + 40 layers →
-            # KV per slot: 2 × 40 × 2 × 256 × 2 = 82KB/token → 2.7GB at 32K × 6 slots = 16GB
-            # Model weights Q4_K_M: ~21GB + KV 16GB + compute 6GB → ~43GB total → 128GB OK.
-            SAFE_MAX_CTX = 32768
+            # [v150.1] Аудит 2026-10-08: 32768 гарантированно эвиктило мозг
+            # (predicted 33.8GiB @32K > system_free ~27.7GiB при Docker VM 32GB wired
+            #  и MLX-резидентах; ollama.log «predicted to exceed available memory, evicting»).
+            # Реальность: мозг victoria-qwen38 ≈29GB, OLLAMA_NUM_PARALLEL=4, хост 128GB.
+            # 16384 для тяжёлых влезает с запасом; длинные контексты — per-request
+            # options num_ctx в батл-ранере (перекрывает этот дефолт).
+            SAFE_MAX_CTX = 16384
 
             model_lower = model_name.lower()
             if "tinyllama" in model_lower or "moondream" in model_lower or "nomic" in model_lower:
                 options["num_ctx"] = 4096  # Small models need only small context
             elif "phi3.5" in model_lower or "phi3" in model_lower:
                 # §53 библии: phi3.5 immortal с адаптивным контекстом 16384.
-                # С OLLAMA_NUM_PARALLEL=6: 6 × 3.5GB KV = 21GB + 2GB weights = 23GB → на 128GB OK.
                 options["num_ctx"] = 16384
             else:
                 options["num_ctx"] = SAFE_MAX_CTX
