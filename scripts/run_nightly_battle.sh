@@ -15,5 +15,13 @@ if [[ -n "$LATEST" ]]; then
   fi
 fi
 
+# [v149.37] Битва конкурирует с экспертами за слоты qwen38 (ночь 07.10: 36 ошибок
+# при живом бэклоге). При очереди >20 задач — сдвиг не нужен: бэклог важнее.
+PENDING=$(docker exec knowledge_postgres psql -U admin -d knowledge_os -t -c "SELECT count(*) FROM tasks WHERE status='pending';" 2>/dev/null | tr -d ' ')
+if [ "${PENDING:-0}" -gt 20 ]; then
+  echo "[nightly-battle] очередь велика (${PENDING} pending) — перенос битвы, попробует завтра"
+  exit 0
+fi
+
 cd "$ROOT" || exit 1
 exec /opt/homebrew/bin/python3 scripts/consilium_ab.py
