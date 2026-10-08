@@ -134,8 +134,8 @@ def main() -> int:
                     wait_until="domcontentloaded",
                 )
                 time.sleep(6)
-                # заголовок — первое видимое текстовое поле
-                inp = page.locator("input:visible").first
+                # заголовок — точный селектор
+                inp = page.locator('input[name="title"]')
                 inp.fill(new_title)
                 time.sleep(1)
                 # цена из формы — числовое поле
