@@ -307,9 +307,16 @@ class Medic:
         if await self.watchdog.health_probe():
             self.toolkit.mark_last_good()
         await self.telegram("🩺 victoria-medic запущен и дежурит")
+        # [v150.3] ProactiveMonitor включён (писался в v?., но не запускался):
+        # реакция на unhealthy-контейнеры (docker health) с safe-list —
+        # аудиту №4: vector_core сидел unhealthy 1.5ч без единой реакции.
+        from medic.proactive_monitor import get_proactive_monitor
+
+        self._proactive = get_proactive_monitor()
         await asyncio.gather(
             self.watchdog.run(),
             self._last_good_refresh_loop(),
+            self._proactive.run(),
         )
 
 

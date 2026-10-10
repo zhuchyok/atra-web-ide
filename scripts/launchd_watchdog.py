@@ -136,6 +136,49 @@ def create_task(problems: str) -> bool:
         conn.close()
 
 
+def http_canaries() -> list:
+    """[v150.3] Генерационные канарейки: сервис «запущен» ≠ «отвечает».
+
+    launchd говорит только «джоба загружена, exit 0» — живость инференса это не
+    гарантирует (ollama может отдавать 503 после сегфолта, эмбеддер — висеть).
+    Поэтому дергаем реальную генерацию/энкодинг с минимальным num_predict.
+    Таймауты большие: холодная загрузка модели в память — легитимна.
+    """
+    canaries = [
+        # (имя, url, payload, таймаут в секундах)
+        (
+            "ollama phi3.5:3.8b",
+            "http://127.0.0.1:11434/api/generate",
+            {"model": "phi3.5:3.8b", "prompt": "ok", "stream": False,
+             "options": {"num_predict": 1, "num_ctx": 2048}},
+            180,
+        ),
+        (
+            "ollama-proxy fast",
+            "http://127.0.0.1:11435/api/generate",
+            {"model": "fast", "prompt": "ok", "stream": False},
+            120,
+        ),
+        (
+            "text-embeddings /encode",
+            "http://127.0.0.1:8001/encode",
+            {"text": "canary"},
+            30,
+        ),
+    ]
+    problems = []
+    for name, url, payload, timeout in canaries:
+        try:
+            req = urllib.request.Request(
+                url, data=json.dumps(payload).encode(),
+                headers={"Content-Type": "application/json"},
+            )
+            urllib.request.urlopen(req, timeout=timeout)
+        except Exception as e:
+            problems.append(f"[CANARY] {name}: {url} не отвечает ({e})")
+    return problems
+
+
 def main() -> int:
     _load_dotenv()
     state = load_state()
@@ -159,6 +202,9 @@ def main() -> int:
             problems.append(f"{label}: последний exit code = {status['last_exit']}")
         if log_path is not None and not log_fresh(log_path, max_hours):
             problems.append(f"{label}: лог {log_path.name} старше {max_hours}ч")
+
+    # [v150.3] генерационные канарейки — до агрегации, чтобы попали в алерт/дедуп
+    problems.extend(http_canaries())
 
     fresh_problems = [p for p in problems if p not in state["alerted"]]
     if not fresh_problems:

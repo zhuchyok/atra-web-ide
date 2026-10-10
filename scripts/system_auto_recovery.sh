@@ -5,6 +5,14 @@
 
 set -euo pipefail
 
+# [v150.3] MAINTENANCE MODE: при ручных операциях авто-восстановление молчит
+# (файл-флаг ставит scripts/maintenance.sh) — иначе скрипт спавнил блудные
+# ollama serve и рестартил сервисы под руками (аудит 2026-10-10).
+if [ -f /tmp/atra_maintenance_mode ]; then
+  echo "$(date '+%F %T') maintenance mode — auto-recovery skip" >> ~/Library/Logs/atra-auto-recovery.log
+  exit 0
+fi
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 

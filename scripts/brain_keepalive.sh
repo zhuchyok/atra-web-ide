@@ -14,6 +14,18 @@ LOG="$HOME/Library/Logs/atra/brain_keepalive.log"
 
 ts() { date '+%F %T'; }
 
+# [v150.3] Single-instance (mkdir-лок — flock на macOS нет): два параллельных
+# инстанса оба доходили до LOAD FAILED и оба кикали ollama (дубль-рестарты).
+# Stale-защита: каталог-лок старше 15 минут считается брошенным.
+LOCKDIR=/tmp/brain_keepalive.instance
+if [ -d "$LOCKDIR" ] && [ $(( $(date +%s) - $(stat -f %m "$LOCKDIR") )) -gt 900 ]; then
+  rmdir "$LOCKDIR" 2>/dev/null
+fi
+if ! mkdir "$LOCKDIR" 2>/dev/null; then
+  echo "$(ts) skip: уже работает другой инстанс" >> "$LOG"; exit 0
+fi
+trap 'rmdir "$LOCKDIR" 2>/dev/null' EXIT
+
 # 1. Уже загружена — тихо выходим
 if curl -s --max-time 5 "$U/api/ps" | grep -q "\"$M\""; then exit 0; fi
 

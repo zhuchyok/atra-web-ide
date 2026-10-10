@@ -117,12 +117,12 @@ try:
 except ImportError:
     RedisManager = None  # type: ignore
 
+# [v150.3] Единая политика keep-alive (ollama_keep_alive_policy) — без глухого
+# фолбэка "return 300": второй источник истины маскировал политику (аудит №9).
 try:
-    from app.ollama_keep_alive_policy import get_keep_alive
+    from app.ollama_keep_alive_policy import get_keep_alive  # PYTHONPATH включает knowledge_os
 except ImportError:
-
-    def get_keep_alive(model, mlx_alive=True):
-        return 300
+    from ollama_keep_alive_policy import get_keep_alive  # PYTHONPATH включает knowledge_os/app
 
 
 try:

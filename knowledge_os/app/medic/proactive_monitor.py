@@ -237,8 +237,23 @@ class ProactiveMonitor:
 
         elif alert_type == "unhealthy_containers":
             # Try to restart unhealthy containers
+            # [v150.3] Safe-list: stateful-сервисы (postgres/redis/pgbouncer) и сам
+            # docker-proxy НЕ рестартим автоматом — их рестарт = остановка данных
+            # всей системы; такие алерты уходят только в Telegram (аудит №4/12:
+            # vector_core unhealthy 1.5ч без реакции — теперь реакция есть).
+            unsafe_to_restart = {
+                "knowledge_postgres",
+                "knowledge_os_redis",
+                "knowledge_pgbouncer",
+                "docker-proxy",
+            }
             containers = alert.get("containers", [])
             for container in containers[:3]:  # Limit to 3
+                if container in unsafe_to_restart:
+                    logger.warning(
+                        f"🚫 [PROACTIVE] {container} unhealthy, но в safe-list (нет авто-рестарта)"
+                    )
+                    continue
                 logger.warning(f"🔧 [PROACTIVE] Restarting unhealthy container: {container}")
                 try:
                     subprocess.run(
@@ -246,7 +261,7 @@ class ProactiveMonitor:
                         capture_output=True,
                         timeout=30,
                     )
-                except:
+                except Exception:
                     pass
             return True
 

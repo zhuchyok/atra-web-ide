@@ -44,7 +44,17 @@ fi
 log "Застрявшие модели (Stopping/expired): $stuck_models"
 
 # Убиваем runner процессы с достаточным временем жизни и памятью
-runner_pids=$(ps aux | grep "ollama runner" | grep -v grep | awk '{print $2}')
+# [v150.3] ollama 0.33 переименовал раннеры: было «ollama runner», стало
+# «llama-server». Старый паттерн НИКОГДА не матчился → застрявшие в Stopping
+# раннеры висели часами и блокировали планировщик (503-патология загрузок).
+# Убиваем только раннеры ГЛАВНОГО ollama (владельца порта 11434) — раннеры
+# Вероники (свой ollama на 11436) не трогаем.
+MAIN_PID=$(lsof -nP -tiTCP:11434 -sTCP:LISTEN 2>/dev/null | head -1)
+if [ -z "$MAIN_PID" ]; then
+    log "Главный ollama (порт 11434) не найден"
+    exit 0
+fi
+runner_pids=$(pgrep -P "$MAIN_PID" -f llama-server 2>/dev/null)
 
 if [ -z "$runner_pids" ]; then
     log "Runner процессы не найдены"

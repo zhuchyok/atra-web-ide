@@ -230,29 +230,44 @@ impl KnowledgeEngine {
                 .fetch_all(&self.pool)
                 .await?;
 
-            // Safety net: if ANN+filter produced too few candidates,
-            // fallback to the legacy full-filter query to preserve recall.
+            // Safety net: if ANN+filter produced too few candidates, retry
+            // the same indexed ANN path (a fresh pass can pick up rows
+            // indexed concurrently between the two attempts).
+            // [v150.3] Legacy-фолбэк переписан по образцу fast-path: был
+            // неиндексный ORDER BY similarity DESC по фильтрам проекта
+            // (seq scan ~100k векторов, аудит №6) — теперь сначала ANN-CTE
+            // с индексным ORDER BY embedding <=> $1 и LIMIT $2 (ann_pool),
+            // затем фильтры проекта по кандидатам, затем финальная
+            // сортировка similarity DESC LIMIT $4.
             if context_rows.len() >= std::cmp::min(limit as usize, 3) {
                 context_rows
             } else {
-                let legacy_query = "
+                // [v150.3] Same structure as the fast path above: HNSW index
+                // scan inside the CTE, project filters applied to the ANN
+                // candidates, final similarity sort. No sequential scan.
+                let fallback_query = "
+                    WITH ann AS (
+                        SELECT id, content, metadata, created_at, updated_at, embedding, source_ref
+                        FROM knowledge_nodes
+                        WHERE embedding IS NOT NULL
+                          AND confidence_score >= 0.3
+                        ORDER BY embedding <=> $1::vector
+                        LIMIT $2
+                    )
                     SELECT id, content, metadata, created_at, updated_at,
                            (1 - (embedding <=> $1::vector)) as similarity
-                    FROM knowledge_nodes
-                    WHERE embedding IS NOT NULL
-                      AND confidence_score >= 0.3
-                      AND (
-                        metadata->>'project_slug' = $2
-                        OR metadata->>'file_path' LIKE '%' || $2 || '%'
-                        OR metadata->>'source' IN ('external_docs_indexer', 'indexing_daemon')
-                        OR source_ref = 'autonomous_worker'
-                      )
+                    FROM ann
+                    WHERE metadata->>'project_slug' = $3
+                       OR metadata->>'file_path' LIKE '%' || $3 || '%'
+                       OR metadata->>'source' IN ('external_docs_indexer', 'indexing_daemon')
+                       OR source_ref = 'autonomous_worker'
                     ORDER BY similarity DESC
-                    LIMIT $3
+                    LIMIT $4
                 ";
 
-                sqlx::query(legacy_query)
+                sqlx::query(fallback_query)
                     .bind(Vector(embedding))
+                    .bind(ann_pool)
                     .bind(pc)
                     .bind(fetch_limit)
                     .fetch_all(&self.pool)
