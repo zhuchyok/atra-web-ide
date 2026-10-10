@@ -170,7 +170,7 @@ def main() -> int:
                 check = page.evaluate(
                     """(t) => {
                         var el = Array.from(document.querySelectorAll('input')).find(
-                            i => i.offsetParent !== null && (i.value||'') === t
+                            i => i.offsetParent !== null && (i.value||'').toLowerCase() === t.toLowerCase()
                         );
                         return !!el;
                     }""",
