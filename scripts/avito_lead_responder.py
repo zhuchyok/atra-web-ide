@@ -27,17 +27,18 @@ def get_token() -> str:
         "client_id": os.environ.get("AVITO_CLIENT_ID", ""),
         "client_secret": os.environ.get("AVITO_CLIENT_SECRET", "")
     }).encode()
-    req = urllib.request.Request("https://api.avito.ru/token", data=data)
+    req = urllib.request.Request("https://api.avito.ru/token", data=data,
+        headers={"Content-Type": "application/x-www-form-urlencoded"})
     with urllib.request.urlopen(req, timeout=15) as r:
         return json.loads(r.read())["access_token"]
 
 
-def notify_ntfy(message: str, title: str = "🔥 Avito Лид") -> None:
+def notify_ntfy(message: str, title: str = "Avito Lead") -> None:
     topic = os.environ.get("NTFY_TOPIC", "atra_victoria_curator")
-    data = json.dumps({"topic": topic, "message": message[:3500]}).encode()
+    data = json.dumps({"topic": topic, "message": message[:3500], "title": title}).encode()
     req = urllib.request.Request(
         f"https://ntfy.sh/{topic}", data=data,
-        headers={"Content-Type": "application/json", "Title": title},
+        headers={"Content-Type": "application/json"},
     )
     urllib.request.urlopen(req, timeout=15)
 
@@ -139,7 +140,7 @@ def main() -> int:
                 customer_text = str(content.get("text", ""))[:150]
                 break
 
-        alert = f"🔥 Avito: новый лид!\nОбъявление: {item_title}\nСообщение: {customer_text or '(без текста)'}"
+        alert = f"Avito: новый лид!\nОбъявление: {item_title}\nСообщение: {customer_text or '(без текста)'}"
 
         # ntfy (мгновенно на телефон)
         try:
@@ -208,6 +209,16 @@ def main() -> int:
             reply = json.loads(r.read())["message"]["content"].strip()
             import re as _re
             reply = _re.sub(r"<think>[\s\S]*?</think>", "", reply).strip()
+            # АНТИ-ЦЕНА: убрать любые цифры похожие на стоимость
+            # Правило компании: бот НЕ озвучивает цены — только расчётный отдел
+            price_patterns = [
+                r"\d+[\s ]*₽",
+                r"\d+[\s ]*(руб|рубл)",
+                r"стоимость\s*[:—-]?\s*\d+",
+                r"от\s*\d+\s*(₽|руб|тыс)",
+            ]
+            for pat in price_patterns:
+                reply = _re.sub(pat, "рассчитаем индивидуально", reply)
 
         # валидация: телефон + без ссылок + без выдуманных цен
         import re as _re
