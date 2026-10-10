@@ -1414,7 +1414,7 @@ class ReActAgent:
                             "model": model,
                             "prompt": prompt,
                             "stream": False,
-                            "options": {"temperature": 0.7, "num_predict": 2048},
+                            "options": {"temperature": 0.7, "num_predict": int(os.getenv("REACT_NUM_PREDICT", "8192"))},  # [v149.40] 2048 резал JSON-ответы посреди строки
                         }
                         if is_ollama_hands:
                             try:
