@@ -243,3 +243,15 @@ _Метод: живые пробы (curl/ps/py-spy/EXPLAIN/нагрузочны�
 **Новые находки дня (10.10):** десктопное **Ollama.app украло порт 11434** у launchd-инстанса (закрыто; правило в библию — слот обслуживает только homebrew); `system_auto_recovery.sh` спавнит блудные `ollama serve` (безвредно падают об bind, но требует maintenance-флага — волна-3).
 
 **Волна-3 (очередь):** np>1 для мозга (порядок бута руки→мозг), Rust legacy-SQL (lib.rs:238), чистки диска 89%/образов/моделей-дублей (по списку с подтверждением), medic ProactiveMonitor (unhealthy-реакция), генерационные канарейки в watchdog-jobs, employees-sync интерпретатор, renew_certs quarantine, cron-дубль nightly, Ollama.app убрать из Login Items (вручную владельцу).
+
+---
+
+## ⚡ СТАТУС ИСПОЛНЕНИЯ — ВОЛНА 3 (обновление 10.10 23:30, v150.3, коммит 8af93ff2)
+
+**ЗАКРЫТО:** №7-остаток (Rust legacy-SQL → ANN-CTE, gateway пересобран); №12 (канарейки генерации/encode в hourly watchdog — первое включение поймало реальную аварию; maintenance-флаг в auto-recovery); №4-остаток (medic ProactiveMonitor включён + safe-list); №10 (renew_certs 192 дня отказов → ОК; employees-sync ожил); №14 (cron-дубль nightly удалён; кипер получил single-instance лок); №9-остаток (keep-alive фолбэк ai_core убран).
+
+**ГЛАВНОЕ ОТКРЫТИЕ ВОЛНЫ:** 503-патология загрузок («maximum pending requests exceeded» на phi/nomic часами) = **слепой runner-watchdog**: ollama 0.33 переименовал раннеры «ollama runner»→«llama-server», сторож год не находил процессы → застрявшие Stopping-раннеры висели 29+ мин, блокировали планировщик. Фикс + живой тест (убил застрявший, все полосы поднялись, раннер мозга -np 4). 503 при живых всех полосах теперь = сигнал «завис раннер», а не «модель сломана».
+
+**ТЕКУЩЕЕ СОСТОЯНИЕ (23:30):** мозг 29GB @16K np4 на 12ч; phi Forever 16GB; nomic Forever; encode 0.13с; /run: 40с-бюджет отрабатывает, sync-ответ ещё не влезает (пайплайн victoria_server — волна-4); MLX-легаси нестабилен на 'fast' (канарейка флагает; кандидат на MLX_API_URL=disabled).
+
+**ВОЛНА-4 (очередь):** /run sync-латентность (внутренности пайплайна); судьба MLX-узла; чистки диска (листы ниже — по подтверждению владельца); ingestion enforce 5%; Login Items Ollama.app (руками); 100k untyped-узлов; лог-лимиты json-file.

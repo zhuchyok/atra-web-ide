@@ -63,6 +63,22 @@
 
 ---
 
+## § Волна-3 фиксов аудита (2026-10-10 v150.3) — сторож прозрел, канарейки, medic, Rust-SQL ✅
+
+1. **runner-watchdog прозрел — ГЛАВНЫЙ фикс волны.** `scripts/ollama_runner_watchdog.sh` искал процессы «ollama runner», но ollama 0.33 переименовал раннеры в **llama-server** → сторож был слеп годами: застрявшие в «Stopping…» раннеры висели ЧАСАМИ (замер: мозг 29 мин), держали слот планировщика, очереди загрузок переполнялись → мгновенные **503 «maximum pending requests exceeded»** на phi/nomic (вся 503-патология загрузок последних дней). Фикс: паттерн llama-server + скоуп «только дети владельца порта 11434» (раннеры Вероники не трогаем). Живой тест: сторож нашёл и убил застрявший (1736с uptime); после — все три полосы резидентны, phi 200/3.1с, мозг 200/2.5с, encode 200/0.13с; раннер мозга поднялся **-np 4** (4 слота) при загрузке на свободной RAM.
+2. **Канарейки ФУНКЦИИ в hourly watchdog** (`scripts/launchd_watchdog.py::http_canaries`): генерация 1 токена phi@11434 (180с — холодная загрузка легитимна), fast@11435 (120с), encode@8001 (30с) — через существующий дедуп/Telegram. Первое же включение поймало реальную аварию рук (503) — работает.
+3. **maintenance-флаг в system_auto_recovery.sh** (каждые 300с спавнил блудные ollama serve при ручных операциях).
+4. **medic ProactiveMonitor включён** (писался, но не запускался): unhealthy-контейнеры → docker restart (до 3) с safe-list (postgres/redis/pgbouncer/docker-proxy — только алерт). Закрывает «vector_core unhealthy 1.5ч без реакции».
+5. **Rust legacy-SQL → ANN-CTE** (lib.rs, cargo check/build чисто, gateway пересобран и рестартнут, health 200) — последний HNSW-рецидив.
+6. **Мелочи с большим эффектом:** single-instance лок кипера (mkdir+stale-защита — дубль-рестарты ollama 07.10); renew_certs.sh chmod+x+xattr (192 дня «Operation not permitted» → «актуальны»); employees-sync kickstart (саб-процесс ожил, «employees.json уже актуален», лог 20МБ ротирован); cron-дубль nightly_learner 03:00 удалён (контейнер остаётся); keep-alive фолбэк ai_core убран (единый источник — ollama_keep_alive_policy, импорт проверен в контейнерах); env OLLAMA_NUM_PARALLEL=4/MAX_QUEUE=100/NUM_CTX=16384 применён полным bootout+bootstrap (kickstart plist не перечитывает!).
+7. **Разоблачения разведки:** MLX-Recovery-unload НЕ трогает phi (только victoria-wisdom*); дубликат кипера был разовым ad-hoc (постоянной второй джобы нет — лок закрывает класс); `com.atra.auto-recovery` — 300с-цикл (вот источник блудных serve).
+
+**Осталось (волна-4):** /run sync-ответ (40с бюджет есть, пайплайн не успевает — внутренности victoria_server); MLX-легаси периодически подвисает на 'fast' (канарейка флагает — кандидат на отключение узла: MLX_API_URL=disabled); чистки диска 89% (образы 119GB, модели-дубли, бэкапы — лист на подтверждение владельцу); ingestion enforce; Ollama.app убрать из Login Items (руками); 100k untyped-узлов.
+
+**Уроки:** (7) переименование внутренних процессов мажорной версией олламы ослепляет сторожей — grep-паттерны в акторах проверять при каждом апгрейде ollama; (8) «503 мгновенный» = очередь битов, смотри зависшие Stopping-раннеры.
+
+---
+
 ## § Волна-2 фиксов аудита (2026-10-10 v150.2) — P1: фантом 64K побеждён, гейт стабилен под нагрузкой, HNSW возвращён, vector_core async ✅
 
 1. **Фантом num_ctx=65536 побеждён.** Корень: `expert_worker.py` FAST PATH слал `/api/chat` БЕЗ options → ollama авто-растит контекст под длину RAG-промпта (промпты по 6.7K токенов в живом кэше) → predicted 26GiB → эвикции мозга. Фикс: `"options": {"num_ctx": 16384}`. После прокатки — **0 строк «predicted to exceed»** в ollama.log (были сотни в час). Плюс Modelfile-капы nomic@8192/phi@16384/minicpm@8192 (v150.1).
