@@ -7,12 +7,17 @@
 война с brain-keepalive. Белый список обязателен при любой смене модели мозга.
 Env: WISDOM_GUARD_DRY_RUN=true — не выгружать (сухой прогон).
 """
-import os, time, urllib.request, json as _json, json
+
+import json
+import json as _json
+import os
+import time
+import urllib.request
 from datetime import datetime
 
 OLLAMA = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
 POLL = int(os.getenv("WISDOM_GUARD_POLL_SEC", "60"))
-DRY = os.getenv("WISDOM_GUARD_DRY_RUN", "false").lower() in ("1","true","yes")
+DRY = os.getenv("WISDOM_GUARD_DRY_RUN", "false").lower() in ("1", "true", "yes")
 
 # [v150.1] Контракт v149.4: мозг живёт на 11434 — никогда не выгружать.
 BRAIN_ALLOW = ("victoria-qwen38", "qwen3.8")
@@ -59,7 +64,9 @@ def pin_phi():
     req = urllib.request.Request(
         f"{OLLAMA}/api/generate", data=data, headers={"Content-Type": "application/json"}
     )
-    urllib.request.urlopen(req, timeout=60).read()
+    # [v150.2] 240с: cold-load phi@16K занимает минуты (Metal-аллокация 15GB под
+    # давлением Docker VM) — при 60с пин вечно отваливался и «спамил» err: timed out
+    urllib.request.urlopen(req, timeout=240).read()
     _log(f"pinned phi3.5:3.8b on {OLLAMA}")
 
 

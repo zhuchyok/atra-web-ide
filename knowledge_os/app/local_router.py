@@ -5,6 +5,7 @@ import logging
 import os
 import random
 import time
+from collections import defaultdict
 from collections.abc import AsyncGenerator
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
@@ -318,6 +319,10 @@ class LocalAIRouter:
         self._performance_cache = {}  # Cache for node performance metrics
         self._node_models_cache = {}  # [v149.26] url -> set(lower model names) | None
         self._node_models_ts = {}  # [v149.26] url -> timestamp
+        # [v150.2] single-flight на обновление тегов узла (нет stampede при
+        # протухшем кэше) + негативный кэш (упавший узел не дёргается каждый запрос)
+        self._node_models_lock = defaultdict(asyncio.Lock)
+        self._node_models_fail_ts = {}
         self._cache_ttl = 300  # 5 minutes
 
         # ML Model for intelligent routing
@@ -1814,21 +1819,43 @@ class LocalAIRouter:
             # [v149.26] УНИВЕРСАЛЬНЫЙ гейт «модель × узел» (замена v149.21+v149.25):
             # узел обслуживает запрошенную модель? нет — пропустить. Список — /api/tags
             # узла с кэшем 120с. Fallback на старые маркеры, если теги недоступны.
+            # [v150.2] Аудит №5: под нагрузкой /api/tags MLX падал (15/24) и гейт
+            # МОЛЧА деградировал на хардкоды v149.21 (для Ollama-узлов фолбэка не
+            # было вовсе). Теперь: WARN-лог фолбэка, single-flight, негативный кэш 5с,
+            # таймаут тегов 1.5с, маркер-фолбэк симметричен для обоих типов узлов.
+            _gate_now = time.time()
+            _gate_failed_recently = _gate_now - self._node_models_fail_ts.get(node_url_base, 0) < 5
             _node_models = self._node_models_cache.get(node_url_base)
-            if (
+            if not _gate_failed_recently and (
                 _node_models is None
-                or (time.time() - self._node_models_ts.get(node_url_base, 0)) > 120
+                or (_gate_now - self._node_models_ts.get(node_url_base, 0)) > 120
             ):
-                try:
-                    async with httpx.AsyncClient(timeout=3.0) as _tc:
-                        _tr = await _tc.get(f"{node_url_base}/api/tags")
-                        _node_models = {
-                            (m.get("name") or "").lower() for m in (_tr.json().get("models") or [])
-                        }
-                except Exception:
-                    _node_models = None
-                self._node_models_cache[node_url_base] = _node_models
-                self._node_models_ts[node_url_base] = time.time()
+                async with self._node_models_lock[node_url_base]:
+                    # single-flight: внутри лока повторная проверка свежести
+                    _node_models = self._node_models_cache.get(node_url_base)
+                    if (
+                        _node_models is None
+                        or (_gate_now - self._node_models_ts.get(node_url_base, 0)) > 120
+                    ):
+                        try:
+                            async with httpx.AsyncClient(timeout=1.5) as _tc:
+                                _tr = await _tc.get(f"{node_url_base}/api/tags")
+                            _node_models = {
+                                (m.get("name") or "").lower()
+                                for m in (_tr.json().get("models") or [])
+                            }
+                            self._node_models_fail_ts.pop(node_url_base, None)
+                        except Exception as _tags_err:
+                            _node_models = None
+                            self._node_models_fail_ts[node_url_base] = time.time()
+                            logger.warning(
+                                "🚦 [NODE-GATE] /api/tags узла %s недоступен (%s) — "
+                                "ФОЛБЭК на маркеры v149.21, маршрутизация может отличаться",
+                                node.get("name"),
+                                type(_tags_err).__name__,
+                            )
+                        self._node_models_cache[node_url_base] = _node_models
+                        self._node_models_ts[node_url_base] = time.time()
             if _node_models:
                 _mkey = (model or "").strip().lower()
                 if _mkey and _mkey not in _node_models and _mkey.split(":")[0] not in _node_models:
@@ -1861,6 +1888,38 @@ class LocalAIRouter:
                     logger.info(
                         "🚦 [MLX-GATE] %s не обслуживается прокси 11435 — узел пропущен (Ollama)"
                         ", model=%s",
+                        model,
+                        node.get("name"),
+                    )
+                    continue
+            elif is_ollama and model:
+                # [v150.2] Фолбэк-маркеры и для Ollama-узлов (раньше — только MLX):
+                # без тегов и без проверки узел получал запрос на чужую модель (404).
+                # Ollama-узлы обслуживают руки/мозг; лёгкие MLX-алиасы — нет.
+                _key = model.lower()
+                _ollama_served = any(
+                    m in _key
+                    for m in (
+                        "phi3.5",
+                        "phi3",
+                        "qwen38",
+                        "qwen3.8",
+                        "nomic",
+                        "moondream",
+                        "tinyllama",
+                        "smollm",
+                        "gemma",
+                        "minicpm",
+                        "lfm",
+                        "qwen2.5",
+                        "deepseek",
+                        "coder",
+                        "stable",
+                    )
+                )
+                if not _ollama_served:
+                    logger.info(
+                        "🚦 [OLLAMA-GATE-ФОЛБЭК] %s не похож на модель Ollama-узла %s — узел пропущен (теги недоступны)",
                         model,
                         node.get("name"),
                     )

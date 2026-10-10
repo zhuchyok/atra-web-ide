@@ -10,6 +10,8 @@ import logging
 import os
 import random
 from datetime import datetime, timezone
+
+_DT_MIN = datetime.min
 from typing import Any, Optional, Union
 
 # [SINGULARITY 24.3] Circuit Breaker для Ollama Embeddings
@@ -175,7 +177,7 @@ async def get_embedding(text: str) -> Optional[list]:
         return None
 
     # Генерируем ключ для группировки (хэш текста)
-    text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+    text_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
 
     # [SINGULARITY 29.7] Redis Cache Check
     from app.redis_manager import get_redis_manager
@@ -559,7 +561,7 @@ class SemanticAICache:
             import hashlib
 
             normalized = " ".join(text.lower().split())
-            text_hash = hashlib.md5(normalized.encode('utf-8')).hexdigest()
+            text_hash = hashlib.md5(normalized.encode("utf-8")).hexdigest()
 
         if text_hash in self._embedding_cache:
             return self._embedding_cache[text_hash]
@@ -588,16 +590,21 @@ class SemanticAICache:
 
         try:
             # Ищем не только точное совпадение, но и семантически близкие темы для префетчинга
+            # [v150.2] Порог и сортировка — в Python (было: seq scan по выражению).
             rows = await conn.fetch(
                 """
                 SELECT query_text, expert_name, (1 - (embedding <=> $1::vector)) as similarity, metadata
                 FROM semantic_ai_cache
-                WHERE (1 - (embedding <=> $1::vector)) >= 0.85
-                ORDER BY similarity DESC
-                LIMIT 5
+                ORDER BY embedding <=> $1::vector
+                LIMIT 15
             """,
                 str(embedding),
             )
+            rows = sorted(
+                (r for r in rows if r["similarity"] >= 0.85),
+                key=lambda r: r["similarity"],
+                reverse=True,
+            )[:5]
 
             if not rows:
                 if conn:
@@ -746,35 +753,47 @@ class SemanticAICache:
             """)
 
             # SQL запрос с учетом TTL, если колонка существует
+            # [v150.2] Рецидив v149.16 (аудит №6): порог по выражению в WHERE и
+            # ORDER BY similarity отключали HNSW → seq scan. Порог/сортировка —
+            # в Python, выборка — индексная (ORDER BY embedding <=> $1) c overfetch.
             if has_ttl:
-                row = await conn.fetchrow(
+                rows = await conn.fetch(
                     """
-                    SELECT response_text, metadata, (1 - (embedding <=> $1::vector)) as similarity
+                    SELECT response_text, metadata, (1 - (embedding <=> $1::vector)) as similarity,
+                           last_used_at
                     FROM semantic_ai_cache
                     WHERE expert_name = $2
-                    AND (1 - (embedding <=> $1::vector)) >= $3
                     AND (expires_at IS NULL OR expires_at > NOW())
-                    ORDER BY similarity DESC, last_used_at DESC
-                    LIMIT 1
+                    ORDER BY embedding <=> $1::vector
+                    LIMIT 3
                 """,
                     str(embedding),
                     expert_name,
-                    aggressive_threshold,
                 )
             else:
-                row = await conn.fetchrow(
+                rows = await conn.fetch(
                     """
-                    SELECT response_text, metadata, (1 - (embedding <=> $1::vector)) as similarity
+                    SELECT response_text, metadata, (1 - (embedding <=> $1::vector)) as similarity,
+                           last_used_at
                     FROM semantic_ai_cache
                     WHERE expert_name = $2
-                    AND (1 - (embedding <=> $1::vector)) >= $3
-                    ORDER BY similarity DESC, last_used_at DESC
-                    LIMIT 1
+                    ORDER BY embedding <=> $1::vector
+                    LIMIT 3
                 """,
                     str(embedding),
                     expert_name,
-                    aggressive_threshold,
                 )
+
+            # Бывшие WHERE-порог и ORDER BY similarity DESC, last_used_at DESC
+            _cands = [r for r in rows if r["similarity"] >= aggressive_threshold]
+            row = (
+                max(
+                    _cands,
+                    key=lambda r: (r["similarity"], r["last_used_at"] or _DT_MIN),
+                )
+                if _cands
+                else None
+            )
 
             if row and row["similarity"] >= aggressive_threshold:
                 if self._enforce_freshness:

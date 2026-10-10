@@ -1460,24 +1460,52 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                         """
                         params.extend([ai_research_id, victoria_tasks_id, project_files_id])
 
+                    # [v150.2] Рецидив v149.16 (аудит №6): ORDER BY по выражению с
+                    # CASE-множителями отключал HNSW → Parallel Seq Scan 100k векторов
+                    # (живой замер 1.7с, LockManager-ожидания). Теперь: индексный
+                    # ORDER BY + overfetch, множители low_priority/type — в Python.
                     rows = await conn.fetch(
                         f"""
                         SELECT content, metadata, domain_id,
-                               ((1 - (embedding <=> $1::vector))
-                                * (CASE WHEN metadata->>'low_priority' = 'true' THEN 0.5 ELSE 1.0 END)
-                                * (CASE WHEN metadata->>'type' IN ('board_directive','mentorship_note','strategy_summary','database_optimization')
-                                             OR metadata->>'category' IN ('strategy','mentorship')
-                                        THEN 0.85 ELSE 1.0 END)) as similarity
+                               (1 - (embedding <=> $1::vector)) as similarity
                         FROM knowledge_nodes
                         WHERE embedding IS NOT NULL AND confidence_score >= 0.3
                         {project_cond}
-                        ORDER BY similarity DESC LIMIT 6
+                        ORDER BY embedding <=> $1::vector
+                        LIMIT 18
                         """,
                         *params,
                     )
 
                     if not rows:
                         return ""
+
+                    # Штрафы (бывшие CASE-множители) — здесь, над уже выбранным
+                    # индексом кандидатов; сортировка и срез 6 — как раньше.
+                    def _adj(row):
+                        meta = row["metadata"] or {}
+                        if isinstance(meta, str):
+                            try:
+                                meta = json.loads(meta)
+                            except Exception:
+                                meta = {}
+                        sim = float(row["similarity"])
+                        if meta.get("low_priority") == "true":
+                            sim *= 0.5
+                        if meta.get("type") in (
+                            "board_directive",
+                            "mentorship_note",
+                            "strategy_summary",
+                            "database_optimization",
+                        ) or meta.get("category") in ("strategy", "mentorship"):
+                            sim *= 0.85
+                        d = dict(row)
+                        d["similarity"] = sim
+                        return d
+
+                    rows = sorted(
+                        (_adj(r) for r in rows), key=lambda r: r["similarity"], reverse=True
+                    )[:6]
 
                     # [SINGULARITY 23.3] Cross-Encoder Reranking for Python RAG
                     try:
@@ -1635,7 +1663,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
         max_chars = int(os.getenv("KNOWLEDGE_CONTEXT_MAX_CHARS", "4000"))
         # [v149.31] Короткий вопрос не должен тонуть в контексте: <300 симв вопроса
         # -> контекст не больше 1500 (RAG-шум глушит Q&A, ответ уезжал в сторону).
-        if len(prompt) < 300:
+        if len(query) < 300:
             max_chars = min(max_chars, int(os.getenv("KNOWLEDGE_CONTEXT_MAX_CHARS_SHORT", "1500")))
         if len(full_context) > max_chars:
             cut = full_context.rfind("\n[NODE:", 0, max_chars)

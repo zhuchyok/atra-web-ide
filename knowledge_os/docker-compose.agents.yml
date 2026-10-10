@@ -111,6 +111,17 @@ services:
       EMBEDDING_DIM: "768"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    # [v150.2] Аудит: старый check (timeout 3с) валился при любой загрузке Ollama.
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python3 -c "import urllib.request;urllib.request.urlopen(''http://localhost:8001/health'', timeout=8)"',
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   victoria-agent:
     logging:
@@ -216,7 +227,9 @@ services:
       VICTORIA_WARMUP_TIMEOUT_PER_MODEL: ${VICTORIA_WARMUP_TIMEOUT_PER_MODEL:-180}
       VICTORIA_WARMUP_RETRY_COUNT: ${VICTORIA_WARMUP_RETRY_COUNT:-8}
       VICTORIA_WARMUP_RETRY_SLEEP_SEC: ${VICTORIA_WARMUP_RETRY_SLEEP_SEC:-4}
-      VICTORIA_SYNC_SAFE_TIMEOUT_SEC: "20"
+      # [v150.2] 12с(код)→20с→40с: при тёплом мозге (1.4с) тривиальные вопросы
+      # всё равно уходили в handoff timeout_sync_safe_mode (гейт+RAG+очередь).
+      VICTORIA_SYNC_SAFE_TIMEOUT_SEC: "40"
       VICTORIA_SYNC_SAFE_MODEL: ${VICTORIA_SYNC_SAFE_MODEL:-victoria-qwen38:latest}
       VICTORIA_TIMEOUT_FALLBACK_MODEL: ${VICTORIA_TIMEOUT_FALLBACK_MODEL:-victoria-qwen38:latest}
       # [v149.11] 2с = отмена при живом трафике (батарея: 3/4 параллельных задач отменены)

@@ -1,9 +1,12 @@
 import json
 import logging
 import os
+import datetime as _datetime
 from typing import Dict, List, Optional
 
 import asyncpg
+
+_DT_MIN = _datetime.datetime.min
 
 try:
     from db_pool import get_pool
@@ -81,18 +84,22 @@ class KnowledgeService:
                 """
 
             async with pool.acquire() as conn:
+                # [v150.2] Рецидив v149.16 (аудит №6): ORDER BY по вычисленной
+                # similarity отключал HNSW → seq scan 100k векторов. Теперь:
+                # индексный ORDER BY + overfetch ×3, итоговая сортировка в Python.
                 if project_context and project_context.strip():
                     rows = await conn.fetch(
                         """
-                        SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
+                        SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity,
+                               usage_count, created_at
                         FROM knowledge_nodes
                         WHERE embedding IS NOT NULL
                         AND confidence_score >= 0.3
                         """
                         + project_filter
                         + """
-                        ORDER BY similarity DESC, usage_count DESC NULLS LAST, created_at DESC
-                        LIMIT $2
+                        ORDER BY embedding <=> $1::vector
+                        LIMIT $2 * 3
                         """,
                         embedding,
                         limit,
@@ -101,15 +108,16 @@ class KnowledgeService:
                 else:
                     rows = await conn.fetch(
                         """
-                        SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
+                        SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity,
+                               usage_count, created_at
                         FROM knowledge_nodes
                         WHERE embedding IS NOT NULL
                         AND confidence_score >= 0.3
                         """
                         + project_filter
                         + """
-                        ORDER BY similarity DESC, usage_count DESC NULLS LAST, created_at DESC
-                        LIMIT $2
+                        ORDER BY embedding <=> $1::vector
+                        LIMIT $2 * 3
                         """,
                         embedding,
                         limit,
@@ -117,6 +125,17 @@ class KnowledgeService:
 
                 if not rows:
                     return ""
+
+                # Бывший ORDER BY similarity DESC, usage_count DESC NULLS LAST, created_at DESC
+                rows = sorted(
+                    rows,
+                    key=lambda r: (
+                        r["similarity"],
+                        r["usage_count"] or 0,
+                        r["created_at"] or _DT_MIN,
+                    ),
+                    reverse=True,
+                )[:limit]
 
                 context = "\n📚 [KNOWLEDGE CONTEXT]:\n"
                 for row in rows:

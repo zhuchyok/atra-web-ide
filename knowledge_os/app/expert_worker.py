@@ -1474,6 +1474,10 @@ async def process_task(task_data: dict):
                                                 "model": _dialogue_model,
                                                 "messages": _messages,
                                                 "stream": False,
+                                                # [v150.2] Без num_ctx ollama авто-растит контекст
+                                                # под длину промпта (RAG-набивка → 32768/65536 →
+                                                # predicted 26GiB → эвикция мозга). Кап контракта.
+                                                "options": {"num_ctx": 16384},
                                             },
                                             headers=_headers,
                                         )
