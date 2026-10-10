@@ -1622,6 +1622,7 @@ async def process_task(task_data: dict):
                             "ai_core_started", {"category": task_data.get("category", "general")}
                         )
 
+                    logger.info("🔍 [DESC-TRACE] len=%s head=%r", len(description or ""), (description or "")[:80])
                     report = await run_smart_agent_async(
                         description,
                         expert_name=expert_name,
