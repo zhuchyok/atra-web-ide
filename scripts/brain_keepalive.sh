@@ -26,8 +26,18 @@ if ! mkdir "$LOCKDIR" 2>/dev/null; then
 fi
 trap 'rmdir "$LOCKDIR" 2>/dev/null' EXIT
 
-# 1. Уже загружена — тихо выходим
-if curl -s --max-time 5 "$U/api/ps" | grep -q "\"$M\""; then exit 0; fi
+# 1. Уже загружена — тихо выходим.
+# [v150.5] Разделяем «проба упала» и «модели нет»: под ночной нагрузкой api/ps
+# таймаутил за 5с → ложные «brain warmed» каждый час (мозг был резидентен!
+# форензика 11.10). Теперь: проба упала дважды → считаем мозг ЖИВЫМ (fail-safe),
+# греем только при доказанном отсутствии в валидном ответе.
+PSOUT=$(curl -s --max-time 5 "$U/api/ps" 2>/dev/null)
+if [ -z "$PSOUT" ]; then
+  sleep 3
+  PSOUT=$(curl -s --max-time 5 "$U/api/ps" 2>/dev/null)
+  [ -z "$PSOUT" ] && exit 0   # ollama не отвечает — не трогаем, разберётся сторож
+fi
+echo "$PSOUT" | grep -q "\"$M\"" && exit 0
 
 # 2. Бэкофф после недавней неудачи (30 мин)
 if [ -f "$LOCK" ] && [ $(( $(date +%s) - $(stat -f %m "$LOCK") )) -lt 1800 ]; then exit 0; fi

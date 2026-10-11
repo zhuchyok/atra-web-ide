@@ -125,8 +125,20 @@ class ProactiveMonitor:
             for line in result.stdout.strip().split("\n"):
                 if "\t" in line:
                     name, status = line.split("\t", 1)
-                    is_healthy = "healthy" in status.lower()
-                    is_running = "up" in status.lower()
+                    s = status.lower()
+                    is_running = "up" in s
+                    # [v150.5] Прежний `"healthy" in s` ломался трижды:
+                    # (1) контейнеры БЕЗ healthcheck («Up 2 hours») считались
+                    # нездоровыми вечно → kibana рестартилась каждые циклы;
+                    # (2) «health: starting» — нездоров (рестарты при каждом деплое);
+                    # (3) «unhealthy» содержит «healthy» → реально больные
+                    # считались здоровыми. None = статуса нет — не трогаем.
+                    if "unhealthy" in s:
+                        is_healthy = False
+                    elif "healthy" in s:  # "(healthy)"
+                        is_healthy = True
+                    else:
+                        is_healthy = None
                     metrics["containers"][name] = {
                         "status": status,
                         "healthy": is_healthy,
@@ -200,10 +212,11 @@ class ProactiveMonitor:
 
         # Container health
         if "containers" in current:
+            # [v150.5] unhealthy = ТОЛЬКО явный False (None = нет healthcheck/starting)
             unhealthy = [
                 name
                 for name, info in current["containers"].items()
-                if not info.get("healthy", True) and info.get("running", True)
+                if info.get("healthy") is False and info.get("running", True)
             ]
             if unhealthy:
                 alerts.append({
