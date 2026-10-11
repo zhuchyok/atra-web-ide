@@ -352,6 +352,7 @@ class EnhancedRAGEngine:
                 if not rows:
                     keywords = query.lower().split()[:10]
                     keyword_pattern = "|".join(keywords)
+                    await conn.execute("SET statement_timeout = '3s'")  # [v149.43] редкие слова в ILIKE = минуты; лучше пусто, чем зависание
                     rows = await conn.fetch(
                         """
                         SELECT id, content, confidence_score, usage_count,
@@ -369,6 +370,10 @@ class EnhancedRAGEngine:
                         [f"%{k}%" for k in keywords],
                         limit * 2,
                     )
+                    try:
+                        await conn.execute("RESET statement_timeout")
+                    except Exception:
+                        pass
 
                 # 3. Реранкинг (если включен)
                 if use_reranking and len(rows) > limit:
