@@ -21,5 +21,11 @@ if [ "$R" != "OK" ]; then
   sleep 8
   curl -s -m 8 -H "Title: 🔴 Redis умер — поднят сторожем" -H "Priority: high" -d "Redis был недоступен (конвейер экспертов стоял). Контейнер пересоздан автоматически." "https://ntfy.sh/atra_victoria_curator" >/dev/null 2>&1
 else
-  echo "$(date '+%F %T') redis OK" >> "$HOME/Library/Logs/atra/redis_watchdog.log"
+  # [v149.42] Метрика памяти: Redis умер от OOM на лимите 2G — алерт при >80%
+  USED=$(docker exec knowledge_os_redis redis-cli info memory 2>/dev/null | grep used_memory: | head -1 | tr -dc '0-9')
+  if [ -n "$USED" ] && [ "$USED" -gt 1717986918 ]; then
+    echo "$(date '+%F %T') redis memory ${USED} bytes > 80% лимита" >> "$HOME/Library/Logs/atra/redis_watchdog.log"
+    curl -s -m 8 -H "Title: ⚠️ Redis память >80%" -d "used=${USED} bytes — близко к OOM-лимиту 2G" "https://ntfy.sh/atra_victoria_curator" >/dev/null 2>&1
+  fi
+  echo "$(date '+%F %T') redis OK (mem=${USED})" >> "$HOME/Library/Logs/atra/redis_watchdog.log"
 fi
