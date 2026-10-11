@@ -61,6 +61,15 @@
 
 
 
+
+---
+
+## § Волна-4а (2026-10-10 v150.4) — потолок генераций + чистки с пошаговой верификацией ✅
+
+1. **num_predict-потолки** (марафонская генерация на phi — 16K токенов ≈ 20 мин на 13 t/s — морила голодом запросы даже к idle-мозгу): `local_router._get_adaptive_options` → `ROUTER_DEFAULT_NUM_PREDICT` (дефолт 4096 ≈ 5 мин), FAST PATH expert_worker → 2048. После прокатки: brain 200/1.7с, phi 200/5.8с, encode 200/0.02с.
+2. **Чистки (каждая с проверкой до/после):** `ollama rm hf.co/unsloth/Qwen3.8-27B-GGUF:Q8_0` (29GB, 0 ссылок) и `qwen3-coder:30b` с 11434 (18GB; копия на 11436 жива, проверено) → **диск 205→250Gi free (+45GB, 89%→86%)**. НЕ удалены (используются): gemma3n (light-hands роутера), phi3.5:3.8b-stable (роутер-fast!), minicpm-v (vision), deepseek-r1:32b (VIP Вероники), qwen2.5-coder:14b (evolver@11434). Docker-образы: неиспользуемых старше 14д всего ~600МБ — prune нерентабелен (22GB-воркеры в работе). Бэкапы ротируются сами (9 дневных дампов, 8.4GB).
+3. **Урок:** «probe timeout» при жующих раннерах (CPU%) = глубокая очередь под нагрузкой, не поломка — смотреть завершения в GIN-логе прежде чем рестартить.
+
 ---
 
 ## § Волна-3 фиксов аудита (2026-10-10 v150.3) — сторож прозрел, канарейки, medic, Rust-SQL ✅
@@ -71,7 +80,7 @@
 4. **medic ProactiveMonitor включён** (писался, но не запускался): unhealthy-контейнеры → docker restart (до 3) с safe-list (postgres/redis/pgbouncer/docker-proxy — только алерт). Закрывает «vector_core unhealthy 1.5ч без реакции».
 5. **Rust legacy-SQL → ANN-CTE** (lib.rs, cargo check/build чисто, gateway пересобран и рестартнут, health 200) — последний HNSW-рецидив.
 6. **Мелочи с большим эффектом:** single-instance лок кипера (mkdir+stale-защита — дубль-рестарты ollama 07.10); renew_certs.sh chmod+x+xattr (192 дня «Operation not permitted» → «актуальны»); employees-sync kickstart (саб-процесс ожил, «employees.json уже актуален», лог 20МБ ротирован); cron-дубль nightly_learner 03:00 удалён (контейнер остаётся); keep-alive фолбэк ai_core убран (единый источник — ollama_keep_alive_policy, импорт проверен в контейнерах); env OLLAMA_NUM_PARALLEL=4/MAX_QUEUE=100/NUM_CTX=16384 применён полным bootout+bootstrap (kickstart plist не перечитывает!).
-7. **Разоблачения разведки:** MLX-Recovery-unload НЕ трогает phi (только victoria-wisdom*); дубликат кипера был разовым ad-hoc (постоянной второй джобы нет — лок закрывает класс); `com.atra.auto-recovery` — 300с-цикл (вот источник блудных serve).
+7. **Разоблачения разведки:** MLX-Recovery-unload НЕ трогает phi (только victoria-wisdom\*); дубликат кипера был разовым ad-hoc (постоянной второй джобы нет — лок закрывает класс); `com.atra.auto-recovery` — 300с-цикл (вот источник блудных serve).
 
 **Осталось (волна-4):** /run sync-ответ (40с бюджет есть, пайплайн не успевает — внутренности victoria_server); MLX-легаси периодически подвисает на 'fast' (канарейка флагает — кандидат на отключение узла: MLX_API_URL=disabled); чистки диска 89% (образы 119GB, модели-дубли, бэкапы — лист на подтверждение владельцу); ingestion enforce; Ollama.app убрать из Login Items (руками); 100k untyped-узлов.
 

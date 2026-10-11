@@ -1477,7 +1477,10 @@ async def process_task(task_data: dict):
                                                 # [v150.2] Без num_ctx ollama авто-растит контекст
                                                 # под длину промпта (RAG-набивка → 32768/65536 →
                                                 # predicted 26GiB → эвикция мозга). Кап контракта.
-                                                "options": {"num_ctx": 16384},
+                                                # [v150.4] num_predict: без потолка ollama генерит
+                                                # до конца контекста — марафон 16K токенов на phi
+                                                # (20 мин на 13 t/s) морил голодом все полосы.
+                                                "options": {"num_ctx": 16384, "num_predict": 2048},
                                             },
                                             headers=_headers,
                                         )

@@ -2788,6 +2788,12 @@ class LocalAIRouter:
             # 16384 для тяжёлых влезает с запасом; длинные контексты — per-request
             # options num_ctx в батл-ранере (перекрывает этот дефолт).
             SAFE_MAX_CTX = 16384
+            # [v150.4] Потолок генерации: без num_predict ollama генерит до конца
+            # контекста — марафонская задача на phi (16K токенов ≈ 20 мин на 13 t/s)
+            # морила голодом все полосы (запросы к idle-мозгу висели минутами).
+            # 4096 ≈ 5 мин максимум; явный num_predict вызывающего перекрывает
+            # только если он передаёт свои options (тогда adaptive не применяется).
+            options["num_predict"] = int(os.getenv("ROUTER_DEFAULT_NUM_PREDICT", "4096"))
 
             model_lower = model_name.lower()
             if "tinyllama" in model_lower or "moondream" in model_lower or "nomic" in model_lower:
