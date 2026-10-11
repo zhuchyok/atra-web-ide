@@ -22,6 +22,9 @@ x-dynamic-worker-env: &dynamic-worker-env
   HITL_APPROVAL_TIMEOUT_SEC: "180"
   HOST_PROJECT_ROOT: ${HOST_PROJECT_ROOT:-}
   HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-}
+  # [v150.6] Аудит №15: ingestion-гейт из shadow → постепенный enforce (5% записей;
+  # мусор «источники недоступны/Ошибка парсинга» рос — 2890→3814 с v149.17)
+  INGESTION_GATE_ENFORCE_PERCENT: "5"
 
 # HOST_PROJECT_ROOT required when recreate runs via docker.sock from orchestrator
 x-dynamic-worker-volumes: &dynamic-worker-volumes
@@ -230,6 +233,8 @@ services:
       # [v150.2] 12с(код)→20с→40с: при тёплом мозге (1.4с) тривиальные вопросы
       # всё равно уходили в handoff timeout_sync_safe_mode (гейт+RAG+очередь).
       VICTORIA_SYNC_SAFE_TIMEOUT_SEC: "40"
+      # [v150.6] Аудит №15: ingestion-гейт shadow → enforce 5% (мусор в БД растёт)
+      INGESTION_GATE_ENFORCE_PERCENT: "5"
       VICTORIA_SYNC_SAFE_MODEL: ${VICTORIA_SYNC_SAFE_MODEL:-victoria-qwen38:latest}
       VICTORIA_TIMEOUT_FALLBACK_MODEL: ${VICTORIA_TIMEOUT_FALLBACK_MODEL:-victoria-qwen38:latest}
       # [v149.11] 2с = отмена при живом трафике (батарея: 3/4 параллельных задач отменены)

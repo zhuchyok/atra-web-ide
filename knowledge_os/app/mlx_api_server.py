@@ -404,6 +404,9 @@ class GenerateRequest(BaseModel):
     max_tokens: int = 2048
     temperature: float = 0.7
     stream: bool = False
+    # [v150.6] Ollama-совместимые options (num_predict и др.): раньше Pydantic
+    # молча выбрасывал поле — потолок генерации игнорировался (марафон-риск).
+    options: Optional[Dict] = None
 
 
 # Anthropic-compatible API models
@@ -1048,6 +1051,16 @@ async def generate_text(request: GenerateRequest, http_request: Request):
     - low: Фоновые задачи - заголовок X-Request-Priority: low
     """
     start_time = time.time()
+
+    # [v150.6] Нормализация Ollama-options ДО очереди/таймаутов: num_predict →
+    # max_tokens (иначе дефолт 2048 = марафон на 1-слотовом GPU), temperature.
+    if request.options:
+        _np = request.options.get("num_predict")
+        if isinstance(_np, int) and _np > 0:
+            request.max_tokens = _np
+        _temp = request.options.get("temperature")
+        if isinstance(_temp, (int, float)):
+            request.temperature = float(_temp)
 
     # Определяем приоритет из заголовка X-Request-Priority
     priority_header = http_request.headers.get("X-Request-Priority", "medium").lower()

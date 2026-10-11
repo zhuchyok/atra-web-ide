@@ -26,6 +26,22 @@ if ! mkdir "$LOCKDIR" 2>/dev/null; then
 fi
 trap 'rmdir "$LOCKDIR" 2>/dev/null' EXIT
 
+# 3.5 [v150.6] «Сначала руки, потом мозг»: при живом потоке к мозгу (np=1)
+# ollama 0.33 бесконечно морит загрузки НОВЫХ раннеров — phi/nomic не могли
+# подняться часами, encode отдавал 500. Перед прогревом мозга пиним руки
+# и ждём их резидентности (счётчик на случай больной очереди).
+_hands_ok() { curl -s --max-time 5 "$U/api/ps" 2>/dev/null | /usr/bin/grep -q '"phi3.5:3.8b'; }
+if ! _hands_ok; then
+  echo "$(ts) hands-first: пин phi3.5+nomic перед мозгом" >> "$LOG"
+  curl -s --max-time 300 "$U/api/generate" \
+    -d '{"model":"phi3.5:3.8b","prompt":"ok","stream":false,"keep_alive":-1,"options":{"num_ctx":16384,"num_predict":1}}' >/dev/null 2>&1 &
+  curl -s --max-time 120 "$U/api/embed" \
+    -d '{"model":"nomic-embed-text","input":"ping","keep_alive":-1}' >/dev/null 2>&1
+  _w=0; while ! _hands_ok && [ $_w -lt 24 ]; do sleep 5; _w=$((_w+1)); done
+  _hands_ok && echo "$(ts) hands-first: phi3.5 резидентна ($_w×5с)" >> "$LOG" \
+            || echo "$(ts) hands-first: phi не поднялась за 120с — греем мозг всё равно" >> "$LOG"
+fi
+
 # 1. Уже загружена — тихо выходим.
 # [v150.5] Разделяем «проба упала» и «модели нет»: под ночной нагрузкой api/ps
 # таймаутил за 5с → ложные «brain warmed» каждый час (мозг был резидентен!

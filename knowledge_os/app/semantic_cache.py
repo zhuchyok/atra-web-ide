@@ -720,6 +720,14 @@ class SemanticAICache:
 
     async def get_cached_response(self, query: str, expert_name: str) -> Optional[str]:
         """Try to find a similar query in the semantic cache."""
+        # [v150.6] Короткие вопросы НЕ кэшируем: у коротких русских фраз плотные
+        # эмбеддинги («столица Франции?» ≥0.80 с «можешь отвечать на русском?»)
+        # → ложные L2-попадания с чужим ответом. Генерировать их дёшево
+        # (lightweight-диета) — кэш здесь только вредит корректности.
+        _min_q = int(os.getenv("SEMANTIC_CACHE_MIN_QUERY_CHARS", "80"))
+        if len(query or "") < _min_q:
+            return None
+
         # Определяем, является ли это стратегическим вопросом
         is_strategic = any(keyword in query.lower() for keyword in STRATEGIC_KEYWORDS)
 

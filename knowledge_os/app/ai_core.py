@@ -1809,7 +1809,24 @@ async def run_smart_agent_async_impl(
             strip_think_blocks,
         )
 
-    memory_crystals = await load_memory_crystals(project_context)
+    # [v150.6] Промпт-диета для коротких вопросов (прецедент — v149.31 для RAG-контекста):
+    # кристаллы/COLLECTIVE REFLECTION/SWARM/enrichment добавляют ~3-5KB к вопросу в
+    # 40 символов → prompt-eval 15-20с даже на тривиальных «столица Франции?».
+    # Lightweight: режем всё, кроме персоны (system_prompt), анти-галлюцинации и
+    # RAG (уже capped 1500). Выключение: AI_PIPELINE_LIGHTWEIGHT=false.
+    _lightweight_max = int(os.getenv("AI_PIPELINE_LIGHTWEIGHT_MAX_CHARS", "300"))
+    _lightweight = (
+        os.getenv("AI_PIPELINE_LIGHTWEIGHT", "true").lower() in ("1", "true", "yes")
+        and len(prompt or "") <= _lightweight_max
+    )
+    if _lightweight:
+        logger.info(
+            "🪶 [LIGHTWEIGHT] короткий вопрос (%d симв ≤%d) — промпт-диета: без кристаллов/reflection/swarm/enrichment",
+            len(prompt or ""),
+            _lightweight_max,
+        )
+
+    memory_crystals = "" if _lightweight else await load_memory_crystals(project_context)
 
     # [SINGULARITY 26.9] Queue complex tasks to Redis worker
     goal_lower = (prompt or "").lower()
@@ -1888,7 +1905,7 @@ Your answer MUST contain a hidden block <reasoning_trace> with:
 3. Your confidence score (0-100%).
 This block will be analyzed by other agents for collective verification.
 """
-    if not is_discussion_mode and _is_large_model:
+    if not is_discussion_mode and _is_large_model and not _lightweight:
         prompt = reflection_instruction + "\n" + prompt
 
     # [SINGULARITY 26.2] SWARM & HANDOFF INSTRUCTIONS
@@ -1905,7 +1922,11 @@ Available experts: @Igor (backend/code), @Dmitry (ML/models), @Sergey (DevOps/de
 @Olga (performance), @Maxim (analytics), @Pavel (trading strategy).
 Use HANDOFF only if delegation genuinely improves the result.
 """
-    if not is_discussion_mode and expert_name in ("Виктория", "Victoria", "виктория"):
+    if (
+        not is_discussion_mode
+        and expert_name in ("Виктория", "Victoria", "виктория")
+        and not _lightweight
+    ):
         prompt = swarm_instruction + "\n" + prompt
 
     request_id = f"{expert_name}_{int(time.time())}"
@@ -1928,7 +1949,17 @@ Use HANDOFF only if delegation genuinely improves the result.
     )
 
     # [SINGULARITY 20.0] Wisdom Injection: Meta-Strategies from Knowledge Base
-    contexts = await inject_context_enrichment(expert_name, user_part, project_context)
+    # [v150.6] lightweight: enrichment (wisdom+DNA+mentorship+constitution) — только
+    # для содержательных задач; короткому факту хватает персоны и capped-RAG.
+    if _lightweight:
+        contexts = {
+            "meta_wisdom": "",
+            "mentorship": "",
+            "experience": "",
+            "constitution": "",
+        }
+    else:
+        contexts = await inject_context_enrichment(expert_name, user_part, project_context)
     meta_wisdom_context = contexts["meta_wisdom"]
     mentorship_context = contexts["mentorship"]
     experience_context = contexts["experience"]
