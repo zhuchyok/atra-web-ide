@@ -7970,6 +7970,83 @@ async def run_task_stream(body: TaskRequest, request: Request):
     return StreamingResponse(sse_generator(), media_type="text/event-stream")
 
 
+async def _try_fact_fast_track(goal: str) -> Optional[str]:
+    """[v150.9] Факт-фаст-трек: ультракороткие вопросы («столица Франции?») —
+    phi3.5 на выделенном инстансе рук (11437, свой планировщик): 2-5с даже при
+    пиковой загрузке мозга. Тяжёлые маркеры/файлы/URL отсечены; промах любого
+    рода → None → обычный пайплайн (сквозной фолбэк). Kill-switch:
+    VICTORIA_FACT_FAST_TRACK=false."""
+    if os.getenv("VICTORIA_FACT_FAST_TRACK", "true").lower() not in ("1", "true", "yes"):
+        return None
+    q = (goal or "").strip()
+    max_chars = int(os.getenv("VICTORIA_FACT_FAST_TRACK_MAX_CHARS", "120"))
+    if not q or len(q) > max_chars or "?" not in q:
+        return None
+    ql = q.lower()
+    _heavy = (
+        "анализ", "объясни", "почему", "код", "создай", "напиши", "сравни", "план",
+        "проверь", "исправ", "найди", "сделай", "рассчит", "файл", "http", ".py",
+        ".md", ".json", "доклад", "отчёт", "отчет", "debug", "лог", "sql", "git",
+        "docker", "миграц", "стратег",
+    )
+    if any(h in ql for h in _heavy):
+        return None
+    import httpx
+
+    # [v150.9] Полоса фактов: phi3.5:3.8b-stable на инстансе рук (11437) —
+    # ОТДЕЛЬНЫЙ раннер (воркеры жгут базовый тег «phi3.5:3.8b», -stable никто
+    # не занимает), свой планировщик, не делит очередь ни с мозгом, ни с
+    # диалогами. keep_alive -1 — резидентна после первого вызова.
+    # Промах/таймаут → None → обычный пайплайн (сквозной фолбэк).
+    hands = os.getenv("OLLAMA_HANDS_URL") or "http://host.docker.internal:11437"
+    payload = {
+        "model": "phi3.5:3.8b-stable",
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "Ты — Виктория, Team Lead корпорации ATRA. Ответь на вопрос "
+                    "максимально кратко (1-2 предложения), по-русски, только факт."
+                ),
+            },
+            {"role": "user", "content": q},
+        ],
+        "stream": False,
+        "keep_alive": -1,
+        "options": {"temperature": 0.1, "num_ctx": 2048, "num_predict": 256},
+    }
+    try:
+        async with httpx.AsyncClient(
+            timeout=float(os.getenv("VICTORIA_FACT_FAST_TRACK_TIMEOUT", "20"))
+        ) as c:
+            r = await c.post(f"{hands}/api/chat", json=payload)
+        if r.status_code != 200:
+            logger.info("[FACT-FAST-TRACK] HTTP %d — обычный пайплайн", r.status_code)
+            return None
+        _j = r.json()
+        text = (_j.get("response") or ((_j.get("message") or {}).get("content")) or "").strip()
+        if "</think>" in text:  # на случай think-моделей
+            text = text.split("</think>")[-1].strip()
+        # [v150.9] Полировка: мини-модель добавляет эхо-маркеры («Response:»,
+        # «### Query:», <|im_end|>) — берём содержательную часть до маркера
+        for _tok in ("<|im_end|>", "<|end|>", "<|assistant|>"):
+            if _tok in text:
+                text = text.split(_tok)[0].strip()
+        for _cut in ("### Query:", "###", "\n\n"):
+            if _cut in text:
+                text = text.split(_cut)[0].strip()
+        for _pref in ("Ответ:", "Response:", "Виктория:"):
+            if text.lower().startswith(_pref.lower()):
+                text = text[len(_pref):].strip()
+        if not text or len(text) < 1:
+            return None
+        logger.info("[FACT-FAST-TRACK] phi@11437 (%d симв): %s", len(text), q[:60])
+        return text
+    except Exception as e:
+        logger.info("[FACT-FAST-TRACK] промах (%s) — обычный пайплайн", type(e).__name__)
+        return None
+
+
 async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
     """Build a deterministic fact answer for /run without LLM."""
     # Tool directives (web/sql/git) must go through quick-tools, not fact-live probe.
@@ -8183,6 +8260,22 @@ async def run_task(
             },
             correlation_id=correlation_id,
         )
+
+    # [v150.9] Факт-фаст-трек: ультракороткие вопросы — на инстанс рук (11437),
+    # 2-5с при любой загрузке мозга. Только для синк-режима (async уважает caller).
+    if not async_mode:
+        fact_fast = await _try_fact_fast_track(goal)
+        if fact_fast:
+            return TaskResponse(
+                status="success",
+                output=fact_fast,
+                knowledge={
+                    "strategy": "fact_fast_track",
+                    "source": "phi_hands_11437",
+                    "fact_mode": True,
+                },
+                correlation_id=correlation_id,
+            )
 
     # [SINGULARITY 10.0] TEAM_DISCUSSION_MODE / reasoning category bypass
     # Если запрос пришел от модели 'discuss' (через прокси), мы НЕ делегируем его,

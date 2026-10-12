@@ -109,7 +109,9 @@ except ImportError:
 _expert_name_env = os.getenv("EXPERT_NAME", "").strip()
 STREAM_NAME = worker_stream_name(_expert_name_env)
 GROUP_NAME = "expert_workers"
-CONSUMER_NAME = f"worker_{os.uname()[1]}"
+# [v149.44] hostname одинаков у части воркеров -> один consumer на всех:
+# autoclaim перебрасывал задачи между процессами = дублирование выполнения.
+CONSUMER_NAME = f"worker_{os.uname()[1]}_{uuid.uuid4().hex[:8]}"
 RUNTIME_WORKER_HEARTBEAT_KEY = os.getenv(
     "RUNTIME_WORKER_HEARTBEAT_KEY", "runtime:expert_heartbeats"
 )
@@ -1486,7 +1488,9 @@ async def process_task(task_data: dict):
                                                 # [v150.4] num_predict: без потолка ollama генерит
                                                 # до конца контекста — марафон 16K токенов на phi
                                                 # (20 мин на 13 t/s) морил голодом все полосы.
-                                                "options": {"num_ctx": 16384, "num_predict": 2048},
+                                                # [v150.9] 16384→4096: диалоги короткие, а prompt-eval 16K-набивок
+                                                # превращал инстанс рук в марафон-слот.
+                                                "options": {"num_ctx": 4096, "num_predict": 2048},
                                             },
                                             headers=_headers,
                                         )
