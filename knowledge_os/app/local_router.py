@@ -7,6 +7,7 @@ import random
 import time
 from collections import defaultdict
 from collections.abc import AsyncGenerator
+from contextvars import ContextVar
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -180,6 +181,60 @@ DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/kno
 # Health check cache (120 seconds TTL - увеличен для снижения нагрузки на /api/tags)
 _health_cache = {"nodes": [], "timestamp": 0}
 _HEALTH_CACHE_TTL = 120  # 2 минуты вместо 30 секунд для снижения rate limiting
+
+# [v150.7] Анти-спираль + приоритет синка.
+# 1) Бэкофф: застрявший фоновый таск ретраился 2-4 раза/сек (каждая итерация —
+#    полный сбор промпта + попытка LLM), выжигая слот мозга и очередь. Теперь
+#    после отказов каждая следующая попытка в процессе ждёт ex-паузу 5→60с.
+# 2) Синк-приоритет: пока идёт пользовательский /run (redis system:sync_active,
+#    ставит victoria_server), фоновые LLM-вызовы вежливо ждут до 30с.
+_LLM_FAIL_STREAK = 0
+_LLM_LAST_FAIL_TS: float = 0.0
+_SYNC_PRIORITY = ContextVar("atra_sync_priority", default=False)
+
+
+def _mark_llm_outcome(ok: bool) -> None:
+    global _LLM_FAIL_STREAK, _LLM_LAST_FAIL_TS
+    if ok:
+        _LLM_FAIL_STREAK = 0
+    else:
+        _LLM_FAIL_STREAK += 1
+        _LLM_LAST_FAIL_TS = time.time()
+
+
+async def _llm_backoff_gate() -> None:
+    if _LLM_FAIL_STREAK <= 0 or not _LLM_LAST_FAIL_TS:
+        return
+    wait = min(5.0 * (2 ** min(_LLM_FAIL_STREAK - 1, 4)), 60.0)
+    since = time.time() - _LLM_LAST_FAIL_TS
+    if since < wait:
+        pause = min(wait - since, 55.0)
+        logger.warning(
+            "[BACKOFF] LLM-пауза %.1fs (fail-streak=%d) — спираль ретраев глушится",
+            pause,
+            _LLM_FAIL_STREAK,
+        )
+        await asyncio.sleep(pause)
+
+
+async def _wait_if_sync_active() -> None:
+    """Фоновые вызовы уступают дорогу синхронному пользовательскому запросу."""
+    if _SYNC_PRIORITY.get():
+        return  # сам синк-запрос — беспрепятственно
+    try:
+        try:
+            from app.redis_manager import redis_manager
+        except ImportError:
+            from redis_manager import redis_manager
+        client = await redis_manager.get_client()
+        if await client.get("system:sync_active"):
+            for _ in range(20):  # до 30с
+                await asyncio.sleep(1.5)
+                if not await client.get("system:sync_active"):
+                    break
+    except Exception:
+        pass  # приоритет — лучшая услуга, не обязанность
+
 
 # ========== ДИНАМИЧЕСКОЕ ОБНАРУЖЕНИЕ МОДЕЛЕЙ ==========
 # Модели сканируются с серверов каждые 2 минуты через available_models_scanner
@@ -1070,6 +1125,10 @@ class LocalAIRouter:
         Returns:
             tuple: (response, routing_source)
         """
+        # [v150.7] Анти-спираль + вежливость к синку: пауза после серии отказов,
+        # затем пропуск фонового вызова вперёд синхронного пользовательского.
+        await _llm_backoff_gate()
+        await _wait_if_sync_active()
         # [OMNI-RAG v3] Автоматическое обогащение визуальным контекстом
         # [SINGULARITY 29.5] Skip visual enrichment for reasoning/discovery sub-tasks to prevent loops
         prompt_lower = prompt.lower()
@@ -2479,6 +2538,7 @@ class LocalAIRouter:
                                         # TODO: Convert f-string to %s formatting for performance
                                         logger.warning(f"⚠️ [HEAVY-LOCK] Error releasing lock: {e}")
 
+                                _mark_llm_outcome(ok=True)
                                 return result, routing_source
                             else:
                                 logger.warning(
@@ -2604,6 +2664,7 @@ class LocalAIRouter:
             reason="all_nodes_failed",
         )
 
+        _mark_llm_outcome(ok=False)
         return None, None
 
     async def run_local_llm_streaming(

@@ -12,6 +12,36 @@ from typing import Any, Optional
 import aiohttp
 from pydantic import ValidationError
 
+# [v150.7] Анти-спираль: застрявший таск ретраил LLM без пауз (2-4 попытки/сек,
+# каждая с полным сбором промпта) — выжигал слот мозга и очередь. Ex-пауза 5→60с
+# после серии отказов, процесс-широко (все executor-инстансы вместе).
+_EXEC_FAIL_STREAK = 0
+_EXEC_LAST_FAIL_TS = 0.0
+
+
+def _exec_mark_outcome(ok: bool) -> None:
+    global _EXEC_FAIL_STREAK, _EXEC_LAST_FAIL_TS
+    if ok:
+        _EXEC_FAIL_STREAK = 0
+    else:
+        _EXEC_FAIL_STREAK += 1
+        _EXEC_LAST_FAIL_TS = time.time()
+
+
+async def _exec_backoff_gate() -> None:
+    if _EXEC_FAIL_STREAK <= 0 or not _EXEC_LAST_FAIL_TS:
+        return
+    wait = min(5.0 * (2 ** min(_EXEC_FAIL_STREAK - 1, 4)), 60.0)
+    since = time.time() - _EXEC_LAST_FAIL_TS
+    if since < wait:
+        pause = min(wait - since, 55.0)
+        logger.warning(
+            "[BACKOFF] LLM-пауза %.1fs (fail-streak=%d) — спираль ретраев глушится",
+            pause,
+            _EXEC_FAIL_STREAK,
+        )
+        await asyncio.sleep(pause)
+
 from .base_agent import AgentAction, AgentFinish
 
 logger = logging.getLogger(__name__)
@@ -577,6 +607,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
         system_override: Optional[str] = None,
     ) -> Any:
         """Internal method with fallback support"""
+        await _exec_backoff_gate()
         if _wisdom_must_stay_on_mlx(model, base_url, self._mlx_url):
             logger.warning(
                 "[WISDOM-TAP] refuse Ollama for %s url=%s → MLX",
@@ -699,6 +730,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                             logger.debug(f"[LLM_RESPONSE] Full content: {content[:2000]}")
 
                         # Mark this model as successful
+                        _exec_mark_outcome(ok=True)
                         self._last_successful_model = model
 
                         # === EMPTY CONTENT RETRY ===
@@ -825,6 +857,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                 )
                 self._failed_models.add(model)
                 self._fallback_attempts += 1
+                _exec_mark_outcome(ok=False)
 
                 if self._use_mlx_fallback and base_url != self._mlx_url:
                     fallback_model, fallback_url = await self._get_fallback_model()

@@ -8122,6 +8122,20 @@ async def run_task(
         async_mode = True
         logger.info("[VICTORIA_CYCLE] async_mode enabled from request body for compatibility")
 
+    # [v150.7] Синк-приоритет: пока идёт пользовательский запрос, фоновые LLM-вызовы
+    # (роутер воркеров/фоновых циклов) вежливо ждут до 30с (redis system:sync_active).
+    # TTL 40с = бюджет синка; cleanup в finally.
+    try:
+        try:
+            from app.redis_manager import redis_manager as _rm_sync
+        except ImportError:
+            from redis_manager import redis_manager as _rm_sync
+
+        _c = await _rm_sync.get_client()
+        await _c.set("system:sync_active", "1", ex=40)
+    except Exception:
+        pass
+
     global sys
     correlation_id = (request.headers.get("X-Correlation-ID") or "").strip() or str(uuid.uuid4())
 
