@@ -146,12 +146,20 @@ def http_canaries() -> list:
     """
     canaries = [
         # (имя, url, payload, таймаут в секундах)
+        # [v150.8] руки — на выделенном инстансе 11437; мозг проверяем отдельно
         (
-            "ollama phi3.5:3.8b",
-            "http://127.0.0.1:11434/api/generate",
+            "hands phi3.5@11437",
+            "http://127.0.0.1:11437/api/generate",
             {"model": "phi3.5:3.8b", "prompt": "ok", "stream": False,
              "options": {"num_predict": 1, "num_ctx": 2048}},
             180,
+        ),
+        (
+            "brain victoria-qwen38@11434",
+            "http://127.0.0.1:11434/api/generate",
+            {"model": "victoria-qwen38:latest", "prompt": "ok", "stream": False,
+             "options": {"num_predict": 1, "num_ctx": 2048}},
+            240,
         ),
         (
             "ollama-proxy fast",

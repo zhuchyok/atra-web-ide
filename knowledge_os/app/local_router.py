@@ -103,6 +103,11 @@ OLLAMA_API_URL = (
     or _default_ollama
 )
 OLLAMA_EXECUTOR_API_URL = os.getenv("OLLAMA_EXECUTOR_BASE_URL") or OLLAMA_API_URL
+# [v150.8] Выделенный инстанс РУК (свой планировщик — не морится потоком мозга).
+# OLLAMA_HANDS_URL=disabled → узел не добавляется (возврат к одному инстансу).
+OLLAMA_HANDS_API_URL = os.getenv("OLLAMA_HANDS_URL") or (
+    "http://host.docker.internal:11437" if _is_docker else "http://localhost:11437"
+)
 _raw_mlx = (
     os.getenv("MLX_API_URL")
     or os.getenv("MAC_LLM_URL")
@@ -368,6 +373,23 @@ class LocalAIRouter:
                     "url": OLLAMA_EXECUTOR_API_URL.rstrip("/"),
                     "priority": 1,
                     "routing_key": "ollama_executor",
+                }
+            )
+        # [v150.8] Узел РУК: приоритет 0 — лёгкие модели попадают сюда первыми;
+        # мозг туда не попадает (нет в тегах инстанса + гейт ниже).
+        _hands_url = (
+            OLLAMA_HANDS_API_URL
+            if _valid_http_url(OLLAMA_HANDS_API_URL)
+            and str(OLLAMA_HANDS_API_URL).lower() != "disabled"
+            else None
+        )
+        if _hands_url and _hands_url.rstrip("/") != ollama_url.rstrip("/"):
+            self.nodes.append(
+                {
+                    "name": "Mac Studio (Ollama Hands)",
+                    "url": _hands_url.rstrip("/"),
+                    "priority": 0,
+                    "routing_key": "ollama_hands",
                 }
             )
         self._active_node = None
@@ -1988,6 +2010,14 @@ class LocalAIRouter:
             # Мозг-контракт: qwen38 живёт на 11434 — узел-исполнитель пропускаем.
             if "11436" in node_url_base and "qwen38" in (model or "").lower():
                 logger.info("🚦 [EXECUTOR-GATE] %s не на 11436 — узел пропущен", model)
+                continue
+
+            # [v150.8] Узел РУК (11437) не обслуживает мозг ни при каких тегах-фолбэках
+            # (инстанс физически не знает qwen38 — но страховка для marker-фолбэка).
+            if "11437" in node_url_base and (
+                "qwen38" in (model or "").lower() or "qwen3.8" in (model or "").lower()
+            ):
+                logger.info("🚦 [HANDS-GATE] мозг %s не на руках (11437) — узел пропущен", model)
                 continue
 
             if is_ollama and _skip_as_ollama_hands(model):

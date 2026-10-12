@@ -16,10 +16,14 @@ import urllib.request
 from datetime import datetime
 
 OLLAMA = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+# [v150.8] Руки живут на выделенном инстансе 11437 (свой планировщик)
+HANDS = os.getenv("OLLAMA_HANDS_URL", "http://127.0.0.1:11437").rstrip("/")
 POLL = int(os.getenv("WISDOM_GUARD_POLL_SEC", "60"))
 DRY = os.getenv("WISDOM_GUARD_DRY_RUN", "false").lower() in ("1", "true", "yes")
 
 # [v150.1] Контракт v149.4: мозг живёт на 11434 — никогда не выгружать.
+# [v150.8] На 11434 живёт ТОЛЬКО мозг: руки/эмбеддер переехали на 11437 —
+# их присутствие на 11434 = чужой слот, выгружать.
 BRAIN_ALLOW = ("victoria-qwen38", "qwen3.8")
 
 
@@ -27,8 +31,8 @@ def _log(msg: str) -> None:
     print(f"{datetime.now().strftime('%F %T')} [wisdom_guard] {msg}", flush=True)
 
 
-def _ps():
-    with urllib.request.urlopen(f"{OLLAMA}/api/ps", timeout=5) as r:
+def _ps(base=None):
+    with urllib.request.urlopen(f"{base or OLLAMA}/api/ps", timeout=5) as r:
         return _pretty(json.loads(r.read().decode()))
 
 
@@ -46,11 +50,11 @@ def unload(model):
     _log(f"unloaded {model} from {OLLAMA}")
 
 
-def pin_phi():
+def pin_phi():  # [v150.8] пин на инстансе рук (11437)
     """После выгрузки wisdom слот 11434 не должен оставаться пустым.
     [v150.1] num_ctx обязателен: без опций ollama 0.33 авто-размеряет KV под
     свободную RAM → phi3.5 раздувалась до 112GB (ctx 131072) и душила хост."""
-    loaded = _ps()
+    loaded = _ps(HANDS)
     if any("phi3.5:3.8b" == n or n.startswith("phi3.5:3.8b") for n in loaded):
         return
     body = {
@@ -62,39 +66,34 @@ def pin_phi():
     }
     data = json.dumps(body).encode()
     req = urllib.request.Request(
-        f"{OLLAMA}/api/generate", data=data, headers={"Content-Type": "application/json"}
+        f"{HANDS}/api/generate", data=data, headers={"Content-Type": "application/json"}
     )
     # [v150.2] 240с: cold-load phi@16K занимает минуты (Metal-аллокация 15GB под
     # давлением Docker VM) — при 60с пин вечно отваливался и «спамил» err: timed out
     urllib.request.urlopen(req, timeout=240).read()
-    _log(f"pinned phi3.5:3.8b on {OLLAMA}")
+    _log(f"pinned phi3.5:3.8b on {HANDS}")
 
 
-def pin_nomic():
-    loaded = _ps()
+def pin_nomic():  # [v150.8] пин на инстансе рук (11437)
+    loaded = _ps(HANDS)
     if any("nomic" in n for n in loaded):
         return
     body = {"model": "nomic-embed-text", "input": "ping", "keep_alive": -1}
     data = json.dumps(body).encode()
     req = urllib.request.Request(
-        f"{OLLAMA}/api/embed", data=data, headers={"Content-Type": "application/json"}
+        f"{HANDS}/api/embed", data=data, headers={"Content-Type": "application/json"}
     )
     urllib.request.urlopen(req, timeout=30).read()
-    _log(f"pinned nomic-embed-text on {OLLAMA}")
+    _log(f"pinned nomic-embed-text on {HANDS}")
 
 
 def _should_unload(name: str) -> bool:
-    """11434 = мозг (v149.4) + руки + IMMORTAL. Чужое (wisdom на MLX, тяжёлые гости) — выгрузить."""
+    """[v150.8] 11434 = ТОЛЬКО мозг (v149.4). Руки/эмбеддер/прочее — на 11437,
+    их присутствие здесь = чужой слот (конкуренция за память с мозгом)."""
     key = (name or "").lower()
     if not key:
         return False
-    if "nomic" in key or "moondream" in key:
-        return False
-    if key.startswith("phi3.5:3.8b"):
-        return False
-    if any(b in key for b in BRAIN_ALLOW):
-        return False
-    return True
+    return not any(b in key for b in BRAIN_ALLOW)
 
 
 def _enforce_hands_slot():
@@ -111,7 +110,7 @@ def _enforce_hands_slot():
         pin_phi()
         pin_nomic()
     left = _ps()
-    _log(f"ok: {OLLAMA} api/ps={left}")
+    _log(f"ok: brain{OLLAMA}={left} hands{HANDS}={_ps(HANDS)}")
 
 
 while True:

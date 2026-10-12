@@ -1369,6 +1369,12 @@ async def process_task(task_data: dict):
                             or os.getenv("OLLAMA_API_URL")
                             or "http://host.docker.internal:11434"
                         )
+                        # [v150.8] FAST PATH рук — на выделенный инстанс 11437:
+                        # свой планировщик, не морится потоком мозга
+                        _hands_base = (
+                            os.getenv("OLLAMA_HANDS_URL")
+                            or "http://host.docker.internal:11437"
+                        )
                         _mlx_base = "http://host.docker.internal:11435"
                         # Prefer explicit DIALOGUE_MODEL, but default to a fast local model
                         # to keep expert dialogue responses within collection timeout.
@@ -1469,7 +1475,7 @@ async def process_task(task_data: dict):
                                     await _mark_llm_call(conn, db_task_id or task_id)
                                     async with httpx.AsyncClient(timeout=180.0) as _hc:
                                         _resp = await _hc.post(
-                                            f"{_ollama_base}/api/chat",
+                                            f"{_hands_base}/api/chat",
                                             json={
                                                 "model": _dialogue_model,
                                                 "messages": _messages,
@@ -1625,7 +1631,7 @@ async def process_task(task_data: dict):
                             "ai_core_started", {"category": task_data.get("category", "general")}
                         )
 
-                    logger.info("🔍 [DESC-TRACE] len=%s head=%r", len(description or ""), (description or "")[:80])
+                    logger.info("🔍 [DESC-TRACE] len=%s head=%r TAIL=%r", len(description or ""), (description or "")[:80], (description or "")[-150:])
                     report = await run_smart_agent_async(
                         description,
                         expert_name=expert_name,

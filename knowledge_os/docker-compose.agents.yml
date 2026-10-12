@@ -109,7 +109,9 @@ services:
     ports:
       - "127.0.0.1:8001:8001"
     environment:
-      OLLAMA_URL: "http://host.docker.internal:11434"
+      # [v150.8] Эмбеддинги — на выделенный инстанс рук (11437): не морятся
+      # потоком мозга и не эвиктятся на 11434
+      OLLAMA_URL: "http://host.docker.internal:11437"
       EMBED_MODEL: "nomic-embed-text"
       EMBEDDING_DIM: "768"
     extra_hosts:
