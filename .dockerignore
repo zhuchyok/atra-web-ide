@@ -91,3 +91,13 @@ terminals/
 
 # Skills ALL — exclude from build (too many edge cases with long names)
 knowledge_os/app/skills/
+
+# [v150.10] Вложенные тяжести (аудит образов: COPY-слой 8GB из-за них)
+**/.venv/
+**/venv/
+**/venv_*/
+.venv_audit/
+**/target/
+rust_core/target/
+completions/
+.coverage*

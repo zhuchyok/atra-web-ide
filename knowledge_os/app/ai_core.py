@@ -1770,6 +1770,23 @@ def run_smart_agent_sync(prompt: str, **kwargs):
         return asyncio.run(run_smart_agent_async(prompt, **kwargs))
 
 
+# [v150.10] Loop-breaker: застрявший фоновый таск ретраил ВЕСЬ пайплайн
+# (кристаллы/RAG/DNA на каждой итерации) без капа попыток — бэкофф глушит LLM,
+# но не пересборку. Кап: N попыток одного и того же промпта за окно — дальше
+# мгновенный отказ (ловит любого драйвера петли выше по стеку).
+_SMART_AGENT_LOOP_BREAKER: dict = {}
+
+
+def _loop_breaker_hit(key: str, max_attempts: int = 6, window_sec: float = 600.0) -> bool:
+    now = time.time()
+    cnt, first = _SMART_AGENT_LOOP_BREAKER.get(key, (0, now))
+    if now - first > window_sec:
+        cnt, first = 0, now
+    cnt += 1
+    _SMART_AGENT_LOOP_BREAKER[key] = (cnt, first)
+    return cnt > max_attempts
+
+
 @profile_function("ai_core")
 async def run_smart_agent_async_impl(
     prompt: str,
@@ -1784,6 +1801,19 @@ async def run_smart_agent_async_impl(
     project_context: Optional[str] = None,
 ):
     start_time = time.time()
+
+    # [v150.10] Loop-breaker: один и тот же промпт > 6 попыток за 10 минут =
+    # петля — мгновенный отказ без полной пересборки промпта.
+    _lb_key = f"{expert_name}|{(prompt or '')[:100]}"
+    if _loop_breaker_hit(_lb_key):
+        logger.error(
+            "⛔ [LOOP-BREAKER] %s: промпт(%.60s...) > 6 попыток/10мин — петля сломана",
+            expert_name,
+            prompt or "",
+        )
+        return _build_error_response(
+            "[LOOP-BREAKER] превышен лимит повторов пайплайна для этого запроса"
+        )
 
     # [SINGULARITY 31.3] Pipeline: memory crystals, threats, anti-hallucination
     try:

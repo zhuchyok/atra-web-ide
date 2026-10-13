@@ -111,7 +111,9 @@ OLLAMA_HANDS_API_URL = os.getenv("OLLAMA_HANDS_URL") or (
 _raw_mlx = (
     os.getenv("MLX_API_URL")
     or os.getenv("MAC_LLM_URL")
-    or ("http://host.docker.internal:11435" if _is_docker else "http://localhost:11435")
+    or "disabled"  # [v150.10] MLX-легаси нестабилен (3×30с таймауты при живых тегах)
+    # — узел выведен из маршрутизации по умолчанию; включить обратно:
+    # MLX_API_URL=http://host.docker.internal:11435 (прокси остаётся сервисом).
 )
 MLX_API_URL = (
     _raw_mlx if _valid_http_url(_raw_mlx) else None
@@ -2018,6 +2020,25 @@ class LocalAIRouter:
                 "qwen38" in (model or "").lower() or "qwen3.8" in (model or "").lower()
             ):
                 logger.info("🚦 [HANDS-GATE] мозг %s не на руках (11437) — узел пропущен", model)
+                continue
+
+            # [v150.10] BRAIN-SOLO-GATE: при живом hands-узле модели рук не идут
+            # на мозговой узел 11434 — иначе роутер расщеплял трафик рук между
+            # инстансами (гард выгружал руки с 11434 — вечная карусель unload/load).
+            _hands_node_active = any("11437" in str(n.get("url", "")) for n in self.nodes)
+            _is_hands_model = any(
+                t in (model or "").lower()
+                for t in ("phi3.5", "nomic", "smollm", "tinyllama", "moondream")
+            )
+            if (
+                _hands_node_active
+                and _is_hands_model
+                and "11434" in node_url_base
+            ):
+                logger.info(
+                    "🚦 [BRAIN-SOLO-GATE] руки (%s) не на мозговом узле 11434 — ждёт hands-узел",
+                    model,
+                )
                 continue
 
             if is_ollama and _skip_as_ollama_hands(model):

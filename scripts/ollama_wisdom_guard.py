@@ -53,9 +53,11 @@ def unload(model):
 def pin_phi():  # [v150.8] пин на инстансе рук (11437)
     """После выгрузки wisdom слот 11434 не должен оставаться пустым.
     [v150.1] num_ctx обязателен: без опций ollama 0.33 авто-размеряет KV под
-    свободную RAM → phi3.5 раздувалась до 112GB (ctx 131072) и душила хост."""
+    свободную RAM → phi3.5 раздувалась до 112GB (ctx 131072) и душила хост.
+    [v150.10] Точное сравнение тегов: '-stable'.startswith('phi3.5:3.8b')
+    ломало проверку (базовая phi считалась загруженной)."""
     loaded = _ps(HANDS)
-    if any("phi3.5:3.8b" == n or n.startswith("phi3.5:3.8b") for n in loaded):
+    if any(n in ("phi3.5:3.8b", "phi3.5:3.8b:latest") for n in loaded):
         return
     body = {
         "model": "phi3.5:3.8b",
@@ -72,6 +74,27 @@ def pin_phi():  # [v150.8] пин на инстансе рук (11437)
     # давлением Docker VM) — при 60с пин вечно отваливался и «спамил» err: timed out
     urllib.request.urlopen(req, timeout=240).read()
     _log(f"pinned phi3.5:3.8b on {HANDS}")
+
+
+def pin_stable():  # [v150.10] факт-полоса: -stable — отдельный раннер, никто
+    # кроме факт-фаст-трека её не занимает; без пина выселялась при рестартах
+    # инстанса → факты теряли свои 4-9с. Лёгкая аллокация: ctx 2048.
+    loaded = _ps(HANDS)
+    if any(n.startswith("phi3.5:3.8b-stable") for n in loaded):
+        return
+    body = {
+        "model": "phi3.5:3.8b-stable",
+        "prompt": "ok",
+        "stream": False,
+        "keep_alive": -1,
+        "options": {"num_ctx": 2048, "num_predict": 1},
+    }
+    data = json.dumps(body).encode()
+    req = urllib.request.Request(
+        f"{HANDS}/api/generate", data=data, headers={"Content-Type": "application/json"}
+    )
+    urllib.request.urlopen(req, timeout=120).read()
+    _log(f"pinned phi3.5:3.8b-stable (факт-полоса) on {HANDS}")
 
 
 def pin_nomic():  # [v150.8] пин на инстансе рук (11437)
@@ -108,6 +131,7 @@ def _enforce_hands_slot():
             _log(f"dry-run unload skipped: {evict}")
     if not DRY:
         pin_phi()
+        pin_stable()
         pin_nomic()
     left = _ps()
     _log(f"ok: brain{OLLAMA}={left} hands{HANDS}={_ps(HANDS)}")
