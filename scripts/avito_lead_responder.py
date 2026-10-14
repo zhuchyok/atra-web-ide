@@ -43,6 +43,20 @@ def notify_ntfy(message: str, title: str = "Avito Lead") -> None:
     urllib.request.urlopen(req, timeout=15)
 
 
+def load_state() -> dict:
+    try:
+        return json.loads(STATE_PATH.read_text())
+    except Exception:
+        return {}
+
+
+def save_state(state: dict) -> None:
+    try:
+        STATE_PATH.write_text(json.dumps(state, ensure_ascii=False, indent=1))
+    except Exception as e:
+        print(f"state save ERR: {e}")
+
+
 def notify_telegram(message: str) -> None:
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     chat_id = os.environ.get("TELEGRAM_USER_ID", "")
@@ -58,10 +72,6 @@ def notify_telegram(message: str) -> None:
 
 
 
-
-_validate_reply_code = r"""
-(see below)
-"""
 
 def _validate_reply(reply: str, customer_text: str) -> tuple:
     """Проверка ответа на галлюцинации."""
@@ -114,6 +124,8 @@ def main() -> int:
 
     print(f"Непрочитанных чатов: {len(chats)}")
     alerts_sent = 0
+    state = load_state()
+    state_dirty = False
 
     for chat in chats[:10]:  # обрабатываем первые 10 за запуск
         chat_id = chat["id"]
@@ -133,12 +145,20 @@ def main() -> int:
 
         # последнее сообщение от клиента
         customer_text = ""
+        customer_msg_id = ""
         for m in reversed(msgs):
             author = m.get("author", {})
             content = m.get("content", {})
             if author.get("type") == "customer" and isinstance(content, dict):
                 customer_text = str(content.get("text", ""))[:150]
+                customer_msg_id = str(m.get("id", ""))
                 break
+
+        # дедуп: алерт только если сообщение клиента новое
+        seen = state.get(chat_id, {}).get("last_customer_msg_id")
+        if customer_msg_id and seen == customer_msg_id:
+            print(f"  ⏭ уже алертили по этому сообщению — пропуск")
+            continue
 
         alert = f"Avito: новый лид!\nОбъявление: {item_title}\nСообщение: {customer_text or '(без текста)'}"
 
@@ -149,6 +169,13 @@ def main() -> int:
             print(f"✅ ntfy: {item_title[:40]}")
         except Exception as e:
             print(f"ntfy ERR: {e}")
+        finally:
+            if customer_msg_id:
+                state[chat_id] = {"last_customer_msg_id": customer_msg_id,
+                                  "item": item_title,
+                                  "ts": datetime.now(timezone.utc).isoformat()}
+                state_dirty = True
+                save_state(state)
 
         # ─── ПРОВЕРКИ ОСТАНОВКИ ───
         # 1) Менеджер уже ответил → бот молчит
@@ -229,8 +256,19 @@ def main() -> int:
                 reply = "Здравствуйте! Спасибо за обращение — я передам ваш запрос расчётному отделу, они свяжутся с вами с точным расчётом."
                 break
 
-        send_reply(token, chat_id, reply)
-        print(f"  ✅ Татьяна ответила: {reply[:50]}")
+        # пустой ответ LLM → безопасный фолбэк (пустоту не отправляем)
+        if len(reply) < 5:
+            reply = ("Здравствуйте! Спасибо за обращение — уточню детали у расчётного "
+                     "отдела и вернусь к вам с точным расчётом.")
+
+        sent = send_reply(token, chat_id, reply)
+        if not sent:
+            # 400 чаще всего = дубликат/пустой текст → повтор с изменённым текстом
+            sent = send_reply(token, chat_id, "Добрый день! " + reply)
+        if sent:
+            print(f"  ✅ Татьяна ответила: {reply[:50]}")
+        else:
+            print(f"  ❌ Ответ не доставлен — нужен менеджер")
 
 
         # Telegram (если доступен)
@@ -249,6 +287,8 @@ def main() -> int:
 
         time.sleep(1)  # не спамить API
 
+    if state_dirty:
+        save_state(state)
     print(f"Итого алертов отправлено: {alerts_sent}")
     return 0
 
