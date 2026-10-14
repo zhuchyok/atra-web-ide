@@ -1,3 +1,4 @@
+import re
 """
 Model Enhancer - Комплексная система улучшения качества и скорости моделей
 Объединяет: Self-Consistency, Speculative Decoding, Enhanced RAG, CoT, Ensemble
@@ -352,7 +353,7 @@ class EnhancedRAGEngine:
                 if not rows:
                     keywords = query.lower().split()[:10]
                     keyword_pattern = "|".join(keywords)
-                    await conn.execute("SET statement_timeout = '3s'")  # [v149.43] редкие слова в ILIKE = минуты; лучше пусто, чем зависание
+                    await conn.execute("SET statement_timeout = '8s'")  # [v149.43] редкие слова в ILIKE = минуты; лучше пусто, чем зависание
                     rows = await conn.fetch(
                         """
                         SELECT id, content, confidence_score, usage_count,
@@ -361,13 +362,14 @@ class EnhancedRAGEngine:
                                 * (1.0 + LEAST(COALESCE(usage_count, 0) / 100.0, 0.2))) as relevance_score
                         FROM knowledge_nodes
                         WHERE is_verified = TRUE AND confidence_score >= $1
-                        -- [v149.22] metadata::text ILIKE ломал план: seq scan 100k узлов
-                        AND content ILIKE ANY($2)
+                        -- [v149.49] tsvector GIN: 3.3мс вместо 9.8с trigram ILIKE (v149.43 кап)
+                        AND content_tsvector @@ to_tsquery('russian', $2)
                         ORDER BY relevance_score DESC
                         LIMIT $3
                     """,
                         min_confidence,
-                        [f"%{k}%" for k in keywords],
+                        # to_tsquery: слова через | (OR), только буквы/цифры
+                        " | ".join(re.sub(r"[^a-zA-Zа-яА-ЯёЁ0-9]", "", k) for k in keywords if re.sub(r"[^a-zA-Zа-яА-ЯёЁ0-9]", "", k)),
                         limit * 2,
                     )
                     try:
