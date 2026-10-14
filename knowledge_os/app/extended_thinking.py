@@ -458,7 +458,7 @@ class ExtendedThinkingEngine:
         decomposer = TaskDecomposer()
 
         # 1. Decompose the goal into sections
-        sections = await decomposer.decompose_task_async(prompt)
+        sections = await decomposer.decompose(prompt)
         if not sections or len(sections) < 2:
             # Fallback if decomposition fails
             sections = ["Introduction", "Analysis", "Findings", "Conclusion"]
