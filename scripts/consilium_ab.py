@@ -27,6 +27,22 @@ JUDGE_MODEL = os.getenv("AB_JUDGE_MODEL", "victoria-qwen38:latest")
 # сдавалась раньше ответа. Судья: qwen38 на тёплом Ollama (wisdom на MLX теперь
 # выгружается — каждый суд холодно грузил её ~45с).
 POLL_TIMEOUT = float(os.getenv("AB_POLL_TIMEOUT", "360"))
+# [v149.51] per-category таймауты: тяжёлые раунды (code_audit/code_generation
+# стабильно упирались в 360с ещё в здоровых битвах: 2026-10-04 — единственные 3
+# error; v149.18-бэклог закрыт) ждут до 900с, лёгкие не тормозят прогон.
+POLL_TIMEOUT_HEAVY = float(os.getenv("AB_POLL_TIMEOUT_HEAVY", "900"))
+HEAVY_CATEGORIES = {
+    c.strip()
+    for c in os.getenv(
+        "AB_HEAVY_CATEGORIES",
+        "code_audit,code_generation,debugging,devops,architecture,security",
+    ).split(",")
+    if c.strip()
+}
+
+
+def poll_timeout_for(category: str) -> float:
+    return POLL_TIMEOUT_HEAVY if category in HEAVY_CATEGORIES else POLL_TIMEOUT
 
 
 def _post_json(url, payload, timeout=30):
@@ -54,7 +70,7 @@ def _get_json(url, timeout=15):
         return json.loads(r.read())
 
 
-def solo_answer(goal: str) -> str:
+def solo_answer(goal: str, poll_timeout: float = POLL_TIMEOUT) -> str:
     """Одиночная Виктория через /run async + poll."""
     try:
         resp = _post_json_safe(
@@ -67,7 +83,7 @@ def solo_answer(goal: str) -> str:
     task_id = resp.get("task_id")
     if not task_id:
         return f"[ERROR] no task_id: {json.dumps(resp)[:120]}"
-    deadline = time.monotonic() + POLL_TIMEOUT
+    deadline = time.monotonic() + poll_timeout
     while time.monotonic() < deadline:
         try:
             rec = _get_json(f"{VICTORIA}/run/status/{task_id}")
@@ -119,7 +135,9 @@ def judge(goal: str, answer_a: str, answer_b: str) -> dict:
         '{"a": <0-10>, "b": <0-10>, "winner": "A"|"B"|"tie", "reason": "<одна фраза>"}'
     )
     try:
-        resp = _post_json(
+        # [v149.51] _post_json_safe: 503-штормы Ollama на судейском вызове роняли
+        # целые битвы (2026-10-13: ~25 раундов error только из-за судьи) — ретраи.
+        resp = _post_json_safe(
             f"{OLLAMA}/api/chat",
             {"model": JUDGE_MODEL, "messages": [{"role": "user", "content": prompt}], "stream": False},
             timeout=120,
@@ -228,8 +246,9 @@ def main():
     out_path = os.path.join(ROOT, "configs/evals/results", f"battle_{ts}.json")
     results, wins = [], {"A": 0, "B": 0, "tie": 0, "error": 0}
     for n, item in enumerate(items, 1):
-        print(f"[{n}/{len(items)}] {item['id']}: {item['goal'][:60]}", flush=True)
-        a = solo_answer(item["goal"])
+        t_poll = poll_timeout_for(item.get("category", ""))
+        print(f"[{n}/{len(items)}] {item['id']}: {item['goal'][:60]} (poll={t_poll:.0f}s)", flush=True)
+        a = solo_answer(item["goal"], poll_timeout=t_poll)
         b = consilium_answer(item["goal"])
         verdict = judge(item["goal"], a, b)
         wins[verdict["winner"]] = wins.get(verdict["winner"], 0) + 1

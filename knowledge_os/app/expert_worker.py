@@ -2018,6 +2018,101 @@ async def process_task(task_data: dict):
                     "hitl": hitl_payload,
                 }
 
+                # [v149.51] QC-live (Глеб, 12.10 + 14.10×2): стаб «модели не дали текста»
+                # НЕ ответ — completed со стабом ложь в реестре задач (аудит-слой 7:
+                # error-text как результат). Ре-очередь с бэкоффом; после 3 попыток —
+                # честный failed. API-контракт ai_core (строка для пользователя) не трогаем.
+                if isinstance(report_text, str) and report_text.startswith(
+                    "⚠️ Не удалось получить ответ от локальных моделей"
+                ):
+                    try:
+                        stub_retries = int((metadata or {}).get("llm_stub_retries", 0))
+                    except (TypeError, ValueError):
+                        stub_retries = 0
+                    if is_valid_uuid and stub_retries < 3:
+                        await conn.execute(
+                            """
+                            UPDATE tasks
+                            SET status = 'pending',
+                                retry_after = NOW() + INTERVAL '5 minutes',
+                                updated_at = NOW(),
+                                metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
+                            WHERE id = $1
+                            """,
+                            db_task_id,
+                            json.dumps(
+                                {
+                                    "llm_stub_retries": stub_retries + 1,
+                                    "last_error": "llm_no_text_stub_requeued",
+                                    "last_progress_at": datetime.now(
+                                        timezone.utc
+                                    ).isoformat(),
+                                },
+                                ensure_ascii=False,
+                            ),
+                        )
+                        await redis_manager.update_task_status(task_id, "pending")
+                        logger.warning(
+                            "🔁 [STUB-GUARD] Task %s: LLM вернул стаб — ре-очередь (попытка %s/3)",
+                            task_id,
+                            stub_retries + 1,
+                        )
+                        await redis_manager.release_task_lock(task_id)
+                        if hb_thread is not None:
+                            hb_thread.stopped = True
+                        try:
+                            from services.blackboard_service import get_blackboard_service
+
+                            bb = get_blackboard_service()
+                            bb_client = await bb.redis.get_client()
+                            await bb_client.delete(f"blackboard:heartbeat:{task_id}")
+                            await bb.release_task(task_id, expert_name)
+                        except Exception:
+                            pass
+                        return
+                    if is_valid_uuid:
+                        await conn.execute(
+                            """
+                            UPDATE tasks
+                            SET status = 'failed',
+                                result = $2,
+                                updated_at = NOW(),
+                                metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+                            WHERE id = $1
+                            """,
+                            db_task_id,
+                            report_text,
+                            json.dumps(
+                                {
+                                    "last_error": "llm_no_text_stub_exhausted",
+                                    "llm_stub_retries": stub_retries,
+                                    "last_progress_at": datetime.now(
+                                        timezone.utc
+                                    ).isoformat(),
+                                },
+                                ensure_ascii=False,
+                            ),
+                        )
+                        await redis_manager.update_task_status(task_id, "failed")
+                        logger.error(
+                            "⛔ [STUB-GUARD] Task %s: стаб после %s ретраев — честный failed",
+                            task_id,
+                            stub_retries,
+                        )
+                        await redis_manager.release_task_lock(task_id)
+                        if hb_thread is not None:
+                            hb_thread.stopped = True
+                        try:
+                            from services.blackboard_service import get_blackboard_service
+
+                            bb = get_blackboard_service()
+                            bb_client = await bb.redis.get_client()
+                            await bb_client.delete(f"blackboard:heartbeat:{task_id}")
+                            await bb.release_task(task_id, expert_name)
+                        except Exception:
+                            pass
+                        return
+
                 completion_committed = True
                 global _last_success_ts
                 _last_success_ts = int(time.time())
