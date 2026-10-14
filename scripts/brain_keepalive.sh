@@ -33,9 +33,13 @@ trap 'rmdir "$LOCKDIR" 2>/dev/null' EXIT
 _hands_ok() { curl -s --max-time 5 "$U/api/ps" 2>/dev/null | /usr/bin/grep -q '"phi3.5:3.8b'; }
 if ! _hands_ok; then
   echo "$(ts) hands-first: пин phi3.5+nomic перед мозгом" >> "$LOG"
-  curl -s --max-time 300 "$U/api/generate" \
+  # [v150.12] Руки живут на 11437 (v150.8) — пиним ИХ инстанс, не мозговой!
+  # До сих пор пин шёл на $U (11434) — это и был «загадочный пиннер phi»,
+  # кормивший карусель «гард выгружает / кипер грузит».
+  H="http://127.0.0.1:11437"
+  curl -s --max-time 300 "$H/api/generate" \
     -d '{"model":"phi3.5:3.8b","prompt":"ok","stream":false,"keep_alive":-1,"options":{"num_ctx":16384,"num_predict":1}}' >/dev/null 2>&1 &
-  curl -s --max-time 120 "$U/api/embed" \
+  curl -s --max-time 120 "$H/api/embed" \
     -d '{"model":"nomic-embed-text","input":"ping","keep_alive":-1}' >/dev/null 2>&1
   _w=0; while ! _hands_ok && [ $_w -lt 24 ]; do sleep 5; _w=$((_w+1)); done
   _hands_ok && echo "$(ts) hands-first: phi3.5 резидентна ($_w×5с)" >> "$LOG" \

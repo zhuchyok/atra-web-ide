@@ -82,7 +82,9 @@ except Exception:
         mem_pct=$(ps -p "$pid" -o pmem= 2>/dev/null | tr -d ' ')
         mem_int=${mem_pct%.*}
 
-        if [ "$total_secs" -gt "$WATCHDOG_TIMEOUT" ] && [ "${mem_int:-0}" -gt "5" ]; then
+        # [v150.12] mem>5% убран из условия: застрявший в Stopping раннер при
+        # разгрузке теряет RSS → сторож проходил мимо (мозг висел 15+ минут).
+        if [ "$total_secs" -gt "$WATCHDOG_TIMEOUT" ]; then
             log "KILL :$PORT pid=$pid uptime=${total_secs}s mem=${mem_pct}% (stuck Stopping runner)"
             kill -9 "$pid" 2>/dev/null && log "Killed pid=$pid" || log "Failed to kill pid=$pid"
         else
