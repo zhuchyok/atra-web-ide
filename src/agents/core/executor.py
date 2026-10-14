@@ -123,6 +123,37 @@ def _ollama_base_url() -> str:
     )
 
 
+def _ollama_hands_base_url() -> str:
+    """[v150.11] База инстанса рук (11437); OLLAMA_HANDS_URL=disabled → None."""
+    raw = os.getenv("OLLAMA_HANDS_URL")
+    if raw is None:
+        return "http://host.docker.internal:11437" if _is_docker_env() else "http://localhost:11437"
+    if raw.lower() == "disabled":
+        return ""
+    return raw.rstrip("/")
+
+
+def _is_docker_env() -> bool:
+    return os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
+
+
+def _redirect_hands_model(model: Optional[str], base_url: Optional[str]) -> str:
+    """[v150.11] Executor ходил за phi/nomic/smollm ПРЯМО на 11434 (мимо гейтов
+    роутера) → карусель «гард выгружает / executor грузит». Руки-модель при
+    живом hands-инстансе → база 11437 (свой планировщик)."""
+    try:
+        base = (base_url or "").rstrip("/")
+        if "11434" not in base:
+            return base_url or ""
+        m = (model or "").lower()
+        if not any(t in m for t in ("phi3.5", "nomic", "smollm", "tinyllama", "moondream")):
+            return base_url or ""
+        hands = _ollama_hands_base_url()
+        return hands or (base_url or "")
+    except Exception:
+        return base_url or ""
+
+
 def _mlx_base_url() -> str:
     """Get MLX API Server URL (default: 11435)"""
     is_docker = (
@@ -628,6 +659,8 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                 system_override=system_override,
             )
         model = _normalize_model_for_backend(model, base_url, self._mlx_url)
+        # [v150.11] Руки — на свой инстанс (мимо всех гейтов роутера не проскочит)
+        base_url = _redirect_hands_model(model, base_url)
         url = f"{base_url}/api/chat"
         system_content = system_override or self.system_prompt
         if blocked_tools:
