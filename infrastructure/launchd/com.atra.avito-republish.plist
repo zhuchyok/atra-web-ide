@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.atra.avito-republish</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/bikos/Documents/atra-web-ide/.venv/bin/python</string>
+		<string>/Users/bikos/Documents/atra-web-ide/scripts/avito_republish_expired.py</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/bikos/Documents/atra-web-ide</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<key>AVITO_CLIENT_ID</key>
+		<string>5ngdM8UI0jdelZBZ77fy</string>
+		<key>AVITO_CLIENT_SECRET</key>
+		<string>d95qDtyi3gYos4CXvCAsmuN7XhqfTIPMBGHBvuOt</string>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>/Users/bikos/Library/Logs/atra-avito-republish-out.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/bikos/Library/Logs/atra-avito-republish-err.log</string>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>10</integer>
+		<key>Minute</key>
+		<integer>20</integer>
+	</dict>
+</dict>
+</plist>

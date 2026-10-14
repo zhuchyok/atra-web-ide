@@ -166,13 +166,16 @@ def main() -> int:
                 save.scroll_into_view_if_needed()
                 save.click()
                 time.sleep(6)
-                # верификация: заголовок в форме после сохранения
+                # верификация: переоткрыть форму и сверить сохранённый заголовок
+                page.goto(
+                    f"https://www.avito.ru/items/edit/{tid}",
+                    wait_until="domcontentloaded",
+                )
+                time.sleep(5)
                 check = page.evaluate(
                     """(t) => {
-                        var el = Array.from(document.querySelectorAll('input')).find(
-                            i => i.offsetParent !== null && (i.value||'').toLowerCase() === t.toLowerCase()
-                        );
-                        return !!el;
+                        var el = document.querySelector('input[name="title"]');
+                        return el ? el.value.toLowerCase() === t.toLowerCase() : false;
                     }""",
                     new_title,
                 )
