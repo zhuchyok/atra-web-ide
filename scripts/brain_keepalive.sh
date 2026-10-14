@@ -67,6 +67,13 @@ if [ "$FREE" -lt 40 ]; then echo "$(ts) skip: RAM free ${FREE}% < 40%" >> "$LOG"
 curl -s --max-time 240 "$U/api/generate" \
   -d "{\"model\":\"$M\",\"prompt\":\"ok\",\"stream\":false,\"keep_alive\":\"12h\"}" >/dev/null 2>&1
 
+RESP=$(curl -s --max-time 30 "$U/api/tags" 2>/dev/null)
+if ! echo "$RESP" | grep -q "qwen38"; then
+  echo "$(ts) ALERT: модель $M отсутствует на сервере (404) — удалена с диска? Нужен re-pull, не ретрай" >> "$LOG"
+  curl -s -m 8 -H "Title: 🔴 Модель мозга удалена с диска" -H "Priority: high" -d "victoria-qwen38 отсутствует в /api/tags — нужен re-pull из источника" "https://ntfy.sh/atra_victoria_curator" >/dev/null 2>&1
+  exit 0
+fi
+
 # 5. Проверка результата
 # [v149.27] Успех = модель РЕАЛЬНО резидентна (api/ps), а не «curl не упал».
 # Ошибка загрузки ≠ рестарт ollama сразу: сначала один ретрай, рестарт —
