@@ -504,7 +504,11 @@ class IntelligentModelRouter:
 
             # Если сложность экстремальная (>0.9) и мы не в режиме экономии,
             # можно было бы эскалировать, но мы держим курс на локальность.
-            return "victoria-wisdom-24k", TaskCategory(cat_str or "general"), 1.0
+            # [v149.46] Контракт v149.4: мозг = victoria-qwen38 (wisdom-24k удалена
+            # с 11434 в v149.8 — хардкод давал 404 на каждый вызов, 2864× «все бэкенды
+            # недоступны» за 2 часа). Env переопределяет.
+            _brain = os.getenv("VICTORIA_MODEL", "victoria-qwen38:latest")
+            return _brain, TaskCategory(cat_str or "general"), 1.0
 
         if prioritize_speed:
             optimize_for = "speed"
