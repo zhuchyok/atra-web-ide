@@ -10,6 +10,10 @@ x-dynamic-worker-env: &dynamic-worker-env
   CONTAINER_NAME: "unknown"
   REDIS_URL: unix:///data/redis/redis.sock
   OLLAMA_BASE_URL: http://host.docker.internal:11434
+  # [v149.52] эмбеддинги semantic_cache — на инстанс РУК (nomic там живёт), не на мозг:
+  # ночью 15.10 victoria-agent долбил /api/embeddings в 11434 по 5/с без бэкоффа
+  # (конвейер циклил) — очередь мозга переполнялась, весь LLM-контур вставал в 503.
+  OLLAMA_EMBED_URL: http://host.docker.internal:11437/api/embeddings
   # [ФОКУС 4.2] Dynamic-воркеры кодят на выделенном coder-инстансе (не конкурируют с wisdom 11434)
   OLLAMA_EXECUTOR_BASE_URL: http://host.docker.internal:11436
   # Dynamic-воркеры как пул: принимают чужие payload (Дмитрий/Анастасия/...) при отсутствии dedicated
@@ -177,6 +181,8 @@ services:
       CONTAINER_NAME: "victoria-agent"
       POSTGRES_DIRECT_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      # [v149.52] эмбеддинги на руки (11437), не на мозг — см. анкор dynamic-worker-env
+      OLLAMA_EMBED_URL: http://host.docker.internal:11437/api/embeddings
       # Выделенный coder-инстанс для autonomous-code (обход ReAct)
       OLLAMA_CODER_URL: http://host.docker.internal:11436
       # 4.2B: исполнение шагов плана через overflow-очередь воркеров (direct по умолчанию)
@@ -294,6 +300,7 @@ services:
       CONTAINER_NAME: "veronica-agent"
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_EMBED_URL: http://host.docker.internal:11437/api/embeddings
       # Выделенный Ollama-инстанс для coder (11436) — не конкурирует с wisdom Victoria
       OLLAMA_EXECUTOR_BASE_URL: http://host.docker.internal:11436
       GH_TOKEN: ${GH_TOKEN}
@@ -342,6 +349,7 @@ services:
       CONTAINER_NAME: "knowledge_os_orchestrator"
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_EMBED_URL: http://host.docker.internal:11437/api/embeddings
       OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
@@ -406,6 +414,7 @@ services:
       CONTAINER_NAME: "expert-worker-heavy"
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_EMBED_URL: http://host.docker.internal:11437/api/embeddings
       OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
       VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-victoria-qwen38:latest}
       OLLAMA_NUM_PARALLEL: "5"
@@ -455,6 +464,7 @@ services:
       CONTAINER_NAME: "expert-worker-anna"
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_EMBED_URL: http://host.docker.internal:11437/api/embeddings
       OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
       VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-victoria-qwen38:latest}
       OLLAMA_NUM_PARALLEL: "5"
@@ -501,6 +511,7 @@ services:
       CONTAINER_NAME: "expert-worker-victoria"
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_EMBED_URL: http://host.docker.internal:11437/api/embeddings
       OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
       VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-victoria-qwen38:latest}
       OLLAMA_NUM_PARALLEL: "5"
@@ -613,6 +624,7 @@ services:
       CONTAINER_NAME: "knowledge_os_worker"
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_EMBED_URL: http://host.docker.internal:11437/api/embeddings
       OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
       VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-victoria-qwen38:latest}
       MLX_BASE_URL: http://host.docker.internal:11435
