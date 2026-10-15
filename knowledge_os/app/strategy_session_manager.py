@@ -46,6 +46,26 @@ class StrategySessionManager:
                 logger.info(
                     "🔧 [SESSION MANAGER] Таблица strategy_sessions не найдена. Инициализация..."
                 )
+                # [v149.55] Прямой DDL-фолбэк: импорт Database тянет config с
+                # отсутствующими полями (ADAPTIVE_ENGINE_ENABLED) и валился,
+                # оставляя no such table. Схема покрывает все обращения менеджера.
+                try:
+                    cursor.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS strategy_sessions (
+                            id TEXT PRIMARY KEY,
+                            title TEXT,
+                            description TEXT,
+                            status TEXT DEFAULT 'active',
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                    conn.commit()
+                    logger.info("✅ [SESSION MANAGER] Таблица strategy_sessions создана (DDL)")
+                except Exception as ddl_err:
+                    logger.error(f"❌ [SESSION MANAGER] DDL-фолбэк не удался: {ddl_err}")
                 try:
                     from db import Database
                 except ImportError:
