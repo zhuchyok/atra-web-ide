@@ -540,6 +540,7 @@ services:
     environment:
       <<: *dynamic-worker-env
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os?application_name=expert-worker-dynamic-1
+      CONTAINER_NAME: "expert-worker-dynamic-1"
       EXPERT_NAME: ${DYNAMIC_EXPERT_NAME_SLOT1:-Инна}
     volumes: *dynamic-worker-volumes
 
@@ -553,6 +554,7 @@ services:
     environment:
       <<: *dynamic-worker-env
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os?application_name=expert-worker-dynamic-2
+      CONTAINER_NAME: "expert-worker-dynamic-2"
       EXPERT_NAME: ${DYNAMIC_EXPERT_NAME_SLOT2:-Юлия}
     volumes: *dynamic-worker-volumes
 
@@ -568,6 +570,7 @@ services:
     environment:
       <<: *dynamic-worker-env
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os?application_name=expert-worker-dynamic-3
+      CONTAINER_NAME: "expert-worker-dynamic-3"
       EXPERT_NAME: ${DYNAMIC_EXPERT_NAME_SLOT3:-Инна}
     volumes: *dynamic-worker-volumes
 
@@ -581,6 +584,7 @@ services:
     environment:
       <<: *dynamic-worker-env
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os?application_name=expert-worker-dynamic-4
+      CONTAINER_NAME: "expert-worker-dynamic-4"
       EXPERT_NAME: ${DYNAMIC_EXPERT_NAME_SLOT4:-Юлия}
     volumes: *dynamic-worker-volumes
 
@@ -594,6 +598,7 @@ services:
     environment:
       <<: *dynamic-worker-env
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os?application_name=expert-worker-dynamic-5
+      CONTAINER_NAME: "expert-worker-dynamic-5"
       EXPERT_NAME: ${DYNAMIC_EXPERT_NAME_SLOT5:-Инна}
     volumes: *dynamic-worker-volumes
 

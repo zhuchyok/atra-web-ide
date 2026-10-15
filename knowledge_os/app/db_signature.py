@@ -26,9 +26,14 @@ _INSTALLED = False
 def _signature() -> str | None:
     for var in ("CONTAINER_NAME", "APPLICATION_NAME"):
         val = (os.getenv(var) or "").strip()
-        if val:
+        # "unknown" — мусорный дефолт из compose-анкора, подписью не считается
+        if val and val.lower() != "unknown":
             return val
     return None
+
+
+def _dsn_has_app_name(dsn) -> bool:
+    return bool(dsn) and "application_name=" in str(dsn)
 
 
 def install() -> bool:
@@ -53,7 +58,10 @@ def install() -> bool:
     orig_connect = asyncpg.connect
     orig_create_pool = asyncpg.create_pool
 
-    def _ensure_settings(kwargs: dict) -> dict:
+    def _ensure_settings(dsn, kwargs: dict) -> dict:
+        # DSN уже несёт подпись — не вмешиваемся (никогда не перекрываем)
+        if _dsn_has_app_name(dsn):
+            return kwargs
         settings = kwargs.setdefault("server_settings", {}) or {}
         # Явное приложение из кода имеет приоритет (не перетираем)
         settings.setdefault("application_name", sig)
@@ -62,11 +70,11 @@ def install() -> bool:
 
     @functools.wraps(orig_connect)
     async def connect_sig(dsn=None, *args, **kwargs):
-        return await orig_connect(dsn, *args, **_ensure_settings(kwargs))
+        return await orig_connect(dsn, *args, **_ensure_settings(dsn, kwargs))
 
     @functools.wraps(orig_create_pool)
     async def create_pool_sig(dsn=None, *args, **kwargs):
-        return await orig_create_pool(dsn, *args, **_ensure_settings(kwargs))
+        return await orig_create_pool(dsn, *args, **_ensure_settings(dsn, kwargs))
 
     asyncpg.connect = connect_sig
     asyncpg.create_pool = create_pool_sig
