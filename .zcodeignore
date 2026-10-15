@@ -1,0 +1,174 @@
+# Env & secrets
+.env
+.env.local
+.env.webmaster
+.env.direct
+*.pem
+*.key
+*.crt
+*.csr
+certs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+dist/
+.npm
+
+# IDE & OS
+.DS_Store
+.idea/
+.vscode/
+.cursor/
+.cursor_chats_backup/
+
+# Logs & backups
+logs/
+*.log
+backups/
+victoria_bot.log
+
+# Generated
+latency_benchmark.json
+latency_dashboard.html
+auto_optimizer_dashboard.html
+quality_dashboard.html
+quality_report.html
+backend/auto_optimizer_report.json
+backend/validation_report.json
+coherence_issues_analysis.json
+problematic_queries_analysis.json
+
+# SQLite
+*.db
+feedback.db
+
+# Large AI learning data (exceeds GitHub 100MB)
+knowledge_os/ai_learning_data/
+
+# Rust / C build artifacts
+target/
+*.o
+*.rlib
+*.dylib
+*.a
+
+# Backup / temp (мировая практика: не коммитить)
+*.backup
+*.bak
+*.swp
+*.tmp
+
+# Lock / большие логи (чтобы не раздувать «active changes» в Cursor)
+.victoria_bot.lock
+full_logs.txt
+
+# Playwright / frontend test output
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/playwright/.cache/
+
+# Curator reports (генерируемые)
+docs/curator_reports/
+docs/curator_findings.jsonl
+docs/CHANGES_FROM_OTHER_CHATS.md
+scripts/curator_tasks.txt
+
+# Board Markdown directives (runtime; keep .gitkeep; LATEST is runtime symlink/copy)
+docs/board_reports/board_directive_*.md
+docs/board_reports/*_smoke*.md
+docs/board_reports/v98_*.md
+docs/board_reports/LATEST.md
+docs/audits/boot_incidents/
+# Long expert/smoke audit dumps (jsonl + 60m runs) — do not commit
+docs/audits/*60m*
+docs/audits/*.jsonl
+docs/audits/2026-07-*
+docs/recovery/
+data/lancedb/
+
+# Skills procedural artifacts (все кроме базовых)
+knowledge_os/app/skills/procedural/*/
+!knowledge_os/app/skills/procedural/README.md
+!knowledge_os/app/skills/procedural/skills.json
+
+# Local DB migrations
+knowledge_os/app/db/migrations/
+knowledge_os/app/knowledge_os/
+
+# Артефакты сборки / зеркала (чтобы не раздувать число «active changes» в Cursor)
+fused_model/
+mirror/
+
+# Объёмные данные обучения (десятки GB — не в git)
+training_data/
+
+# Rust gateway (лог не в репо)
+rust_core/gateway.log
+
+# Allow cursor rules for cross-project sharing
+!.cursor/rules/
+
+# Recovery replay dumps (high-entropy UUIDs trip detect-secrets)
+docs/recovery/replay_runs/
+docs/recovery/*.jsonl
+# Added by code-review-graph
+.code-review-graph/
+src/generated_file*.py
+src/generated_*
+# --- v148.1 hygiene: runtime secrets/artifacts never in git ---
+data/lancedb.lock
+daemon.json
+file.write
+command.append
+tmp/
+audit_curl_err.txt
+.cache/
+# --- agent configs (per-tool, runtime) ---
+.claude/
+.codebuddy/
+.gemini/
+.qoder/
+.serena/
+.zcode/
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+bower_components/
+jspm_packages/
+site-packages/
+coverage/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+cdk.out/
+*.dist-info/
+eggs/
+pip-wheel-metadata/
+wheels/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）

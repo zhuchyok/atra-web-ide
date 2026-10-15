@@ -1,0 +1,773 @@
+{
+ "timestamp": "20261005_223850",
+ "wins": {
+  "A": 0,
+  "B": 1,
+  "tie": 0,
+  "error": 49
+ },
+ "results": [
+  {
+   "id": "communication_01",
+   "category": "communication",
+   "goal": "привет",
+   "source": "standard",
+   "solo": "Пользователь поздоровался. Это простой вопрос, отвечаю сама. Тон: профессиональный, готовый к работе. Контекст: Atra Web Ide. Формат: JSON с инструментом finish.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'привет'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "communication_02",
+   "category": "communication",
+   "goal": "какой статус проекта?",
+   "source": "standard",
+   "solo": "Статус проекта: активная разработка, но есть проблемы, требующие внимания. health=ok pending=27 in_progress=5 failed_1h=0 completed_24h=87 error_rate_1h=0.0 knowledge_nodes=100999",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'какой статус проекта?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "communication_03",
+   "category": "communication",
+   "goal": "что ты умеешь?",
+   "source": "standard",
+   "solo": "Я Виктория, Team Lead Atra Core. Умею:\n• Отвечать на вопросы и вести чат (в т.ч. с экспертами и RAG по базе знаний)\n• Составлять планы и выполнять задачи: код, файлы, команды в терминале\n• Показывать список файлов, читать и анализировать проект\n• Делегировать простые запросы в Veronica, сложные — оркестрировать с командой\nРежимы: быстрый ответ на простые вопросы или полный цикл (ReAct) для сложных задач.\nРаботаю по логике корпорации: библия (MASTER_REFERENCE), уточняю при неясности, проверяю результат, обновляю документы после изменений.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'что ты умеешь?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "communication_04",
+   "category": "communication",
+   "goal": "Скажи привет одной строкой.",
+   "source": "history",
+   "solo": "Пользователь просит поздороваться одной строкой в формате JSON. Я — Виктория, Team Lead ATRA. Нужно ответить кратко, по делу, соблюдая стиль и формат.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Скажи привет одной строкой.'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "communication_05",
+   "category": "communication",
+   "goal": "Скажи одну фразу: работаешь на 24k модели?",
+   "source": "history",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Скажи одну фразу: работаешь на 24k модели?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "code_generation_06",
+   "category": "code_generation",
+   "goal": "напиши одну строку кода на Python: вывод текущей даты",
+   "source": "standard",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] 1. Код правильно использует модуль `datetime` для получения текущей даты.\n2. Учитывая, что извлечение времени не требуется для простого вывода даты, код эффективно ограничивается только датой.\n3. Рекомендация по улучшению: для базового использования текущей даты достаточно `datetime`, без необходимости дополнительных библиониках.\n4. Подчеркивание, что учет часовых зон не требуется для такой задачи, что упрощает рекомендацию.\n5. При рассмотрении дополнительных библиониках, конкретно `dateutil`, рекомендуется только при необходимости сложной обработки дат и времени.\n6. Учитывая возможные настройки часовых зон, но подчеркивая, что для простого вывода даты такие настройки не требуются.\n7. Рекомендация: для улучшения кода можно предоставлено объяснение его цели и ограничений, что повыша",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "code_generation_07",
+   "category": "code_generation",
+   "goal": "напиши функцию на Python, которая проверяет, является ли строка палиндромом",
+   "source": "composed",
+   "solo": "Задача отменена",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'напиши функцию на Python, которая проверяет, является ли строка палиндромом'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "code_generation_08",
+   "category": "code_generation",
+   "goal": "напиши bash-команду, которая найдёт 10 самых больших файлов в каталоге",
+   "source": "composed",
+   "solo": "Задача отменена",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'напиши bash-команду, которая найдёт 10 самых больших файлов в каталоге'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "code_generation_09",
+   "category": "code_generation",
+   "goal": "сгенерируй SQL: топ-10 задач по длительности выполнения из таблицы tasks",
+   "source": "composed",
+   "solo": "Не удалось понять вопрос и сформировать запрос к базе данных.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'сгенерируй SQL: топ-10 задач по длительности выполнения из таблицы tasks'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "code_generation_10",
+   "category": "code_generation",
+   "goal": "напиши регулярное выражение для извлечения даты YYYY-MM-DD из строки",
+   "source": "composed",
+   "solo": "**Анастасия**: ⚠️ Не удалось получить ответ от локальных моделей (MLX/Ollama). Повторите запрос или проверьте MLX health: 11435.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'напиши регулярное выражение для извлечения даты YYYY-MM-DD из строки'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "code_audit_11",
+   "category": "code_audit",
+   "goal": "проверь файл /app/knowledge_os/app/expert_worker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+   "source": "standard",
+   "solo": "ПРОБЛЕМА\nФайл: /app/knowledge_os/app/expert_worker.py\nНайдены признаки runtime pip install:\n- L244: or \"python -m pip install\" in normalized\n- L245: or \"python3 -m pip install\" in normalized\n- L260: \"Runtime вызовов pip install через subprocess/os.system/python -m pip install не обнаружено.\"",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'проверь файл /app/knowledge_os/app/expert_worker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "code_audit_12",
+   "category": "code_audit",
+   "goal": "проверь файл /app/knowledge_os/app/ai_core.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+   "source": "standard",
+   "solo": "ОК\nФайл: /app/knowledge_os/app/ai_core.py\nВ первых 30 строках hardcoded секреты/пароли не обнаружены.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'проверь файл /app/knowledge_os/app/ai_core.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "code_audit_13",
+   "category": "code_audit",
+   "goal": "прочитай файл /app/knowledge_os/app/worker.py — найди потенциальные проблемы: subprocess calls, hardcoded URLs, eval(), exec(). Ответь: ОК или ПРОБЛЕМА + список",
+   "source": "standard",
+   "solo": "По вашему запросу данных не найдено.\n\n_Источник: `SELECT 'ОК' AS status WHERE NOT EXISTS (SELECT 1 FROM knowledge_nodes WHERE content LIKE '%subprocess%' OR content LIKE '%eval()%') AND NOT EXISTS (SELECT 1 FROM knowledge_nodes WHERE content LIKE '%http://%' OR content LIKE '%https://%') AND NOT EXISTS (SELECT 1 FROM knowledge_nodes WHERE content LIKE '%exec(%') LIMIT 1;`_",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'прочитай файл /app/knowledge_os/app/worker.py — найди потенциальные проблемы: subprocess calls, hardcoded URLs, eval(), exec(). Ответь: ОК или ПРОБЛЕМА + список'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "code_audit_14",
+   "category": "code_audit",
+   "goal": "проверь файл /app/knowledge_os/app/consensus_agent.py — есть ли там eval() или exec()? Ответь: ОК или ПРОБЛЕМА + цитата",
+   "source": "composed",
+   "solo": "⚠️ Не удалось получить ответ от локальных моделей (MLX/Ollama). Повторите запрос или проверьте MLX health: 11435.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'проверь файл /app/knowledge_os/app/consensus_agent.py — есть ли там eval() или exec()? Ответь: ОК или ПРОБЛЕМА + цитата'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "code_audit_15",
+   "category": "code_audit",
+   "goal": "проверь файл /app/scripts/curator_send_tasks_to_victoria.py — есть ли там pip install в рантайме? Ответь: ОК или ПРОБЛЕМА + цитата",
+   "source": "standard",
+   "solo": "ПРОБЛЕМА\nФайл: /app/scripts/curator_send_tasks_to_victoria.py\nНайдены признаки runtime pip install:\n- L475: \"python -m pip install\",\n- L476: \"python3 -m pip install\",\n- L492: \"Runtime вызовов pip install через subprocess/os.system/python -m pip install не обнаружено.\"",
+   "consilium": "[debate] **Заключение:**\n\nУчитывая мнение экспертов и предоставленные цитаты, можно сделать обосненный заключение, что `/app/scripts/curator_send_tasks_to_victoria.py` не предполагает наличие `pip install` внутри себя, и предполагает, что окружение, где скрипт выполняется, должным образом настроено с необходимыми сторонними пакетами. Для предотвращения недоразучительности и обеспечения безопасной и корректной работы следует:\n\n1. **Проверить окружение:** Убедиться, что окружение, где скрипт работает (например, система Victoria), настроено с правильными зависимостями, установленными с использованием `pip` или сканированными местными пакетами.\n\n2. **Документация:** Если не была предоставлена явная документация, следует предоставить четкое руководство, включая требования по установке зависимостей и настройку соответству",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "research_16",
+   "category": "research",
+   "goal": "Найди в интернете что такое p95 latency кратко.",
+   "source": "history",
+   "solo": "[ERROR] run post: HTTP Error 500: Internal Server Error",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Найди в интернете что такое p95 latency кратко.'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "research_17",
+   "category": "research",
+   "goal": "объясни кратко, чем отличается asyncio.gather от asyncio.wait",
+   "source": "composed",
+   "solo": "- `gather` — ждёт все задачи и возвращает результаты в исходном порядке.\n\n- `wait` — позволяет обрабатывать задачи по мере их завершения, без ожидания всех.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'объясни кратко, чем отличается asyncio.gather от asyncio.wait'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "research_18",
+   "category": "research",
+   "goal": "что такое HNSW-индекс и зачем он в векторном поиске",
+   "source": "composed",
+   "solo": "Задача отменена",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'что такое HNSW-индекс и зачем он в векторном поиске'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "research_19",
+   "category": "research",
+   "goal": "объясни, что такое backpressure в очередях задач",
+   "source": "composed",
+   "solo": "pending=43 in_progress=16",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'объясни, что такое backpressure в очередях задач'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "research_20",
+   "category": "research",
+   "goal": "объясни разницу между pgvector и отдельной векторной БД",
+   "source": "composed",
+   "solo": "Ошибка при выполнении запроса: function array_length(vector, integer) does not exist\nHINT:  No function matches the given name and argument types. You might need to add explicit type casts.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'объясни разницу между pgvector и отдельной векторной БД'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "analysis_21",
+   "category": "analysis",
+   "goal": "Исследуй, почему background задачи могут зависать в processing",
+   "source": "history",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Исследуй, почему background задачи могут зависать в processing'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "analysis_22",
+   "category": "analysis",
+   "goal": "Проанализируй маршрутизацию early_async_analysis подробно",
+   "source": "history",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] 1. Структурировать early_async_analysis: Определить четкие структурные этапы для диагностики, оптимизации и мониторинга, чтобы обеспечить масштабируемость и легкую интеграцию с существующими системами.\n2. Подчеркнуть влияние early_async_analysis на быстрый принятёт решения: Подчеркнуть, как маршрутизация предоставляет точный отчёт, способствующий оперативной ответовой культуре.\n3. Внедрить прозрачную связь между безопасностью и early_async_analysis: Подчеркнуть, что маршрутизация помогает выявлять безопасные уязвимости в асимметричных асинхронных операциях, способствуя общей целостности системы.\n4. Подчеркнуть долгосрочные преимущества маршрутизации early_async_analysis: Указать, что она не только ускоряет оптимизацию, но и способствует долгосрочному поддержанию безо",
+   "verdict": {
+    "a": 0.0,
+    "b": 2.0,
+    "winner": "B",
+    "reason": "Ответ B содержит попытку структурированного анализа, но он поверхностный, неполный и с ошибками, тогда как A не содержит ответа."
+   }
+  },
+  {
+   "id": "analysis_23",
+   "category": "analysis",
+   "goal": "Разбери SLA time-to-completed: что должно быть в /metrics",
+   "source": "history",
+   "solo": "p50=900.009 p95=901.406 samples=28 inflight_max=78867.356 inflight=37",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION (partial): topic 'Разбери SLA time-to-completed: что должно быть в /metrics'.\nUse complete expert evidence below; do not treat as a strong unanimous vote.\nEvidence:\nArchitect: 1. Включите метрики времени выполнения SLA (Service Level Agreement) в мониторинг для отслеживания соблюдения сроков выполнения проекта.\n2. Определите среднее время выполнения SLA, чтобы измерять предсказуемость и производительность работ.\n3. Анализируйте корреляцию между временем выполнения SLA и качеством работы, чтобы улучшить соответствие требований клиентов.\n4. Внедрите прогнозирование временных рамок для обеспечения прозрачности и планирования для устранения возможных задержек.\n5. Используйте данные по временному выполнению SLA для адаптации и совершенствования процессов проектирования для улучшения эффективности в будущем.\n\n### Дополнительные предложения:\n- Разработайте реагирующие механизмы для быстрого реагирования на отклонения от времени выполнения SLA, включая увеличение ресурсов или передисломацию.\n- Вне\nSecurity: [INCOMPLETE] [Security] local model did not finish in time; no fabricated opinion (role: Focus on safety, vulnerabilities, and edge cases.).\nPragmatist: [INCOMPLETE] [Pragmatist] local model did not finish in time; no fabricated opinion (role: Focus on simplicity, speed, and immediate results.).\nArchitect: [INCOMPLETE] [Architect] local model did not finish in time; no fabricated opinion (role: Focus on structure, scalability, and patterns.).\nS",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "analysis_24",
+   "category": "analysis",
+   "goal": "Объясни почему duration_seconds важнее latency POST 202",
+   "source": "history",
+   "solo": "p50=900.009 p95=901.406 samples=28 inflight_max=79068.531 inflight=39",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Объясни почему duration_seconds важнее latency POST 202'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "analysis_25",
+   "category": "analysis",
+   "goal": "Разбери, что сейчас не так в git и почему",
+   "source": "history",
+   "solo": "⚠️ Не удалось получить ответ от локальных моделей (MLX/Ollama). Повторите запрос или проверьте MLX health: 11435.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Разбери, что сейчас не так в git и почему'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "devops_26",
+   "category": "devops",
+   "goal": "какие контейнеры сейчас unhealthy и почему?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'какие контейнеры сейчас unhealthy и почему?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "devops_27",
+   "category": "devops",
+   "goal": "сколько задач в очереди прямо сейчас?",
+   "source": "composed",
+   "solo": "pending=74 in_progress=1",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'сколько задач в очереди прямо сейчас?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "devops_28",
+   "category": "devops",
+   "goal": "какой health у MLX на 11435 и сколько активных запросов?",
+   "source": "composed",
+   "solo": "ok",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'какой health у MLX на 11435 и сколько активных запросов?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "devops_29",
+   "category": "devops",
+   "goal": "какие модели загружены на Ollama 11434? Разрешены ли там они по контракту v142?",
+   "source": "composed",
+   "solo": "throughput_1h=4 throughput_24h=88 stale_in_progress=0 failed_1h=0 completed_1h=4 error_rate_1h=0.0 contract_enforced_24h=88/88 cancelled_1h_total=5 cancelled_1h_work=0 cancelled_1h_policy=5 cancelled_24h_total=65 cancelled_24h_work=0 cancelled_24h_policy=65 cancelled_24h_uncategorized=0",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'какие модели загружены на Ollama 11434? Разрешены ли там они по контракту v142?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "devops_30",
+   "category": "devops",
+   "goal": "проверь Prometheus: все ли targets up?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'проверь Prometheus: все ли targets up?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "security_31",
+   "category": "security",
+   "goal": "есть ли в .env.example секреты в открытом виде?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'есть ли в .env.example секреты в открытом виде?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "security_32",
+   "category": "security",
+   "goal": "какие API-ключи используются в проекте и где они хранятся?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'какие API-ключи используются в проекте и где они хранятся?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "security_33",
+   "category": "security",
+   "goal": "проверь логин-форму frontend: есть ли защита от XSS?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'проверь логин-форму frontend: есть ли защита от XSS?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "security_34",
+   "category": "security",
+   "goal": "риск ли exposed docker.sock на victoria-medic и как это ограничить?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'риск ли exposed docker.sock на victoria-medic и как это ограничить?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "security_35",
+   "category": "security",
+   "goal": "как включить STRICT_LOCAL и что проверить перед включением?",
+   "source": "composed",
+   "solo": "orphaned after Victoria restart (no live coroutine)",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'как включить STRICT_LOCAL и что проверить перед включением?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "architecture_36",
+   "category": "architecture",
+   "goal": "как устроен контракт слоёв мозг/руки/coder в v142?",
+   "source": "composed",
+   "solo": "throughput_1h=2 throughput_24h=87 stale_in_progress=0 failed_1h=0 completed_1h=2 error_rate_1h=0.0 contract_enforced_24h=87/87 cancelled_1h_total=0 cancelled_1h_work=0 cancelled_1h_policy=0 cancelled_24h_total=58 cancelled_24h_work=0 cancelled_24h_policy=58 cancelled_24h_uncategorized=0",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'как устроен контракт слоёв мозг/руки/coder в v142?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "architecture_37",
+   "category": "architecture",
+   "goal": "зачем MLX_MAX_CONCURRENT=1 и что будет при повышении?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'зачем MLX_MAX_CONCURRENT=1 и что будет при повышении?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "architecture_38",
+   "category": "architecture",
+   "goal": "как проходит задача от /run до эксперта?",
+   "source": "composed",
+   "solo": "⚠️ Не удалось получить ответ от локальных моделей (MLX/Ollama). Повторите запрос или проверьте MLX health: 11435.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'как проходит задача от /run до эксперта?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "architecture_39",
+   "category": "architecture",
+   "goal": "какие компоненты входят в Knowledge Fabric?",
+   "source": "composed",
+   "solo": "Не удалось понять вопрос и сформировать запрос к базе данных.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'какие компоненты входят в Knowledge Fabric?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "architecture_40",
+   "category": "architecture",
+   "goal": "чем Blackboard-аукцион отличается от прямой оркестрации?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'чем Blackboard-аукцион отличается от прямой оркестрации?'. Do not treat as consensus. Reasons: timeout,unavailable.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "debugging_41",
+   "category": "debugging",
+   "goal": "Victoria отвечает success с пустым output — где искать причину?",
+   "source": "composed",
+   "solo": "⚠️ Не удалось получить ответ от локальных моделей (MLX/Ollama). Повторите запрос или проверьте MLX health: 11435.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Victoria отвечает success с пустым output — где искать причину?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "debugging_42",
+   "category": "debugging",
+   "goal": "pgbouncer возвращает SASL-ошибку у dynamic-воркеров — что проверить?",
+   "source": "composed",
+   "solo": "orphaned after Victoria restart (no live coroutine)",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'pgbouncer возвращает SASL-ошибку у dynamic-воркеров — что проверить?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "debugging_43",
+   "category": "debugging",
+   "goal": "Ollama 503 server busy при дебатах — правильная реакция системы?",
+   "source": "composed",
+   "solo": "**Система (Mac Studio):**\n- CPU: 28.2% (12 ядер)\n- Память: 18.8 / 31.29 ГБ (60.1%)\n- Диск: 144.62 / 1827.95 ГБ (7.91%)\n\n**MLX API Server:** degraded\n- Память: 60.1%, свободно 51.11 ГБ из 128.0 ГБ\n- Моделей в кэше: 2",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Ollama 503 server busy при дебатах — правильная реакция системы?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "debugging_44",
+   "category": "debugging",
+   "goal": " Prometheus target expert-workers down с ошибкой DNS — где причина?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for ' Prometheus target expert-workers down с ошибкой DNS — где причина?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "debugging_45",
+   "category": "debugging",
+   "goal": "в логах _GatheringFuture exception was never retrieved — что это значит?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'в логах _GatheringFuture exception was never retrieved — что это значит?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "testing_46",
+   "category": "testing",
+   "goal": "какие тесты покрывают маршрутизацию wisdom?",
+   "source": "composed",
+   "solo": "⚠️ Не удалось получить ответ от локальных моделей (MLX/Ollama). Повторите запрос или проверьте MLX health: 11435.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'какие тесты покрывают маршрутизацию wisdom?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "testing_47",
+   "category": "testing",
+   "goal": "напиши план smoke-проверки expert-dialogue после деплоя",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'напиши план smoke-проверки expert-dialogue после деплоя'. Do not treat as consensus. Reasons: timeout,unavailable.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "testing_48",
+   "category": "testing",
+   "goal": "как проверить эталоны куратора после правок Victoria?",
+   "source": "composed",
+   "solo": "orphaned after Victoria restart (no live coroutine)",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'как проверить эталоны куратора после правок Victoria?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "testing_49",
+   "category": "testing",
+   "goal": "что должен показывать контрольный срез после рестарта стека?",
+   "source": "composed",
+   "solo": "**Анастасия**: ⚠️ Не удалось получить ответ от локальных моделей (MLX/Ollama). Повторите запрос или проверьте MLX health: 11435.\n\n**Татьяна**: ⚠️ Не удалось получить ответ от локальных моделей (MLX/Ollama). Повторите запрос или проверьте MLX health: 11435.\n\n**Светлана**: ⚠️ Не удалось получить ответ от локальных моделей (MLX/Ollama). Повторите запрос или проверьте MLX health: 11435.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'что должен показывать контрольный срез после рестарта стека?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  },
+  {
+   "id": "testing_50",
+   "category": "testing",
+   "goal": "составь чеклист регресса лог-сканера",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'составь чеклист регресса лог-сканера'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "HTTP Error 503: Service Unavailable"
+   }
+  }
+ ],
+ "wins_by_category": {
+  "communication": {
+   "A": 0,
+   "B": 0,
+   "tie": 0,
+   "error": 5
+  },
+  "code_generation": {
+   "A": 0,
+   "B": 0,
+   "tie": 0,
+   "error": 5
+  },
+  "code_audit": {
+   "A": 0,
+   "B": 0,
+   "tie": 0,
+   "error": 5
+  },
+  "research": {
+   "A": 0,
+   "B": 0,
+   "tie": 0,
+   "error": 5
+  },
+  "analysis": {
+   "A": 0,
+   "B": 1,
+   "tie": 0,
+   "error": 4
+  },
+  "devops": {
+   "A": 0,
+   "B": 0,
+   "tie": 0,
+   "error": 5
+  },
+  "security": {
+   "A": 0,
+   "B": 0,
+   "tie": 0,
+   "error": 5
+  },
+  "architecture": {
+   "A": 0,
+   "B": 0,
+   "tie": 0,
+   "error": 5
+  },
+  "debugging": {
+   "A": 0,
+   "B": 0,
+   "tie": 0,
+   "error": 5
+  },
+  "testing": {
+   "A": 0,
+   "B": 0,
+   "tie": 0,
+   "error": 5
+  }
+ }
+}
