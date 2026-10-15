@@ -117,13 +117,18 @@ class KnowledgeDistiller:
         if "wisdom" in str(model).lower():
             model = "phi3.5:3.8b"
         num_predict = max(128, int(os.getenv("DISTILL_TEACHER_NUM_PREDICT", "768")))
+        # [v150.13] Ночная дыра RAM: учительские промпты с корпусом знаний огромны,
+        # без num_ctx ollama авто-растит KV phi до 128K → раннер 29.7GB (ночь 15.10:
+        # -c 131072 -np 8, вытеснение рук, RAM 29%). Кап: длинный вход обрежется
+        # слева — дистилляции хватает 8K контекста.
+        num_ctx = int(os.getenv("DISTILL_TEACHER_NUM_CTX", "8192"))
         body: dict = {
             "model": model,
             "prompt": prompt,
             "stream": False,
             "format": self._ollama_response_format(),
             "keep_alive": get_keep_alive(model, mlx_alive=True),
-            "options": {"temperature": 0.1, "num_predict": num_predict},
+            "options": {"temperature": 0.1, "num_predict": num_predict, "num_ctx": num_ctx},
         }
         if self._should_disable_thinking(model):
             body["think"] = False

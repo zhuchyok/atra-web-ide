@@ -446,6 +446,11 @@
       "name": "Элиас",
       "role": "protocol engineer",
       "department": "system communication"
+    },
+    {
+      "name": "Артём Соколов",
+      "role": "Senior SRE Engineer (Infrastructure & Stability)",
+      "department": "system operations"
     }
   ]
 }

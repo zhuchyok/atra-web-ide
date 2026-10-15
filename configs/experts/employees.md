@@ -2,11 +2,11 @@
 
 **Единый источник правды:** добавьте нового сотрудника в **`configs/experts/employees.json`**, затем запустите: **`python scripts/sync_employees.py`** — обновятся seed, KNOWN_EXPERT_NAMES и эта таблица.
 
-- **Итого сотрудников:** 89
-- **Отделов:** 42
+- **Итого сотрудников:** 90
+- **Отделов:** 43
 - **Обновлено:** 2026-10-15
 
-## Полный список (89)
+## Полный список (90)
 
 | № | Имя | Роль | Отдел |
 |---|-----|------|-------|
@@ -99,8 +99,9 @@
 | 87 | Михаил Гребенюк | Business Architect & Sales System Specialist | Business Strategy |
 | 88 | Совет Директоров | Коллегиальный орган управления | Management |
 | 89 | Элиас | protocol engineer | system communication |
+| 90 | Артём Соколов | Senior SRE Engineer (Infrastructure & Stability) | system operations |
 
-**Итого: 89 сотрудников.**
+**Итого: 90 сотрудников.**
 
 ## Правило для будущего
 
