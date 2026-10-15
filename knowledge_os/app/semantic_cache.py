@@ -126,6 +126,37 @@ def _safe_record_throttle():
 
 # nomic-embed-text (v1/v1.5) output dimension; БД и кэш должны совпадать (миграция fix_embedding_dimensions_768)
 EMBEDDING_DIM = 768
+
+# [v150.15] Ожидаемая размерность колонки pgvector vector(768) — из env, дефолт 768
+_EMBED_DIM_EXPECTED = int(os.getenv("SEMANTIC_CACHE_EMBED_DIM", "768"))
+
+
+def _valid_embedding(vec: Any) -> bool:
+    """
+    [v150.15] Валидатор эмбеддинга перед ЗАПИСЬЮ в semantic_ai_cache.
+    Корень отравления семантик-кэша 15.10: при падшем nomic (encode 500)
+    в кэш записались деградировавшие/пустые эмбеддинги → чужие ответы.
+    Проверки: длина ровно N, все элементы float и не-NaN, L2-норма в разумных
+    пределах (не нулевой и не взорвавшийся), не константа.
+    """
+    try:
+        if not isinstance(vec, (list, tuple)):
+            return False
+        if len(vec) != _EMBED_DIM_EXPECTED:
+            return False
+        vals = [float(x) for x in vec]  # не-float/None → исключение → False
+        if any(v != v for v in vals):  # NaN check (v != v)
+            return False
+        if any(v in (float("inf"), float("-inf")) for v in vals):
+            return False
+        norm = sum(v * v for v in vals) ** 0.5
+        if not (1e-6 < norm < 100.0):
+            return False
+        if len(set(vals)) < 3:  # константный вектор — мусор
+            return False
+        return True
+    except Exception:
+        return False
 CACHE_THRESHOLD = 0.92  # Similarity threshold to return cached result
 STRATEGIC_CACHE_THRESHOLD = 0.95  # Более строгий threshold для стратегических вопросов
 
@@ -219,6 +250,13 @@ async def get_embedding(text: str) -> Optional[list]:
                 res = await _execute_embedding_request(text)
 
             # [SINGULARITY 29.7] Save to Redis Cache
+            # [v150.15] Guard: невалидный эмбеддинг не кэшируем и в Redis (24h TTL)
+            if res and not _valid_embedding(res):
+                _warn_throttled(
+                    "embed_invalid",
+                    "⚠️ [EMBED] Source returned invalid embedding (not cached in Redis)",
+                )
+                res = None
             if res:
                 try:
                     await client.set(cache_key, json.dumps(res), ex=86400)  # 24h TTL
@@ -283,7 +321,9 @@ async def encode_texts_local(texts: list) -> list:
         out = []
         for vec in vectors:
             try:
-                out.append(vec.tolist() if hasattr(vec, "tolist") else list(vec))
+                v = vec.tolist() if hasattr(vec, "tolist") else list(vec)
+                # [v150.15] Guard: невалидный вектор не отдаём наверх
+                out.append(v if _valid_embedding(v) else None)
             except Exception:
                 out.append(None)
         return out
@@ -316,7 +356,8 @@ async def encode_texts_ollama(texts: list) -> list:
                 )
                 if resp.status_code == 200:
                     emb = resp.json().get("embedding")
-                    if emb and len(emb) >= 64:
+                    # [v150.15] Guard: 500/пусто/деградировавший вектор → None
+                    if _valid_embedding(emb):
                         return emb
             except Exception:
                 return None
@@ -363,9 +404,14 @@ async def _execute_embedding_request(text: str) -> Optional[list]:
             )
             if resp.status_code == 200:
                 _emb = resp.json().get("embedding")
-                if _emb and len(_emb) >= 64:
+                # [v150.15] Гuard: 200 может вернуть деградировавший вектор
+                if _valid_embedding(_emb):
                     logger.debug("✅ [EMBED] Ollama OK")
                     return _emb
+                logger.warning(
+                    "[CACHE-STORE-GUARD] Ollama encode вернул невалидный эмбеддинг "
+                    "(len=%s) — пропускаем источник", len(_emb) if _emb else 0
+                )
     except Exception:
         pass
 
@@ -378,9 +424,14 @@ async def _execute_embedding_request(text: str) -> Optional[list]:
             )
             if resp.status_code == 200:
                 _emb = resp.json().get("embedding")
-                if _emb:
+                # [v150.15] Guard: пустой/деградировавший VectorCore-ответ не пропускаем
+                if _valid_embedding(_emb):
                     logger.debug("✅ [EMBED] VectorCore OK")
                     return _emb
+                logger.warning(
+                    "[CACHE-STORE-GUARD] VectorCore encode вернул невалидный "
+                    "эмбеддинг (len=%s) — пропускаем источник", len(_emb) if _emb else 0
+                )
     except Exception:
         pass
 
@@ -388,8 +439,11 @@ async def _execute_embedding_request(text: str) -> Optional[list]:
     try:
         vecs = await encode_texts_local([text[:2000]])
         if vecs and vecs[0]:
-            logger.debug("✅ [EMBED] sentence-transformers fallback OK")
-            return vecs[0]
+            # [v150.15] Guard: ST-fallback тоже может отдать мусор
+            if _valid_embedding(vecs[0]):
+                logger.debug("✅ [EMBED] sentence-transformers fallback OK")
+                return vecs[0]
+            logger.warning("[CACHE-STORE-GUARD] ST-fallback вернул невалидный эмбеддинг")
     except Exception as _st_err:
         # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"[EMBED] sentence-transformers failed: {_st_err}")
@@ -875,6 +929,16 @@ class SemanticAICache:
                 len(embedding),
                 EMBEDDING_DIM,
                 OLLAMA_MODEL,
+            )
+            return
+        # [v150.15] STORE-GUARD: не записывать деградировавшие эмбеддинги
+        # (NaN/нулевые/константа/взорвавшаяся норма) — иначе poisoned cache.
+        if not _valid_embedding(embedding):
+            logger.warning(
+                "[CACHE-STORE-GUARD] Отказ записи в semantic_ai_cache: невалидный "
+                "эмбеддинг (len=%s) для query=%r — источник encode деградировал?",
+                len(embedding),
+                (query or "")[:60],
             )
             return
 
