@@ -12,11 +12,15 @@ import asyncpg
 logger = logging.getLogger(__name__)
 
 # Иерархия моделей от простых к сложным
+# [v149.53] ТОЛЬКО модели, реально живущие во флоте (см. контракт слоёв в библии):
+# glm-4.7-flash:q8_0 в локальном Ollama НЕ существует — лесенка рекомендовала
+# её, задача уходила в requeue-60с, диспетчер снова давал phi → вечный пинг-понг
+# (утро 15.10: задача 9406e682 прыгала часами, кормя 503-шторм мозга).
 MODEL_HIERARCHY = {
-    "fast": ["phi3.5:3.8b", "glm-4.7-flash:q8_0"],
-    "coding": ["phi3.5:3.8b", "qwen3-coder:30b", "glm-4.7-flash:q8_0"],
-    "reasoning": ["phi3.5:3.8b", "glm-4.7-flash:q8_0"],
-    "default": ["phi3.5:3.8b", "glm-4.7-flash:q8_0"],
+    "fast": ["phi3.5:3.8b"],
+    "coding": ["phi3.5:3.8b", "qwen3-coder:30b"],
+    "reasoning": ["phi3.5:3.8b", "victoria-qwen38:latest"],
+    "default": ["phi3.5:3.8b", "victoria-qwen38:latest"],
 }
 
 
