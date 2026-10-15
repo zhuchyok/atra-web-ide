@@ -64,14 +64,25 @@ def main() -> int:
 
         # ── детект баннерных карточек ──
         if not state["queued"]:
-            page.goto(WEAK_URL, wait_until="domcontentloaded", timeout=60000)
-            page.wait_for_timeout(7000)
+            ids = []
+            for attempt in range(5):
+                page.goto(WEAK_URL, wait_until="domcontentloaded", timeout=60000)
+                page.wait_for_timeout(8000)
+                ids = page.evaluate(
+                    """() => Array.from(document.querySelectorAll('[data-marker^="item-snippet/"]'))
+                        .map(e => e.dataset.marker.replace('item-snippet/',''))"""
+                )
+                if ids:
+                    break
+                print(f"попытка {attempt + 1}: карточки не отрендерились — перезагружаю")
+            if not ids:
+                print("Кабинет не рендерится (VPN/сбой SPA) — попробуй позже")
+                return 0
             try:
                 page.get_by_text(GROUP_TEXT).first.click()
                 page.wait_for_timeout(5000)
             except Exception:
-                print("Не открылась группа качества — Авито отдаёт пустую страницу?")
-                return 1
+                print("Блок качества не найден — работаю по всем карточкам страницы")
             ids = page.evaluate(
                 """() => Array.from(document.querySelectorAll('[data-marker^="item-snippet/"]'))
                     .map(e => e.dataset.marker.replace('item-snippet/',''))"""

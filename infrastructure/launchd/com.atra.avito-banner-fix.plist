@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.atra.avito-banner-fix</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/bikos/Documents/atra-web-ide/.venv/bin/python</string>
+		<string>/Users/bikos/Documents/atra-web-ide/scripts/avito_fix_banner_photos.py</string>
+		<string>10</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/bikos/Documents/atra-web-ide</string>
+	<key>StartInterval</key>
+	<integer>3600</integer>
+	<key>StandardOutPath</key>
+	<string>/Users/bikos/Library/Logs/atra-avito-banner-out.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/bikos/Library/Logs/atra-avito-banner-err.log</string>
+</dict>
+</plist>
