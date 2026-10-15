@@ -1,6 +1,6 @@
 {
   "_comment": "Единый источник. sync_employees_from_db.py подтягивает экспертов из БД.",
-  "updated": "2026-07-14",
+  "updated": "2026-10-15",
   "employees": [
     {
       "name": "Виктория",
@@ -441,6 +441,11 @@
       "name": "Совет Директоров",
       "role": "Коллегиальный орган управления",
       "department": "Management"
+    },
+    {
+      "name": "Элиас",
+      "role": "protocol engineer",
+      "department": "system communication"
     }
   ]
 }

@@ -124,7 +124,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let content = distill_content(&raw_content).await;
 
             let node_id = Uuid::new_v4();
-            let domain_id = Uuid::parse_str("8a31f9dd-cd47-426c-bd1d-3ecb435fca8a").expect("Invalid hardcoded UUID");
+            let domain_id = Uuid::parse_str("8a31f9dd-cd47-426c-bd1d-3ecb435fca8a")
+                .expect("Invalid hardcoded UUID");
             let confidence_score = 0.9;
             let is_verified = true;
             let now = Utc::now();
