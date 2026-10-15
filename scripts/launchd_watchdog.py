@@ -161,12 +161,8 @@ def http_canaries() -> list:
              "options": {"num_predict": 1, "num_ctx": 2048}},
             240,
         ),
-        (
-            "ollama-proxy fast",
-            "http://127.0.0.1:11435/api/generate",
-            {"model": "fast", "prompt": "ok", "stream": False},
-            120,
-        ),
+        # [v150.14] MLX-канарейка снят: узел декомиссирован (вне маршрутизации
+        # с v150.10, прокси мёртв с 14.10 — возврат: env MLX_API_URL + bootstrap)
         (
             "text-embeddings /encode",
             "http://127.0.0.1:8001/encode",

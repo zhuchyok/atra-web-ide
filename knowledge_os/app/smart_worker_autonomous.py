@@ -123,6 +123,19 @@ except ImportError:
     )
     sys.exit(1)
 
+# [v149.54] Гарантия подписи всех пулов процесса (task_status_audit/app_name)
+try:
+    from db_signature import install as _install_db_signature
+
+    _install_db_signature()
+except ImportError:
+    try:
+        from app.db_signature import install as _install_db_signature
+
+        _install_db_signature()
+    except ImportError:
+        pass
+
 # Используем тот же формат, что и другие модули
 DB_URL = os.getenv(
     "DATABASE_URL",

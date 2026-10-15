@@ -14,6 +14,19 @@ from typing import Dict, List, Optional
 
 import asyncpg
 
+# [v149.54] Гарантия подписи всех пулов процесса (task_status_audit/app_name)
+try:
+    from db_signature import install as _install_db_signature
+
+    _install_db_signature()
+except ImportError:
+    try:
+        from app.db_signature import install as _install_db_signature
+
+        _install_db_signature()
+    except ImportError:
+        pass
+
 try:
     from aiohttp import web
 

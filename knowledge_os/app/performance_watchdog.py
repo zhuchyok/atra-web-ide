@@ -63,7 +63,10 @@ class PerformanceWatchdog:
         self.interval = int(os.getenv("WATCHDOG_INTERVAL_SEC", "600"))
         self.system_monitor_interval = 10
         self.slow_query_threshold_ms = float(os.getenv("WATCHDOG_SLOW_THRESHOLD_MS", "500"))
-        self.autonomous_enabled = os.getenv("WATCHDOG_AUTONOMOUS", "true").lower() in (
+        # [v150.14] Аудит-2.0 №1: LLM-«оптимизатор» наплодил 154 индекса idx_watchdog_*
+        # (124 никогда не использовались) — каждый INSERT обновлял все 150+.
+        # Дефолт true→false: создание индексов только вручную/по ревью.
+        self.autonomous_enabled = os.getenv("WATCHDOG_AUTONOMOUS", "false").lower() in (
             "true",
             "1",
             "yes",
