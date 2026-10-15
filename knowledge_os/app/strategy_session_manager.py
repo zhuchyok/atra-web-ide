@@ -54,16 +54,48 @@ class StrategySessionManager:
                         """
                         CREATE TABLE IF NOT EXISTS strategy_sessions (
                             id TEXT PRIMARY KEY,
-                            title TEXT,
+                            title TEXT NOT NULL,
                             description TEXT,
+                            status TEXT DEFAULT 'discovery',
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                    cursor.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS strategy_questions (
+                            id TEXT PRIMARY KEY,
+                            session_id TEXT NOT NULL,
+                            role TEXT NOT NULL,
+                            question_text TEXT NOT NULL,
+                            answer_text TEXT,
+                            asked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            answered_at DATETIME,
+                            FOREIGN KEY (session_id) REFERENCES strategy_sessions(id)
+                        )
+                        """
+                    )
+                    cursor.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS strategy_plans (
+                            id TEXT PRIMARY KEY,
+                            session_id TEXT NOT NULL,
+                            level TEXT NOT NULL,
+                            parent_plan_id TEXT,
+                            role_hint TEXT,
+                            title TEXT NOT NULL,
+                            markdown_body TEXT NOT NULL,
                             status TEXT DEFAULT 'active',
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (session_id) REFERENCES strategy_sessions(id),
+                            FOREIGN KEY (parent_plan_id) REFERENCES strategy_plans(id)
                         )
                         """
                     )
                     conn.commit()
-                    logger.info("✅ [SESSION MANAGER] Таблица strategy_sessions создана (DDL)")
+                    logger.info("✅ [SESSION MANAGER] Таблицы стратегий созданы (DDL-фолбэк)")
                 except Exception as ddl_err:
                     logger.error(f"❌ [SESSION MANAGER] DDL-фолбэк не удался: {ddl_err}")
                 try:
