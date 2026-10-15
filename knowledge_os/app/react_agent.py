@@ -158,7 +158,8 @@ class ReActAgent:
         logger.info(f"DEBUG_PRINT: think prompt built, length: {len(prompt)}")
 
         # Генерируем рассуждение через модель
-        thought = await self._generate_response(prompt)
+        think_max_tokens = int(os.getenv("REACT_THINK_MAX_TOKENS", "4096"))
+        thought = await self._generate_response(prompt, max_tokens=think_max_tokens)
         # TODO: Convert f-string to %s formatting for performance
         logger.info(f"DEBUG_PRINT: think response received, length: {len(thought) if thought else 0}")
 
@@ -313,7 +314,8 @@ class ReActAgent:
         prompt = self._build_act_prompt(thought, available_tools)
 
         # Генерируем действие через модель
-        response = await self._generate_response(prompt)
+        act_max_tokens = int(os.getenv("REACT_ACT_MAX_TOKENS", "12288"))
+        response = await self._generate_response(prompt, max_tokens=act_max_tokens)
 
         # Парсим действие из ответа
         action, action_input = self._parse_action(response, available_tools)
@@ -360,7 +362,8 @@ class ReActAgent:
             prompt += error_context
 
         # Генерируем рефлексию
-        reflection = await self._generate_response(prompt)
+        reflect_max_tokens = int(os.getenv("REACT_REFLECT_MAX_TOKENS", "2048"))
+        reflection = await self._generate_response(prompt, max_tokens=reflect_max_tokens)
 
         # TODO: Convert f-string to %s formatting for performance
         logger.info(f"💭 [{self.agent_name}] Reflect: {reflection[:100]}...")
@@ -756,6 +759,53 @@ class ReActAgent:
         import json
         import re
 
+        def _repair_truncated_json(raw: str) -> str:
+            """Best-effort repair for model outputs truncated mid-JSON."""
+            text = (raw or "").strip()
+            if not text:
+                return text
+
+            # If stream cut happened right after escape char, drop the dangling backslash.
+            if text.endswith("\\"):
+                text = text[:-1]
+
+            stack: List[str] = []
+            in_string = False
+            escape_next = False
+
+            for ch in text:
+                if escape_next:
+                    escape_next = False
+                    continue
+                if ch == "\\":
+                    escape_next = True
+                    continue
+                if ch == '"':
+                    in_string = not in_string
+                    continue
+                if in_string:
+                    continue
+                if ch == "{":
+                    stack.append("}")
+                elif ch == "[":
+                    stack.append("]")
+                elif ch in ("}", "]"):
+                    if stack and stack[-1] == ch:
+                        stack.pop()
+
+            repaired = text
+            if in_string:
+                repaired += '"'
+            if stack:
+                repaired += "".join(reversed(stack))
+            return repaired
+
+        def _cleanup_recovered_output(text: str) -> str:
+            cleaned = (text or "").strip()
+            # Common artifact for cut JSON: trailing auto-closed braces/brackets in recovered text.
+            cleaned = re.sub(r"(?:\s*[}\]]){1,4}\s*$", "", cleaned).strip()
+            return cleaned
+
         # ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ для отладки
         try:
             # TODO: Convert f-string to %s formatting for performance
@@ -855,7 +905,11 @@ class ReActAgent:
                                 block_to_parse.count("[") - block_to_parse.count("]")
                             )
 
-                    action_data = json.loads(block_to_parse)
+                    try:
+                        action_data = json.loads(block_to_parse)
+                    except json.JSONDecodeError:
+                        repaired = _repair_truncated_json(block_to_parse)
+                        action_data = json.loads(repaired)
 
                     # Если это список, берем первый элемент (если он есть)
                     if isinstance(action_data, list) and action_data:
@@ -872,7 +926,9 @@ class ReActAgent:
                         text = (action_input or {}) if isinstance(action_input, dict) else {}
                         out = (text.get("text") or "").strip()
                         logger.info("✅ Парсинг действия: answer → finish с output из input.text")
-                        return "finish", {"output": out or "(пустой ответ)"}
+                        return "finish", {
+                            "output": _cleanup_recovered_output(out) or "(пустой ответ)"
+                        }
 
                     if action and action in available_tools:
                         # TODO: Convert f-string to %s formatting for performance
@@ -925,7 +981,9 @@ class ReActAgent:
                         text = (action_input or {}) if isinstance(action_input, dict) else {}
                         out = (text.get("text") or "").strip()
                         logger.info("✅ Парсинг действия: answer → finish с output из input.text")
-                        return "finish", {"output": out or "(пустой ответ)"}
+                        return "finish", {
+                            "output": _cleanup_recovered_output(out) or "(пустой ответ)"
+                        }
 
                     if action in available_tools:
                         # TODO: Convert f-string to %s formatting for performance
@@ -952,7 +1010,10 @@ class ReActAgent:
                         logger.info(
                             "✅ Парсинг действия (fallback): answer → finish с output из input.text"
                         )
-                        return "finish", {"output": (out or "").strip() or "(пустой ответ)"}
+                        return "finish", {
+                            "output": _cleanup_recovered_output((out or "").strip())
+                            or "(пустой ответ)"
+                        }
                     except Exception:
                         pass
             if action in available_tools:
@@ -982,7 +1043,9 @@ class ReActAgent:
             if input_match and '"action"' in response_clean and '"answer"' in response_clean:
                 text = input_match.group(1).encode("utf-8").decode("unicode_escape")
                 logger.info("✅ Парсинг действия (regex): answer → finish с output из input.text")
-                return "finish", {"output": (text or "").strip() or "(пустой ответ)"}
+                return "finish", {
+                    "output": _cleanup_recovered_output((text or "").strip()) or "(пустой ответ)"
+                }
         except Exception:
             pass
 
@@ -1022,6 +1085,45 @@ class ReActAgent:
                 return "finish", {"output": _human}
         except Exception:
             pass
+
+        # [v151.x] Усечённый JSON (строка content/text без закрывающей кавычки).
+        # Возвращаем полезный текст вместо «Ошибка парсинга».
+        try:
+            _loose = re.search(
+                r'"(?:content|text)"\s*:\s*"(.+)$',
+                response_clean,
+                re.DOTALL,
+            )
+            if _loose:
+                _candidate = _loose.group(1)
+                _candidate = re.split(r'(?:\}\s*$|\]\s*$|```)', _candidate, maxsplit=1)[0]
+                _candidate = _candidate.replace("\\n", "\n").replace('\\"', '"').strip()
+                if len(_candidate) >= 20:
+                    logger.info("✅ [PARSE-FALLBACK-LOOSE] Извлечён текст из усечённого JSON")
+                    return "finish", {"output": _cleanup_recovered_output(_candidate)}
+        except Exception:
+            pass
+
+        # [v151.x] Последняя попытка: repair JSON с незакрытыми строками/скобками.
+        if response_clean.lstrip().startswith(("{", "[")):
+            try:
+                _repaired = _repair_truncated_json(response_clean)
+                _rd = json.loads(_repaired)
+                if isinstance(_rd, dict):
+                    _action = (_rd.get("action") or "").strip()
+                    _inp = _rd.get("input") or {}
+                    if _action == "answer":
+                        _txt = (_inp.get("text") if isinstance(_inp, dict) else "") or ""
+                        if isinstance(_txt, str) and _txt.strip():
+                            logger.info("✅ [PARSE-REPAIR] Усечённый answer JSON восстановлен")
+                            return "finish", {"output": _cleanup_recovered_output(_txt)}
+                    if _action == "finish":
+                        _out = (_inp.get("output") if isinstance(_inp, dict) else "") or ""
+                        if isinstance(_out, str) and _out.strip():
+                            logger.info("✅ [PARSE-REPAIR] Усечённый finish JSON восстановлен")
+                            return "finish", {"output": _cleanup_recovered_output(_out)}
+            except Exception:
+                pass
         # [v149.32] Ответ — обычный текст (не JSON-действие)? Это валидный ответ:
         # не заворачиваем в «Ошибка парсинга», отдаём как есть.
         if not response_clean.lstrip().startswith(("{", "```")) and len(response_clean) >= 20:
@@ -1336,7 +1438,7 @@ class ReActAgent:
         finish_keywords = ["цель достигнута", "задача выполнена", "готово", "завершено", "успешно"]
         return any(keyword in reflection.lower() for keyword in finish_keywords)
 
-    async def _generate_response(self, prompt: str, max_tokens: int = 2048) -> str:
+    async def _generate_response(self, prompt: str, max_tokens: Optional[int] = None) -> str:
         """Генерировать ответ через модель с динамическим выбором из доступных"""
         import httpx
 
@@ -1410,11 +1512,18 @@ class ReActAgent:
                                 from app.available_models_scanner import _skip_as_ollama_hands
                             if _skip_as_ollama_hands(model):
                                 continue
+                        default_predict = int(os.getenv("REACT_NUM_PREDICT", "12288"))
+                        predict_cap = int(os.getenv("REACT_NUM_PREDICT_MAX", "24576"))
+                        requested_predict = int(max_tokens) if max_tokens is not None else default_predict
+                        if requested_predict <= 0:
+                            requested_predict = default_predict
+                        num_predict = min(requested_predict, predict_cap)
+
                         payload = {
                             "model": model,
                             "prompt": prompt,
                             "stream": False,
-                            "options": {"temperature": 0.7, "num_predict": int(os.getenv("REACT_NUM_PREDICT", "8192"))},  # [v149.40] 2048 резал JSON-ответы посреди строки
+                            "options": {"temperature": 0.7, "num_predict": num_predict},
                         }
                         if is_ollama_hands:
                             try:

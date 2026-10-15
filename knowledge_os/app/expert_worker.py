@@ -1503,7 +1503,14 @@ async def process_task(task_data: dict):
                                                 # (20 мин на 13 t/s) морил голодом все полосы.
                                                 # [v150.9] 16384→4096: диалоги короткие, а prompt-eval 16K-набивок
                                                 # превращал инстанс рук в марафон-слот.
-                                                "options": {"num_ctx": 4096, "num_predict": 2048},
+                                                "options": {
+                                                    "num_ctx": 4096,
+                                                    "num_predict": int(
+                                                        os.getenv(
+                                                            "EXPERT_DIALOGUE_NUM_PREDICT", "4096"
+                                                        )
+                                                    ),
+                                                },
                                             },
                                             headers=_headers,
                                         )

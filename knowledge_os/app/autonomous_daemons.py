@@ -151,6 +151,12 @@ async def setup_daemons():
             {"name": "inference_time", "threshold": 10.0},
         ],
     )
+    # [v149.55] igor не создавался → NameError валил setup_daemons целиком,
+    # все последующие демоны (диалоги, event-bus bridge) не стартовали.
+    igor = PerformanceDaemon(
+        "Игорь",
+        [{"name": "rag_latency", "threshold": 3.0}, {"name": "db_connections", "threshold": 200}],
+    )
 
     await igor.start()
     await dmitriy.start()
