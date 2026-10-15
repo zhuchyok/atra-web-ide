@@ -110,6 +110,28 @@ def pin_nomic():  # [v150.8] пин на инстансе рук (11437)
     _log(f"pinned nomic-embed-text on {HANDS}")
 
 
+HANDS_ALLOW = ("phi3.5", "nomic", "smollm", "tinyllama", "moondream")
+
+
+def unload_hands(model):
+    body = {"model": model, "keep_alive": 0}
+    data = json.dumps(body).encode()
+    req = urllib.request.Request(
+        f"{HANDS}/api/generate", data=data, headers={"Content-Type": "application/json"}
+    )
+    urllib.request.urlopen(req, timeout=240).read()
+    _log(f"unloaded {model} from {HANDS}")
+
+
+def _should_unload_hands(name: str) -> bool:
+    """[v150.13] 11437 = только руки (симметрия brain-only@11434). Утром 15.10
+    мозг грузился на инстансе рук — вытеснял phi, RAM падала до 29%."""
+    key = (name or "").lower()
+    if not key:
+        return False
+    return not any(a in key for a in HANDS_ALLOW)
+
+
 def _should_unload(name: str) -> bool:
     """[v150.8] 11434 = ТОЛЬКО мозг (v149.4). Руки/эмбеддер/прочее — на 11437,
     их присутствие здесь = чужой слот (конкуренция за память с мозгом)."""
@@ -134,6 +156,17 @@ def _enforce_hands_slot():
         pin_stable()
         pin_nomic()
     left = _ps()
+        # [v150.13] гигиена 11437: не-руки (например мозг-утечка) — выгрузить
+    try:
+        _stray = [n for n in _ps(HANDS) if _should_unload_hands(n)]
+        if _stray:
+            _log(f"evict from {HANDS} (не-руки): {_stray}")
+            if not DRY:
+                for _n in _stray:
+                    unload_hands(_n)
+    except Exception as _e:
+        _log(f"hands-hygiene err: {_e}")
+
     _log(f"ok: brain{OLLAMA}={left} hands{HANDS}={_ps(HANDS)}")
 
 
