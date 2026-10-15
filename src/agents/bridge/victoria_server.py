@@ -60,6 +60,25 @@ def _ensure_knowledge_os_path() -> bool:
     return os.path.exists(ko_path)
 
 
+# [v149.55d] Подпись всех asyncpg-соединений процесса (task_status_audit/app_name):
+# victoria-agent — крупнейший источник безымянных соединений (+19/мин).
+def _install_db_signature() -> None:
+    try:
+        _ko = os.path.join(os.getcwd(), "knowledge_os/app")
+        if os.path.isdir(_ko) and _ko not in sys.path:
+            sys.path.insert(0, _ko)
+        try:
+            from db_signature import install as _sig_install
+        except ImportError:
+            from app.db_signature import install as _sig_install
+        _sig_install()
+    except Exception as _e:  # noqa: BLE001 — подпись не должна валить старт
+        logging.getLogger(__name__).warning(f"[DB-SIGNATURE] not installed: {_e}")
+
+
+_install_db_signature()
+
+
 def _lazy_emotion_detector():
     global EmotionDetector, EMOTION_DETECTOR_AVAILABLE
     if EmotionDetector is None and not EMOTION_DETECTOR_AVAILABLE:
@@ -835,7 +854,7 @@ async def _clear_async_inflight(task_id: str) -> None:
 
 
 async def _fail_orphaned_inflight_on_startup() -> None:
-    """After process restart there is no live coroutine. Fail leftover inflight /run now."""
+    """After process restart: try to resume inflight /run tasks, fail only non-resumable leftovers."""
     if not redis_manager:
         return
     try:
@@ -846,10 +865,87 @@ async def _fail_orphaned_inflight_on_startup() -> None:
         return
     if not inflight:
         return
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
     err = "orphaned after Victoria restart (no live coroutine)"
-    for raw_id in inflight:
+    resume_enabled = os.getenv("VICTORIA_RESUME_ORPHANED_ON_STARTUP", "true").lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    max_resume_age_sec = float(os.getenv("VICTORIA_ORPHAN_RESUME_MAX_AGE_SEC", "900"))
+
+    for raw_id, raw_created in inflight.items():
         task_id = raw_id.decode() if isinstance(raw_id, bytes) else str(raw_id)
+        try:
+            claimed = await client.set(f"victoria:orphan-claim:{task_id}", "1", ex=120, nx=True)
+            if not claimed:
+                continue
+        except Exception:
+            # If claim lock fails, continue with best-effort processing.
+            pass
+        created_raw = raw_created.decode() if isinstance(raw_created, bytes) else str(raw_created)
+        age_sec: Optional[float] = None
+        try:
+            created_at = datetime.fromisoformat(created_raw)
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            age_sec = (now - created_at).total_seconds()
+        except Exception:
+            age_sec = None
+
+        if resume_enabled:
+            rec = await redis_manager.get_task_status(task_id)
+            meta = rec.get("metadata") if isinstance(rec, dict) else {}
+            if isinstance(meta, str):
+                try:
+                    meta = json.loads(meta)
+                except Exception:
+                    meta = {}
+            replay = meta.get("replay") if isinstance(meta, dict) else None
+            if (
+                isinstance(replay, dict)
+                and replay.get("goal")
+                and (age_sec is None or age_sec <= max_resume_age_sec)
+            ):
+                store = dict(meta) if isinstance(meta, dict) else {}
+                store["status"] = "processing"
+                store["stage"] = "resumed_after_restart"
+                store["error"] = None
+                store["updated_at"] = now_iso
+                store["handoff_reason"] = "resumed_after_restart"
+                _run_task_store[task_id] = store
+                await redis_manager.update_task_status(
+                    task_id,
+                    "processing",
+                    metadata=store,
+                )
+                logger.warning(
+                    "[VICTORIA] orphan inflight %s age=%.1fs → resumed",
+                    task_id[:8],
+                    age_sec if age_sec is not None else -1.0,
+                )
+                _create_tracked_task(
+                    _run_task_background(
+                        task_id=task_id,
+                        goal=str(replay.get("goal") or ""),
+                        project_context=str(replay.get("project_context") or ""),
+                        project_prompt=str(replay.get("project_prompt") or ""),
+                        chat_history=replay.get("chat_history"),
+                        use_enhanced=bool(replay.get("use_enhanced", True)),
+                        correlation_id=store.get("correlation_id"),
+                        task_type=replay.get("task_type"),
+                        max_steps=replay.get("max_steps"),
+                        session_id=replay.get("session_id"),
+                        expert_name=str(replay.get("expert_name") or "Виктория"),
+                        verbose=bool(replay.get("verbose", False)),
+                        restated_goal=None,
+                        strategy_result=None,
+                    )
+                )
+                continue
+
         store = _run_task_store.get(task_id)
         if store is not None:
             store["status"] = "failed"
@@ -861,7 +957,11 @@ async def _fail_orphaned_inflight_on_startup() -> None:
         except Exception:
             pass
         await _clear_async_inflight(task_id)
-        logger.warning("[VICTORIA] orphan inflight %s → failed", task_id[:8])
+        logger.warning(
+            "[VICTORIA] orphan inflight %s age=%.1fs → failed",
+            task_id[:8],
+            age_sec if age_sec is not None else -1.0,
+        )
 
 
 def _percentile(values: list[float], p: float) -> float:
@@ -5235,6 +5335,11 @@ async def _generate_clarification_questions(
     """Генерация 1–3 уточняющих вопросов через planner LLM.
     Не задаёт вопросы если в цели явно указан файл или инструмент анализа."""
 
+    # Operational/health/queue задачи лучше дожимать ответом, а не уводить в
+    # лишние уточнения — это снижает "clarification-style" completion в runtime.
+    if is_operational_execution_goal(goal):
+        return []
+
     # Не задавать вопросы если задача содержит явный файл/путь/инструмент
     explicit_indicators = [
         ".parquet",
@@ -5286,12 +5391,39 @@ async def _generate_clarification_questions(
         questions = [q[:200] for q in questions if isinstance(q, str) and 10 < len(q) <= 200][:3]
     except Exception:
         questions = []
+
+    # Anti-noise filter: убираем нерелевантные/галлюцинаторные вопросы
+    # вроде "столица Франции" для инфраструктурных задач.
+    if questions:
+        import re as _re
+
+        stop_words = {
+            "как", "что", "где", "когда", "какой", "какая", "какие", "нужно", "можете",
+            "уточнить", "имеете", "виду", "это", "для", "или", "и", "по", "на", "в", "с",
+            "ли", "нужен", "нужна", "нужны", "только", "чтобы", "есть",
+        }
+        goal_tokens = {
+            t for t in _re.findall(r"[a-zA-Zа-яА-Я0-9_]{3,}", (goal or "").lower()) if t not in stop_words
+        }
+        bad_markers = ("столиц", "франц", "париж")
+        filtered: List[str] = []
+        for q in questions:
+            q_low = q.lower()
+            if any(m in q_low for m in bad_markers) and not any(m in (goal or "").lower() for m in bad_markers):
+                continue
+            q_tokens = {
+                t for t in _re.findall(r"[a-zA-Zа-яА-Я0-9_]{3,}", q_low) if t not in stop_words
+            }
+            # Для релевантности ждём хотя бы одного пересечения ключевых токенов.
+            # Если цель пустая/бедная по токенам — не фильтруем по этому правилу.
+            if goal_tokens and not (goal_tokens & q_tokens):
+                continue
+            filtered.append(q)
+        questions = filtered[:3]
+
     if not questions:
-        questions = [
-            "Можете уточнить, что именно нужно сделать?",
-            "Какие требования к результату?",
-            "Есть ли ограничения или условия?",
-        ]
+        # Если релевантных уточнений нет — продолжаем выполнение без clarification.
+        return []
     return questions[:3]
 
 
@@ -8877,6 +9009,18 @@ async def run_task(
             "created_at": datetime.now(timezone.utc).isoformat(),
             "started_monotonic": time.monotonic(),
             "updated_at": None,
+            "replay": {
+                "goal": goal,
+                "project_context": project_context,
+                "project_prompt": project_prompt,
+                "chat_history": body.chat_history,
+                "use_enhanced": use_enhanced,
+                "task_type": _task_type_async,
+                "max_steps": body.max_steps if body.max_steps is not None else DEFAULT_MAX_STEPS,
+                "session_id": body.session_id,
+                "expert_name": getattr(body, "expert_name", None) or "Виктория",
+                "verbose": bool(body.verbose),
+            },
         }
 
         if redis_manager:
@@ -8936,7 +9080,7 @@ async def run_task(
                 )
 
         async def _bounded_background_run() -> None:
-            # 180с — только тишина (нет deep stage). enhanced_solve / veronica → 600с.
+            # Бounded runtime для async /run: всегда watchdog на тишину + hard cap.
             _handoff_reason = str(task_data.get("handoff_reason") or "")
             _wd_enabled = os.getenv("VICTORIA_ASYNC_WATCHDOG_SEC", "180")
             _hard_timeout_sec = float(os.getenv("VICTORIA_ASYNC_HARD_TIMEOUT_SEC", "600"))
@@ -8963,7 +9107,7 @@ async def run_task(
 
             bg_task = asyncio.ensure_future(task_coro)
             try:
-                if _wd_enabled == "0" or _wd_sec <= 0 or _handoff_reason != "early_async_analysis":
+                if _wd_enabled == "0" or _wd_sec <= 0:
                     await asyncio.wait_for(bg_task, timeout=_hard_timeout_sec)
                 else:
                     await asyncio.wait({bg_task}, timeout=_wd_sec)

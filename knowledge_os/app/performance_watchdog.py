@@ -327,6 +327,13 @@ class PerformanceWatchdog:
 ПЛАН ВЫПОЛНЕНИЯ (EXPLAIN ANALYZE):
 {explain_plan}
 
+СПРАВКА ПО АУДИТУ ИНДЕКСОВ (используй ТОЛЬКО эти запросы, колонки менять нельзя):
+SELECT indexrelname, relname, idx_scan FROM pg_stat_user_indexes WHERE indexrelname LIKE 'idx_watchdog%';
+SELECT count(*) total, count(*) FILTER (WHERE idx_scan=0) never_used
+FROM pg_stat_user_indexes WHERE indexrelname LIKE 'idx_watchdog%';
+-- ВАЖНО: в pg_stat_user_indexes НЕТ колонки indexname (она есть только в pg_indexes);
+-- имя индекса там — indexrelname, имя таблицы — relname.
+
 ОТВЕТЬ В ФОРМАТЕ:
 1. ПРИЧИНА: почему запрос медленный.
 2. ОПТИМИЗАЦИЯ: конкретный SQL для создания индекса.

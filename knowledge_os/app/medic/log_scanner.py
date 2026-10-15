@@ -350,11 +350,14 @@ class LogScanner:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 # Send via /run endpoint with error context
+                # [v149.55d] без слова «Проанализируй» — оно триггерит
+                # consilium-классификатор (подстрока «анализ») и каждая
+                # ошибка сканера запускала консилиум-дебат на 3 агента
                 payload = {
                     "goal": f"[LOG_SCANNER] Обнаружена ошибка в контейнере {container}. "
                             f"Тип: {error['type']}. "
                             f"Сообщение: {error['message'][:200]}. "
-                            f"Проанализируй и исправь если возможно.",
+                            f"Исправь ошибку или сообщи, если требуется вмешательство человека.",
                     "context": {
                         "source": "log_scanner",
                         "container": container,

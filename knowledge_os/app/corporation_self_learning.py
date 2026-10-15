@@ -365,7 +365,10 @@ def get_corporation_learner(db_url: str = None) -> CorporationSelfLearning:
         import os
 
         db_url = db_url or os.getenv(
-            "DATABASE_URL", "postgresql://admin:secret@knowledge_postgres:5432/knowledge_os"
+            "DATABASE_URL",
+            # [v149.55d] фолбэк подписан именем контейнера (аудит task_status_audit)
+            "postgresql://admin:secret@knowledge_postgres:5432/knowledge_os"
+            f"?application_name={os.getenv('CONTAINER_NAME', 'knowledge_evolution')}",
         )
         _learning_instance = CorporationSelfLearning(db_url)
     return _learning_instance

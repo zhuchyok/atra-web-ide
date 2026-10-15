@@ -36,6 +36,13 @@ def _dsn_has_app_name(dsn) -> bool:
     return bool(dsn) and "application_name=" in str(dsn)
 
 
+def _dsn_has_garbage_name(dsn) -> bool:
+    """DSN пришёл с мусорной подписью (unknown) — так бывает при recreate
+    воркеров оркестратором изнутри контейнера: ${CONTAINER_NAME} интерполируется
+    из env orchestrator, не воркера. Такую подпись перезаписываем."""
+    return bool(dsn) and "application_name=unknown" in str(dsn)
+
+
 def install() -> bool:
     """Обернуть asyncpg.connect/create_pool гарантированной подписью. Идемпотентно."""
     global _INSTALLED
@@ -59,8 +66,8 @@ def install() -> bool:
     orig_create_pool = asyncpg.create_pool
 
     def _ensure_settings(dsn, kwargs: dict) -> dict:
-        # DSN уже несёт подпись — не вмешиваемся (никогда не перекрываем)
-        if _dsn_has_app_name(dsn):
+        # DSN с валидной подписью — не вмешиваемся (никогда не перекрываем)
+        if _dsn_has_app_name(dsn) and not _dsn_has_garbage_name(dsn):
             return kwargs
         settings = kwargs.setdefault("server_settings", {}) or {}
         # Явное приложение из кода имеет приоритет (не перетираем)
