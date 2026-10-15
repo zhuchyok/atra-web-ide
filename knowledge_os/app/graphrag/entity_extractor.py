@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -29,6 +30,12 @@ class EntityExtractor:
             "tech": r"(Docker|PostgreSQL|Redis|FastAPI|Svelte|Python|MLX|Ollama|DeepSeek)",
             "concept": r"💎\s*([А-ЯA-Z\s]+)",
         }
+        # [v149.55] LLM circuit breaker state
+        self._llm_fail_streak = 0
+        self._llm_cooldown_until = 0.0
+
+    def _llm_available(self) -> bool:
+        return time.time() >= self._llm_cooldown_until
 
     async def extract_entities(self, content: str) -> List[Entity]:
         """
@@ -58,7 +65,11 @@ class EntityExtractor:
         entities.extend(await asyncio.to_thread(_extract_regex))
 
         # 2. Глубокая экстракция через LLM (если текст длинный и важный)
-        if len(content) > 300:  # Повышен порог для экономии ресурсов
+        # [v149.55] Circuit breaker: при недоступном LLM (стаб/пусто) LLM-фаза
+        # отключается на кулдаун — иначе каждый вызов тащит полный RAG-прогон
+        # впустую (LOOP-BREAKER резал 6+ попыток/10мин в orchestrator/nightly,
+        # 15.10). Regex-сущности извлекаются всегда.
+        if len(content) > 300 and self._llm_available():
             try:
                 from app.ai_core import run_smart_agent_async
 
@@ -72,8 +83,7 @@ class EntityExtractor:
                     prompt, expert_name="Виктория", category="fast"
                 )
 
-                # Парсинг JSON
-                json_match = re.search(r"\[.*\]", response, re.DOTALL)
+                json_match = re.search(r"\[.*\]", str(response or ""), re.DOTALL)
                 if json_match:
                     llm_entities = json.loads(json_match.group(0))
                     for le in llm_entities:
@@ -84,6 +94,17 @@ class EntityExtractor:
                                 confidence=le.get("confidence", 0.7),
                                 metadata={"source": "llm"},
                             )
+                        )
+                    self._llm_fail_streak = 0
+                else:
+                    # Стаб/не-JSON — LLM не дал сущностей: копим отказ
+                    self._llm_fail_streak = getattr(self, "_llm_fail_streak", 0) + 1
+                    if self._llm_fail_streak >= 3:
+                        self._llm_cooldown_until = time.time() + 300
+                        self._llm_fail_streak = 0
+                        logger.warning(
+                            "[ENTITY-EXTRACTOR] LLM недоступен (стаб/не-JSON ×3) — "
+                            "LLM-фаза на кулдауне 5 мин, работаем на regex"
                         )
             except Exception as e:
                 logger.debug(f"LLM Entity Extraction failed: {e}")
