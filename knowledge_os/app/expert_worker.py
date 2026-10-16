@@ -1789,6 +1789,7 @@ async def process_task(task_data: dict):
                         expert_name=expert_name,
                         category=task_data.get("category", "general"),
                         is_vip=is_dialogue_task,
+                        session_id=f"task:{task_id}",
                     )
                     report_text = str(report.get("result") if isinstance(report, dict) else report)
 
@@ -2299,6 +2300,7 @@ async def process_task(task_data: dict):
                                     expert_name=expert_name,
                                     category=task_data.get("category", "general"),
                                     is_vip=is_dialogue_task,
+                                    session_id=f"task:{task_id}:regen",
                                 )
                                 regen_text = str(
                                     regen_raw.get("result")
