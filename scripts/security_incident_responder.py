@@ -153,12 +153,38 @@ def create_response_task(incident: dict) -> bool:
         conn.close()
 
 
-def create_response_task_consolidated(incidents: list, top_types: str) -> bool:
-    """Одна сводная задача на партию инцидентов (анти-спам)."""
+def _recent_security_task_exists(cur) -> bool:
+    """[v150.16] Рейт-лимит: была ли уже сводная security-задача за последний час."""
+    try:
+        cur.execute(
+            """
+            SELECT 1 FROM tasks
+            WHERE title LIKE '🛡️ Security:%'
+              AND created_at > NOW() - INTERVAL '1 hour'
+            LIMIT 1
+            """
+        )
+        return cur.fetchone() is not None
+    except Exception as e:
+        # если схемы/колонки нет — не блокируем реакцию на инциденты
+        log_alert(f"[{datetime.now(timezone.utc).isoformat()}] RATELIMIT CHECK ERROR: {e}")
+        return False
+
+
+def create_response_task_consolidated(incidents: list, top_types: str):
+    """Одна сводная задача на партию инцидентов (анти-спам).
+    [v150.16] Возвращает True (создана), False (ошибка), 'skipped' (рейт-лимит)."""
     sample_ids = ", ".join("#" + i["id"] for i in incidents[:5])
     conn = psycopg2.connect(DB_DSN)
     try:
         with conn.cursor() as cur:
+            # [v150.16] дедуп: не чаще 1 сводной задачи в час по префиксу title
+            if _recent_security_task_exists(cur):
+                log_alert(
+                    f"[{datetime.now(timezone.utc).isoformat()}] RATELIMIT: сводная security-задача "
+                    f"за последний час уже существует — пропуск ({len(incidents)} инцидентов, {top_types[:80]})"
+                )
+                return "skipped"
             cur.execute(
                 """
                 INSERT INTO tasks (title, description, status, priority, metadata, project_context)
@@ -211,7 +237,16 @@ def main() -> int:
     top_types = "; ".join(f"{t} x{n}" for t, n in sorted(types_summary.items(), key=lambda x: -x[1]))
     sample_ids = ", ".join("#" + i["id"] for i in fresh[:5])
 
-    if create_response_task_consolidated(fresh, top_types):
+    result = create_response_task_consolidated(fresh, top_types)
+    if result == "skipped":
+        # [v150.16] рейт-лимит: инциденты фиксируем в state, чтобы не гонять
+        # одну и ту же партию каждый запуск до истечения часа
+        for incident in fresh:
+            state["processed"].append(incident["id"])
+        save_state(state)
+        print("⏱️ Рейт-лимит: сводная задача за последний час уже была — инциденты зафиксированы без задачи")
+        return 0
+    if result:
         for incident in fresh:
             state["processed"].append(incident["id"])
         log_alert(

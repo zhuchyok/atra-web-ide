@@ -153,7 +153,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 9G
+          # [v150.16] Аудит-3.0: OOM при Security-шторме (канарей-демон + пайплайны)
+          memory: 12G
         reservations:
           memory: 4G
     healthcheck:

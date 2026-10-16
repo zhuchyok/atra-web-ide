@@ -16,6 +16,7 @@ KEEP=3                        # сколько последних .gz-архив
 # Список наблюдаемых логов: аудит волны-14 (15.10) + покрытие старого atra_logs_rotate.sh
 # + прочие найденные >50MB-файлы ~/Library/Logs.
 LOGS=(
+  "/opt/homebrew/var/log/tailscaled.log"  # [v150.16] аудит-3.0
   /opt/homebrew/var/log/ollama.log
   "$HOME/Library/Logs/atra-mlx-monitor.error.log"
   "$HOME/Library/Logs/atra-ollama-hands.err.log"
