@@ -91,6 +91,27 @@ logger = logging.getLogger("ExpertWorker")
 
 DB_URL = os.getenv("DATABASE_URL")
 
+# [v149.58] JUDGE-GATE: рубричная оценка ответа судьёй перед completed.
+# Принцип владельца (качество > скорость): слабый ответ → 1 перегенерация с
+# фидбеком, а не «completed как есть». Судья — лёгкая модель на РУКАХ (11437),
+# fail-open: судья недоступен → гейт пропускается, задачи не блокируются.
+JUDGE_GATE_ENABLED = os.getenv("JUDGE_GATE_ENABLED", "true").lower() in ("1", "true", "yes")
+JUDGE_GATE_MIN_SCORE = float(os.getenv("JUDGE_GATE_MIN_SCORE", "6"))
+JUDGE_GATE_MAX_REGEN = int(os.getenv("JUDGE_GATE_MAX_REGEN", "1"))
+JUDGE_GATE_URL = os.getenv(
+    "JUDGE_GATE_URL", "http://host.docker.internal:11437/api/chat"
+)
+JUDGE_GATE_MODEL = os.getenv("JUDGE_GATE_MODEL", "phi3.5:3.8b")
+# [v149.58] Фолбэк-полоса судьи: если руки (11437) перегружены — судим на
+# coder-инстансе (11436), он отдельный планировщик и редко забит.
+JUDGE_GATE_FALLBACK_URL = os.getenv(
+    "JUDGE_GATE_FALLBACK_URL", "http://host.docker.internal:11436/api/chat"
+)
+JUDGE_GATE_FALLBACK_MODEL = os.getenv("JUDGE_GATE_FALLBACK_MODEL", "qwen2.5-coder:14b")
+# 240с: принцип владельца — скорость не важна. Судья ЖДЁТ очереди на руках,
+# а не отключает гейт при нагрузке; fail-open остаётся на реальные сбои.
+JUDGE_GATE_TIMEOUT = float(os.getenv("JUDGE_GATE_TIMEOUT", "240"))
+
 
 def _ollama_url_for_model(model: Optional[str]) -> str:
     """Route coder to dedicated Ollama. Wisdom never goes to 11434/11436."""
@@ -362,6 +383,59 @@ async def get_db_pool():
             command_timeout=60,
         )
     return _db_pool
+
+
+async def judge_gate_score(question: str, answer: str):
+    """[v149.58] Судья качества: score 1-10 + замечания. (None, None) = судья недоступен."""
+    import httpx
+
+    prompt = (
+        "Ты строгий контролёр качества ответов. Оцени ОТВЕТ ассистента относительно ЗАДАНИЯ "
+        "по шкале 1-10: 9-10 — полный конкретный ответ по существу с фактами; 6-8 — в целом "
+        "отвечает, но есть пробелы; 1-5 — не отвечает на вопрос, отговорки, вода, пустые обещания.\n\n"
+        f"ЗАДАНИЕ: {str(question)[:1200]}\n\n"
+        f"ОТВЕТ: {str(answer)[:2500]}\n\n"
+        'Верни ТОЛЬКО JSON: {"score": <1-10>, "issues": "<главные недостатки одной фразой или пусто>"}'
+    )
+    try:
+        last_err = None
+        for base_url, model in (
+            (JUDGE_GATE_URL, JUDGE_GATE_MODEL),
+            (JUDGE_GATE_FALLBACK_URL, JUDGE_GATE_FALLBACK_MODEL),
+        ):
+            try:
+                async with httpx.AsyncClient(timeout=JUDGE_GATE_TIMEOUT) as client:
+                    resp = await client.post(
+                        base_url,
+                        json={
+                            "model": model,
+                            "messages": [{"role": "user", "content": prompt}],
+                            "stream": False,
+                            "format": "json",
+                            "options": {
+                                "num_ctx": 4096,
+                                "num_predict": 200,
+                                "temperature": 0.1,
+                            },
+                        },
+                    )
+                if resp.status_code != 200:
+                    last_err = f"{base_url} -> {resp.status_code}"
+                    continue
+                data = json.loads(resp.json().get("message", {}).get("content", "{}"))
+                score = float(data.get("score", 0))
+                if score < 1 or score > 10:
+                    last_err = f"{base_url} -> bad score {score}"
+                    continue
+                return score, str(data.get("issues", "") or "")
+            except Exception as attempt_err:
+                last_err = attempt_err
+                continue
+        logger.debug(f"[JUDGE-GATE] judge unavailable, fail-open: {last_err}")
+        return None, None
+    except Exception as judge_err:
+        logger.debug(f"[JUDGE-GATE] judge unavailable, fail-open: {judge_err}")
+        return None, None
 
 
 # [SINGULARITY 26.1] AgentScope Actor Model Integration
@@ -1233,6 +1307,60 @@ async def process_task(task_data: dict):
                         expert_name=expert_name,
                     )
                     return
+                # [PEAK-GUARD] Defer low-priority/background sources under local-hardware pressure.
+                # This guard lives in worker path to catch tasks that bypass orchestrator dispatch budget.
+                background_sources = {
+                    s.strip().lower()
+                    for s in os.getenv(
+                        "ORCHESTRATOR_BACKGROUND_SOURCES",
+                        "security_responder,nightly_hypothesis_debate",
+                    ).split(",")
+                    if s.strip()
+                }
+                background_max_per_cycle = max(
+                    0, int(os.getenv("ORCHESTRATOR_BACKGROUND_MAX_DISPATCH_PER_CYCLE", "1"))
+                )
+                if is_valid_uuid and background_max_per_cycle == 0:
+                    source_name = str((metadata or {}).get("source") or "").strip().lower()
+                    if source_name in background_sources:
+                        defer_min = max(1, int(os.getenv("ORCHESTRATOR_BACKGROUND_RETRY_MIN", "5")))
+                        retry_after_dt = datetime.now(timezone.utc) + timedelta(minutes=defer_min)
+                        await conn.execute(
+                            """
+                            UPDATE tasks
+                            SET status = 'pending',
+                                retry_after = $2::timestamptz,
+                                updated_at = NOW(),
+                                metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+                            WHERE id = $1
+                            """,
+                            db_task_id,
+                            retry_after_dt,
+                            json.dumps(
+                                {
+                                    "dispatch_deferred_at": datetime.now(timezone.utc).isoformat(),
+                                    "dispatch_deferred_reason": "background_budget_cap_worker_guard",
+                                    "dispatch_deferred_source": source_name,
+                                },
+                                ensure_ascii=False,
+                            ),
+                        )
+                        await redis_manager.update_task_status(task_id, "pending")
+                        logger.info(
+                            "⏱️ [PEAK-GUARD] Deferred background task %s source=%s until=%s",
+                            task_id,
+                            source_name,
+                            retry_after_dt.isoformat(),
+                        )
+                        await redis_manager.release_task_lock(task_id)
+                        try:
+                            from services.blackboard_service import get_blackboard_service
+
+                            bb = get_blackboard_service()
+                            await bb.release_task(task_id, expert_name)
+                        except Exception:
+                            pass
+                        return
                 if is_valid_uuid:
                     # [SINGULARITY 27.1] Guard: skip if task already completed/failed in DB.
                     # This prevents the stale-xclaim loop: when Ollama times out, the Redis stream
@@ -2133,53 +2261,171 @@ async def process_task(task_data: dict):
                             pass
                         return
 
+                # [v149.58] JUDGE-GATE: рубричная оценка; слабый ответ → 1
+                # перегенерация с фидбеком. Fail-open: судья недоступен → пропуск.
+                if (
+                    JUDGE_GATE_ENABLED
+                    and isinstance(report_text, str)
+                    and report_text.strip()
+                    and description
+                ):
+                    try:
+                        _gate_question = description if isinstance(description, str) else str(description or "")
+                        gate_score, gate_issues = await judge_gate_score(
+                            _gate_question, report_text
+                        )
+                        gate_regen = 0
+                        try:
+                            gate_regen = int((metadata or {}).get("judge_regen", 0))
+                        except (TypeError, ValueError):
+                            gate_regen = 0
+                        if gate_score is not None and gate_score < JUDGE_GATE_MIN_SCORE:
+                            if gate_regen < JUDGE_GATE_MAX_REGEN:
+                                logger.warning(
+                                    "🧑‍⚖️ [JUDGE-GATE] Task %s: score=%.0f < %.0f — перегенерация. Замечания: %s",
+                                    task_id,
+                                    gate_score,
+                                    JUDGE_GATE_MIN_SCORE,
+                                    (gate_issues or "н/д")[:150],
+                                )
+                                fix_prompt = (
+                                    _gate_question
+                                    + f"\n\n[КОНТРОЛЬ КАЧЕСТВА] Предыдущая версия ответа оценена на {gate_score:.0f}/10. "
+                                    + f"Замечания: {gate_issues or 'недостаточно полно и конкретно'}. "
+                                    + "Напиши ответ заново: полностью ответь на задание, приведи конкретику и факты, без воды и метакомментариев."
+                                )
+                                regen_raw = await run_smart_agent_async(
+                                    fix_prompt,
+                                    expert_name=expert_name,
+                                    category=task_data.get("category", "general"),
+                                    is_vip=is_dialogue_task,
+                                )
+                                regen_text = str(
+                                    regen_raw.get("result")
+                                    if isinstance(regen_raw, dict)
+                                    else regen_raw
+                                )
+                                if (
+                                    isinstance(regen_text, str)
+                                    and regen_text.strip()
+                                    and not regen_text.startswith("⚠️ Не удалось получить")
+                                ):
+                                    score2, issues2 = await judge_gate_score(
+                                        _gate_question, regen_text
+                                    )
+                                    if score2 is None or score2 >= gate_score:
+                                        report_text = regen_text
+                                        gate_score = score2 if score2 is not None else gate_score
+                                        gate_issues = issues2
+                                        gate_regen += 1
+                                        logger.info(
+                                            "🧑‍⚖️ [JUDGE-GATE] Task %s: перегенерация принята (score=%s)",
+                                            task_id,
+                                            f"{score2:.0f}" if score2 is not None else "n/a",
+                                        )
+                                    else:
+                                        logger.info(
+                                            "🧑‍⚖️ [JUDGE-GATE] Task %s: перегенерация хуже (%.0f < %.0f) — оставляем первую",
+                                            task_id,
+                                            score2,
+                                            gate_score,
+                                        )
+                            else:
+                                logger.info(
+                                    "🧑‍⚖️ [JUDGE-GATE] Task %s: score=%.0f — лимит регенераций исчерпан, завершаем",
+                                    task_id,
+                                    gate_score,
+                                )
+                        if gate_score is not None and gate_score < JUDGE_GATE_MIN_SCORE:
+                            # [v149.58] Честность: слабый ответ уходит потребителю
+                            # с явной пометкой low_quality (не фейковый completed)
+                            logger.error(
+                                "⚠️ [JUDGE-GATE] Task %s: завершение со score=%.0f — помечаем low_quality",
+                                task_id,
+                                gate_score,
+                            )
+                            report_text = (
+                                "⚠️ [Качество ответа понижено контролёром (score "
+                                + f"{gate_score:.0f}/10). Замечания: {(gate_issues or 'н/д')[:200]}]\n\n"
+                                + report_text
+                            )
+                        if gate_score is not None:
+                            try:
+                                gate_meta = {
+                                    "judge_score": gate_score,
+                                    "judge_issues": (gate_issues or "")[:300],
+                                    "judge_regen": gate_regen,
+                                }
+                                if is_valid_uuid:
+                                    await conn.execute(
+                                        """
+                                        UPDATE tasks
+                                        SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
+                                        WHERE id = $1
+                                        """,
+                                        db_task_id,
+                                        json.dumps(gate_meta, ensure_ascii=False),
+                                    )
+                                metadata = {**(metadata or {}), **gate_meta}
+                            except Exception as _gm_err:
+                                # [v149.58] loud: потеря judge-меты = слепой аудит качества
+                                logger.warning(
+                                    "[JUDGE-GATE] meta write failed for %s: %s",
+                                    task_id,
+                                    _gm_err,
+                                )
+                    except Exception as gate_err:
+                        logger.debug(f"[JUDGE-GATE] skipped: {gate_err}")
+
                 completion_committed = True
                 global _last_success_ts
                 _last_success_ts = int(time.time())
                 if is_valid_uuid:
                     # TODO: Convert f-string to %s formatting for performance
                     logger.info(f"DEBUG_PRINT: Updating task {task_id} to completed in DB")
-                    _update_res = await conn.execute(
-                        """
-                        UPDATE tasks
-                        SET status = 'completed',
-                            result = $2,
-                            completed_at = NOW(),
-                            updated_at = NOW(),
-                            metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
-                        WHERE id = $1
-                          AND status = 'in_progress'
-                    """,
-                        db_task_id,
-                        report_text,
-                        json.dumps(
-                            {
-                                "completion_reason": "worker_success",
-                                "completed_by": expert_name,
-                                "last_progress_at": datetime.now(timezone.utc).isoformat(),
-                                "task_contract_version": contract_trace["version"],
-                                "task_contract_output_schema": contract_trace["output_schema"],
-                                "task_contract_risk_level": contract_trace["risk_level"],
-                                "source_attribution": source_attribution,
-                                "audit_trail": audit_trail,
-                            },
-                            ensure_ascii=False,
-                        ),
-                    )
-                    try:
-                        _updated_rows = int(str(_update_res).split()[-1])
-                    except Exception:
-                        _updated_rows = 0
-                    if _updated_rows == 0:
-                        completion_committed = False
-                        _final_status = await conn.fetchval(
-                            "SELECT status FROM tasks WHERE id = $1", db_task_id
+                    finish_pool = await get_db_pool()
+                    async with finish_pool.acquire() as finish_conn:
+                        _update_res = await finish_conn.execute(
+                            """
+                            UPDATE tasks
+                            SET status = 'completed',
+                                result = $2,
+                                completed_at = NOW(),
+                                updated_at = NOW(),
+                                metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+                            WHERE id = $1
+                              AND status = 'in_progress'
+                        """,
+                            db_task_id,
+                            report_text,
+                            json.dumps(
+                                {
+                                    "completion_reason": "worker_success",
+                                    "completed_by": expert_name,
+                                    "last_progress_at": datetime.now(timezone.utc).isoformat(),
+                                    "task_contract_version": contract_trace["version"],
+                                    "task_contract_output_schema": contract_trace["output_schema"],
+                                    "task_contract_risk_level": contract_trace["risk_level"],
+                                    "source_attribution": source_attribution,
+                                    "audit_trail": audit_trail,
+                                },
+                                ensure_ascii=False,
+                            ),
                         )
-                        logger.info(
-                            "⏭️ [WORKER] Completion skipped for %s: current_status=%s",
-                            task_id,
-                            _final_status,
-                        )
+                        try:
+                            _updated_rows = int(str(_update_res).split()[-1])
+                        except Exception:
+                            _updated_rows = 0
+                        if _updated_rows == 0:
+                            completion_committed = False
+                            _final_status = await finish_conn.fetchval(
+                                "SELECT status FROM tasks WHERE id = $1", db_task_id
+                            )
+                            logger.info(
+                                "⏭️ [WORKER] Completion skipped for %s: current_status=%s",
+                                task_id,
+                                _final_status,
+                            )
 
                 if completion_committed:
                     try:
@@ -2203,11 +2449,13 @@ async def process_task(task_data: dict):
                         )
                         if _trace_match:
                             _trace = _trace_match.group(1).strip()
-                            await conn.execute(
-                                "UPDATE tasks SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb WHERE id = $1",
-                                db_task_id,
-                                json.dumps({"reasoning_trace": _trace[:2000]}),
-                            )
+                            trace_pool = await get_db_pool()
+                            async with trace_pool.acquire() as trace_conn:
+                                await trace_conn.execute(
+                                    "UPDATE tasks SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb WHERE id = $1",
+                                    db_task_id,
+                                    json.dumps({"reasoning_trace": _trace[:2000]}),
+                                )
                             # TODO: Convert f-string to %s formatting for performance
                             logger.info(f"🧠 [REFLECTION] reasoning_trace saved for task {task_id}")
                     except Exception as _te:
