@@ -341,17 +341,18 @@ class BlackboardService:
 
         for expert_name_bytes, score_raw in sorted_bids:
             score = float(score_raw)
-            if score < min_bid_score:
-                logger.info(
-                    f"📉 [AUCTION] {expert_name_bytes.decode()} bid {score} below threshold {min_bid_score}"
-                )
-                continue
-
+            # [v149.58c] нормализация ДО использования: decode на str валил
+            # весь autonomy-цикл ('str' object has no attribute 'decode')
             expert_name = (
                 expert_name_bytes.decode()
                 if isinstance(expert_name_bytes, bytes)
-                else expert_name_bytes
+                else str(expert_name_bytes)
             )
+            if score < min_bid_score:
+                logger.info(
+                    f"📉 [AUCTION] {expert_name} bid {score} below threshold {min_bid_score}"
+                )
+                continue
             if raw_goal:
                 allowed, reason = self._is_expert_eligible_for_goal(expert_name, task_id, goal_data)
                 if not allowed:
@@ -481,6 +482,29 @@ class BlackboardService:
                     )
                     if not heartbeat_claimed:
                         current_owner = await client.get(heartbeat_key)
+                        # If goal is open but heartbeat is still occupied, this is stale residue.
+                        # Reclaim once under lock to prevent dead ownership loops.
+                        if not goal_data.get("assignee"):
+                            await client.delete(heartbeat_key)
+                            heartbeat_claimed = await client.set(
+                                heartbeat_key, expert_name, ex=300, nx=True
+                            )
+                            if heartbeat_claimed:
+                                logger.warning(
+                                    "♻️ [BLACKBOARD] Reclaimed stale heartbeat for open task %s (owner was %s -> %s)",
+                                    task_id,
+                                    current_owner,
+                                    expert_name,
+                                )
+                                await self._incr_metric("claim_recover_stale_heartbeat_total")
+                        if heartbeat_claimed:
+                            goal_data["status"] = "claimed"
+                            goal_data["assignee"] = expert_name
+                            goal_data["claimed_at"] = datetime.now(timezone.utc).isoformat()
+                            await client.hset(key, task_id, json.dumps(goal_data))
+                            await client.sadd(f"{self.key_prefix}active_tasks:{expert_name}", task_id)
+                            logger.info(f"🤝 [BLACKBOARD] Task {task_id} claimed by {expert_name}")
+                            return True
                         logger.info(
                             "⏭️ [BLACKBOARD] Claim rejected for %s by %s: heartbeat owner is %s",
                             task_id,

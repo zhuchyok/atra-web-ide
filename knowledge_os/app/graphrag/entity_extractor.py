@@ -107,6 +107,15 @@ class EntityExtractor:
                             "LLM-фаза на кулдауне 5 мин, работаем на regex"
                         )
             except Exception as e:
+                # [v149.58c] исключение (например, loop-breaker) тоже отказ LLM:
+                # иначе цикл живёт на loop-breaker'е, минуя circuit breaker
+                self._llm_fail_streak = getattr(self, "_llm_fail_streak", 0) + 1
+                if self._llm_fail_streak >= 3:
+                    self._llm_cooldown_until = time.time() + 300
+                    self._llm_fail_streak = 0
+                    logger.warning(
+                        "[ENTITY-EXTRACTOR] LLM недоступен (exception ×3) — LLM-фаза на кулдауне 5 мин"
+                    )
                 logger.debug(f"LLM Entity Extraction failed: {e}")
 
         # Дедупликация по имени
