@@ -261,8 +261,7 @@ class TaskDistributionSystem:
             _WRAP_MARK = "Проанализируй следующий промпт"
             _inner = prompt or ""
             if _WRAP_MARK in _inner:
-                _inner = _inner.split(_WRAP_MARK, 1)[1].lstrip(" Veronicaи извлеки все задачи:
-	 :ЗАДАЧА") or _inner
+                _inner = _inner.split(_WRAP_MARK, 1)[1].strip() or _inner
                 logger.warning(
                     "TaskDistribution: WRAP-GUARD — повторное оборачивание пресечено (длина %d)",
                     len(prompt or ""),
