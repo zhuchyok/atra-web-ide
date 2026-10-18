@@ -254,6 +254,20 @@ class TaskDistributionSystem:
                         )
 
             # Используем Victoria для парсинга
+            # [v150.17] WRAP-GUARD: промпт-результат парсинга попадал обратно в
+            # распределение → обёртки вкладывались десятки раз (экспоненциальный
+            # рост, OOM Виктории 17.10). Уже обёрнутый/извлечённый текст не
+            # оборачиваем повторно и режем вложенность до первой обёртки.
+            _WRAP_MARK = "Проанализируй следующий промпт"
+            _inner = prompt or ""
+            if _WRAP_MARK in _inner:
+                _inner = _inner.split(_WRAP_MARK, 1)[1].lstrip(" Veronicaи извлеки все задачи:
+	 :ЗАДАЧА") or _inner
+                logger.warning(
+                    "TaskDistribution: WRAP-GUARD — повторное оборачивание пресечено (длина %d)",
+                    len(prompt or ""),
+                )
+            prompt = _inner
             parse_prompt = f"""
             Проанализируй следующий промпт Veronica и извлеки все задачи:
 
