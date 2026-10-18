@@ -7,6 +7,27 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+# [v149.58d] Circuit breaker state — МОДУЛЬНЫЙ: экземпляр экстрактора может
+# пересоздаваться (orchestrator/graphrag пути), instance-уровень терял счётчик
+# и петля жила дальше (105 LOOP-BREAKER hits в orchestrator за 17-18.10).
+_LLM_FAIL_STREAK = 0
+_LLM_COOLDOWN_UNTIL = 0.0
+
+
+def _llm_available() -> bool:
+    return time.time() >= _LLM_COOLDOWN_UNTIL
+
+
+def _llm_note_failure() -> None:
+    global _LLM_FAIL_STREAK, _LLM_COOLDOWN_UNTIL
+    _LLM_FAIL_STREAK += 1
+    if _LLM_FAIL_STREAK >= 3:
+        _LLM_COOLDOWN_UNTIL = time.time() + 300
+        _LLM_FAIL_STREAK = 0
+        logger.warning(
+            "[ENTITY-EXTRACTOR] LLM недоступен (отказы ×3) — LLM-фаза на кулдауне 5 мин, работаем на regex"
+        )
+
 
 @dataclass
 class Entity:
@@ -30,12 +51,6 @@ class EntityExtractor:
             "tech": r"(Docker|PostgreSQL|Redis|FastAPI|Svelte|Python|MLX|Ollama|DeepSeek)",
             "concept": r"💎\s*([А-ЯA-Z\s]+)",
         }
-        # [v149.55] LLM circuit breaker state
-        self._llm_fail_streak = 0
-        self._llm_cooldown_until = 0.0
-
-    def _llm_available(self) -> bool:
-        return time.time() >= self._llm_cooldown_until
 
     async def extract_entities(self, content: str) -> List[Entity]:
         """
@@ -69,7 +84,7 @@ class EntityExtractor:
         # отключается на кулдаун — иначе каждый вызов тащит полный RAG-прогон
         # впустую (LOOP-BREAKER резал 6+ попыток/10мин в orchestrator/nightly,
         # 15.10). Regex-сущности извлекаются всегда.
-        if len(content) > 300 and self._llm_available():
+        if len(content) > 300 and _llm_available():
             try:
                 from app.ai_core import run_smart_agent_async
 
@@ -95,27 +110,14 @@ class EntityExtractor:
                                 metadata={"source": "llm"},
                             )
                         )
-                    self._llm_fail_streak = 0
+                    _LLM_FAIL_STREAK = 0
                 else:
                     # Стаб/не-JSON — LLM не дал сущностей: копим отказ
-                    self._llm_fail_streak = getattr(self, "_llm_fail_streak", 0) + 1
-                    if self._llm_fail_streak >= 3:
-                        self._llm_cooldown_until = time.time() + 300
-                        self._llm_fail_streak = 0
-                        logger.warning(
-                            "[ENTITY-EXTRACTOR] LLM недоступен (стаб/не-JSON ×3) — "
-                            "LLM-фаза на кулдауне 5 мин, работаем на regex"
-                        )
+                    _llm_note_failure()
             except Exception as e:
                 # [v149.58c] исключение (например, loop-breaker) тоже отказ LLM:
                 # иначе цикл живёт на loop-breaker'е, минуя circuit breaker
-                self._llm_fail_streak = getattr(self, "_llm_fail_streak", 0) + 1
-                if self._llm_fail_streak >= 3:
-                    self._llm_cooldown_until = time.time() + 300
-                    self._llm_fail_streak = 0
-                    logger.warning(
-                        "[ENTITY-EXTRACTOR] LLM недоступен (exception ×3) — LLM-фаза на кулдауне 5 мин"
-                    )
+                _llm_note_failure()
                 logger.debug(f"LLM Entity Extraction failed: {e}")
 
         # Дедупликация по имени
