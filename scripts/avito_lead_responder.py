@@ -151,12 +151,16 @@ def main() -> int:
             content = m.get("content", {})
             if author.get("type") == "customer" and isinstance(content, dict):
                 customer_text = str(content.get("text", ""))[:150]
-                customer_msg_id = str(m.get("id", ""))
+                customer_msg_id = str(m.get("id") or m.get("message_id")
+                                      or m.get("uuid") or "")
                 break
 
         # дедуп: алерт только если сообщение клиента новое
-        seen = state.get(chat_id, {}).get("last_customer_msg_id")
-        if customer_msg_id and seen == customer_msg_id:
+        # (если id пустой — хэш текста, hash() солёный per-process)
+        import hashlib as _hl
+        seen_key = customer_msg_id or "t:" + _hl.md5(customer_text.encode()).hexdigest()[:12]
+        seen = state.get(chat_id, {}).get("last_seen_key")
+        if customer_text and seen == seen_key:
             print(f"  ⏭ уже алертили по этому сообщению — пропуск")
             continue
 
@@ -170,8 +174,8 @@ def main() -> int:
         except Exception as e:
             print(f"ntfy ERR: {e}")
         finally:
-            if customer_msg_id:
-                state[chat_id] = {"last_customer_msg_id": customer_msg_id,
+            if customer_text or customer_msg_id:
+                state[chat_id] = {"last_seen_key": seen_key,
                                   "item": item_title,
                                   "ts": datetime.now(timezone.utc).isoformat()}
                 state_dirty = True
@@ -199,8 +203,9 @@ def main() -> int:
             print(f"  🤝 Клиент просит человека — эскалация")
             continue
 
-        # ─── ГЕНЕРАЦИЯ ОТВЕТА ЧЕРЕЗ qwen38 + ПРОМТ ТАТЬЯНЫ ───
-        # загрузить промт Татьяны
+        # ─── ГЕНЕРАЦИЯ ОТВЕТА: цепочка qwen38 → phi3.5 → фолбэк ───
+        # (мозг 11434 периодически заклинивает под GPU-нагрузкой —
+        #  тогда отвечает лёгкая модель на инстансе рук 11437)
         prompt_path = REPO / "docs" / "AVITO_TATYANA_PROMPT.md"
         tatyana_prompt = prompt_path.read_text()[:4000] if prompt_path.exists() else ""
 
@@ -219,23 +224,45 @@ def main() -> int:
             + "\n\n" + anti_rules
         )
 
-        messages_payload = json.dumps({
-            "model": "victoria-qwen38:latest",
-            "messages": [
-                {"role": "system", "content": sys_prompt},
-                {"role": "user", "content": f"Клиент написал по объявлению «{item_title}»: {customer_text}. Ответь как Татьяна."}
-            ],
-            "stream": False,
-            "options": {"temperature": 0.4, "num_predict": 300}
-        }).encode()
-        llm_req = urllib.request.Request(
-            "http://localhost:11434/api/chat", data=messages_payload,
-            headers={"Content-Type": "application/json"}
-        )
-        with urllib.request.urlopen(llm_req, timeout=120) as r:
-            reply = json.loads(r.read())["message"]["content"].strip()
-            import re as _re
-            reply = _re.sub(r"<think>[\s\S]*?</think>", "", reply).strip()
+        def llm_chat(base_url: str, model: str, timeout_s: int) -> str:
+            payload = json.dumps({
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": f"Клиент написал по объявлению «{item_title}»: {customer_text}. Ответь как Татьяна."}
+                ],
+                "stream": False,
+                "think": False,
+                "options": {"temperature": 0.4, "num_predict": 300}
+            }).encode()
+            req = urllib.request.Request(
+                f"{base_url}/api/chat", data=payload,
+                headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=timeout_s) as r:
+                m = json.loads(r.read())["message"]
+                text = (m.get("content") or "").strip()
+                if not text:
+                    # thinking-модели кладут текст в reasoning
+                    text = (m.get("reasoning") or m.get("thinking") or "").strip()
+                return text
+
+        reply = ""
+        import re as _re
+        for base_url, model, timeout_s in (
+            ("http://localhost:11434", "victoria-qwen38:latest", 90),
+            ("http://localhost:11437", "phi3.5:3.8b", 60),
+        ):
+            try:
+                reply = _re.sub(r"<think>[\s\S]*?</think>", "", llm_chat(base_url, model, timeout_s)).strip()
+                if len(reply) >= 5:
+                    break
+                print(f"  ⚠ {model}: пустой ответ, пробую следующую модель")
+            except Exception as e:
+                print(f"  ⚠ {model}: {type(e).__name__}, пробую следующую модель")
+                reply = ""
+
+        if len(reply) >= 5:
             # АНТИ-ЦЕНА: убрать любые цифры похожие на стоимость
             # Правило компании: бот НЕ озвучивает цены — только расчётный отдел
             price_patterns = [
