@@ -145,29 +145,24 @@ else
     log_error "docker-compose.yml не найден"
 fi
 
-# 4.5. Проверка Ollama (после sleep/wake контекст Metal может инвалидироваться — PROJECT_GAPS §3)
+# 4.5. Проверка Ollama
+# [v149.58g] ПЕРЕПИСАНО: старая ветка при таймауте /api/tags за 3с делала
+# `pkill -f ollama` (убивал ВСЕ инстансы: мозг 11434 + руки 11437 + coder 11436)
+# и спавнила блудный `ollama serve` вне launchd → драка портов и вечная карусель
+# рестартов (20.10: 22:41, 22:59, 23:13, 23:18:00, 23:18:31). Теперь:
+# двойная проверка с щедрым таймаутом; ollama — launchd-сервис, его лечат
+# kickstart владельца и runner-watchdog, а НЕ этот скрипт.
 log ""
 OLLAMA_PORT=${OLLAMA_PORT:-11434}
-if curl -s -f --connect-timeout 3 "http://localhost:${OLLAMA_PORT}/api/tags" >/dev/null 2>&1; then
+if curl -s -f --connect-timeout 10 --max-time 20 "http://localhost:${OLLAMA_PORT}/api/tags" >/dev/null 2>&1; then
     log "[4.5/10] ✅ Ollama (${OLLAMA_PORT}): работает"
 else
-    log "[4.5/10] ❌ Ollama (${OLLAMA_PORT}): не отвечает"
-    if pgrep -f "ollama" >/dev/null; then
-        log "   ⚠️ Процесс Ollama найден, но не отвечает (возможно после sleep/wake). Перезапускаю..."
-        pkill -f "ollama" 2>/dev/null || true
-        sleep 3
-    fi
-    if command -v ollama &>/dev/null; then
-        log "   🚀 Запускаю Ollama..."
-        nohup ollama serve >> "$LOG_FILE" 2>> "$ERROR_LOG" &
-        sleep 5
-        if curl -s -f --connect-timeout 5 "http://localhost:${OLLAMA_PORT}/api/tags" >/dev/null 2>&1; then
-            log "   ✅ Ollama запустился"
-        else
-            log "   ⏳ Ollama запущен в фоне (порт может подняться позже)"
-        fi
+    sleep 10
+    if curl -s -f --connect-timeout 10 --max-time 20 "http://localhost:${OLLAMA_PORT}/api/tags" >/dev/null 2>&1; then
+        log "[4.5/10] ✅ Ollama (${OLLAMA_PORT}): работает (вторая попытка)"
     else
-        log "   ⚠️ ollama не найден в PATH"
+        log "[4.5/10] ❌ Ollama (${OLLAMA_PORT}): не отвечает дважды — ALERT, pkill/serve НЕ выполняем (v149.58g)"
+        curl -s -m 8 -H "Title: 🔴 Ollama не отвечает (auto-recovery НЕ вмешивается)" -H "Priority: high" -d "11434 не отвечает 2 пробы x20s. Если продлится — ручной kickstart под maintenance." "https://ntfy.sh/atra_victoria_curator" >/dev/null 2>&1
     fi
 fi
 log ""

@@ -68,7 +68,10 @@ FREE=$(memory_pressure -Q 2>/dev/null | grep -oE '[0-9]+%' | head -1 | tr -d '%'
 if [ "$FREE" -lt 40 ]; then echo "$(ts) skip: RAM free ${FREE}% < 40%" >> "$LOG"; exit 0; fi
 
 # 4. Пробуем загрузить
-curl -s --max-time 240 "$U/api/generate" \
+# [v149.58g] max-time 600: холодная загрузка 30GB занимает 5-11 мин; при 240с
+# curl отваливался, api/ps не видел модель → «LOAD FAILED» → kickstart -k ВСЕГО
+# сервера посреди загрузки → прогресс обнулялся → вечная карусель 503 (20.10).
+curl -s --max-time 600 "$U/api/generate" \
   -d "{\"model\":\"$M\",\"prompt\":\"ok\",\"stream\":false,\"keep_alive\":\"12h\"}" >/dev/null 2>&1
 
 RESP=$(curl -s --max-time 30 "$U/api/tags" 2>/dev/null)
@@ -94,7 +97,9 @@ if curl -s --max-time 5 "$U/api/ps" | grep -q "\"$M\""; then
   rm -f "$LOCK"
   exit 0
 fi
-echo "$(ts) LOAD FAILED (RAM free ${FREE}%) — backoff 30m + ollama restart" >> "$LOG"
+# [v149.58g] kickstart -k ВСЕГО ollama УДАЛЁН: он убивал сервер посреди
+# холодной загрузки (обнуляя прогресс) и устроил вечную карусель 503.
+# Рестарт ollama — только ручная операция владельца под maintenance.
+echo "$(ts) LOAD FAILED (RAM free ${FREE}%) — backoff 30m; ollama НЕ рестартуем (v149.58g)" >> "$LOG"
 touch "$LOCK"
-launchctl kickstart -k gui/$(id -u)/homebrew.mxcl.ollama 2>/dev/null
 exit 0

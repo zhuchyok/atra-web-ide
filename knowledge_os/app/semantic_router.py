@@ -39,8 +39,12 @@ class SemanticRouter:
             os.path.exists("/.dockerenv")
             or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
         )
-        self.ollama_base = os.getenv("OLLAMA_BASE_URL") or (
-            "http://host.docker.internal:11434" if self.is_docker else "http://localhost:11434"
+        # [v149.58g] embeds — на РУКИ (11437): OLLAMA_EMBED_URL приоритетен,
+        # OLLAMA_BASE_URL (мозг 11434) больше не принимает embed-трафик
+        self.ollama_base = (
+            os.getenv("OLLAMA_EMBED_URL", "").replace("/api/embeddings", "").rstrip("/")
+            or os.getenv("OLLAMA_BASE_URL")
+            or ("http://host.docker.internal:11434" if self.is_docker else "http://localhost:11434")
         )
         self.embed_url = f"{self.ollama_base.rstrip('/')}/api/embeddings"
         self.embed_model = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
