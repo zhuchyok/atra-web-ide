@@ -343,7 +343,7 @@ class VictoriaEnhanced:
                 self.extended_thinking = ExtendedThinkingEngine(
                     model_name=self.model_name,
                     thinking_budget=15000,
-                    max_steps=12,
+                    max_steps=int(os.getenv("EXTENDED_THINKING_MAX_STEPS", "8")),  # [v150.20]
                     use_intelligent_routing=True,
                     dual_channel=True,
                 )
@@ -410,7 +410,7 @@ class VictoriaEnhanced:
                 self.extended_thinking = ExtendedThinkingEngine(
                     model_name=self.model_name,
                     thinking_budget=15000,
-                    max_steps=12,
+                    max_steps=int(os.getenv("EXTENDED_THINKING_MAX_STEPS", "8")),  # [v150.20]
                     use_intelligent_routing=True,
                     dual_channel=True,
                 )
