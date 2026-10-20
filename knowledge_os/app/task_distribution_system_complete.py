@@ -259,7 +259,17 @@ class TaskDistributionSystem:
             # рост, OOM Виктории 17.10). Уже обёрнутый/извлечённый текст не
             # оборачиваем повторно и режем вложенность до первой обёртки.
             _WRAP_MARK = "Проанализируй следующий промпт"
+            _RECURSE_MARK = "Veronica и извлеки все задачи"
             _inner = prompt or ""
+            # [v150.18] ЖЁСТКИЙ СТОП: осадки рекурсии самокормились после
+            # лёгкого guard'а — два и более вложения = паразитный цикл,
+            # топлива не даём вообще (пустая выборка задач).
+            if _inner.count(_RECURSE_MARK) >= 2:
+                logger.error(
+                    "TaskDistribution: RECURSION-STOP — %d вложений в промпте, задач не извлекаем",
+                    _inner.count(_RECURSE_MARK),
+                )
+                return []
             if _WRAP_MARK in _inner:
                 _inner = _inner.split(_WRAP_MARK, 1)[1].strip() or _inner
                 logger.warning(
