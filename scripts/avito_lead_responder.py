@@ -111,87 +111,92 @@ DOMAIN_WORDS = (
 ).split()
 
 
+DOMAIN_WORDS_LATIN = (
+    "veka rehau kaleva brusbox tatprof aluvet"
+).split()
+
+
 def fix_domain_typos(text: str) -> str:
-    """Детерминированная правка опечаток в профильных словах (расстояние Дамерау—Левенштейна ≤ 1 для слов 5+ букв)."""
+    """Правка опечаток в профильных словах.
+
+    Правило уникального кандидата: слово заменяется на словарное, только если
+    ровно ОДНО словарное слово в пределах расстояния Дамерау—Левенштейна ≤2.
+    «остечение» → остекление (один кандидат), «профили» не трогается
+    (три кандидата: профиль/профиля/профилю — значит, слово корректное).
+    """
     import re as _re
 
-    def lev1(a: str, b: str) -> bool:
-        if abs(len(a) - len(b)) > 1:
-            return False
-        if len(a) == len(b):
-            return sum(x != y for x, y in zip(a, b)) == 1
-        if len(a) > len(b):
-            a, b = b, a
-        # вставка одной буквы в a даёт b
-        i = j = diff = 0
-        while i < len(a) and j < len(b):
-            if a[i] == b[j]:
-                i += 1; j += 1
-            else:
-                diff += 1; j += 1
-                if diff > 1:
-                    return False
-        return True
+    def lev(a: str, b: str, maxd: int = 2) -> int:
+        if abs(len(a) - len(b)) > maxd:
+            return maxd + 1
+        prev = list(range(len(b) + 1))
+        for i, ca in enumerate(a, 1):
+            cur = [i]
+            for j, cb in enumerate(b, 1):
+                cur.append(min(prev[j] + 1, cur[j-1] + 1, prev[j-1] + (ca != cb)))
+            if min(cur) > maxd:
+                return maxd + 1
+            prev = cur
+        return prev[-1]
 
-    words = {w for w in DOMAIN_WORDS if isinstance(w, str)}
+    words = [w for w in DOMAIN_WORDS if isinstance(w, str)]
+
+    def best_cand(lw: str):
+        # иерархия: уникальный кандидат на дистанции 1 — явная опечатка;
+        # иначе единственный на дистанции 2; иначе слово считаем корректным
+        c1 = [c for c in words if lev(lw, c, 1) <= 1]
+        if len(c1) == 1:
+            return c1[0]
+        c2 = [c for c in words if lev(lw, c, 2) <= 2]
+        if len(c2) == 1:
+            return c2[0]
+        return None
+
     def sub(m):
         w = m.group(0)
         lw = w.lower()
         if lw in words or len(lw) < 5:
             return w
-        for cand in words:
-            if abs(len(cand) - len(lw)) <= 1 and lev1(lw, cand):
-                return cand if w.islower() else cand.capitalize()
+        c = best_cand(lw)
+        if c:
+            return c if w.islower() else c.capitalize()
         return w
-    return _re.sub(r"[а-яА-ЯёЁ]{5,}", sub, text)
+    text = _re.sub(r"[а-яА-ЯёЁ]{5,}", sub, text)
+
+    latin = set(DOMAIN_WORDS_LATIN)
+    def sub_lat(m):
+        w = m.group(0)
+        lw = w.lower()
+        if lw in latin or len(lw) < 4:
+            return w
+        cands = [c for c in latin if lev(lw, c, 1) <= 1]
+        if len(cands) == 1:
+            return cands[0] if w.islower() else cands[0].capitalize()
+        return w
+    return _re.sub(r"[a-zA-Z]{4,}", sub_lat, text)
 
 
 def correct_text(text: str) -> str:
-    """Вычитка ответа перед отправкой: орфография/пунктуация без изменения смысла.
+    """Вычитка ответа перед отправкой — только детерминированные проверки.
 
-    Редактор — phi3.5 на инстансе рук (быстрый и стабильный). Если редактор
-    недоступен или вернул ерунду — возвращаем исходный текст.
+    1. Словарная правка профильных слов (остечение→остекление, Vecka→Veka).
+    2. Цифро-буквенный мусор («1сти») → замена на чистый шаблонный ответ:
+       починить такой текст LLM-редактором нельзя надёжно (phi3.5 сам портит),
+       а шаблон всегда чистый и вежливый.
     """
     import re as _re
-    import urllib.request
 
-    # быстрые эвристики мусора: сжатые гласные, битые слова
     if not text or len(text) < 5:
         return text
 
-    # 1) детерминированная правка профильных слов (надёжнее LLM)
     text = fix_domain_typos(text)
 
-    payload = json.dumps({
-        "model": "phi3.5:3.8b",
-        "messages": [
-            {"role": "system", "content":
-                "Ты корректор русской деловой переписки. Исправь только орфографические "
-                "ошибки в отдельных буквах и знаки препинания. ЗАПРЕЩЕНО переформулировать "
-                "фразы, менять слова на другие, добавлять или удалять слова. Особенно "
-                "проверяй слова по теме остекления: остекление, балкон, беседка, терраса, "
-                "веранда, стеклопакет, подоконник, откосы, замер, монтаж, профиль, гарантия. "
-                "НЕ отвечай на текст. Верни только исправленный текст без пояснений."},
-            {"role": "user", "content": text}
-        ],
-        "stream": False,
-        "options": {"temperature": 0.0, "num_predict": 400}
-    }).encode()
-    try:
-        req = urllib.request.Request(
-            "http://localhost:11437/api/chat", data=payload,
-            headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=40) as r:
-            fixed = json.loads(r.read())["message"]["content"].strip()
-    except Exception as e:
-        print(f"  ⚠ корректор недоступен: {type(e).__name__}")
-        return text
-
-    fixed = _re.sub(r"<think>[\s\S]*?</think>", "", fixed).strip()
-    # редактор должен вернуть сравнимый по длине текст на русском
-    if len(fixed) < max(5, int(len(text) * 0.5)) or len(fixed) > len(text) * 3:
-        return text
-    return fixed
+    # мусор: смесь цифр и кириллицы внутри слова, сжатые гласные
+    if _re.search(r"\d[а-яё]{2,}|[а-яё]\d[а-яё]", text, _re.I) or "  " in text:
+        print("  ⚠ мусор в ответе модели — заменяю на чистый шаблон")
+        return ("Здравствуйте! Спасибо за обращение — уточню детали у расчётного "
+                "отдела и вернусь к вам с точным расчётом.")
+    return text
 
 
 def send_reply(token: str, chat_id: str, text: str) -> bool:
@@ -314,21 +319,22 @@ def main() -> int:
         # ─── ГЕНЕРАЦИЯ ОТВЕТА: цепочка qwen38 → phi3.5 → фолбэк ───
         # (мозг 11434 периодически заклинивает под GPU-нагрузкой —
         #  тогда отвечает лёгкая модель на инстансе рук 11437)
-        prompt_path = REPO / "docs" / "AVITO_TATYANA_PROMPT.md"
-        tatyana_prompt = prompt_path.read_text()[:4000] if prompt_path.exists() else ""
+        # короткий редакторский промпт: только критичные правила и факты
+        # (полный 14к-документ замедляет prefill и не нужен в single-turn)
+        prompt_path = REPO / "docs" / "AVITO_TATYANA_PROMPT_SHORT.md"
+        tatyana_prompt = prompt_path.read_text(encoding="utf-8") if prompt_path.exists() else ""
 
         anti_rules = (
             "СТРОЙКА АНТИ-ВЫДУМКИ:\n"
-            "- Цены: только из раздела 'Акции' выше\n"
-            "- Сроки: только '8-10 раб.дней' или '14-19 раб.дней'\n"
+            "- Цены НЕ называй вообще — передавай в расчётный отдел\n"
+            "- Сроки: только из блока «Сроки» выше\n"
             "- Не выдумывай услуги, телефоны, адреса\n"
-            "- Если не знаешь — скажи что передашь расчётному отделу\n"
-            "- Телефон: +7 (8352) 38-40-20"
+            "- Если не знаешь — скажи что передашь расчётному отделу"
         )
         sys_prompt = (
             "Ты — Татьяна, специалист по остеклению. "
             "Отвечай коротко (2-3 предложения), тепло и профессионально."
-            + "\n\n" + tatyana_prompt[:1500]
+            + "\n\n" + tatyana_prompt
             + "\n\n" + anti_rules
         )
 
