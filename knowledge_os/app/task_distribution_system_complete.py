@@ -296,8 +296,49 @@ class TaskDistributionSystem:
             ]
             """
 
-            victoria = _get_victoria_enhanced_singleton()
-            result = await victoria.solve(parse_prompt, method="extended_thinking")
+            # [v150.19] P0-фикс перегруза мозга: ИЗВЛЕЧЕНИЕ задач из промпта — это
+            # работа рук, не мышление. Раньше extended_thinking = до 13 вызовов
+            # МОЗГА на каждый акт распределения — при 3-4 мин/вызов это
+            # десятки минут на распределение. Теперь phi на инстансе рук.
+            _hands = os.getenv("OLLAMA_HANDS_URL", "http://host.docker.internal:11437")
+            result = {"result": ""}
+            try:
+                import httpx as _hx
+
+                async with _hx.AsyncClient(timeout=90.0) as _hc:
+                    _r = await _hc.post(
+                        f"{_hands}/api/chat",
+                        json={
+                            "model": "phi3.5:3.8b",
+                            "messages": [
+                                {
+                                    "role": "system",
+                                    "content": (
+                                        "Ты — парсер задач корпорации ATRA. Извлеки задачи "
+                                        "из промпта и верни ТОЛЬКО JSON-массив, без пояснений."
+                                    ),
+                                },
+                                {"role": "user", "content": parse_prompt[-6000:]},
+                            ],
+                            "stream": False,
+                            "options": {"temperature": 0, "num_ctx": 8192, "num_predict": 1024},
+                        },
+                    )
+                if _r.status_code == 200:
+                    result = {"result": (_r.json().get("message") or {}).get("content", "")}
+                else:
+                    logger.warning(
+                        "TaskDistribution: hands-парсер HTTP %d — фолбэк на solve",
+                        _r.status_code,
+                    )
+                    victoria = _get_victoria_enhanced_singleton()
+                    result = await victoria.solve(
+                        parse_prompt, method="extended_thinking"
+                    )
+            except Exception as _e:
+                logger.warning("TaskDistribution: hands-парсер err %s — фолбэк", _e)
+                victoria = _get_victoria_enhanced_singleton()
+                result = await victoria.solve(parse_prompt, method="extended_thinking")
 
             # Парсим результат
             output = result.get("result", "") or result.get("output", "")

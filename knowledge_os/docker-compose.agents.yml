@@ -192,6 +192,8 @@ services:
       PLAN_STEP_EXPERTS: ${PLAN_STEP_EXPERTS:-Инна,Юлия}
       # Optional dedicated endpoint/queue for heavy executor model (qwen3-coder)
       OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}
+      # [v150.19] executor-redirect рук требует env (был пуст — phi падал на 11434)
+      OLLAMA_HANDS_URL: ${OLLAMA_HANDS_URL:-http://host.docker.internal:11437}
       OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
