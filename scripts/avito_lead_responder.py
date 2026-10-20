@@ -87,8 +87,114 @@ def _validate_reply(reply: str, customer_text: str) -> tuple:
     return True, ""
 
 
+DOMAIN_WORDS = (
+    "остекление остекления остеклению остеклением остеклении"
+    " застеклить застеклен"
+    " окно окна окон окнам окнами"
+    " дверь двери дверей дверям дверями"
+    " балкон балкона балкону балконы балконов"
+    " беседка беседки беседку беседок беседкам беседками"
+    " веранда веранды веранду веранд верандам"
+    " терраса террасы террасу террас террасам террасами"
+    " подоконник подоконники подоконника подоконников"
+    " откосы откос отлив отливы отлива"
+    " стеклопакет стеклопакеты стеклопакета стеклопакетов"
+    " ламинирование ламинированием ламинация"
+    " замер замера замеру замерщик замерщиком"
+    " монтаж монтажа монтажу монтажом монтажник"
+    " установка установки установкой"
+    " панорамный панорамные панорамное"
+    " раздвижной раздвижные раздвижное портальный портальные"
+    " профиль профиля профилю профилем профилей"
+    " коттедж коттеджа коттеджу коттеджей дача дачи дачу дач"
+    " рассрочка рассрочку рассрочки гарантия гарантией гарантию"
+).split()
+
+
+def fix_domain_typos(text: str) -> str:
+    """Детерминированная правка опечаток в профильных словах (расстояние Дамерау—Левенштейна ≤ 1 для слов 5+ букв)."""
+    import re as _re
+
+    def lev1(a: str, b: str) -> bool:
+        if abs(len(a) - len(b)) > 1:
+            return False
+        if len(a) == len(b):
+            return sum(x != y for x, y in zip(a, b)) == 1
+        if len(a) > len(b):
+            a, b = b, a
+        # вставка одной буквы в a даёт b
+        i = j = diff = 0
+        while i < len(a) and j < len(b):
+            if a[i] == b[j]:
+                i += 1; j += 1
+            else:
+                diff += 1; j += 1
+                if diff > 1:
+                    return False
+        return True
+
+    words = {w for w in DOMAIN_WORDS if isinstance(w, str)}
+    def sub(m):
+        w = m.group(0)
+        lw = w.lower()
+        if lw in words or len(lw) < 5:
+            return w
+        for cand in words:
+            if abs(len(cand) - len(lw)) <= 1 and lev1(lw, cand):
+                return cand if w.islower() else cand.capitalize()
+        return w
+    return _re.sub(r"[а-яА-ЯёЁ]{5,}", sub, text)
+
+
+def correct_text(text: str) -> str:
+    """Вычитка ответа перед отправкой: орфография/пунктуация без изменения смысла.
+
+    Редактор — phi3.5 на инстансе рук (быстрый и стабильный). Если редактор
+    недоступен или вернул ерунду — возвращаем исходный текст.
+    """
+    import re as _re
+    import urllib.request
+
+    # быстрые эвристики мусора: сжатые гласные, битые слова
+    if not text or len(text) < 5:
+        return text
+
+    # 1) детерминированная правка профильных слов (надёжнее LLM)
+    text = fix_domain_typos(text)
+
+    payload = json.dumps({
+        "model": "phi3.5:3.8b",
+        "messages": [
+            {"role": "system", "content":
+                "Ты корректор русской деловой переписки. Исправь только орфографические "
+                "ошибки в отдельных буквах и знаки препинания. ЗАПРЕЩЕНО переформулировать "
+                "фразы, менять слова на другие, добавлять или удалять слова. Особенно "
+                "проверяй слова по теме остекления: остекление, балкон, беседка, терраса, "
+                "веранда, стеклопакет, подоконник, откосы, замер, монтаж, профиль, гарантия. "
+                "НЕ отвечай на текст. Верни только исправленный текст без пояснений."},
+            {"role": "user", "content": text}
+        ],
+        "stream": False,
+        "options": {"temperature": 0.0, "num_predict": 400}
+    }).encode()
+    try:
+        req = urllib.request.Request(
+            "http://localhost:11437/api/chat", data=payload,
+            headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=40) as r:
+            fixed = json.loads(r.read())["message"]["content"].strip()
+    except Exception as e:
+        print(f"  ⚠ корректор недоступен: {type(e).__name__}")
+        return text
+
+    fixed = _re.sub(r"<think>[\s\S]*?</think>", "", fixed).strip()
+    # редактор должен вернуть сравнимый по длине текст на русском
+    if len(fixed) < max(5, int(len(text) * 0.5)) or len(fixed) > len(text) * 3:
+        return text
+    return fixed
+
+
 def send_reply(token: str, chat_id: str, text: str) -> bool:
-    """Отправить ответ в чат через Avito Messenger API."""
     hdrs = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     body = json.dumps({"message": {"text": text}, "type": "text"}).encode()
     url = f"https://api.avito.ru/messenger/v1/accounts/{ACCOUNT_ID}/chats/{chat_id}/messages"
@@ -289,6 +395,9 @@ def main() -> int:
         if len(reply) < 5:
             reply = ("Здравствуйте! Спасибо за обращение — уточню детали у расчётного "
                      "отдела и вернусь к вам с точным расчётом.")
+
+        # вычитка перед отправкой (орфография/пунктуация, смысл не трогаем)
+        reply = correct_text(reply)
 
         sent = send_reply(token, chat_id, reply)
         if not sent:
