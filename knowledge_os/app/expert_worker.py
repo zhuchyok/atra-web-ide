@@ -1203,9 +1203,11 @@ async def process_task(task_data: dict):
                     float(os.getenv("ORCHESTRATOR_HEAVY_TIMEOUT", "3600")) * _ice_factor
                 )  # [FIX] 60 min for heavy
             else:
-                # Quick delegated task: 15 min is enough; fail fast → retry via backoff
+                # [v149.58f] quality-first: 900с рвал задачи, стоящие в очереди
+                # за перегруженным мозгом (QC Ксении отменена на 900с, не дойдя
+                # до judge). 3600с: задача может думать час, скорость не важна.
                 TASK_TOTAL_TIMEOUT = (
-                    float(os.getenv("ORCHESTRATOR_TASK_TIMEOUT", "900")) * _ice_factor
+                    float(os.getenv("ORCHESTRATOR_TASK_TIMEOUT", "3600")) * _ice_factor
                 )
         else:
             TASK_TOTAL_TIMEOUT = (
