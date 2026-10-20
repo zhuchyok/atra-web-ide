@@ -356,6 +356,11 @@ services:
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
       ORCHESTRATOR_BACKLOG_THRESHOLD: ${ORCHESTRATOR_BACKLOG_THRESHOLD:-20}
+      # [v149.58e] quality-freeze: фоновые самопорождённые источники ВЫКЛЮЧЕНЫ.
+      # За 18-20.10 nightly_hypothesis_debate дал 69% failed (64/93),
+      # security_responder 52% (37/70) — заваливали judge-метрику и полосу мозга.
+      # Включение обратно: ORCHESTRATOR_BACKGROUND_SOURCES=security_responder,nightly_hypothesis_debate
+      ORCHESTRATOR_BACKGROUND_SOURCES: ""
       ORCHESTRATOR_CONTRACT_ROLLOUT_MODE: "auto"
       ORCHESTRATOR_CONTRACT_CANARY_PERCENT: "20"
       ORCHESTRATOR_ROLLOUT_KPI_WINDOW_MIN: "10"
@@ -627,6 +632,8 @@ services:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os?application_name=knowledge_os_worker
+      # [v149.58e] quality-freeze: см. orchestrator — фоновые источники off
+      ORCHESTRATOR_BACKGROUND_SOURCES: ""
       CONTAINER_NAME: "knowledge_os_worker"
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
