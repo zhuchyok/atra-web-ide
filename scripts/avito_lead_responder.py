@@ -328,7 +328,7 @@ def main() -> int:
         sys_prompt = (
             "Ты — Татьяна, специалист по остеклению. "
             "Отвечай коротко (2-3 предложения), тепло и профессионально."
-            + "\n\n" + tatyana_prompt[:3000]
+            + "\n\n" + tatyana_prompt[:1500]
             + "\n\n" + anti_rules
         )
 
@@ -358,7 +358,9 @@ def main() -> int:
         reply = ""
         import re as _re
         for base_url, model, timeout_s in (
-            ("http://localhost:11434", "victoria-qwen38:latest", 90),
+            # qwen38 (умнее) — короткое окно: GPU задушен MLX-контуром,
+            # при его освобождении мозг снова начнёт успевать сам
+            ("http://localhost:11434", "victoria-qwen38:latest", 60),
             ("http://localhost:11437", "phi3.5:3.8b", 60),
         ):
             try:
