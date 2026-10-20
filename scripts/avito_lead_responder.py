@@ -16,7 +16,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-STATE_PATH = REPO / "logs" / "avito_lead_state.json"
+# state — в ~/Library/Logs (проверенно доступно для launchd-процессов,
+# в repo/logs запись под TCC может молча не пройти)
+STATE_PATH = Path.home() / "Library" / "Logs" / "atra-avito-lead-state.json"
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "atra_victoria_curator")
 ACCOUNT_ID = "7561711"
 
