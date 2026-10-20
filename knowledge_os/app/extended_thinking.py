@@ -71,7 +71,10 @@ class ExtendedThinkingEngine:
         self,
         model_name: str = os.getenv("EXTENDED_THINKING_MODEL", "victoria-qwen38:latest"),  # [v149.8] мозг-контракт
         thinking_budget: int = 15000,  # [SINGULARITY 14.1] Увеличен бюджет до 15к
-        max_steps: int = 12,  # [SINGULARITY 14.1] Увеличено кол-во шагов
+        # [v150.20] 12→8: аудит-3.0 — каждый solve × до (шагов+1) вызовов мозга
+        # по 3-4 мин; 8 шагов = −33% нагрузки при сохранении качества (ранний
+        # break при достаточной уверенности уже есть). См. хэндофф GPU.
+        max_steps: int = int(os.getenv("EXTENDED_THINKING_MAX_STEPS", "8")),
         use_intelligent_routing: bool = True,  # Использовать интеллектуальный роутинг
         dual_channel: bool = True,  # [SINGULARITY 10.0+] Включить разделение каналов (OpenAI o3 pattern)
     ):
