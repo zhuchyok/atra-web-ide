@@ -55,8 +55,15 @@ def load_state() -> dict:
 def save_state(state: dict) -> None:
     try:
         STATE_PATH.write_text(json.dumps(state, ensure_ascii=False, indent=1))
+        print(f"state сохранён: {STATE_PATH}")
     except Exception as e:
-        print(f"state save ERR: {e}")
+        print(f"state save ERR ({STATE_PATH}): {e}")
+        try:
+            alt = Path("/tmp/atra-avito-lead-state.json")
+            alt.write_text(json.dumps(state, ensure_ascii=False, indent=1))
+            print(f"state сохранён в /tmp: {alt}")
+        except Exception as e2:
+            print(f"state save ERR /tmp: {e2}")
 
 
 def notify_telegram(message: str) -> None:
@@ -191,8 +198,11 @@ def correct_text(text: str) -> str:
 
     text = fix_domain_typos(text)
 
-    # мусор: смесь цифр и кириллицы внутри слова, сжатые гласные
-    if _re.search(r"\d[а-яё]{2,}|[а-яё]\d[а-яё]", text, _re.I) or "  " in text:
+    # мусор: смесь цифр и кириллицы внутри слова, сжатые гласные,
+    # смешанные алфавиты («Зdravostnyi» — транслит из сломанной генерации)
+    if (_re.search(r"\d[а-яё]{2,}|[а-яё]\d[а-яё]", text, _re.I)
+            or _re.search(r"[а-яёА-ЯЁ][a-z]{2,}|[a-z][а-яёА-ЯЁ]{2,}", text)
+            or "  " in text):
         print("  ⚠ мусор в ответе модели — заменяю на чистый шаблон")
         return ("Здравствуйте! Спасибо за обращение — уточню детали у расчётного "
                 "отдела и вернусь к вам с точным расчётом.")
@@ -213,6 +223,7 @@ def send_reply(token: str, chat_id: str, text: str) -> bool:
 
 
 def main() -> int:
+    print("VERSION: state-v2 2026-10-22", flush=True)
     # свежий токен
     data = urllib.parse.urlencode({
         "grant_type": "client_credentials",
@@ -271,9 +282,10 @@ def main() -> int:
         # дедуп: алерт только если сообщение клиента новое
         # (если id пустой — хэш текста, hash() солёный per-process)
         import hashlib as _hl
-        seen_key = customer_msg_id or "t:" + _hl.md5(customer_text.encode()).hexdigest()[:12]
+        seen_key = customer_msg_id or _hl.md5(
+            f"{len(msgs)}:{customer_text}".encode()).hexdigest()[:12]
         seen = state.get(chat_id, {}).get("last_seen_key")
-        if customer_text and seen == seen_key:
+        if seen == seen_key:
             print(f"  ⏭ уже алертили по этому сообщению — пропуск")
             continue
 
@@ -287,12 +299,12 @@ def main() -> int:
         except Exception as e:
             print(f"ntfy ERR: {e}")
         finally:
-            if customer_text or customer_msg_id:
-                state[chat_id] = {"last_seen_key": seen_key,
-                                  "item": item_title,
-                                  "ts": datetime.now(timezone.utc).isoformat()}
-                state_dirty = True
-                save_state(state)
+            # пишем всегда после алерта: чат мог быть без текста (фото/вложение)
+            state[chat_id] = {"last_seen_key": seen_key,
+                              "item": item_title,
+                              "ts": datetime.now(timezone.utc).isoformat()}
+            state_dirty = True
+            save_state(state)
 
         # ─── ПРОВЕРКИ ОСТАНОВКИ ───
         # 1) Менеджер уже ответил → бот молчит
