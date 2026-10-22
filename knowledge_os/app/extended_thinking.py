@@ -611,6 +611,13 @@ class ExtendedThinkingEngine:
                 )
 
         # Список URL для попыток (сначала MLX, затем Ollama)
+                # [v150.24] Аудит-4: intelligent_router выбирал phi для простых шагов,
+        # а запрос шёл на OLLAMA_BASE_URL (11434 = мозг!) — карусель с гардом.
+        # Модели рук всегда на 11437.
+        _m = (model_to_use or "").lower()
+        if any(t in _m for t in ("phi3.5", "nomic", "smollm", "tinyllama", "moondream")):
+            _hands = os.getenv("OLLAMA_HANDS_URL", "http://host.docker.internal:11437")
+            self.llm_url = _hands
         urls_to_try = [self.llm_url]
         if not urls_to_try[0].startswith(("http://", "https://")):
             urls_to_try[0] = f"http://{urls_to_try[0]}"
