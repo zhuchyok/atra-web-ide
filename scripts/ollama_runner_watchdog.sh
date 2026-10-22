@@ -4,6 +4,7 @@
 # Запускается каждые 60 секунд через LaunchAgent com.atra.ollama-watchdog.plist.
 # [v150.9] Следит за ОБЕИМИ инстансами: 11434 (мозг) и 11437 (руки).
 
+export PATH="/opt/homebrew/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
 WATCHDOG_TIMEOUT=45  # секунд — через сколько убивать Stopping/expired runner
 
 log() { echo "[$(date '+%H:%M:%S')] [OLLAMA-WATCHDOG] $*"; }
