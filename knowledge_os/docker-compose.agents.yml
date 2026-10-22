@@ -367,6 +367,8 @@ services:
       ORCHESTRATOR_BACKGROUND_SOURCES: ""
       # [v149.61] LTM off: orchestrator-генерации без чужих «памятей»
       LTM_RECALL_ENABLED: "false"
+      # [v149.62] debate-генератор off (69% брака, общий гейт в nightly_learner)
+      HYPOTHESIS_DEBATES_ENABLED: "false"
       ORCHESTRATOR_CONTRACT_ROLLOUT_MODE: "auto"
       ORCHESTRATOR_CONTRACT_CANARY_PERCENT: "20"
       ORCHESTRATOR_ROLLOUT_KPI_WINDOW_MIN: "10"

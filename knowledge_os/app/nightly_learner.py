@@ -230,6 +230,11 @@ async def create_debate_for_hypothesis(
     """
     Run Expert Council on a hypothesis and also enqueue a verification task.
     Restores pre-8.2 behavior (council nodes for Wisdom tab) + task hook.
+    if os.getenv("HYPOTHESIS_DEBATES_ENABLED", "true").strip().lower() not in ("1", "true", "yes"):
+        logger.info("⏸️ [DEBATE] create_debate_for_hypothesis: disabled (HYPOTHESIS_DEBATES_ENABLED=false)")
+        return None
+
+
     """
     expert = None
     if domain_id:
