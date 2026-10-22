@@ -681,7 +681,14 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
             "model": model,
             "messages": messages,
             "stream": False,
-            "options": {"temperature": 0.1, "enable_thinking": True},
+            # [v150.23] Слот-монополия: без капа мозг (np=1) генерил 2700+ токенов
+            # = 6 мин за задачу, очередь не дышала. 1200 ток ≈ 2.5 мин — компромисс
+            # «медленно, но верно»: каждый вызов уступает слот следующим.
+            "options": {
+                "temperature": 0.1,
+                "enable_thinking": True,
+                "num_predict": int(os.getenv("EXECUTOR_NUM_PREDICT_CAP", "1200")),
+            },
         }
 
         # Адаптивный keep_alive на основе веса модели (Singularity 10.0)

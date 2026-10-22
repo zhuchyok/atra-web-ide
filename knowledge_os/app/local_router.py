@@ -2905,7 +2905,7 @@ class LocalAIRouter:
             # морила голодом все полосы (запросы к idle-мозгу висели минутами).
             # 4096 ≈ 5 мин максимум; явный num_predict вызывающего перекрывает
             # только если он передаёт свои options (тогда adaptive не применяется).
-            options["num_predict"] = int(os.getenv("ROUTER_DEFAULT_NUM_PREDICT", "4096"))
+            options["num_predict"] = int(os.getenv("ROUTER_DEFAULT_NUM_PREDICT", "1200"))
 
             model_lower = model_name.lower()
             if "tinyllama" in model_lower or "moondream" in model_lower or "nomic" in model_lower:
