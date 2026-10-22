@@ -2230,8 +2230,17 @@ Use HANDOFF only if delegation genuinely improves the result.
     kb_context = ""
 
     # [SINGULARITY 28.0] Long-term Memory Recall
+    # [v149.61] LTM_RECALL_ENABLED=false — для worker-задач: LTM (PAST SESSIONS)
+    # был третьим слоем context bleed (чужие ответы задач подмешивались как
+    # «память»; диалоги Виктории LTM сохраняют при значении по умолчанию true).
     ltm_context = ""
     try:
+        if os.getenv("LTM_RECALL_ENABLED", "true").strip().lower() not in (
+            "1",
+            "true",
+            "yes",
+        ):
+            raise RuntimeError("LTM recall disabled by env")
         from long_term_memory import get_ltm
 
         ltm = get_ltm()
