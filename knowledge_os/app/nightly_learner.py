@@ -348,11 +348,21 @@ async def run_nightly_cycle() -> None:
         logger.error("❌ [NIGHTLY] Mentorship/SOP cycle failed: %s", exc)
 
     # 5) Expert Council / Red Team debates → Wisdom tab (restored after 8.2 cleanup)
-    try:
-        n = await run_nightly_council_phase()
-        logger.info("✅ [NIGHTLY] Expert Council phase completed (%s debate node(s)).", n)
-    except Exception as exc:
-        logger.error("❌ [NIGHTLY] Expert Council phase failed: %s", exc)
+    # [v149.60] quality-freeze: дебаты-гипотезы давали 69% failed (64/93 за
+    # 18-20.10) — abstract-гипотезы режутся adversarial-critic'ом при
+    # перегруженном мозге. Env HYPOTHESIS_DEBATES_ENABLED=false отключает фазу.
+    if os.getenv("HYPOTHESIS_DEBATES_ENABLED", "true").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    ):
+        try:
+            n = await run_nightly_council_phase()
+            logger.info("✅ [NIGHTLY] Expert Council phase completed (%s debate node(s)).", n)
+        except Exception as exc:
+            logger.error("❌ [NIGHTLY] Expert Council phase failed: %s", exc)
+    else:
+        logger.info("⏸️ [NIGHTLY] Expert Council phase disabled (HYPOTHESIS_DEBATES_ENABLED=false)")
 
     # 6) MetaArchitect guarded code evolution (shadow mutations; cooldown 12h default)
     try:

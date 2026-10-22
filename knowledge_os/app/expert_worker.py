@@ -2361,15 +2361,19 @@ async def process_task(task_data: dict):
                                     "judge_regen": gate_regen,
                                 }
                                 if is_valid_uuid:
-                                    await conn.execute(
-                                        """
-                                        UPDATE tasks
-                                        SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
-                                        WHERE id = $1
-                                        """,
-                                        db_task_id,
-                                        json.dumps(gate_meta, ensure_ascii=False),
-                                    )
+                                    # [v149.60] свежий коннект: внешний conn к этому
+                                    # моменту уже возвращён в пул (InterfaceError)
+                                    _meta_pool = await get_db_pool()
+                                    async with _meta_pool.acquire() as _meta_conn:
+                                        await _meta_conn.execute(
+                                            """
+                                            UPDATE tasks
+                                            SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
+                                            WHERE id = $1
+                                            """,
+                                            db_task_id,
+                                            json.dumps(gate_meta, ensure_ascii=False),
+                                        )
                                 metadata = {**(metadata or {}), **gate_meta}
                             except Exception as _gm_err:
                                 # [v149.58] loud: потеря judge-меты = слепой аудит качества

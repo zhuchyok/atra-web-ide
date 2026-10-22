@@ -1470,6 +1470,10 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                                (1 - (embedding <=> $1::vector)) as similarity
                         FROM knowledge_nodes
                         WHERE embedding IS NOT NULL AND confidence_score >= 0.3
+                          -- [v149.60] context bleed fix: task-результаты (6331 узел
+                          -- с metadata.task_id) не подмешиваются в RAG-контекст —
+                          -- они были источником «чужих ответов» в completed
+                          AND NOT (metadata ? 'task_id')
                         {project_cond}
                         ORDER BY embedding <=> $1::vector
                         LIMIT 18
