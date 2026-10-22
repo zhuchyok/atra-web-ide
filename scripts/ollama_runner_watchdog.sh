@@ -15,6 +15,8 @@ log() { echo "[$(date '+%H:%M:%S')] [OLLAMA-WATCHDOG] $*"; }
 for PORT in 11434 11437; do
     OLLAMA_URL="http://localhost:${PORT}"
 
+    MAIN_PID=$(lsof -nP -tiTCP:$PORT -sTCP:LISTEN 2>/dev/null | head -1)
+
     # Модели в состоянии Stopping (expires_at=0001-01-01) ИЛИ с истёкшим TTL
     stuck_models=$(curl -s --max-time 3 "${OLLAMA_URL}/api/ps" | python3 -c "
 import sys, json
@@ -42,6 +44,25 @@ except Exception:
     pass
 " 2>/dev/null)
 
+
+    if [ -z "$MAIN_PID" ]; then
+        log "Инстанс :$PORT не найден — пропускаем"
+        continue
+    fi
+
+    # [v150.22] Доп.сигнал: zombie-раннер — живёт >30 мин при CPU<1% и нулевой работе
+    # (phi@11437 22.10: часы в Stopping без признака expires_at=0001, 503 всем)
+    for pid in $(pgrep -P "$MAIN_PID" -f llama-server 2>/dev/null); do
+        _cpu=$(ps -p "$pid" -o %cpu= 2>/dev/null | tr -d ' ' | cut -d. -f1)
+        # etime форматы: MM:SS / HH:MM:SS / DD-HH:MM:SS — часы = два двоеточия или дефис
+        _et=$(ps -p "$pid" -o etime= 2>/dev/null | tr -d ' ')
+        _hrs=$(echo "$_et" | awk -F'[:-]' '{if (NF>=3) print 1; else print 0}')
+        if [ "${_cpu:-0}" -lt 1 ] && [ "$_hrs" = "1" ]; then
+            log "ZOMBIE :$PORT pid=$pid (CPU=${_cpu}%, uptime>1h) — kill"
+            kill -9 "$pid" 2>/dev/null && log "Zombie killed pid=$pid"
+        fi
+    done
+
     if [ -z "$stuck_models" ]; then
         log "Нет застрявших моделей (:$PORT)"
         continue
@@ -49,11 +70,6 @@ except Exception:
 
     log "Застрявшие модели (Stopping/expired, :$PORT): $stuck_models"
 
-    MAIN_PID=$(lsof -nP -tiTCP:$PORT -sTCP:LISTEN 2>/dev/null | head -1)
-    if [ -z "$MAIN_PID" ]; then
-        log "Инстанс :$PORT не найден — пропускаем"
-        continue
-    fi
 
     runner_pids=$(pgrep -P "$MAIN_PID" -f llama-server 2>/dev/null)
     if [ -z "$runner_pids" ]; then

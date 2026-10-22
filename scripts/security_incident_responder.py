@@ -94,6 +94,20 @@ def notify_telegram(text: str) -> None:
         )
     except Exception as e:
         log_alert(f"[{datetime.now(timezone.utc).isoformat()}] TELEGRAM ERROR: {e}")
+        # [v150.22] Телега заблокирована провайдером (api.telegram.org unreachable,
+        # 1040× Errno-65, traceroute обрыв на хопе 3) — критический алерт не должен
+        # теряться: дублируем в ntfy (доступен, проверено живьём).
+        try:
+            import urllib.request as _ur
+
+            _rq = _ur.Request(
+                "https://ntfy.sh/atra_victoria_curator",
+                data=text[:3500].encode(),
+                headers={"Title": "ATRA (tg-down)", "Priority": "high", "Tags": "warning"},
+            )
+            _ur.urlopen(_rq, timeout=10)
+        except Exception:
+            pass
 
 
 def fetch_new_incidents() -> list:
