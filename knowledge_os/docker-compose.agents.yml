@@ -31,6 +31,8 @@ x-dynamic-worker-env: &dynamic-worker-env
   # [v150.10] 5→25%: purge 5088 узлов мусора (12.10) прошёл чисто, RAG-выборка
   # чище — поднимаем планку; далее по росту: 50% → 100%
   INGESTION_GATE_ENFORCE_PERCENT: "25"
+  # [v149.61] LTM off: третий слой context bleed для worker-задач
+  LTM_RECALL_ENABLED: "false"
 
 # HOST_PROJECT_ROOT required when recreate runs via docker.sock from orchestrator
 x-dynamic-worker-volumes: &dynamic-worker-volumes
@@ -363,6 +365,8 @@ services:
       # security_responder 52% (37/70) — заваливали judge-метрику и полосу мозга.
       # Включение обратно: ORCHESTRATOR_BACKGROUND_SOURCES=security_responder,nightly_hypothesis_debate
       ORCHESTRATOR_BACKGROUND_SOURCES: ""
+      # [v149.61] LTM off: orchestrator-генерации без чужих «памятей»
+      LTM_RECALL_ENABLED: "false"
       ORCHESTRATOR_CONTRACT_ROLLOUT_MODE: "auto"
       ORCHESTRATOR_CONTRACT_CANARY_PERCENT: "20"
       ORCHESTRATOR_ROLLOUT_KPI_WINDOW_MIN: "10"
@@ -419,6 +423,7 @@ services:
       EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
       METRICS_PORT: "8001"
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os?application_name=expert-worker-heavy
+      LTM_RECALL_ENABLED: "false"
       CONTAINER_NAME: "expert-worker-heavy"
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
@@ -469,6 +474,7 @@ services:
       EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
       METRICS_PORT: "8001"
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os?application_name=expert-worker-anna
+      LTM_RECALL_ENABLED: "false"
       CONTAINER_NAME: "expert-worker-anna"
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
@@ -516,6 +522,7 @@ services:
       EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
       METRICS_PORT: "8001"
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os?application_name=expert-worker-victoria
+      LTM_RECALL_ENABLED: "false"
       CONTAINER_NAME: "expert-worker-victoria"
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434

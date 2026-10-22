@@ -110,6 +110,10 @@ class MemoryConsolidator:
                         {
                             "source": "memory_consolidator",
                             "merged_nodes": [str(n["id"]) for n in nodes],
+                            # [v149.61] consolidator-узлы — низкоприоритетные в RAG
+                            # (эхо-ответы и роли смешаны с легит-знаниями; реранк
+                            # даёт ×0.5). Разморозка: снять ключ после ревью качества.
+                            "low_priority": "true",
                         }
                     )
                     new_id = await conn.fetchval(
