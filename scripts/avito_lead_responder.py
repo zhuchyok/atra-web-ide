@@ -359,7 +359,9 @@ def main() -> int:
                 ],
                 "stream": False,
                 "think": False,
-                "options": {"temperature": 0.4, "num_predict": 300}
+                # num_ctx 8192: дефолтные 2048 при полном промпте уходили в
+                # shift KV-кэша → segfault llama-server (краши 20 и 22.10)
+                "options": {"temperature": 0.4, "num_predict": 250, "num_ctx": 8192}
             }).encode()
             req = urllib.request.Request(
                 f"{base_url}/api/chat", data=payload,
