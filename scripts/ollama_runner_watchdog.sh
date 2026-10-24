@@ -74,7 +74,18 @@ except Exception:
 
     runner_pids=$(pgrep -P "$MAIN_PID" -f llama-server 2>/dev/null)
     if [ -z "$runner_pids" ]; then
-        log "Runner процессы не найдены (:$PORT)"
+        # [v150.25] ОРФАН-ОЧЕРЕДЬ (ночь 24.10: 3117×503 за 12ч): runner умер
+        # внутри serve (баг 0.33), очередь ожиданий не очистилась → вечный 503,
+        # но сторожу нечего ловить — процессов-то нет. Детект: запрос generate
+        # получает 503 при живом serve → орочим очередь рестартом serve.
+        _probe=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}'             -X POST "http://localhost:${PORT}/api/generate"             -H 'Content-Type: application/json'             -d '{"model":"'"$([ "$PORT" = "11434" ] && echo victoria-qwen38:latest || echo phi3.5:3.8b-stable)"'","prompt":"ok","stream":false,"options":{"num_predict":1,"num_ctx":2048}}' 2>/dev/null)
+        if [ "$_probe" = "503" ]; then
+            log "ORPHAN-QUEUE :$PORT — 503 без раннеров, сброс serve (pid=$MAIN_PID)"
+            launchctl kickstart -k "gui/$(id -u)/$([ "$PORT" = "11434" ] && echo homebrew.mxcl.ollama || echo com.atra.ollama-hands)" 2>/dev/null                 || kill -HUP "$MAIN_PID" 2>/dev/null
+            log "ORPHAN-QUEUE :$PORT — serve сброшен, очередь очищена"
+        else
+            log "Нет раннеров (:$PORT), проба=$_probe — инстанс спокоен"
+        fi
         continue
     fi
 
