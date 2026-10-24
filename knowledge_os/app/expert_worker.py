@@ -104,10 +104,11 @@ JUDGE_GATE_URL = os.getenv(
 JUDGE_GATE_MODEL = os.getenv("JUDGE_GATE_MODEL", "phi3.5:3.8b")
 # [v149.58] Фолбэк-полоса судьи: если руки (11437) перегружены — судим на
 # coder-инстансе (11436), он отдельный планировщик и редко забит.
-JUDGE_GATE_FALLBACK_URL = os.getenv(
-    "JUDGE_GATE_FALLBACK_URL", "http://host.docker.internal:11436/api/chat"
-)
-JUDGE_GATE_FALLBACK_MODEL = os.getenv("JUDGE_GATE_FALLBACK_MODEL", "qwen2.5-coder:14b")
+# [v149.62] coder-фолбэк УДАЛЁН: qwen2.5-coder как судья текстов ненадёжен —
+# 24.10 при hands-503 выдавал score=1 почти всем (массовое ложное клеймение
+# low_quality). Судим только на руках; недоступны — fail-open (гейт молчит).
+JUDGE_GATE_FALLBACK_URL = os.getenv("JUDGE_GATE_FALLBACK_URL", "")
+JUDGE_GATE_FALLBACK_MODEL = os.getenv("JUDGE_GATE_FALLBACK_MODEL", "")
 # 240с: принцип владельца — скорость не важна. Судья ЖДЁТ очереди на руках,
 # а не отключает гейт при нагрузке; fail-open остаётся на реальные сбои.
 JUDGE_GATE_TIMEOUT = float(os.getenv("JUDGE_GATE_TIMEOUT", "240"))
@@ -401,7 +402,11 @@ async def judge_gate_score(question: str, answer: str):
         last_err = None
         for base_url, model in (
             (JUDGE_GATE_URL, JUDGE_GATE_MODEL),
-            (JUDGE_GATE_FALLBACK_URL, JUDGE_GATE_FALLBACK_MODEL),
+            *(
+                ((JUDGE_GATE_FALLBACK_URL, JUDGE_GATE_FALLBACK_MODEL),)
+                if JUDGE_GATE_FALLBACK_URL
+                else ()
+            ),
         ):
             try:
                 async with httpx.AsyncClient(timeout=JUDGE_GATE_TIMEOUT) as client:
@@ -2173,9 +2178,16 @@ async def process_task(task_data: dict):
                 # НЕ ответ — completed со стабом ложь в реестре задач (аудит-слой 7:
                 # error-text как результат). Ре-очередь с бэкоффом; после 3 попыток —
                 # честный failed. API-контракт ai_core (строка для пользователя) не трогаем.
-                if isinstance(report_text, str) and report_text.startswith(
-                    "⚠️ Не удалось получить ответ от локальных моделей"
-                ):
+                _stub_like = isinstance(report_text, str) and (
+                    report_text.startswith("⚠️ Не удалось получить ответ от локальных моделей")
+                    or len(report_text.strip()) < 40
+                )
+                if _stub_like:
+                    if not report_text.strip():
+                        report_text = (
+                            "⚠️ Не удалось получить ответ от локальных моделей (пустой ответ). "
+                            "Повторите запрос или проверьте MLX health: 11435."
+                        )
                     try:
                         stub_retries = int((metadata or {}).get("llm_stub_retries", 0))
                     except (TypeError, ValueError):
