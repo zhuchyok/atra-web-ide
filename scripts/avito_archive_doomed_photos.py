@@ -46,7 +46,7 @@ def main() -> int:
         page.wait_for_timeout(8000)
         cards = {}
         stale = 0
-        for _ in range(60):
+        for rnd in range(80):
             snap = page.evaluate("""() => Array.from(document.querySelectorAll('[data-marker^="item-snippet/"]'))
                 .map(e => ({id: e.dataset.marker.replace('item-snippet/',''),
                             href: (e.querySelector('a[href*="/"]')||{}).getAttribute ? (Array.from(e.querySelectorAll('a')).find(a => /\\d{7,}/.test(a.href))||{}).href : null}))""")
@@ -54,7 +54,17 @@ def main() -> int:
                 if it['href'] and it['id'] not in m['done_items']:
                     cards[it['id']] = it['href']
             if len(cards) == stale:
-                break
+                # пагинация: «Показать ещё» / следующая страница
+                clicked = page.evaluate("""() => {
+                    const el = Array.from(document.querySelectorAll('button'))
+                        .find(b => (b.innerText||'').trim() === 'Показать ещё'
+                             || (b.getAttribute('aria-label')||'') === 'Следующая страница');
+                    if (el) { el.click(); return true; }
+                    return false;
+                }""")
+                if not clicked:
+                    break
+                page.wait_for_timeout(3500)
             stale = len(cards)
             page.mouse.wheel(0, 3000)
             page.wait_for_timeout(900)
