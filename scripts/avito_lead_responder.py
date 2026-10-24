@@ -183,6 +183,46 @@ def fix_domain_typos(text: str) -> str:
     return _re.sub(r"[a-zA-Z]{4,}", sub_lat, text)
 
 
+def template_reply(customer_text: str, item_title: str) -> str | None:
+    """Шаблонный ответ для типовых вопросов — эталонный русский без LLM.
+
+    Закрывает ~80% потока: сроки, стоимость, замер, адреса, профили.
+    Возвращает None, если вопрос нестандартный → идёт в LLM.
+    """
+    import re as _re
+    t = customer_text.lower()
+
+    def has(*words):
+        return any(w in t for w in words)
+
+    if has("срок", "сколько ждать", "когда изготов", "когда сдела", "сколько делается",
+           "как долго", "сколько времени"):
+        return ("Здравствуйте! Стандартные окна делаем за 8–10 рабочих дней, "
+                "нестандарт — 14–19. Напишите размеры проёма — передам в расчётный "
+                "отдел и уточню срок под ваш заказ.")
+    if has("цен", "стоимост", "сколько стоит", "прайс", "расцен"):
+        return ("Здравствуйте! Стоимость считаем индивидуально — она зависит от "
+                "размеров и комплектации. Напишите размеры проёма (ширина × высота) "
+                "и нужна ли установка — передам в расчётный отдел, расчёт за 10 минут.")
+    if has("замер", "померить", "выезд"):
+        return ("Здравствуйте! Замер бесплатный: специалист приезжает в будни "
+                "с 9:00 до 19:00, в субботу с 10:00 до 14:00. Оставьте телефон — "
+                "согласуем удобное время.")
+    if has("адрес", "где вы", "куда подъехать", "офис", "склад"):
+        return ("Здравствуйте! Мы в Чебоксарах, ул. Гражданская, 53 (3 этаж), "
+                "и в Новочебоксарске, ул. Винокурова, 109 (ТД «Слобода»). "
+                "Подскажите ваш район — подскажу, что удобнее.")
+    if has("профи", "veka", "rehau", "века", "рехау", "калева", "kaleva"):
+        return ("Здравствуйте! Работаем с профилями Veka, Rehau, Kaleva и Brusbox — "
+                "официальные партнёры, профили сертифицированные. Расскажу подробнее "
+                "о вариантах, если напишете, для чего ищете окна.")
+    if has("рассрочк", "кредит", "оплата", "налич", "карт"):
+        return ("Здравствуйте! Есть рассрочка 0% на 6 месяцев. Оплата — наличными, "
+                "картой или по счёту для ИП/ООО. Детали рассчитаем под ваш заказ — "
+                "напишите размеры и что планируете остеклять.")
+    return None
+
+
 def correct_text(text: str) -> str:
     """Вычитка ответа перед отправкой — только детерминированные проверки.
 
@@ -328,7 +368,12 @@ def main() -> int:
             print(f"  🤝 Клиент просит человека — эскалация")
             continue
 
-        # ─── ГЕНЕРАЦИЯ ОТВЕТА: цепочка qwen38 → phi3.5 → фолбэк ───
+        # ─── ОТВЕТ: сначала шаблон по типу вопроса (эталонный русский),
+        # LLM-цепочка только для нестандартных вопросов ───
+        reply = template_reply(customer_text, item_title)
+        via_template = reply is not None
+        if via_template:
+            print("  📋 шаблонный ответ")
         # (мозг 11434 периодически заклинивает под GPU-нагрузкой —
         #  тогда отвечает лёгкая модель на инстансе рук 11437)
         # короткий редакторский промпт: только критичные правила и факты
@@ -375,30 +420,31 @@ def main() -> int:
                     text = (m.get("reasoning") or m.get("thinking") or "").strip()
                 return text
 
-        reply = ""
         import re as _re
-        for base_url, model, timeout_s in (
-            # qwen38 (умнее) — короткое окно: GPU задушен MLX-контуром,
-            # при его освобождении мозг снова начнёт успевать сам
-            ("http://localhost:11434", "victoria-qwen38:latest", 60),
-            ("http://localhost:11437", "phi3.5:3.8b", 60),
-        ):
-            # две попытки: HTTPError бывает при рестарте llama-server
-            for attempt in range(2):
-                try:
-                    reply = _re.sub(r"<think>[\s\S]*?</think>", "", llm_chat(base_url, model, timeout_s)).strip()
-                    if len(reply) >= 5:
+        if not via_template:
+            reply = ""
+            for base_url, model, timeout_s in (
+                # qwen38 (умнее) — короткое окно: GPU задушен MLX-контуром,
+                # при его освобождении мозг снова начнёт успевать сам
+                ("http://localhost:11434", "victoria-qwen38:latest", 60),
+                ("http://localhost:11437", "phi3.5:3.8b", 60),
+            ):
+                # две попытки: HTTPError бывает при рестарте llama-server
+                for attempt in range(2):
+                    try:
+                        reply = _re.sub(r"<think>[\s\S]*?</think>", "", llm_chat(base_url, model, timeout_s)).strip()
+                        if len(reply) >= 5:
+                            break
+                        print(f"  ⚠ {model}: пустой ответ, пробую следующую модель")
                         break
-                    print(f"  ⚠ {model}: пустой ответ, пробую следующую модель")
-                    break
-                except Exception as e:
-                    if attempt == 0 and "HTTPError" in type(e).__name__:
-                        print(f"  ⚠ {model}: HTTPError — пауза 20с и повтор (рестарт llama-server?)")
-                        time.sleep(20)
-                        continue
-                    print(f"  ⚠ {model}: {type(e).__name__}, пробую следующую модель")
-                    reply = ""
-                    break
+                    except Exception as e:
+                        if attempt == 0 and "HTTPError" in type(e).__name__:
+                            print(f"  ⚠ {model}: HTTPError — пауза 20с и повтор (рестарт llama-server?)")
+                            time.sleep(20)
+                            continue
+                        print(f"  ⚠ {model}: {type(e).__name__}, пробую следующую модель")
+                        reply = ""
+                        break
 
         if len(reply) >= 5:
             # АНТИ-ЦЕНА: убрать любые цифры похожие на стоимость
