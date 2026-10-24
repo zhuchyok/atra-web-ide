@@ -381,14 +381,22 @@ def main() -> int:
             ("http://localhost:11434", "victoria-qwen38:latest", 60),
             ("http://localhost:11437", "phi3.5:3.8b", 60),
         ):
-            try:
-                reply = _re.sub(r"<think>[\s\S]*?</think>", "", llm_chat(base_url, model, timeout_s)).strip()
-                if len(reply) >= 5:
+            # две попытки: HTTPError бывает при рестарте llama-server
+            for attempt in range(2):
+                try:
+                    reply = _re.sub(r"<think>[\s\S]*?</think>", "", llm_chat(base_url, model, timeout_s)).strip()
+                    if len(reply) >= 5:
+                        break
+                    print(f"  ⚠ {model}: пустой ответ, пробую следующую модель")
                     break
-                print(f"  ⚠ {model}: пустой ответ, пробую следующую модель")
-            except Exception as e:
-                print(f"  ⚠ {model}: {type(e).__name__}, пробую следующую модель")
-                reply = ""
+                except Exception as e:
+                    if attempt == 0 and "HTTPError" in type(e).__name__:
+                        print(f"  ⚠ {model}: HTTPError — пауза 20с и повтор (рестарт llama-server?)")
+                        time.sleep(20)
+                        continue
+                    print(f"  ⚠ {model}: {type(e).__name__}, пробую следующую модель")
+                    reply = ""
+                    break
 
         if len(reply) >= 5:
             # АНТИ-ЦЕНА: убрать любые цифры похожие на стоимость
