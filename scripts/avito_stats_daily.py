@@ -17,32 +17,40 @@ OUT = REPO / "logs" / "avito_stats_daily.json"
 
 
 def main() -> int:
+    snap = {}
     with sync_playwright() as p:
         b = p.chromium.connect_over_cdp("http://127.0.0.1:9222")
         ctx = b.contexts[0]
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
-        page.goto("https://www.avito.ru/profile/pro/items", wait_until="domcontentloaded")
-        page.wait_for_timeout(8000)
-        body = page.inner_text("body")
 
-        def grab(pattern):
-            m = re.search(pattern, body)
-            return int(m.group(1).replace("\xa0", "").replace(" ", "")) if m else None
+        # до 4 попыток: виджет «просмотров сегодня» ленивый, при холодном
+        # старте SPA отдаёт страницу частями (дефект снапшотов 23-25.10)
+        for attempt in range(4):
+            page.goto("https://www.avito.ru/profile/pro/items", wait_until="domcontentloaded")
+            page.wait_for_timeout(8000 + attempt * 4000)
+            body = page.inner_text("body")
 
-        snap = {
-            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "views_today": grab(r"\+?\s*(\d+)\s*\n+\s*просмотр[аов] сегодня"),
-            "views_30d": grab(r"([\d\s\xa0]+)\n+\s*за\s*30\s*дней"),
-            "active": grab(r"Активные\s*\n?\s*(\d+)"),
-            "errors": grab(r"С ошибками\s*\n?\s*(\d+)"),
-            "inactive": grab(r"Неопубликованные\s*\n?\s*(\d+)"),
-            "fast_sale": grab(r"Можно продать быстрее\s*\n?\s*(\d+)"),
-            "growing": grab(r"Растут просмотры(?:\s*в\s*категории)?\s*\n+\s*(\d+)"),
-            "weak_attention": grab(r"Плохо привлекают внимание\s*\n?\s*(\d+)"),
-            "low_search": grab(r"Низко в поиске\s*\n?\s*(\d+)"),
-            "few_contacts": grab(r"Мало контактов\s*\n?\s*(\d+)"),
-            "deal_terms": grab(r"Условия сделки\s*\n\s*Есть в\s*(\d+)"),
-        }
+            def grab(pattern):
+                m = re.search(pattern, body)
+                return int(m.group(1).replace("\xa0", "").replace(" ", "")) if m else None
+
+            snap.update({
+                "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "views_today": grab(r"\+?\s*(\d+)\s*\n+\s*просмотр[аов] сегодня"),
+                "views_30d": grab(r"([\d\s\xa0]+)\n+\s*за\s*30\s*дней"),
+                "active": grab(r"Активные\s*\n?\s*(\d+)"),
+                "errors": grab(r"С ошибками\s*\n?\s*(\d+)"),
+                "inactive": grab(r"Неопубликованные\s*\n?\s*(\d+)"),
+                "fast_sale": grab(r"Можно продать быстрее\s*\n?\s*(\d+)"),
+                "growing": grab(r"Растут просмотры(?:\s*в\s*категории)?\s*\n+\s*(\d+)"),
+                "weak_attention": grab(r"Плохо привлекают внимание\s*\n?\s*(\d+)"),
+                "low_search": grab(r"Низко в поиске\s*\n?\s*(\d+)"),
+                "few_contacts": grab(r"Мало контактов\s*\n?\s*(\d+)"),
+                "deal_terms": grab(r"Условия сделки\s*\n\s*Есть в\s*(\d+)"),
+            })
+            if snap.get("views_today") is not None and snap.get("views_30d") is not None:
+                break
+            print(f"попытка {attempt + 1}: ключевые метрики не отрисовались — перезагрузка")
 
     data = []
     if OUT.exists():
