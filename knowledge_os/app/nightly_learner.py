@@ -283,6 +283,18 @@ async def create_debate_for_hypothesis(
         )
         return council_node_id
 
+    # [v150.26b] 4 Debate/час × 43% провала = топливо для Rejection-фейлов.
+    # Лимит: не более 1 активной Debate-задачи в очереди.
+    try:
+        _active = await conn.fetchval(
+            "SELECT count(*) FROM tasks WHERE title LIKE 'Debate hypothesis%' AND status IN ('pending','in_progress')"
+        )
+        if _active and _active >= 1:
+            logger.info("[v150.26b] Debate отложена: %d уже в очереди", _active)
+            return council_node_id
+    except Exception:
+        pass
+
     title = f"Debate hypothesis {str(knowledge_node_id)[:8]}"
     metadata = {
         "source": "nightly_hypothesis_debate",
