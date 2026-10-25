@@ -31,7 +31,7 @@ def main() -> int:
 
         snap = {
             "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "views_today": grab(r"\+\s*(\d+)\s*\n+\s*просмотр[аов] сегодня"),
+            "views_today": grab(r"\+?\s*(\d+)\s*\n+\s*просмотр[аов] сегодня"),
             "views_30d": grab(r"([\d\s\xa0]+)\n+\s*за\s*30\s*дней"),
             "active": grab(r"Активные\s*\n?\s*(\d+)"),
             "errors": grab(r"С ошибками\s*\n?\s*(\d+)"),
