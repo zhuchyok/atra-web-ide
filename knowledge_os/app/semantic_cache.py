@@ -45,6 +45,8 @@ logger = logging.getLogger(__name__)
 # Throttle repetitive warning logs to avoid warning floods under temporary Ollama backpressure.
 _WARN_THROTTLE_SEC = float(os.getenv("SEMANTIC_CACHE_WARN_THROTTLE_SEC", "60"))
 _last_warn_at: dict[str, float] = {}
+_EMBED_COOLDOWN_SEC = float(os.getenv("SEMANTIC_CACHE_EMBED_COOLDOWN_SEC", "5"))
+_embed_cooldown_until_ts = 0.0
 
 
 def _warn_throttled(key: str, message: str) -> None:
@@ -163,7 +165,9 @@ STRATEGIC_CACHE_THRESHOLD = 0.95  # Более строгий threshold для �
 # [SINGULARITY 24.3] Request Collapsing & Backpressure
 _inflight_embeddings: dict[str, asyncio.Future] = {}
 _embedding_lock = asyncio.Lock()
-_embedding_semaphore = asyncio.Semaphore(5)  # Базовый лимит параллелизма
+_embedding_semaphore = asyncio.Semaphore(
+    max(1, min(int(os.getenv("SEMANTIC_CACHE_EMBED_CONCURRENCY", "2")), 6))
+)  # Conservative default: protect shared GPU lane under burst
 
 # [SINGULARITY 24.3] Circuit Breaker для Ollama Embeddings
 if get_circuit_breaker:
@@ -339,15 +343,20 @@ async def encode_texts_ollama(texts: list) -> list:
     """
     if not texts:
         return []
-    concurrency = max(1, min(int(os.getenv("EMBED_OLLAMA_CONCURRENCY", "8")), 16))
+    concurrency = max(1, min(int(os.getenv("EMBED_OLLAMA_CONCURRENCY", "3")), 8))
     timeout = float(os.getenv("OLLAMA_EMBED_TIMEOUT_SEC", "8"))
     sem = asyncio.Semaphore(concurrency)
     url = OLLAMA_EMBED_URL
     model = OLLAMA_MODEL
 
     async def _one(client: httpx.AsyncClient, text: str):
+        global _embed_cooldown_until_ts
         prompt = (text or "")[:2000]
         if not prompt.strip():
+            return None
+        now_ts = datetime.now(timezone.utc).timestamp()
+        if now_ts < _embed_cooldown_until_ts:
+            _safe_record_throttle()
             return None
         async with sem:
             try:
@@ -359,6 +368,13 @@ async def encode_texts_ollama(texts: list) -> list:
                     # [v150.15] Guard: 500/пусто/деградировавший вектор → None
                     if _valid_embedding(emb):
                         return emb
+                elif resp.status_code in (429, 500, 503):
+                    # Back off briefly to prevent embedding storms from saturating hands lane.
+                    _embed_cooldown_until_ts = max(
+                        _embed_cooldown_until_ts,
+                        datetime.now(timezone.utc).timestamp() + _EMBED_COOLDOWN_SEC,
+                    )
+                    _safe_record_throttle()
             except Exception:
                 return None
         return None
@@ -393,27 +409,48 @@ async def _execute_embedding_request(text: str) -> Optional[list]:
     Embedding request with retries.
     Order: Ollama (host GPU) → VectorCore → local ST singleton.
     """
+    global _embed_cooldown_until_ts
+    now_ts = datetime.now(timezone.utc).timestamp()
+    ollama_cooldown_active = now_ts < _embed_cooldown_until_ts
+    if ollama_cooldown_active:
+        _safe_record_throttle()
+        _warn_throttled(
+            "embed_cooldown_active",
+            "⏱️ [EMBED] Ollama cooldown active; skipping direct /api/embeddings burst",
+        )
+
     # [PRIMARY] Ollama embeddings on Mac host (Metal)
-    try:
-        async with httpx.AsyncClient(
-            timeout=float(os.getenv("OLLAMA_EMBED_TIMEOUT_SEC", "8"))
-        ) as client:
-            resp = await client.post(
-                OLLAMA_EMBED_URL,
-                json={"model": OLLAMA_MODEL, "prompt": text[:2000]},
-            )
-            if resp.status_code == 200:
-                _emb = resp.json().get("embedding")
-                # [v150.15] Гuard: 200 может вернуть деградировавший вектор
-                if _valid_embedding(_emb):
-                    logger.debug("✅ [EMBED] Ollama OK")
-                    return _emb
-                logger.warning(
-                    "[CACHE-STORE-GUARD] Ollama encode вернул невалидный эмбеддинг "
-                    "(len=%s) — пропускаем источник", len(_emb) if _emb else 0
+    if not ollama_cooldown_active:
+        try:
+            async with httpx.AsyncClient(
+                timeout=float(os.getenv("OLLAMA_EMBED_TIMEOUT_SEC", "8"))
+            ) as client:
+                resp = await client.post(
+                    OLLAMA_EMBED_URL,
+                    json={"model": OLLAMA_MODEL, "prompt": text[:2000]},
                 )
-    except Exception:
-        pass
+                if resp.status_code == 200:
+                    _emb = resp.json().get("embedding")
+                    # [v150.15] Guard: 200 может вернуть деградировавший вектор
+                    if _valid_embedding(_emb):
+                        logger.debug("✅ [EMBED] Ollama OK")
+                        return _emb
+                    logger.warning(
+                        "[CACHE-STORE-GUARD] Ollama encode вернул невалидный эмбеддинг "
+                        "(len=%s) — пропускаем источник", len(_emb) if _emb else 0
+                    )
+                elif resp.status_code in (429, 500, 503):
+                    _embed_cooldown_until_ts = max(
+                        _embed_cooldown_until_ts,
+                        datetime.now(timezone.utc).timestamp() + _EMBED_COOLDOWN_SEC,
+                    )
+                    _safe_record_throttle()
+                    _warn_throttled(
+                        "embed_ollama_backpressure",
+                        f"⚠️ [EMBED] Ollama backpressure HTTP {resp.status_code}; cooldown enabled",
+                    )
+        except Exception:
+            pass
 
     # [SECONDARY] VectorCore microservice
     try:

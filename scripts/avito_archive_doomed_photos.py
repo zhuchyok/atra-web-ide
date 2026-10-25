@@ -91,12 +91,22 @@ def main() -> int:
                 saved = 0
                 for u in srcs:
                     try:
-                        data = page.evaluate("""async (u) => {
-                            const r = await fetch(u);
-                            const b = await r.blob();
+                        # полный размер: size-сегмент вставляется первым,
+                        # оригинал — только если большой вариант недоступен
+                        big = u.replace("/image/1/", "/image/1/1280x960/")
+                        data = page.evaluate("""async (big, orig) => {
+                            let b = null;
+                            try {
+                                const r1 = await fetch(big);
+                                if (r1.ok) b = await r1.blob();
+                            } catch (e) {}
+                            if (!b || !b.size) {
+                                const r2 = await fetch(orig);
+                                b = await r2.blob();
+                            }
                             return await new Promise(res => { const f = new FileReader();
                                 f.onload = () => res(f.result); f.readAsDataURL(b); });
-                        }""", u)
+                        }""", big, u)
                         buf = io.BytesIO(base64_decode(data))
                         h = str(imagehash.phash(Image.open(buf).convert("RGB")))
                         if h in m['hashes']:

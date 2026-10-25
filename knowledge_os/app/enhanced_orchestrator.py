@@ -1607,6 +1607,17 @@ async def dispatch_pending_assignments(conn, limit: int = 50) -> int:
         return 0
     max_redispatch_attempts = int(os.getenv("ORCHESTRATOR_MAX_REDISPATCH_ATTEMPTS", "6"))
     dispatch_retry_interval_min = int(os.getenv("ORCHESTRATOR_DISPATCH_RETRY_INTERVAL_MIN", "2"))
+    background_sources = {
+        s.strip().lower()
+        for s in os.getenv(
+            "ORCHESTRATOR_BACKGROUND_SOURCES", "security_responder,nightly_hypothesis_debate"
+        ).split(",")
+        if s.strip()
+    }
+    background_max_per_cycle = max(
+        0, int(os.getenv("ORCHESTRATOR_BACKGROUND_MAX_DISPATCH_PER_CYCLE", "1"))
+    )
+    background_retry_min = max(1, int(os.getenv("ORCHESTRATOR_BACKGROUND_RETRY_MIN", "5")))
 
     rows = await conn.fetch(
         """
@@ -1639,6 +1650,7 @@ async def dispatch_pending_assignments(conn, limit: int = 50) -> int:
     try:
         rd = await redis.from_url(REDIS_URL, decode_responses=True)
         rollout_mode = await _resolve_contract_mode(rd)
+        background_dispatched = 0
         for row in rows:
             task_meta = row["metadata"] or {}
             if isinstance(task_meta, str):
@@ -1646,6 +1658,36 @@ async def dispatch_pending_assignments(conn, limit: int = 50) -> int:
                     task_meta = json.loads(task_meta) if task_meta else {}
                 except Exception:
                     task_meta = {}
+            task_source = str(task_meta.get("source") or "").strip().lower()
+            if (
+                task_source in background_sources
+                and background_dispatched >= background_max_per_cycle
+            ):
+                defer_until = datetime.now(timezone.utc) + timedelta(minutes=background_retry_min)
+                defer_meta = {
+                    "dispatch_deferred_at": datetime.now(timezone.utc).isoformat(),
+                    "dispatch_deferred_reason": "background_budget_cap",
+                    "dispatch_deferred_source": task_source,
+                }
+                await conn.execute(
+                    """
+                    UPDATE tasks
+                    SET retry_after = $2::timestamptz,
+                        updated_at = NOW(),
+                        metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+                    WHERE id = $1
+                    """,
+                    row["id"],
+                    defer_until,
+                    json.dumps(defer_meta, ensure_ascii=False),
+                )
+                logger.info(
+                    "[BACKGROUND-BUDGET] deferred task=%s source=%s until=%s",
+                    row["id"],
+                    task_source,
+                    defer_until.isoformat(),
+                )
+                continue
             assigned_expert_name = row.get("expert_name")
             raw_target_expert = task_meta.get("target_expert")
             if isinstance(raw_target_expert, str):
@@ -1734,6 +1776,8 @@ async def dispatch_pending_assignments(conn, limit: int = 50) -> int:
                 json.dumps(metadata_patch, ensure_ascii=False),
             )
             dispatched += 1
+            if task_source in background_sources:
+                background_dispatched += 1
     except Exception as dispatch_err:
         logger.warning(
             "[ORCHESTRATOR-DISPATCH] failed to dispatch pending assignments: %s", dispatch_err

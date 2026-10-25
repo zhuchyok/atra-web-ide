@@ -118,12 +118,22 @@ async def _chat_completions(
         if turn.get("assistant"):
             messages.append({"role": "assistant", "content": str(turn["assistant"])})
     messages.append({"role": "user", "content": message})
-    resp = await client.post(
-        f"{VICTORIA_URL}/v1/chat/completions",
-        json={"model": "victoria", "messages": messages, "max_tokens": 1200},
-    )
-    resp.raise_for_status()
-    return format_run_result(resp.json())
+    try:
+        resp = await client.post(
+            f"{VICTORIA_URL}/v1/chat/completions",
+            json={"model": "victoria", "messages": messages, "max_tokens": 1200},
+        )
+        resp.raise_for_status()
+        return format_run_result(resp.json())
+    except httpx.HTTPStatusError as e:
+        # Some deployments route chat/completions to a model alias that may be absent
+        # (for example wisdom tag not loaded in Ollama). Fallback to /run keeps chat usable.
+        if e.response is not None and e.response.status_code == 404:
+            logger.warning(
+                "[victoria_chat] chat/completions returned 404, fallback to /run for message"
+            )
+            return await _run_async_and_poll(client, message, max_steps=120, wait_sec=90)
+        raise
 
 
 async def _run_async_and_poll(

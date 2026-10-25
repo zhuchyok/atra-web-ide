@@ -30,6 +30,8 @@ BATCH_LIMIT = int(os.getenv("EMBED_BATCH_LIMIT", "64"))
 
 _client = httpx.AsyncClient(timeout=60.0)
 _semaphore = asyncio.Semaphore(BATCH_CONCURRENCY)
+_UPSTREAM_COOLDOWN_SEC = float(os.getenv("EMBED_UPSTREAM_COOLDOWN_SEC", "5"))
+_upstream_cooldown_until_ts = 0.0
 
 app = FastAPI(title="ATRA VectorCore — Embedding Service (Ollama backend)")
 
@@ -51,11 +53,19 @@ class BatchResponse(BaseModel):
 
 
 async def _embed(text: str) -> List[float]:
+    global _upstream_cooldown_until_ts
+    if asyncio.get_event_loop().time() < _upstream_cooldown_until_ts:
+        raise HTTPException(status_code=503, detail="upstream embeddings cooldown active")
     async with _semaphore:
         response = await _client.post(
             f"{OLLAMA_URL}/api/embeddings",
             json={"model": EMBED_MODEL, "prompt": text},
         )
+    if response.status_code in (429, 500, 503):
+        _upstream_cooldown_until_ts = max(
+            _upstream_cooldown_until_ts, asyncio.get_event_loop().time() + _UPSTREAM_COOLDOWN_SEC
+        )
+        raise HTTPException(status_code=503, detail=f"ollama overloaded ({response.status_code})")
     response.raise_for_status()
     embedding = response.json().get("embedding")
     if not embedding or len(embedding) != EMBEDDING_DIM:
@@ -86,6 +96,8 @@ async def health():
 async def encode(request: TextRequest):
     try:
         return {"embedding": await _embed(request.text)}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -99,6 +111,8 @@ async def encode_batch(request: BatchRequest):
         )
     try:
         return {"embeddings": list(await asyncio.gather(*(_embed(t) for t in request.texts)))}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -1,0 +1,773 @@
+{
+ "timestamp": "20261015_223003",
+ "wins": {
+  "A": 3,
+  "B": 3,
+  "tie": 1,
+  "error": 43
+ },
+ "results": [
+  {
+   "id": "communication_01",
+   "category": "communication",
+   "goal": "привет",
+   "source": "standard",
+   "solo": "Готово",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'привет'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 2.0,
+    "b": 1.0,
+    "winner": "A",
+    "reason": "Ответ A хотя бы краток, но не является нормальным ответом на приветствие, а B — техническая ошибка."
+   }
+  },
+  {
+   "id": "communication_02",
+   "category": "communication",
+   "goal": "какой статус проекта?",
+   "source": "standard",
+   "solo": "Статус проекта: активная разработка, но есть проблемы, требующие внимания. health=ok pending=1 in_progress=0 failed_1h=0 completed_24h=56 error_rate_1h=0.0 knowledge_nodes=98530",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'какой статус проекта?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 3.0,
+    "b": 5.0,
+    "winner": "B",
+    "reason": "B избегает выдумок, но не отвечает, тогда как A необоснованно утверждает метрики."
+   }
+  },
+  {
+   "id": "communication_03",
+   "category": "communication",
+   "goal": "что ты умеешь?",
+   "source": "standard",
+   "solo": "Я Виктория, Team Lead Atra Core. Умею:\n• Отвечать на вопросы и вести чат (в т.ч. с экспертами и RAG по базе знаний)\n• Составлять планы и выполнять задачи: код, файлы, команды в терминале\n• Показывать список файлов, читать и анализировать проект\n• Делегировать простые запросы в Veronica, сложные — оркестрировать с командой\nРежимы: быстрый ответ на простые вопросы или полный цикл (ReAct) для сложных задач.\nРаботаю по логике корпорации: библия (MASTER_REFERENCE), уточняю при неясности, проверяю результат, обновляю документы после изменений.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'что ты умеешь?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 4.0,
+    "b": 1.0,
+    "winner": "A",
+    "reason": "A даёт конкретный ответ, но с возможными неподтверждёнными деталями, тогда как B не отвечает."
+   }
+  },
+  {
+   "id": "communication_04",
+   "category": "communication",
+   "goal": "Скажи привет одной строкой.",
+   "source": "history",
+   "solo": "Готово",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Скажи привет одной строкой.'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 3.0,
+    "b": 0.0,
+    "winner": "A",
+    "reason": "Ответ A хотя бы содержит одну строку, но не выполняет просьбу, тогда как B — техническая ошибка."
+   }
+  },
+  {
+   "id": "communication_05",
+   "category": "communication",
+   "goal": "Скажи одну фразу: работаешь на 24k модели?",
+   "source": "history",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Скажи одну фразу: работаешь на 24k модели?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 1.0,
+    "winner": "B",
+    "reason": "Оба ответа не отвечают, но B точнее сообщает причину timeout."
+   }
+  },
+  {
+   "id": "code_generation_06",
+   "category": "code_generation",
+   "goal": "напиши одну строку кода на Python: вывод текущей даты",
+   "source": "standard",
+   "solo": "{'error': 'Ollama HTTP 404: {\"error\":\"model \\'qwen3-coder:30b\\' not found\"}'}",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'напиши одну строку кода на Python: вывод текущей даты'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "tie",
+    "reason": "Оба ответа не содержат запрошенную строку кода и представляют системные ошибки."
+   }
+  },
+  {
+   "id": "code_generation_07",
+   "category": "code_generation",
+   "goal": "напиши функцию на Python, которая проверяет, является ли строка палиндромом",
+   "source": "composed",
+   "solo": "Для выполнения задания и предоставления точного описания бага, идентификатора модуля, стектрейса и ожидаемого поведения, мне необходимы конкретные данные о произошедшей ошибке. В текущем запросе отсутствует техническая информация (логи, код, идентификаторы).\n\nСогласно когнитивному кодексу и протоколу обработки неясных соображений, я не могу делать предположений. Пожалуйста, ответьте на следующие уточняющие вопросы:\n\n1.  **Идентификатор бага:** Есть ли у вас уже присвоенный ID бага (например, в Jira, GitLab, Linear)? Если нет, нужно ли мне сгенерировать временный ID?\n2.  **Локализация (Модуль/Файл):** В каком конкретном модуле, сервисе или файле возникает ошибка? (Например: `src/database/pool.js`, `service: api-gateway`, `module: auth-service`).\n3.  **Стектрейс (Stack Trace):** Пожалуйста, вставьте полный стектрейс ошибки. Если стектрейс длинный, укажите критические строки, указывающие на место сбоя.\n4.  **Текущее поведение (Actual Behavior):** Что система делает *сейчас* при возникновении ошибки? (Например: \"Сбрасывает соединение\", \"Возвращает HTTP 500\", \"Зависает\").\n5.  **Ожидаемое поведение (Expected Behavior):** Что система *должна* делать в данной ситуации? (Например: \"Корректн\n\n[... ответ обрезан ...]",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'напиши функцию на Python, которая проверяет, является ли строка палиндромом'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "code_generation_08",
+   "category": "code_generation",
+   "goal": "напиши bash-команду, которая найдёт 10 самых больших файлов в каталоге",
+   "source": "composed",
+   "solo": "{'error': 'Ollama HTTP 404: {\"error\":\"model \\'qwen3-coder:30b\\' not found\"}'}",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'напиши bash-команду, которая найдёт 10 самых больших файлов в каталоге'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "code_generation_09",
+   "category": "code_generation",
+   "goal": "сгенерируй SQL: топ-10 задач по длительности выполнения из таблицы tasks",
+   "source": "composed",
+   "solo": "Не удалось понять вопрос и сформировать запрос к базе данных.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'сгенерируй SQL: топ-10 задач по длительности выполнения из таблицы tasks'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "code_generation_10",
+   "category": "code_generation",
+   "goal": "напиши регулярное выражение для извлечения даты YYYY-MM-DD из строки",
+   "source": "composed",
+   "solo": "Victoria agent.run превысил лимит времени. Проверьте доступность MLX/Ollama и нагрузку очередей.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'напиши регулярное выражение для извлечения даты YYYY-MM-DD из строки'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "code_audit_11",
+   "category": "code_audit",
+   "goal": "проверь файл /app/knowledge_os/app/expert_worker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+   "source": "standard",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'проверь файл /app/knowledge_os/app/expert_worker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "code_audit_12",
+   "category": "code_audit",
+   "goal": "проверь файл /app/knowledge_os/app/ai_core.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+   "source": "standard",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'проверь файл /app/knowledge_os/app/ai_core.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "code_audit_13",
+   "category": "code_audit",
+   "goal": "прочитай файл /app/knowledge_os/app/worker.py — найди потенциальные проблемы: subprocess calls, hardcoded URLs, eval(), exec(). Ответь: ОК или ПРОБЛЕМА + список",
+   "source": "standard",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'прочитай файл /app/knowledge_os/app/worker.py — найди потенциальные проблемы: subprocess calls, hardcoded URLs, eval(), exec(). Ответь: ОК или ПРОБЛЕМА + список'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "code_audit_14",
+   "category": "code_audit",
+   "goal": "проверь файл /app/knowledge_os/app/consensus_agent.py — есть ли там eval() или exec()? Ответь: ОК или ПРОБЛЕМА + цитата",
+   "source": "composed",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'проверь файл /app/knowledge_os/app/consensus_agent.py — есть ли там eval() или exec()? Ответь: ОК или ПРОБЛЕМА + цитата'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "code_audit_15",
+   "category": "code_audit",
+   "goal": "проверь файл /app/scripts/curator_send_tasks_to_victoria.py — есть ли там pip install в рантайме? Ответь: ОК или ПРОБЛЕМА + цитата",
+   "source": "standard",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'проверь файл /app/scripts/curator_send_tasks_to_victoria.py — есть ли там pip install в рантайме? Ответь: ОК или ПРОБЛЕМА + цитата'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "research_16",
+   "category": "research",
+   "goal": "Найди в интернете что такое p95 latency кратко.",
+   "source": "history",
+   "solo": "[ERROR] run post: HTTP Error 500: Internal Server Error",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Найди в интернете что такое p95 latency кратко.'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "research_17",
+   "category": "research",
+   "goal": "объясни кратко, чем отличается asyncio.gather от asyncio.wait",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'объясни кратко, чем отличается asyncio.gather от asyncio.wait'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "research_18",
+   "category": "research",
+   "goal": "что такое HNSW-индекс и зачем он в векторном поиске",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'что такое HNSW-индекс и зачем он в векторном поиске'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "research_19",
+   "category": "research",
+   "goal": "объясни, что такое backpressure в очередях задач",
+   "source": "composed",
+   "solo": "pending=7 in_progress=2",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'объясни, что такое backpressure в очередях задач'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "research_20",
+   "category": "research",
+   "goal": "объясни разницу между pgvector и отдельной векторной БД",
+   "source": "composed",
+   "solo": "Victoria уточняет: Как pgvector интегрируется с PostgreSQL и какие специфические функции обеспечивает для обработки геометрических данных?; Каковы основные различия в архитектуре и управлении данными между векторной функцией pgvector, встроенной в PostgreSQL, и традиционной отдельной векторной базой данных?",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'объясни разницу между pgvector и отдельной векторной БД'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "analysis_21",
+   "category": "analysis",
+   "goal": "Исследуй, почему background задачи могут зависать в processing",
+   "source": "history",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Исследуй, почему background задачи могут зависать в processing'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "analysis_22",
+   "category": "analysis",
+   "goal": "Проанализируй маршрутизацию early_async_analysis подробно",
+   "source": "history",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Проанализируй маршрутизацию early_async_analysis подробно'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "analysis_23",
+   "category": "analysis",
+   "goal": "Разбери SLA time-to-completed: что должно быть в /metrics",
+   "source": "history",
+   "solo": "p50=630.023 p95=900.008 samples=6 inflight_max=551.917 inflight=1",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Разбери SLA time-to-completed: что должно быть в /metrics'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "analysis_24",
+   "category": "analysis",
+   "goal": "Объясни почему duration_seconds важнее latency POST 202",
+   "source": "history",
+   "solo": "p50=630.023 p95=900.008 samples=6 inflight_max=993.154 inflight=1",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Объясни почему duration_seconds важнее latency POST 202'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "analysis_25",
+   "category": "analysis",
+   "goal": "Разбери, что сейчас не так в git и почему",
+   "source": "history",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Разбери, что сейчас не так в git и почему'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "devops_26",
+   "category": "devops",
+   "goal": "какие контейнеры сейчас unhealthy и почему?",
+   "source": "composed",
+   "solo": "Victoria уточняет: На каком сервере или хосте нужно проверить контейнеры?",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'какие контейнеры сейчас unhealthy и почему?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "devops_27",
+   "category": "devops",
+   "goal": "сколько задач в очереди прямо сейчас?",
+   "source": "composed",
+   "solo": "pending=12 in_progress=0",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'сколько задач в очереди прямо сейчас?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "devops_28",
+   "category": "devops",
+   "goal": "какой health у MLX на 11435 и сколько активных запросов?",
+   "source": "composed",
+   "solo": "ok",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'какой health у MLX на 11435 и сколько активных запросов?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "devops_29",
+   "category": "devops",
+   "goal": "какие модели загружены на Ollama 11434? Разрешены ли там они по контракту v142?",
+   "source": "composed",
+   "solo": "throughput_1h=0 throughput_24h=55 stale_in_progress=0 failed_1h=1 completed_1h=0 error_rate_1h=1.0 contract_enforced_24h=55/55 cancelled_1h_total=1 cancelled_1h_work=0 cancelled_1h_policy=1 cancelled_24h_total=18 cancelled_24h_work=12 cancelled_24h_policy=6 cancelled_24h_uncategorized=12",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'какие модели загружены на Ollama 11434? Разрешены ли там они по контракту v142?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "devops_30",
+   "category": "devops",
+   "goal": "проверь Prometheus: все ли targets up?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Какой Prometheus-сервер проверить (URL или IP/хост)?; Нужно проверить все targets или конкретные job/сервисы?",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'проверь Prometheus: все ли targets up?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "security_31",
+   "category": "security",
+   "goal": "есть ли в .env.example секреты в открытом виде?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'есть ли в .env.example секреты в открытом виде?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "security_32",
+   "category": "security",
+   "goal": "какие API-ключи используются в проекте и где они хранятся?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'какие API-ключи используются в проекте и где они хранятся?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "security_33",
+   "category": "security",
+   "goal": "проверь логин-форму frontend: есть ли защита от XSS?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'проверь логин-форму frontend: есть ли защита от XSS?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 1.0,
+    "winner": "B",
+    "reason": "Оба не ответили по существу, но B явно указывает на неполноту и отсутствие консенсуса."
+   }
+  },
+  {
+   "id": "security_34",
+   "category": "security",
+   "goal": "риск ли exposed docker.sock на victoria-medic и как это ограничить?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'риск ли exposed docker.sock на victoria-medic и как это ограничить?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "security_35",
+   "category": "security",
+   "goal": "как включить STRICT_LOCAL и что проверить перед включением?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'как включить STRICT_LOCAL и что проверить перед включением?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "architecture_36",
+   "category": "architecture",
+   "goal": "как устроен контракт слоёв мозг/руки/coder в v142?",
+   "source": "composed",
+   "solo": "throughput_1h=0 throughput_24h=50 stale_in_progress=0 failed_1h=0 completed_1h=0 error_rate_1h=0.0 contract_enforced_24h=50/50 cancelled_1h_total=0 cancelled_1h_work=0 cancelled_1h_policy=0 cancelled_24h_total=18 cancelled_24h_work=12 cancelled_24h_policy=6 cancelled_24h_uncategorized=12",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'как устроен контракт слоёв мозг/руки/coder в v142?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "architecture_37",
+   "category": "architecture",
+   "goal": "зачем MLX_MAX_CONCURRENT=1 и что будет при повышении?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Вы имеете в виду переменную окружения MLX_MAX_CONCURRENT в конкретном проекте ATRA или в общем контексте MLX?",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'зачем MLX_MAX_CONCURRENT=1 и что будет при повышении?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "architecture_38",
+   "category": "architecture",
+   "goal": "как проходит задача от /run до эксперта?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Что означает /run в вашем контексте: команда, маршрут, статус или этап?",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'как проходит задача от /run до эксперта?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "architecture_39",
+   "category": "architecture",
+   "goal": "какие компоненты входят в Knowledge Fabric?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'какие компоненты входят в Knowledge Fabric?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "architecture_40",
+   "category": "architecture",
+   "goal": "чем Blackboard-аукцион отличается от прямой оркестрации?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Как Blackboard-аукцион работает в сравнении с непрямой организацией оркестрации?",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'чем Blackboard-аукцион отличается от прямой оркестрации?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "debugging_41",
+   "category": "debugging",
+   "goal": "Victoria отвечает success с пустым output — где искать причину?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Victoria отвечает success с пустым output — где искать причину?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "debugging_42",
+   "category": "debugging",
+   "goal": "pgbouncer возвращает SASL-ошибку у dynamic-воркеров — что проверить?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'pgbouncer возвращает SASL-ошибку у dynamic-воркеров — что проверить?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "debugging_43",
+   "category": "debugging",
+   "goal": "Ollama 503 server busy при дебатах — правильная реакция системы?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'Ollama 503 server busy при дебатах — правильная реакция системы?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "debugging_44",
+   "category": "debugging",
+   "goal": " Prometheus target expert-workers down с ошибкой DNS — где причина?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for ' Prometheus target expert-workers down с ошибкой DNS — где причина?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "debugging_45",
+   "category": "debugging",
+   "goal": "в логах _GatheringFuture exception was never retrieved — что это значит?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'в логах _GatheringFuture exception was never retrieved — что это значит?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "testing_46",
+   "category": "testing",
+   "goal": "какие тесты покрывают маршрутизацию wisdom?",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'какие тесты покрывают маршрутизацию wisdom?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "testing_47",
+   "category": "testing",
+   "goal": "напиши план smoke-проверки expert-dialogue после деплоя",
+   "source": "composed",
+   "solo": "[ERROR] timeout",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'напиши план smoke-проверки expert-dialogue после деплоя'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "testing_48",
+   "category": "testing",
+   "goal": "как проверить эталоны куратора после правок Victoria?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'как проверить эталоны куратора после правок Victoria?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "testing_49",
+   "category": "testing",
+   "goal": "что должен показывать контрольный срез после рестарта стека?",
+   "source": "composed",
+   "solo": "Victoria уточняет: Какой конкретная информация отображается на контрольном срезе после рестарта стека?",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'что должен показывать контрольный срез после рестарта стека?'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  },
+  {
+   "id": "testing_50",
+   "category": "testing",
+   "goal": "составь чеклист регресса лог-сканера",
+   "source": "composed",
+   "solo": "Victoria уточняет: Нужно уточнение.",
+   "consilium": "[debate] [INCOMPLETE] FINAL DECISION: no complete expert opinions for 'составь чеклист регресса лог-сканера'. Do not treat as consensus. Reasons: timeout.",
+   "verdict": {
+    "a": 0.0,
+    "b": 0.0,
+    "winner": "error",
+    "reason": "timed out"
+   }
+  }
+ ],
+ "wins_by_category": {
+  "communication": {
+   "A": 3,
+   "B": 2,
+   "tie": 0,
+   "error": 0
+  },
+  "code_generation": {
+   "A": 0,
+   "B": 0,
+   "tie": 1,
+   "error": 4
+  },
+  "code_audit": {
+   "A": 0,
+   "B": 0,
+   "tie": 0,
+   "error": 5
+  },
+  "research": {
+   "A": 0,
+   "B": 0,
+   "tie": 0,
+   "error": 5
+  },
+  "analysis": {
+   "A": 0,
+   "B": 0,
+   "tie": 0,
+   "error": 5
+  },
+  "devops": {
+   "A": 0,
+   "B": 0,
+   "tie": 0,
+   "error": 5
+  },
+  "security": {
+   "A": 0,
+   "B": 1,
+   "tie": 0,
+   "error": 4
+  },
+  "architecture": {
+   "A": 0,
+   "B": 0,
+   "tie": 0,
+   "error": 5
+  },
+  "debugging": {
+   "A": 0,
+   "B": 0,
+   "tie": 0,
+   "error": 5
+  },
+  "testing": {
+   "A": 0,
+   "B": 0,
+   "tie": 0,
+   "error": 5
+  }
+ }
+}

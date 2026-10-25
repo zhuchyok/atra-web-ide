@@ -35,6 +35,15 @@ def test_startup_fails_orphaned_inflight():
     assert "async def _fail_orphaned_inflight_on_startup()" in text
     assert "_create_tracked_task(_fail_orphaned_inflight_on_startup())" in text
     assert "orphaned after Victoria restart" in text
+    assert 'VICTORIA_RESUME_ORPHANED_ON_STARTUP' in text
+    assert 'resumed_after_restart' in text
+
+
+def test_async_handoff_persists_replay_payload():
+    text = VICTORIA_SERVER.read_text(encoding="utf-8")
+    assert '"replay": {' in text
+    assert '"goal": goal' in text
+    assert '"project_context": project_context' in text
 
 
 def test_watchdog_extends_for_enhanced_solve_not_label():
@@ -42,3 +51,9 @@ def test_watchdog_extends_for_enhanced_solve_not_label():
     assert "watchdog extend" in text
     assert "no deep progress" in text
     assert '"enhanced_solve"' in text
+
+
+def test_operational_quality_guard_avoids_irrelevant_clarification():
+    text = VICTORIA_SERVER.read_text(encoding="utf-8")
+    assert "if is_operational_execution_goal(goal):" in text
+    assert 'bad_markers = ("столиц", "франц", "париж")' in text
