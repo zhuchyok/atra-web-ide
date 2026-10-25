@@ -269,6 +269,20 @@ async def create_debate_for_hypothesis(
     else:
         logger.warning("No experts found for hypothesis debate, skipping council")
 
+    # [v150.26] Агент-H: лог-мусор не становится high-priority задачей.
+    # 21/34 Rejection-фейлов — Debate из сырых discovery-логов без контекста.
+    _h = (hypothesis_text or "").strip()
+    _garbage_markers = (
+        "Discovery фаза", "❓ Вопрос", "📋", "❌", "🔄",
+    )
+    _too_short = len(_h) < 50
+    if _too_short or sum(1 for m in _garbage_markers if m in _h) >= 2:
+        logger.info(
+            "[v150.26] Debate skipped: гипотеза — лог-мусор/короткая (%d симв, маркеров: %d)",
+            len(_h), sum(1 for m in _garbage_markers if m in _h),
+        )
+        return council_node_id
+
     title = f"Debate hypothesis {str(knowledge_node_id)[:8]}"
     metadata = {
         "source": "nightly_hypothesis_debate",
