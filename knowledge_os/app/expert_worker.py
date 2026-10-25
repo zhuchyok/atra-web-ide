@@ -98,6 +98,9 @@ DB_URL = os.getenv("DATABASE_URL")
 JUDGE_GATE_ENABLED = os.getenv("JUDGE_GATE_ENABLED", "true").lower() in ("1", "true", "yes")
 JUDGE_GATE_MIN_SCORE = float(os.getenv("JUDGE_GATE_MIN_SCORE", "6"))
 JUDGE_GATE_MAX_REGEN = int(os.getenv("JUDGE_GATE_MAX_REGEN", "1"))
+# [v150.26] SELF-HEAL: при Adversarial Rejection задача не fail'ится сразу,
+# а перегенерируется с УЧЁТОМ причины отказа (текст из attack_report критика).
+SELF_HEAL_MAX_REGEN = int(os.getenv("SELF_HEAL_MAX_REGEN", "2"))
 JUDGE_GATE_URL = os.getenv(
     "JUDGE_GATE_URL", "http://host.docker.internal:11437/api/chat"
 )
@@ -1819,6 +1822,12 @@ async def process_task(task_data: dict):
                     "all llm sources unavailable",
                     "все источники недоступны",
                     "llm sources unavailable",
+                    # [v150.26] Агент-H: 13/34 Rejection-фейлов — стаб-фолбэки
+                    # react_agent.py:1568 доходили до судьи зря
+                    "извините, сейчас я не могу",
+                    "не удалось получить",
+                    "все модели недоступны",
+                    "все модели были недоступны",
                 )
                 if any(marker in _report_low for marker in _stub_markers):
                     raise RuntimeError("All LLM sources unavailable (stub response)")
@@ -2003,41 +2012,96 @@ async def process_task(task_data: dict):
                         logger.warning(f"[BOARD] Consult failed (non-critical): {board_err}")
 
                     # [SINGULARITY 28.7] Mandatory Adversarial Trust Gate
-                    try:
-                        from adversarial_critic import verify_high_priority_task
+                    # [v150.26] SELF-HEAL: Rejection → перегенерация с причиной
+                    # отказа, а не мгновенный failed. Причина (attack_report)
+                    # пробрасывается в новый промпт как доп. инструкция.
+                    _self_heal_attempt = 0
+                    while True:
+                        try:
+                            from adversarial_critic import verify_high_priority_task
 
-                        verification = await verify_high_priority_task(str(task_id), report_text)
-                        verification_reason = str(
-                            verification.get("verification_reason") or ""
-                        ).strip()
-                        degraded_reasons = {
-                            "critic_output_parse_error",
-                            "critic_unavailable_or_empty_output",
-                        }
-                        if verification_reason in degraded_reasons:
+                            verification = await verify_high_priority_task(str(task_id), report_text)
+                            verification_reason = str(
+                                verification.get("verification_reason") or ""
+                            ).strip()
+                            degraded_reasons = {
+                                "critic_output_parse_error",
+                                "critic_unavailable_or_empty_output",
+                            }
+                            if verification_reason in degraded_reasons:
+                                logger.warning(
+                                    "⚠️ [TRUST GATE] Degraded verification for task %s: %s",
+                                    task_id,
+                                    verification_reason,
+                                )
+                            if verification.get("survived", True):
+                                logger.info(
+                                    "🛡️ [TRUST GATE] Task %s SURVIVED adversarial attack (reason=%s).",
+                                    task_id,
+                                    verification_reason or "unspecified",
+                                )
+                                break
+                            _rejection_reason = str(
+                                verification.get("attack_report") or ""
+                            ).strip()
+                            if _self_heal_attempt >= SELF_HEAL_MAX_REGEN:
+                                logger.error(
+                                    "💀 [TRUST GATE] Task %s REJECTED after %d self-heal попыток: %s",
+                                    task_id,
+                                    _self_heal_attempt,
+                                    _rejection_reason,
+                                )
+                                raise ValueError(
+                                    f"Adversarial Rejection: {_rejection_reason}"
+                                )
+                            # [v150.26] Регенерация с УЧЁТОМ причины отказа:
+                            # причина идёт в промпт (run_smart_agent_async не
+                            # имеет system-параметра — доп. контекст через prompt).
+                            _self_heal_attempt += 1
                             logger.warning(
-                                "⚠️ [TRUST GATE] Degraded verification for task %s: %s",
+                                "🔁 [SELF-HEAL] Task %s: Rejection (попытка %d/%d). Причина: %s — перегенерация",
                                 task_id,
-                                verification_reason,
+                                _self_heal_attempt,
+                                SELF_HEAL_MAX_REGEN,
+                                _rejection_reason[:200],
                             )
-                        if not verification.get("survived", True):
-                            logger.error(
-                                f"💀 [TRUST GATE] Task {task_id} REJECTED by Critic: {verification.get('attack_report')}"
+                            _heal_prompt = (
+                                str(description or task_id)
+                                + "\n\n[SELF-HEAL] ПРЕДЫДУЩАЯ ПОПЫТКА ОТКЛОНЕНА. "
+                                + f"Причина: {_rejection_reason[:1000]}. "
+                                + "Исправь именно это. Не повторяй ошибки предыдущей версии."
                             )
-                            raise ValueError(
-                                f"Adversarial Rejection: {verification.get('attack_report')}"
+                            _heal_raw = await run_smart_agent_async(
+                                _heal_prompt,
+                                expert_name=expert_name,
+                                category=task_data.get("category", "general"),
+                                is_vip=is_dialogue_task,
+                                session_id=f"task:{task_id}:selfheal",
                             )
-                        logger.info(
-                            "🛡️ [TRUST GATE] Task %s SURVIVED adversarial attack (reason=%s).",
-                            task_id,
-                            verification_reason or "unspecified",
-                        )
-                    except Exception as gate_err:
-                        if "Adversarial Rejection" in str(gate_err):
+                            _heal_text = str(
+                                _heal_raw.get("result")
+                                if isinstance(_heal_raw, dict)
+                                else _heal_raw
+                            )
+                            if (
+                                isinstance(_heal_text, str)
+                                and _heal_text.strip()
+                                and not _heal_text.startswith("⚠️ Не удалось получить")
+                                and "все источники недоступны" not in _heal_text.lower()
+                            ):
+                                report_text = _heal_text
+                            else:
+                                logger.warning(
+                                    "⚠️ [SELF-HEAL] Task %s: регенерация пустая/стаб — повтор проверки",
+                                    task_id,
+                                )
+                        except ValueError:
                             raise
-                        logger.warning(
-                            f"⚠️ [TRUST GATE] Verification skipped due to error: {gate_err}"
-                        )
+                        except Exception as gate_err:
+                            logger.warning(
+                                f"⚠️ [TRUST GATE] Verification skipped due to error: {gate_err}"
+                            )
+                            break
 
                 # [SINGULARITY 29.7] Auto-Verification Loop for R&D
                 is_rd = task_data.get("metadata", {}).get("is_rd")
