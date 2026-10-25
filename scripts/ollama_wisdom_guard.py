@@ -161,6 +161,16 @@ def _enforce_hands_slot():
         _stray = [n for n in _ps(HANDS) if _should_unload_hands(n)]
         if _stray:
             _log(f"evict from {HANDS} (не-руки): {_stray}")
+            # [v149.63] ntfy-алерт: мозг на руках = клиент-утечка, ловим живьём
+            try:
+                import urllib.request as _ur
+                _msg = f"ATRA: на руках {HANDS} обнаружен не-руки: {_stray} — ищи клиент-утечку (brain-модель на hands-URL)"
+                _ur.urlopen(_ur.Request(
+                    "https://ntfy.sh/atra_victoria_curator",
+                    data=_msg.encode(), headers={"Title": "🔴 Утечка модели на hands", "Priority": "high"},
+                ), timeout=8)
+            except Exception:
+                pass
             if not DRY:
                 for _n in _stray:
                     unload_hands(_n)

@@ -91,7 +91,8 @@ class SemanticRouter:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(
                     self.embed_url,
-                    json={"model": self.embed_model, "prompt": text, "keep_alive": 0},
+                    # [v149.62] keep_alive 0 выгружал nomic после каждого вызова (карусель с гардом на 11434)
+                    json={"model": self.embed_model, "prompt": text, "keep_alive": -1},
                 )
                 if response.status_code == 200:
                     emb = response.json().get("embedding")
