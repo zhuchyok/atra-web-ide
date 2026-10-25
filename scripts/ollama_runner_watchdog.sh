@@ -64,6 +64,22 @@ except Exception:
         fi
     done
 
+    # [v150.25b] Универсальная 503-проба (случай 25.10 19:44: раннер жив,
+    # но очередь орфанена — старый детект смотрел только при 0 runner).
+    _probe_model="phi3.5:3.8b-stable"
+    [ "$PORT" = "11434" ] && _probe_model="victoria-qwen38:latest"
+    _probe=$(curl -s --max-time 8 -o /dev/null -w '%{http_code}' \
+        -X POST "http://localhost:${PORT}/api/generate" \
+        -H 'Content-Type: application/json' \
+        -d '{"model":"'"$_probe_model"'","prompt":"ok","stream":false,"options":{"num_predict":1,"num_ctx":2048}}' 2>/dev/null)
+    if [ "$_probe" = "503" ]; then
+        log "ORPHAN-QUEUE :$PORT — 503 (runners: $(pgrep -P "$MAIN_PID" -f llama-server 2>/dev/null | wc -l | tr -d ' ')), сброс serve"
+        launchctl kickstart -k "gui/$(id -u)/$([ "$PORT" = "11434" ] && echo homebrew.mxcl.ollama || echo com.atra.ollama-hands)" 2>/dev/null \
+            || kill -HUP "$MAIN_PID" 2>/dev/null
+        log "ORPHAN-QUEUE :$PORT — serve сброшен"
+        continue
+    fi
+
     if [ -z "$stuck_models" ]; then
         log "Нет застрявших моделей (:$PORT)"
         continue
