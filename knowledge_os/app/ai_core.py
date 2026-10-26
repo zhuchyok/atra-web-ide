@@ -1486,6 +1486,14 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
 
                     # Штрафы (бывшие CASE-множители) — здесь, над уже выбранным
                     # индексом кандидатов; сортировка и срез 6 — как раньше.
+                    # [v149.65] similarity cut-off: чанки ниже порога вообще не
+                    # попадают в контекст (distractor-документы типа README-шаблонов
+                    # сбивали модель на «ответ не на задание», QC v10)
+                    _min_sim = float(os.getenv("RAG_MIN_SIMILARITY", "0.45"))
+                    rows = [r for r in rows if float(r["similarity"]) >= _min_sim]
+                    if not rows:
+                        return ""
+
                     def _adj(row):
                         meta = row["metadata"] or {}
                         if isinstance(meta, str):
