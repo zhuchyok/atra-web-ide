@@ -9,6 +9,7 @@ launchctl list (последний exit code) и freshness её лога/арт�
 """
 import json
 import os
+import shutil  # [v150.27] disk_usage для диск-канарейки
 import subprocess
 import sys
 import urllib.request
@@ -180,6 +181,19 @@ def http_canaries() -> list:
             urllib.request.urlopen(req, timeout=timeout)
         except Exception as e:
             problems.append(f"[CANARY] {name}: {url} не отвечает ({e})")
+
+    # [v150.27] диск-канарейка: Data-раздел >85% занят -> свободно <15%.
+    # Оллама/докер падают загадочно, когда диск кончается — ловим заранее.
+    try:
+        du = shutil.disk_usage("/")
+        free_pct = du.free / du.total * 100
+        if free_pct < 15:
+            problems.append(
+                f"[DISK] свободно <15% ({free_pct:.1f}% свободно, "
+                f"{du.free / (1 << 30):.1f}GiB из {du.total / (1 << 30):.1f}GiB)"
+            )
+    except Exception as e:
+        problems.append(f"[DISK] проверка не удалась: {e}")
     return problems
 
 

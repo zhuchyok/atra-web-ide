@@ -1,0 +1,1 @@
+{"thought": "Привет", "tool": "finish"}
