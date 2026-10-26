@@ -10,6 +10,7 @@
 Запуск: python3 scripts/security_incident_responder.py
 Повторение: cron/launchd каждые 5–15 минут.
 """
+import hashlib
 import json
 import os
 import sys
@@ -185,9 +186,17 @@ def _recent_security_task_exists(cur) -> bool:
         return False
 
 
+def _incidents_hash(incidents: list) -> str:
+    """[v150.28] SHA256-хеш множества ID инцидентов (отсортированных)."""
+    ids = sorted(str(i["id"]) for i in incidents)
+    return hashlib.sha256("\n".join(ids).encode("utf-8")).hexdigest()
+
+
 def create_response_task_consolidated(incidents: list, top_types: str):
     """Одна сводная задача на партию инцидентов (анти-спам).
-    [v150.16] Возвращает True (создана), False (ошибка), 'skipped' (рейт-лимит)."""
+    [v150.16] Возвращает True (создана), False (ошибка), 'skipped' (рейт-лимит).
+    [v150.28] Кэш повторов: идентичное/≥90% совпадающее множество ID НЕ создаёт
+    новую задачу — обновляется metadata последней + короткий ntfy."""
     sample_ids = ", ".join("#" + i["id"] for i in incidents[:5])
     conn = psycopg2.connect(DB_DSN)
     try:
@@ -199,6 +208,57 @@ def create_response_task_consolidated(incidents: list, top_types: str):
                     f"за последний час уже существует — пропуск ({len(incidents)} инцидентов, {top_types[:80]})"
                 )
                 return "skipped"
+
+            # [v150.28] Security-кэш: сравнить множество ID с последней сводной задачей
+            new_hash = _incidents_hash(incidents)
+            new_ids = {str(i["id"]) for i in incidents}
+            try:
+                cur.execute(
+                    """
+                    SELECT id, metadata FROM tasks
+                    WHERE title LIKE '🛡️ Security:%'
+                      AND metadata->>'consolidated' = 'true'
+                    ORDER BY created_at DESC LIMIT 1
+                    """
+                )
+                last = cur.fetchone()
+            except Exception as e:
+                log_alert(f"[{datetime.now(timezone.utc).isoformat()}] CACHE LOOKUP ERROR: {e}")
+                last = None
+
+            if last is not None:
+                last_meta = last[1] or {}
+                old_ids = set(last_meta.get("incident_ids") or [])
+                old_hash = last_meta.get("incident_hash")
+                if old_hash == new_hash:
+                    # Идентичное множество → задача не создаётся, обновляем metadata
+                    try:
+                        meta = dict(last_meta)
+                        meta["incident_count"] = len(incidents)
+                        meta["updated_at"] = datetime.now(timezone.utc).isoformat()
+                        cur.execute(
+                            "UPDATE tasks SET metadata = %s WHERE id = %s",
+                            (json.dumps(meta, ensure_ascii=False), last[0]),
+                        )
+                        conn.commit()
+                    except Exception:
+                        pass
+                    _notify_ntfy(f"🛡️ Security: без изменений ({len(incidents)} инцидентов)")
+                    return "cached"
+                if old_ids:
+                    overlap = len(new_ids & old_ids) / max(1, len(old_ids))
+                    if overlap >= 0.9:
+                        only_new = [i for i in incidents if str(i["id"]) not in old_ids]
+                        # Есть новинки (<10% diff) — задача только для НОВЫХ инцидентов
+                        incidents = only_new
+                        sample_ids = ", ".join("#" + i["id"] for i in incidents[:5])
+                        if not incidents:
+                            _notify_ntfy(
+                                f"🛡️ Security: без изменений (overlap {overlap:.0%})"
+                            )
+                            return "cached"
+                        top_types = f"{top_types} (из них {len(incidents)} новых)"
+
             cur.execute(
                 """
                 INSERT INTO tasks (title, description, status, priority, metadata, project_context)
@@ -211,7 +271,15 @@ def create_response_task_consolidated(incidents: list, top_types: str):
                         "Требуется: групповой анализ кампании атак (источники, паттерны), "
                         "усиление фильтров, отчёт с мерами."
                     ),
-                    json.dumps({"source": "security_responder", "consolidated": True}),
+                    json.dumps({
+                        "source": "security_responder",
+                        "consolidated": True,
+                        # [v150.28] Security-кэш
+                        "incident_hash": new_hash,
+                        "incident_ids": sorted(new_ids),
+                        "incident_count": len(incidents),
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }),
                 ),
             )
         conn.commit()
@@ -252,6 +320,13 @@ def main() -> int:
     sample_ids = ", ".join("#" + i["id"] for i in fresh[:5])
 
     result = create_response_task_consolidated(fresh, top_types)
+    if result == "cached":
+        # [v150.28] Security-кэш: множество инцидентов не изменилось — фиксируем без новой задачи
+        for incident in fresh:
+            state["processed"].append(incident["id"])
+        save_state(state)
+        print(f"🛡️ Без изменений ({len(fresh)} инцидентов) — задача не создана (кэш)")
+        return 0
     if result == "skipped":
         # [v150.16] рейт-лимит: инциденты фиксируем в state, чтобы не гонять
         # одну и ту же партию каждый запуск до истечения часа

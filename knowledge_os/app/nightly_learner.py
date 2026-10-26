@@ -226,6 +226,7 @@ async def create_debate_for_hypothesis(
     knowledge_node_id: str,
     hypothesis_text: str,
     domain_id: Optional[str] = None,
+    complexity: Optional[str] = None,
 ) -> Optional[str]:
     """
     Run Expert Council on a hypothesis and also enqueue a verification task.
@@ -296,28 +297,53 @@ async def create_debate_for_hypothesis(
         pass
 
     title = f"Debate hypothesis {str(knowledge_node_id)[:8]}"
+
+    # [v150.28] Простые гипотезы → phi3.5 (HANDS), сложные → мозг (high).
+    # Простой = <500 символов, без SQL/архитектуры.
+    _h_low = _h.lower()
+    _is_simple = (
+        complexity == "simple"
+        or (
+            complexity is None
+            and len(_h) < 500
+            and "select " not in _h_low
+            and "sql" not in _h_low
+            and "архитектур" not in _h_low
+            and _h.count("?") <= 1
+        )
+    )
+    if complexity is None:
+        complexity = "simple" if _is_simple else "complex"
+
+    priority = "medium" if complexity == "simple" else "high"
+
+    description = (
+        "Проведи критический разбор гипотезы, оцени техническую состоятельность, риски и применимость.\n\n"
+        f"Гипотеза:\n{hypothesis_text}"
+    )
+    if complexity == "simple":
+        description = "[HANDS] Разбери на phi3.5:\n" + description
+
     metadata = {
         "source": "nightly_hypothesis_debate",
         "hypothesis_node_id": str(knowledge_node_id),
         "council_node_id": council_node_id,
         "is_verification": True,
-        "priority": "high",
+        "priority": priority,
+        "complexity": complexity,
         "required_capabilities": ["verification", "analysis"],
     }
-    description = (
-        "Проведи критический разбор гипотезы, оцени техническую состоятельность, риски и применимость.\n\n"
-        f"Гипотеза:\n{hypothesis_text}"
-    )
 
     try:
         task_id = await conn.fetchval(
             """
             INSERT INTO tasks (title, description, status, priority, domain_id, metadata)
-            VALUES ($1, $2, 'pending', 'high', $3, $4::jsonb)
+            VALUES ($1, $2, 'pending', $3, $4, $5::jsonb)
             RETURNING id
             """,
             title,
             description,
+            priority,
             domain_id,
             json.dumps(metadata, ensure_ascii=False),
         )
@@ -326,11 +352,12 @@ async def create_debate_for_hypothesis(
         task_id = await conn.fetchval(
             """
             INSERT INTO tasks (title, description, status, priority, metadata)
-            VALUES ($1, $2, 'pending', 'high', $3::jsonb)
+            VALUES ($1, $2, 'pending', $3, $4::jsonb)
             RETURNING id
             """,
             title,
             description,
+            priority,
             json.dumps(metadata, ensure_ascii=False),
         )
         return str(task_id) if task_id else council_node_id
@@ -482,7 +509,12 @@ async def run_continuous_priority_redistill() -> None:
             "yes",
         ):
             return False
-        base = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434").rstrip("/")
+        # [v150.27] phi-утечка на 11434: busy-probe пингует phi3.5 и холодно
+        # грузит её на МОЗГевой порт. Проба обязана идти на РУКИ (11437).
+        base = (
+            os.getenv("OLLAMA_HANDS_URL")
+            or os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+        ).rstrip("/")
         model = os.getenv("REDISTILL_PRIORITY_HEALTHCHECK_MODEL", "phi3.5:3.8b")
         timeout_sec = max(1.0, float(os.getenv("REDISTILL_PRIORITY_HEALTHCHECK_TIMEOUT_SEC", "6")))
         body = {
