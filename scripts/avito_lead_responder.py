@@ -423,9 +423,32 @@ def main() -> int:
         import re as _re
         if not via_template:
             reply = ""
+            # ── 1) MLX-мозг (11435): быстрый (1-3с) и умный — приоритет ──
+            try:
+                mlx_payload = json.dumps({
+                    "model": "default",
+                    "prompt": sys_prompt + "\n\nКлиент написал по объявлению «"
+                              + item_title + "»: " + customer_text + "\nОтветь как Татьяна.",
+                    "max_tokens": 250
+                }).encode()
+                mlx_req = urllib.request.Request(
+                    "http://localhost:11435/api/generate", data=mlx_payload,
+                    headers={"Content-Type": "application/json"}
+                )
+                with urllib.request.urlopen(mlx_req, timeout=45) as r:
+                    reply = _re.sub(r"<think>[\s\S]*?</think>", "",
+                                    json.loads(r.read()).get("response", "")).strip()
+                if len(reply) >= 5:
+                    print("  🧠 ответ MLX-мозга")
+                else:
+                    print("  ⚠ MLX: пустой ответ, пробую ollama-модели")
+                    reply = ""
+            except Exception as e:
+                print(f"  ⚠ MLX: {type(e).__name__}, пробую ollama-модели")
+                reply = ""
+        if not via_template and len(reply) < 5:
             for base_url, model, timeout_s in (
-                # qwen38 (умнее) — короткое окно: GPU задушен MLX-контуром,
-                # при его освобождении мозг снова начнёт успевать сам
+                # qwen38/phi — резерв на случай простоя MLX
                 ("http://localhost:11434", "victoria-qwen38:latest", 60),
                 ("http://localhost:11437", "phi3.5:3.8b", 60),
             ):
