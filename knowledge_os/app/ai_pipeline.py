@@ -16,21 +16,94 @@ logger = logging.getLogger(__name__)
 
 # ─── Phase 1: Prompt Preparation ─────────────────────────────────────────
 
-async def load_memory_crystals(project_context: Optional[str] = None) -> str:
-    """Load memory crystals from DB (compact top-3)."""
+def _is_operational_query(task_category: Optional[str], user_prompt: Optional[str]) -> bool:
+    """Heuristic gate: short operational prompts should not inherit global crystals."""
+    category = (task_category or "").strip().lower()
+    categories_env = os.getenv(
+        "AI_PIPELINE_OPERATIONAL_CATEGORIES",
+        "fast,simple,operations,operational,incident,monitoring,healthcheck,runbook",
+    )
+    operational_categories = {c.strip().lower() for c in categories_env.split(",") if c.strip()}
+    if category in operational_categories:
+        return True
+
+    prompt = (user_prompt or "").strip().lower()
+    if not prompt:
+        return False
+
+    short_len = int(os.getenv("AI_PIPELINE_CRYSTALS_OPERATIONAL_MAX_CHARS", "700"))
+    if len(prompt) <= short_len:
+        markers_env = os.getenv(
+            "AI_PIPELINE_OPERATIONAL_MARKERS",
+            "проверь,почини,исправ,status,health,error,таймаут,queue,очеред,retry,requeue,лог,logs,incident,watchdog,sla,latency",
+        )
+        markers = tuple(m.strip().lower() for m in markers_env.split(",") if m.strip())
+        if any(m in prompt for m in markers):
+            return True
+    return False
+
+
+async def load_memory_crystals(
+    project_context: Optional[str] = None,
+    task_category: Optional[str] = None,
+    user_prompt: Optional[str] = None,
+) -> str:
+    """Load memory crystals with optional gating and filtering."""
+    if os.getenv("AI_PIPELINE_CRYSTALS_ENABLED", "true").lower() not in ("1", "true", "yes"):
+        return ""
+    if os.getenv("AI_PIPELINE_CRYSTALS_SKIP_OPERATIONAL", "true").lower() in (
+        "1",
+        "true",
+        "yes",
+    ) and _is_operational_query(task_category, user_prompt):
+        return ""
     try:
         from ai_core import _get_db_pool
         pool = await _get_db_pool()
         if pool:
             async with pool.acquire() as conn:
+                top_k = max(1, int(os.getenv("AI_PIPELINE_CRYSTALS_TOP_K", "5")))
                 rows = await conn.fetch(
-                    "SELECT crystal_type, content FROM memory_crystals WHERE project_context = $1 ORDER BY created_at DESC LIMIT 3",
+                    "SELECT crystal_type, content FROM memory_crystals WHERE project_context = $1 ORDER BY created_at DESC LIMIT $2",
                     project_context or "atra-web-ide",
+                    top_k,
                 )
                 if rows:
-                    text = "\n".join(f"[{r['crystal_type'].upper()}] {r['content'][:200]}" for r in rows)
+                    allowed_types_env = os.getenv(
+                        "AI_PIPELINE_CRYSTALS_ALLOWED_TYPES",
+                        "decision,parameter,milestone,fact",
+                    )
+                    allowed_types = {
+                        t.strip().lower() for t in allowed_types_env.split(",") if t.strip()
+                    }
+                    deny_re = os.getenv(
+                        "AI_PIPELINE_CRYSTALS_DENY_REGEX",
+                        r"pgbouncer|database port\s*:?\s*6432",
+                    )
+                    deny_pattern = re.compile(deny_re, re.IGNORECASE) if deny_re else None
+
+                    filtered = []
+                    for r in rows:
+                        ctype = str(r["crystal_type"] or "").lower()
+                        content = str(r["content"] or "")
+                        if allowed_types and ctype not in allowed_types:
+                            continue
+                        if deny_pattern and deny_pattern.search(content):
+                            continue
+                        filtered.append((ctype, content))
+
+                    if not filtered:
+                        return ""
+
+                    text = "\n".join(
+                        f"[{ctype.upper()}] {content[:200]}" for ctype, content in filtered
+                    )
                     # TODO: Convert f-string to %s formatting for performance
-                    logger.info(f"💎 [MEMORY CRYSTALS] Loaded {len(rows)} crystals (compact)")
+                    logger.info(
+                        "💎 [MEMORY CRYSTALS] Loaded %s/%s crystals (filtered)",
+                        len(filtered),
+                        len(rows),
+                    )
                     return f"💎 ПАМЯТЬ ПРОЕКТА:\n{text}\n"
     except Exception as e:
         # TODO: Convert f-string to %s formatting for performance
@@ -120,13 +193,21 @@ async def inject_context_enrichment(
                 result["experience"] = exp[:300]
         except Exception:
             pass
-        try:
-            from success_retriever import get_success_context
-            suc = await get_success_context(user_part, expert_name=expert_name)
-            if suc:
-                result["experience"] += "\n" + suc[:300]
-        except Exception:
-            pass
+        # [v149.65b] SUCCESS RETRIEVAL — источник context bleed: вставлял ЧУЖИЕ
+        # пары «задача-ответ» в промпт → модель отвечала на чужой вопрос
+        # (QC v10-v13). Env-гейт: включение обратно SUCCESS_RETRIEVAL_ENABLED=true.
+        if os.getenv("SUCCESS_RETRIEVAL_ENABLED", "false").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+        ):
+            try:
+                from success_retriever import get_success_context
+                suc = await get_success_context(user_part, expert_name=expert_name)
+                if suc:
+                    result["experience"] += "\n" + suc[:300]
+            except Exception:
+                pass
 
         # Expert DNA (compact)
         try:
@@ -276,7 +357,11 @@ async def run_smart_agent_async_v2(
         )
 
     # Phase 1: Prepare prompt
-    memory_crystals = await load_memory_crystals(project_context)
+    memory_crystals = await load_memory_crystals(
+        project_context,
+        task_category=category,
+        user_prompt=prompt,
+    )
     prompt = audit_efficiency(prompt)
     is_threat, _ = check_threats(prompt)
     if is_threat:

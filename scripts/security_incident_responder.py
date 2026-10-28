@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -41,6 +42,8 @@ _load_dotenv()
 DB_DSN = os.environ.get("ATRA_DB_DSN", "postgresql://admin:secret@127.0.0.1:6432/knowledge_os")  # pragma: allowlist secret
 LOOKBACK_HOURS = 24
 MIN_SEVERITY = {"high", "critical"}
+DB_CONNECT_RETRIES = int(os.environ.get("ATRA_DB_CONNECT_RETRIES", "3"))
+DB_CONNECT_BACKOFF_SEC = float(os.environ.get("ATRA_DB_CONNECT_BACKOFF_SEC", "1.5"))
 
 
 def load_state() -> dict:
@@ -61,6 +64,19 @@ def save_state(state: dict) -> None:
 def log_alert(line: str) -> None:
     ALERT_LOG.parent.mkdir(parents=True, exist_ok=True)
     ALERT_LOG.open("a").write(line + "\n")
+
+
+def _db_connect():
+    """Подключение к БД с коротким retry для сглаживания флапов pgbouncer."""
+    last_exc = None
+    for attempt in range(1, DB_CONNECT_RETRIES + 1):
+        try:
+            return psycopg2.connect(DB_DSN)
+        except Exception as e:
+            last_exc = e
+            if attempt < DB_CONNECT_RETRIES:
+                time.sleep(DB_CONNECT_BACKOFF_SEC * attempt)
+    raise last_exc
 
 
 
@@ -112,7 +128,7 @@ def notify_telegram(text: str) -> None:
 
 
 def fetch_new_incidents() -> list:
-    conn = psycopg2.connect(DB_DSN)
+    conn = _db_connect()
     try:
         with conn.cursor() as cur:
             cur.execute(
@@ -140,7 +156,7 @@ def fetch_new_incidents() -> list:
 
 
 def create_response_task(incident: dict) -> bool:
-    conn = psycopg2.connect(DB_DSN)
+    conn = _db_connect()
     try:
         with conn.cursor() as cur:
             cur.execute(
@@ -187,9 +203,22 @@ def _recent_security_task_exists(cur) -> bool:
 
 
 def _incidents_hash(incidents: list) -> str:
-    """[v150.28] SHA256-хеш множества ID инцидентов (отсортированных)."""
-    ids = sorted(str(i["id"]) for i in incidents)
-    return hashlib.sha256("\n".join(ids).encode("utf-8")).hexdigest()
+    """[v150.29] SHA256-хеш содержимого инцидентов (не только IDs)."""
+    normalized = []
+    for incident in incidents:
+        normalized.append(
+            "|".join(
+                [
+                    str(incident.get("id", "")),
+                    str(incident.get("anomaly_type", "")),
+                    str(incident.get("severity", "")),
+                    str(incident.get("detected_at", "")),
+                    str(incident.get("details", "")),
+                ]
+            )
+        )
+    payload = "\n".join(sorted(normalized))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def create_response_task_consolidated(incidents: list, top_types: str):
@@ -198,17 +227,9 @@ def create_response_task_consolidated(incidents: list, top_types: str):
     [v150.28] Кэш повторов: идентичное/≥90% совпадающее множество ID НЕ создаёт
     новую задачу — обновляется metadata последней + короткий ntfy."""
     sample_ids = ", ".join("#" + i["id"] for i in incidents[:5])
-    conn = psycopg2.connect(DB_DSN)
+    conn = _db_connect()
     try:
         with conn.cursor() as cur:
-            # [v150.16] дедуп: не чаще 1 сводной задачи в час по префиксу title
-            if _recent_security_task_exists(cur):
-                log_alert(
-                    f"[{datetime.now(timezone.utc).isoformat()}] RATELIMIT: сводная security-задача "
-                    f"за последний час уже существует — пропуск ({len(incidents)} инцидентов, {top_types[:80]})"
-                )
-                return "skipped"
-
             # [v150.28] Security-кэш: сравнить множество ID с последней сводной задачей
             new_hash = _incidents_hash(incidents)
             new_ids = {str(i["id"]) for i in incidents}
@@ -258,6 +279,67 @@ def create_response_task_consolidated(incidents: list, top_types: str):
                             )
                             return "cached"
                         top_types = f"{top_types} (из них {len(incidents)} новых)"
+                        # Важно: после урезания до новых инцидентов пересчитать хеш/ids.
+                        new_hash = _incidents_hash(incidents)
+                        new_ids = {str(i["id"]) for i in incidents}
+
+            # [v150.16] дедуп: не чаще 1 сводной задачи в час по префиксу title.
+            # Применяется только после cache-check: identical/overlap проходят как "cached".
+            if _recent_security_task_exists(cur):
+                log_alert(
+                    f"[{datetime.now(timezone.utc).isoformat()}] RATELIMIT: сводная security-задача "
+                    f"за последний час уже существует — пропуск ({len(incidents)} инцидентов, {top_types[:80]})"
+                )
+                return "skipped"
+
+            # [v150.32] Если уже есть открытая сводная security-задача,
+            # не создаём новую каждый час, а обновляем текущую.
+            cur.execute(
+                """
+                SELECT id, metadata
+                FROM tasks
+                WHERE status IN ('pending', 'in_progress')
+                  AND metadata->>'source' = 'security_responder'
+                  AND metadata->>'consolidated' = 'true'
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """
+            )
+            open_row = cur.fetchone()
+            if open_row is not None:
+                open_id, open_meta = open_row
+                merged_meta = dict(open_meta or {})
+                merged_meta.update(
+                    {
+                        "incident_hash": new_hash,
+                        "incident_ids": sorted(new_ids),
+                        "incident_count": len(incidents),
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                        "last_error": None,
+                    }
+                )
+                cur.execute(
+                    """
+                    UPDATE tasks
+                    SET title = %s,
+                        description = %s,
+                        metadata = %s,
+                        updated_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (
+                        f"🛡️ Security: {len(incidents)} инцидентов ({top_types[:80]})",
+                        (
+                            f"Период: последние {LOOKBACK_HOURS}ч. Инциденты: {sample_ids}.\n"
+                            "Требуется: групповой анализ кампании атак (источники, паттерны), "
+                            "усиление фильтров, отчёт с мерами."
+                        ),
+                        json.dumps(merged_meta, ensure_ascii=False),
+                        open_id,
+                    ),
+                )
+                conn.commit()
+                return "updated_open"
 
             cur.execute(
                 """
@@ -294,7 +376,12 @@ def create_response_task_consolidated(incidents: list, top_types: str):
 def main() -> int:
     _load_dotenv()
     state = load_state()
-    incidents = fetch_new_incidents()
+    try:
+        incidents = fetch_new_incidents()
+    except Exception as e:
+        log_alert(f"[{datetime.now(timezone.utc).isoformat()}] DB CONNECT ERROR: {e}")
+        print(f"⚠️ DB temporarily unavailable, skip cycle: {e}")
+        return 0
     first_run = state.pop("first_run", False)
     fresh = [i for i in incidents if i["id"] not in state["processed"]]
     if first_run and fresh:
@@ -326,6 +413,13 @@ def main() -> int:
             state["processed"].append(incident["id"])
         save_state(state)
         print(f"🛡️ Без изменений ({len(fresh)} инцидентов) — задача не создана (кэш)")
+        return 0
+    if result == "updated_open":
+        # [v150.32] Обновили существующую активную сводную задачу без нового алерта.
+        for incident in fresh:
+            state["processed"].append(incident["id"])
+        save_state(state)
+        print(f"🛡️ Обновлена текущая сводная задача ({len(fresh)} инцидентов), новая не создавалась")
         return 0
     if result == "skipped":
         # [v150.16] рейт-лимит: инциденты фиксируем в state, чтобы не гонять
