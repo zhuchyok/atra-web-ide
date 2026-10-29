@@ -341,6 +341,63 @@ def create_response_task_consolidated(incidents: list, top_types: str):
                 conn.commit()
                 return "updated_open"
 
+            # [v150.66] Анти-шторм: если последняя сводная задача упала на STUB-GUARD,
+            # не плодим новую; реанимируем последнюю failed в pending и обновляем payload.
+            cur.execute(
+                """
+                SELECT id, metadata
+                FROM tasks
+                WHERE status = 'failed'
+                  AND metadata->>'source' = 'security_responder'
+                  AND metadata->>'consolidated' = 'true'
+                  AND updated_at > NOW() - INTERVAL '6 hours'
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """
+            )
+            failed_row = cur.fetchone()
+            if failed_row is not None:
+                failed_id, failed_meta = failed_row
+                failed_meta = dict(failed_meta or {})
+                last_error = str(failed_meta.get("last_error") or "")
+                if "llm_no_text_stub_exhausted" in last_error:
+                    revived_meta = dict(failed_meta)
+                    revived_meta.update(
+                        {
+                            "incident_hash": new_hash,
+                            "incident_ids": sorted(new_ids),
+                            "incident_count": len(incidents),
+                            "updated_at": datetime.now(timezone.utc).isoformat(),
+                            "revived_from_failed": True,
+                            "revived_reason": "llm_no_text_stub_exhausted",
+                        }
+                    )
+                    cur.execute(
+                        """
+                        UPDATE tasks
+                        SET status = 'pending',
+                            result = NULL,
+                            retry_after = NOW(),
+                            updated_at = NOW(),
+                            title = %s,
+                            description = %s,
+                            metadata = %s
+                        WHERE id = %s
+                        """,
+                        (
+                            f"🛡️ Security: {len(incidents)} инцидентов ({top_types[:80]})",
+                            (
+                                f"Период: последние {LOOKBACK_HOURS}ч. Инциденты: {sample_ids}.\n"
+                                "Требуется: групповой анализ кампании атак (источники, паттерны), "
+                                "усиление фильтров, отчёт с мерами."
+                            ),
+                            json.dumps(revived_meta, ensure_ascii=False),
+                            failed_id,
+                        ),
+                    )
+                    conn.commit()
+                    return "revived_failed"
+
             cur.execute(
                 """
                 INSERT INTO tasks (title, description, status, priority, metadata, project_context)
@@ -420,6 +477,13 @@ def main() -> int:
             state["processed"].append(incident["id"])
         save_state(state)
         print(f"🛡️ Обновлена текущая сводная задача ({len(fresh)} инцидентов), новая не создавалась")
+        return 0
+    if result == "revived_failed":
+        # [v150.66] Реанимировали последнюю failed сводную задачу (stub exhausted).
+        for incident in fresh:
+            state["processed"].append(incident["id"])
+        save_state(state)
+        print(f"🛡️ Реанимирована последняя failed сводная задача ({len(fresh)} инцидентов)")
         return 0
     if result == "skipped":
         # [v150.16] рейт-лимит: инциденты фиксируем в state, чтобы не гонять

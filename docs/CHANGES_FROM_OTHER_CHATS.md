@@ -20,6 +20,29 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-10-29 v150.66) — SLA alert hardening + security anti-storm + watchdog stabilization ✅
+
+- **Deferred Monitor (`scripts/tg_deferred_alerts.py`) приведён к боевому SLO:**
+  - `VICTORIA_ASYNC_TTC_P95_SEC`: default `180 -> 420`.
+  - `VICTORIA_ASYNC_TTC_MIN_SAMPLES`: default `5 -> 20`.
+  - Добавлен `VICTORIA_ASYNC_TTC_HUNG_SEC` (default `600`).
+  - hung-алерт теперь только при `inflight_n > 0` и `inflight_max > hung_threshold`.
+- **Security anti-storm (`scripts/security_incident_responder.py`):**
+  - если последняя consolidated security-задача `failed` из-за `llm_no_text_stub_exhausted`,
+    новая не создаётся; предыдущая реанимируется в `pending` (`revived_failed`) с обновлённым payload.
+- **STUB hardening (`knowledge_os/app/expert_worker.py`):**
+  - для background-source (`security_responder`, `nightly_hypothesis_debate`, etc.) exhausted-stub больше не hard-fail:
+    задача переводится в deferred `pending` с длинным backoff (`llm_no_text_stub_deferred`).
+  - ретраи stub теперь с настраиваемыми env и экспоненциальным backoff.
+- **Watchdog stabilization (`knowledge_os/app/performance_watchdog.py`):**
+  - убран тяжёлый top-level импорт `ai_core` (ленивый импорт в analyze path),
+  - LLM-анализ slow-queries отключён по умолчанию (`WATCHDOG_ANALYSIS_ENABLED=false`),
+  - main-loop защищён от silent-exit перезапуском в процессе.
+- **Проверка:**
+  - `py_compile` для всех изменённых python-файлов — OK.
+  - `tg_deferred_alerts --once`: `p95~401s`, `samples=68`, `threshold=420`, `over=False`.
+  - Prometheus alerts: `firing=0` на `9091/9092`.
+
 ## § Последние изменения (2026-09-22 v142) — слот рук 11434 + сканер + wisdom lock ✅
 
 - 11434 = только `phi3.5:3.8b` + `nomic`. Wisdom только MLX 11435. Coder — 11436.

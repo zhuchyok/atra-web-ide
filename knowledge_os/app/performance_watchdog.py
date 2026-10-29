@@ -11,7 +11,6 @@ from typing import Any, Dict, List, Optional
 
 import asyncpg
 import psutil
-from ai_core import run_smart_agent_async
 
 try:
     from app.event_bus import Event, EventType, get_event_bus
@@ -63,6 +62,13 @@ class PerformanceWatchdog:
         self.interval = int(os.getenv("WATCHDOG_INTERVAL_SEC", "600"))
         self.system_monitor_interval = 10
         self.slow_query_threshold_ms = float(os.getenv("WATCHDOG_SLOW_THRESHOLD_MS", "500"))
+        # Heavy LLM-powered query analysis can trigger large model warmups and OOM under pressure.
+        # Keep disabled by default; enable only for focused maintenance windows.
+        self.analysis_enabled = os.getenv("WATCHDOG_ANALYSIS_ENABLED", "false").lower() in (
+            "true",
+            "1",
+            "yes",
+        )
         # [v150.14] Аудит-2.0 №1: LLM-«оптимизатор» наплодил 154 индекса idx_watchdog_*
         # (124 никогда не использовались) — каждый INSERT обновлял все 150+.
         # Дефолт true→false: создание индексов только вручную/по ревью.
@@ -343,6 +349,8 @@ FROM pg_stat_user_indexes WHERE indexrelname LIKE 'idx_watchdog%';
 CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
 """
         try:
+            from ai_core import run_smart_agent_async
+
             analysis = await run_smart_agent_async(
                 prompt, expert_name="Виталий", category="performance_audit"
             )
@@ -517,6 +525,13 @@ CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
             logger.info("No slow queries detected.")
             return
 
+        if not self.analysis_enabled:
+            logger.info(
+                "Slow queries detected (%s), but WATCHDOG_ANALYSIS_ENABLED=false; skipping LLM analysis.",
+                len(slow_queries),
+            )
+            return
+
         for q in slow_queries:
             analysis = await self.analyze_query(q)
             if analysis:
@@ -628,5 +643,15 @@ CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
 
 
 if __name__ == "__main__":
-    watchdog = PerformanceWatchdog()
-    asyncio.run(watchdog.start())
+    # Keep watchdog process alive even if an internal loop unexpectedly returns.
+    # Container restart loops (exit 0 every ~tens of seconds) cause disk churn and noisy alerts.
+    while True:
+        try:
+            watchdog = PerformanceWatchdog()
+            asyncio.run(watchdog.start())
+            logger.error(
+                "⚠️ [WATCHDOG] Main loop exited unexpectedly without exception. Restarting in 5s."
+            )
+        except Exception as e:
+            logger.exception(f"❌ [WATCHDOG] Fatal main-loop crash: {e}")
+        time.sleep(5)

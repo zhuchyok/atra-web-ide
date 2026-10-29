@@ -136,6 +136,13 @@ def _ollama_url_for_model(model: Optional[str]) -> str:
         return os.getenv("OLLAMA_EXECUTOR_BASE_URL", base_default).rstrip("/")
     if m and "coder" in m.lower():
         return os.getenv("OLLAMA_EXECUTOR_BASE_URL", base_default).rstrip("/")
+    # [v150.27] phi-утечка на 11434: phi3.5 — модель РУК, гонять её на мозгевой
+    # порт запрещено контрактом v150.8 (guard выгружает, воркеры снова грузят).
+    if m.startswith("phi3.5"):
+        return (
+            os.getenv("OLLAMA_HANDS_URL")
+            or "http://host.docker.internal:11437"
+        ).rstrip("/")
     return base_default
 
 
@@ -583,11 +590,16 @@ class VictoriaExpertActor(AgentBase):
         contract_instruction = ExpertContract.format_prompt_instruction()
         full_prompt = f"{task_description}\n\n{contract_instruction}"
 
+        import hashlib as _hashlib
+
         result = await run_smart_agent_async(
             full_prompt,
             expert_name=self.name,
             category=category,
-        )
+            # [v149.65] изоляция per-call: хэш промпта вместо task_id (в этом
+            # методе его нет) — сессии разных вызовов не смешиваются
+            session_id="agent:" + _hashlib.md5(full_prompt.encode()).hexdigest()[:12],
+            )
         text = str(result.get("result") if isinstance(result, dict) else result)
         await self.record_event("task_finished", {"result_len": len(text)})
         return text
@@ -1700,7 +1712,8 @@ async def process_task(task_data: dict):
                             expert_name=expert_name,
                             category=_retry_category,
                             is_vip=True,
-                        )
+                            session_id=f"task:{task_id}",
+                            )
                         report_text = str(
                             report.get("result") if isinstance(report, dict) else report
                         )
@@ -1721,7 +1734,8 @@ async def process_task(task_data: dict):
                             expert_name=expert_name,
                             category="general",
                             is_vip=False,
-                        )
+                            session_id=f"task:{task_id}",
+                            )
                         report_text = str(
                             report.get("result") if isinstance(report, dict) else report
                         )
@@ -2247,6 +2261,22 @@ async def process_task(task_data: dict):
                     or len(report_text.strip()) < 40
                 )
                 if _stub_like:
+                    _stub_source = str((metadata or {}).get("source") or "").strip().lower()
+                    _stub_max_retries = max(1, int(os.getenv("LLM_STUB_MAX_RETRIES", "3")))
+                    _stub_background_sources = {
+                        s.strip().lower()
+                        for s in os.getenv(
+                            "LLM_STUB_BACKGROUND_SOURCES",
+                            "security_responder,nightly_hypothesis_debate,launchd_watchdog,predictive_monitor",
+                        ).split(",")
+                        if s.strip()
+                    }
+                    _stub_retry_base_minutes = max(
+                        1, int(os.getenv("LLM_STUB_RETRY_BASE_MINUTES", "5"))
+                    )
+                    _stub_background_retry_minutes = max(
+                        5, int(os.getenv("LLM_STUB_BACKGROUND_RETRY_MINUTES", "30"))
+                    )
                     if not report_text.strip():
                         report_text = (
                             "⚠️ Не удалось получить ответ от локальных моделей (пустой ответ). "
@@ -2256,12 +2286,13 @@ async def process_task(task_data: dict):
                         stub_retries = int((metadata or {}).get("llm_stub_retries", 0))
                     except (TypeError, ValueError):
                         stub_retries = 0
-                    if is_valid_uuid and stub_retries < 3:
+                    if is_valid_uuid and stub_retries < _stub_max_retries:
+                        _backoff_minutes = _stub_retry_base_minutes * max(1, 2**stub_retries)
                         await conn.execute(
                             """
                             UPDATE tasks
                             SET status = 'pending',
-                                retry_after = NOW() + INTERVAL '5 minutes',
+                                retry_after = NOW() + ($3 || ' minutes')::INTERVAL,
                                 updated_at = NOW(),
                                 metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
                             WHERE id = $1
@@ -2274,15 +2305,76 @@ async def process_task(task_data: dict):
                                     "last_progress_at": datetime.now(
                                         timezone.utc
                                     ).isoformat(),
+                                    "llm_stub_source": _stub_source,
+                                    "next_retry_after": (
+                                        datetime.now(timezone.utc)
+                                        + timedelta(minutes=_backoff_minutes)
+                                    ).isoformat(),
                                 },
                                 ensure_ascii=False,
                             ),
+                            str(_backoff_minutes),
                         )
                         await redis_manager.update_task_status(task_id, "pending")
                         logger.warning(
-                            "🔁 [STUB-GUARD] Task %s: LLM вернул стаб — ре-очередь (попытка %s/3)",
+                            "🔁 [STUB-GUARD] Task %s: LLM вернул стаб — ре-очередь (попытка %s/%s, backoff=%sm)",
                             task_id,
                             stub_retries + 1,
+                            _stub_max_retries,
+                            _backoff_minutes,
+                        )
+                        await redis_manager.release_task_lock(task_id)
+                        if hb_thread is not None:
+                            hb_thread.stopped = True
+                        try:
+                            from services.blackboard_service import get_blackboard_service
+
+                            bb = get_blackboard_service()
+                            bb_client = await bb.redis.get_client()
+                            await bb_client.delete(f"blackboard:heartbeat:{task_id}")
+                            await bb.release_task(task_id, expert_name)
+                        except Exception:
+                            pass
+                        return
+                    # For background/internal sources, exhausted stub retries should not become hard-fail.
+                    # Keep task pending with longer backoff to avoid false incident noise under transient
+                    # model pressure (security/nightly waves).
+                    if is_valid_uuid and _stub_source in _stub_background_sources:
+                        await conn.execute(
+                            """
+                            UPDATE tasks
+                            SET status = 'pending',
+                                retry_after = NOW() + ($3 || ' minutes')::INTERVAL,
+                                updated_at = NOW(),
+                                metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
+                            WHERE id = $1
+                            """,
+                            db_task_id,
+                            json.dumps(
+                                {
+                                    "last_error": "llm_no_text_stub_deferred",
+                                    "llm_stub_retries": stub_retries,
+                                    "llm_stub_source": _stub_source,
+                                    "llm_stub_deferred": True,
+                                    "llm_stub_deferred_reason": "background_source_exhausted",
+                                    "last_progress_at": datetime.now(
+                                        timezone.utc
+                                    ).isoformat(),
+                                    "next_retry_after": (
+                                        datetime.now(timezone.utc)
+                                        + timedelta(minutes=_stub_background_retry_minutes)
+                                    ).isoformat(),
+                                },
+                                ensure_ascii=False,
+                            ),
+                            str(_stub_background_retry_minutes),
+                        )
+                        await redis_manager.update_task_status(task_id, "pending")
+                        logger.warning(
+                            "⏳ [STUB-GUARD] Task %s: source=%s exhausted retries -> deferred pending (%sm) instead of failed",
+                            task_id,
+                            _stub_source or "unknown",
+                            _stub_background_retry_minutes,
                         )
                         await redis_manager.release_task_lock(task_id)
                         if hb_thread is not None:
@@ -3305,16 +3397,19 @@ async def worker_loop():
                 pool = await get_db_pool()
 
                 recovered_count = 0
-                async with pool.acquire() as conn:
+                # Keep one warm acquire for pool readiness, but do per-step fresh acquires
+                # below to avoid accidental reuse of a released proxy across long recovery loops.
+                async with pool.acquire() as _unused_conn:
                     for tid_bytes, raw in all_goals.items():
                         tid = tid_bytes.decode() if isinstance(tid_bytes, bytes) else tid_bytes
                         data = json.loads(raw)
 
                         if data.get("status") == "claimed" and data.get("assignee") == expert_name:
                             metadata_local = data.get("metadata", {}) or {}
-                            db_task_id, _ = await _resolve_canonical_task_id(
-                                conn, tid, metadata_local
-                            )
+                            async with pool.acquire() as resolve_conn:
+                                db_task_id, _ = await _resolve_canonical_task_id(
+                                    resolve_conn, tid, metadata_local
+                                )
                             if not db_task_id:
                                 claimed_at = data.get("claimed_at")
                                 if claimed_at:
@@ -3355,7 +3450,8 @@ async def worker_loop():
                                 )
                                 continue
                             if db_task_id:
-                                state = await conn.fetchrow(
+                                async with pool.acquire() as state_conn:
+                                    state = await state_conn.fetchrow(
                                     "SELECT status, updated_at, last_llm_call_at FROM tasks WHERE id = $1",
                                     db_task_id,
                                 )
@@ -3398,28 +3494,29 @@ async def worker_loop():
                                         datetime.now(timezone.utc) - progress_ts
                                     ).total_seconds()
                                     if age_seconds > stale_progress_minutes * 60:
-                                        await conn.execute(
-                                            """
-                                            UPDATE tasks
-                                            SET status = 'pending',
-                                                assignee_expert_id = NULL,
-                                                updated_at = NOW(),
-                                                metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
-                                            WHERE id = $1
-                                              AND status = 'in_progress'
-                                            """,
-                                            db_task_id,
-                                            json.dumps(
-                                                {
-                                                    "worker_recovery_requeue": True,
-                                                    "worker_recovery_requeue_reason": "stale_no_progress",
-                                                    "worker_recovery_requeue_at": datetime.now(
-                                                        timezone.utc
-                                                    ).isoformat(),
-                                                    "worker_recovery_expert": expert_name,
-                                                }
-                                            ),
-                                        )
+                                        async with pool.acquire() as update_conn:
+                                            await update_conn.execute(
+                                                """
+                                                UPDATE tasks
+                                                SET status = 'pending',
+                                                    assignee_expert_id = NULL,
+                                                    updated_at = NOW(),
+                                                    metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
+                                                WHERE id = $1
+                                                  AND status = 'in_progress'
+                                                """,
+                                                db_task_id,
+                                                json.dumps(
+                                                    {
+                                                        "worker_recovery_requeue": True,
+                                                        "worker_recovery_requeue_reason": "stale_no_progress",
+                                                        "worker_recovery_requeue_at": datetime.now(
+                                                            timezone.utc
+                                                        ).isoformat(),
+                                                        "worker_recovery_expert": expert_name,
+                                                    }
+                                                ),
+                                            )
                                         data["status"] = "bidding_open"
                                         data["assignee"] = None
                                         data["reclaimed_at"] = datetime.now(

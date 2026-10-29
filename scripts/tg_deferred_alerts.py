@@ -21,9 +21,10 @@ sys.path.append(str(Path(__file__).resolve().parent.parent / "knowledge_os"))
 PROM_URL = os.getenv("PROMETHEUS_URL", "http://localhost:9091")
 METRIC = "knowledge_os_tasks_deferred_new_24h_total"
 VICTORIA_METRICS_URL = os.getenv("VICTORIA_METRICS_URL", "http://127.0.0.1:8010/metrics")
-TTC_P95_THRESHOLD = float(os.getenv("VICTORIA_ASYNC_TTC_P95_SEC", "180"))
+TTC_P95_THRESHOLD = float(os.getenv("VICTORIA_ASYNC_TTC_P95_SEC", "420"))
 CONSILIUM_P95_THRESHOLD = float(os.getenv("VICTORIA_CONSILIUM_TTC_P95_SEC", "300"))
-TTC_MIN_SAMPLES = int(os.getenv("VICTORIA_ASYNC_TTC_MIN_SAMPLES", "5"))
+TTC_MIN_SAMPLES = int(os.getenv("VICTORIA_ASYNC_TTC_MIN_SAMPLES", "20"))
+TTC_HUNG_THRESHOLD = float(os.getenv("VICTORIA_ASYNC_TTC_HUNG_SEC", "600"))
 STATE_FILE = os.getenv("TG_DEFERRED_STATE", "/tmp/tg_deferred_alerts.state")
 RESET_AFTER_SEC = 4 * 3600
 
@@ -111,7 +112,7 @@ def _fmt_sec(s: float) -> str:
 
 
 def _build_ttc_text(
-    threshold: float, p95_over: bool, hung_over: bool,
+    threshold: float, hung_threshold: float, p95_over: bool, hung_over: bool,
     p50: float | None, p95: float | None, samples: int,
     inflight_max: float, inflight_n: int,
 ) -> str:
@@ -130,7 +131,10 @@ def _build_ttc_text(
         lines.append(f"• Медленный ответ (каждый 20-й): ~{_fmt_sec(p95)}")
     lines.append(f"• Норма: до {_fmt_sec(threshold)}")
     if hung_over:
-        lines.append(f"• ⚠️ Задача в работе уже {_fmt_sec(inflight_max)} — похоже на зависание")
+        lines.append(
+            f"• ⚠️ Задача в работе уже {_fmt_sec(inflight_max)} "
+            f"(порог зависания {_fmt_sec(hung_threshold)}) — похоже на зависание"
+        )
     elif inflight_n:
         lines.append(f"• Сейчас в работе: {inflight_n}")
     lines.append("")
@@ -145,7 +149,7 @@ def _build_ttc_text(
     lines.append(
         f"Технически: p95={p95:.1f}s p50={p50 if p50 is not None else 0:.1f}s "
         f"n={samples} inflight_max={inflight_max:.1f}s inflight_n={inflight_n} "
-        f"порог={threshold:.0f}s"
+        f"порог_p95={threshold:.0f}s порог_hung={hung_threshold:.0f}s"
     )
     return "\n".join(lines).replace("\\n", "\n")
 
@@ -176,14 +180,19 @@ async def run_once(threshold: float) -> bool:
     return False
 
 
-async def run_ttc_once(threshold: float = TTC_P95_THRESHOLD, min_samples: int = TTC_MIN_SAMPLES) -> bool:
+async def run_ttc_once(
+    threshold: float = TTC_P95_THRESHOLD,
+    min_samples: int = TTC_MIN_SAMPLES,
+    hung_threshold: float = TTC_HUNG_THRESHOLD,
+) -> bool:
     p50, p95, samples, inflight_max, inflight_n = fetch_async_ttc()
     if p95 is None:
         print("[ttc] metrics unavailable")
         return False
     state = _load_state()
     p95_over = samples >= min_samples and p95 > threshold
-    hung_over = inflight_max > threshold
+    # Consider hung only when there are inflight tasks and elapsed time exceeds hung threshold.
+    hung_over = inflight_n > 0 and inflight_max > hung_threshold
     # [v4.2-QUALITY] отдельные дедуп-ключи: ложный p95-page не глушит hung-алерт
     now = time.time()
     fresh_p95 = now - state.get("ttc_fired_at", 0) < RESET_AFTER_SEC
@@ -192,11 +201,21 @@ async def run_ttc_once(threshold: float = TTC_P95_THRESHOLD, min_samples: int = 
     print(
         f"[ttc] p50={p50} p95={p95} samples={samples} "
         f"inflight_max={inflight_max} inflight_n={inflight_n} "
-        f"threshold={threshold} min_samples={min_samples} over={over}"
+        f"threshold={threshold} hung_threshold={hung_threshold} min_samples={min_samples} over={over}"
     )
     if over:
         ok = await send_tg(
-            _build_ttc_text(threshold, p95_over, hung_over, p50, p95, samples, inflight_max, inflight_n)
+            _build_ttc_text(
+                threshold,
+                hung_threshold,
+                p95_over,
+                hung_over,
+                p50,
+                p95,
+                samples,
+                inflight_max,
+                inflight_n,
+            )
         )
         if ok:
             now2 = time.time()
