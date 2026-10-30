@@ -321,7 +321,8 @@ async def create_debate_for_hypothesis(
 
     title = f"Debate hypothesis {str(knowledge_node_id)[:8]}"
 
-    # [v150.28] Простые гипотезы → phi3.5 (HANDS), сложные → мозг (high).
+    # [v150.68] Quality-first: debate по умолчанию идет через brain-модель.
+    # Простые гипотезы можно вернуть на HANDS только env override'ом.
     # Простой = <500 символов, без SQL/архитектуры.
     _h_low = _h.lower()
     _is_simple = (
@@ -339,19 +340,30 @@ async def create_debate_for_hypothesis(
         complexity = "simple" if _is_simple else "complex"
 
     priority = "medium" if complexity == "simple" else "high"
-    preferred_source = "ollama" if complexity == "simple" else "mlx"
+    # quality default: both simple/complex debates prefer brain source; override when needed.
+    preferred_source_simple = os.getenv("NIGHTLY_DEBATE_SIMPLE_SOURCE", "mlx").strip().lower()
+    if preferred_source_simple not in ("mlx", "ollama"):
+        preferred_source_simple = "mlx"
+    preferred_source_complex = os.getenv("NIGHTLY_DEBATE_COMPLEX_SOURCE", "mlx").strip().lower()
+    if preferred_source_complex not in ("mlx", "ollama"):
+        preferred_source_complex = "mlx"
+    preferred_source = preferred_source_simple if complexity == "simple" else preferred_source_complex
     preferred_model = (
-        os.getenv("NIGHTLY_DEBATE_SIMPLE_MODEL", "phi3.5:3.8b-stable")
+        os.getenv("NIGHTLY_DEBATE_SIMPLE_MODEL", "victoria-wisdom-24k:latest")
         if complexity == "simple"
-        else None
+        else os.getenv("NIGHTLY_DEBATE_COMPLEX_MODEL", "").strip() or None
     )
 
     description = (
-        "Проведи критический разбор гипотезы, оцени техническую состоятельность, риски и применимость.\n\n"
-        f"Гипотеза:\n{hypothesis_text}"
+        "Проведи критический разбор гипотезы, оцени техническую состоятельность, риски и применимость.\n"
+        "ВАЖНО: отвечай строго по гипотезе ниже; игнорируй посторонние шаблоны, memory-crystals и нерелевантные темы.\n"
+        "Если данных недостаточно — явно напиши, чего не хватает.\n\n"
+        f"Гипотеза:\n{hypothesis_text}\n\n"
+        "Формат ответа:\n"
+        "1) Диагноз\n2) Риски\n3) Проверка/эксперимент\n4) Решение\n5) Уверенность"
     )
-    if complexity == "simple":
-        description = "[HANDS] Разбери на phi3.5:\n" + description
+    if complexity == "simple" and preferred_source == "ollama":
+        description = "[HANDS] Разбери на локальной модели:\n" + description
 
     metadata = {
         "source": "nightly_hypothesis_debate",

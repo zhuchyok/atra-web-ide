@@ -20,6 +20,21 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-10-30 v150.68) — nightly debate quality-pass (quality-first routing) ✅
+
+- **`knowledge_os/app/nightly_learner.py`:**
+  - simple nightly debate переведён в quality-first режим:
+    - `NIGHTLY_DEBATE_SIMPLE_SOURCE` default `mlx` (override возможен на `ollama`);
+    - `NIGHTLY_DEBATE_SIMPLE_MODEL` default `victoria-wisdom-24k:latest`;
+    - complex debate source/model также управляются env (`NIGHTLY_DEBATE_COMPLEX_SOURCE`, `NIGHTLY_DEBATE_COMPLEX_MODEL`).
+  - debate prompt усилен против контекстного bleed:
+    - явная инструкция «отвечай строго по гипотезе, игнорируй memory-crystals/шаблоны/нерелевантные темы»;
+    - фиксированный формат ответа (Диагноз → Риски → Проверка → Решение → Уверенность).
+- **Проверка:**
+  - `python3 -m py_compile knowledge_os/app/nightly_learner.py` — OK;
+  - `docker restart knowledge_nightly` — сервис поднялся;
+  - `scripts/tg_deferred_alerts.py --once` — `over=False`, hung не срабатывает.
+
 ## § Последние изменения (2026-10-30 v150.67) — async inflight orphan hardening + nightly debate noise gate ✅
 
 - **Victoria async inflight cleanup (`src/agents/bridge/victoria_server.py`):**
