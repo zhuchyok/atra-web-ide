@@ -20,6 +20,20 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-10-30 v150.67) — async inflight orphan hardening + nightly debate noise gate ✅
+
+- **Victoria async inflight cleanup (`src/agents/bridge/victoria_server.py`):**
+  - в `_cleanup_stale_tasks()` добавлен вызов `_clear_async_inflight(task_id)` при переводе stale-задачи в `failed`;
+  - в `_async_sla_snapshot()` добавлен авто-evict stale-полей из Redis hash `victoria:async_inflight` по порогу `VICTORIA_ASYNC_INFLIGHT_STALE_SEC` (default 7200s, floor 300s).
+- **Nightly debate anti-noise (`knowledge_os/app/nightly_learner.py`):**
+  - ранний skip гипотез с risky-маркерами (password/token/secret/credential и RU-аналоги) перед созданием debate-задач;
+  - флаг `NIGHTLY_DEBATE_SKIP_RISKY_MARKERS=true` (default), список через `NIGHTLY_DEBATE_RISKY_MARKERS`.
+- **Проверка:**
+  - `python3 -m py_compile knowledge_os/app/nightly_learner.py` — OK;
+  - `python3 scripts/scan_system_status.py` — stuck_tasks=0, tail ограничен (`pending=1 nightly debate`, `in_progress=1 security summary`);
+  - `python3 scripts/tg_deferred_alerts.py --once` — `p95=0.0`, `samples=0`, `inflight_n=1`, `threshold=420`, `over=False`;
+  - Prom alerts: `firing=0` на `9091/9092`.
+
 ## § Последние изменения (2026-10-29 v150.66) — SLA alert hardening + security anti-storm + watchdog stabilization ✅
 
 - **Deferred Monitor (`scripts/tg_deferred_alerts.py`) приведён к боевому SLO:**

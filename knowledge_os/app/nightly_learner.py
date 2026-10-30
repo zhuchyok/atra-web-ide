@@ -283,6 +283,29 @@ async def create_debate_for_hypothesis(
             len(_h), sum(1 for m in _garbage_markers if m in _h),
         )
         return council_node_id
+    # [v150.67] Anti-noise: risky/secret-like hypotheses systematically fail adversarial gate
+    # and create false failed tails in nightly debate. Skip them early.
+    _risky_skip_enabled = os.getenv("NIGHTLY_DEBATE_SKIP_RISKY_MARKERS", "true").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    if _risky_skip_enabled:
+        _risky_markers = tuple(
+            m.strip().lower()
+            for m in os.getenv(
+                "NIGHTLY_DEBATE_RISKY_MARKERS",
+                "password,token,secret,api key,пароль,токен,ключ доступа,credential",
+            ).split(",")
+            if m.strip()
+        )
+        _h_low = _h.lower()
+        if _risky_markers and any(marker in _h_low for marker in _risky_markers):
+            logger.info(
+                "[v150.67] Debate skipped: risky markers detected in hypothesis (%d chars)",
+                len(_h),
+            )
+            return council_node_id
 
     # [v150.26b] 4 Debate/час × 43% провала = топливо для Rejection-фейлов.
     # Лимит: не более 1 активной Debate-задачи в очереди.
@@ -316,6 +339,12 @@ async def create_debate_for_hypothesis(
         complexity = "simple" if _is_simple else "complex"
 
     priority = "medium" if complexity == "simple" else "high"
+    preferred_source = "ollama" if complexity == "simple" else "mlx"
+    preferred_model = (
+        os.getenv("NIGHTLY_DEBATE_SIMPLE_MODEL", "phi3.5:3.8b-stable")
+        if complexity == "simple"
+        else None
+    )
 
     description = (
         "Проведи критический разбор гипотезы, оцени техническую состоятельность, риски и применимость.\n\n"
@@ -331,8 +360,12 @@ async def create_debate_for_hypothesis(
         "is_verification": True,
         "priority": priority,
         "complexity": complexity,
+        # Hard contract: simple debates go to HANDS, complex debates go to BRAIN.
+        "preferred_source": preferred_source,
         "required_capabilities": ["verification", "analysis"],
     }
+    if preferred_model:
+        metadata["preferred_model"] = preferred_model
 
     try:
         task_id = await conn.fetchval(

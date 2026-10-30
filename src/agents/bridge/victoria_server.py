@@ -351,6 +351,7 @@ def _has_no_clarification_instruction(goal: str) -> bool:
 def _select_model_for_chat(content: str, expert_name: Optional[str] = None) -> str:
     """Автоматический выбор модели на основе содержания сообщения и эксперта"""
     content_lower = content.lower()
+    short_chat_model = os.getenv("VICTORIA_CHAT_SHORT_MODEL", "phi3.5:3.8b-stable")
 
     # [VIP ROUTE] Если в чате Иван (CEO) или запрос стратегический
     if any(
@@ -385,7 +386,7 @@ def _select_model_for_chat(content: str, expert_name: Optional[str] = None) -> s
         return "victoria-wisdom-24k:latest"
 
     if len(content) < 200:
-        return "tinyllama:1.1b-chat"  # Быстрая модель для коротких вопросов
+        return short_chat_model  # Быстрая локальная модель для коротких вопросов
 
     return "victoria-wisdom-24k:latest"
 
@@ -583,6 +584,7 @@ async def _cleanup_stale_tasks():
                         await redis_manager.update_task_status(
                             task_id, "failed", result=f"Timeout after {STALE_THRESHOLD_SEC // 60}m"
                         )
+                        await _clear_async_inflight(task_id)
                 except Exception:
                     pass
                 logger.warning(
@@ -1046,6 +1048,8 @@ async def _async_sla_snapshot() -> dict:
     ttc_samples = list(_async_ttc_samples)
     inflight_max = 0.0
     inflight_n = 0
+    stale_inflight_ids: list[str] = []
+    stale_inflight_sec = max(300.0, float(os.getenv("VICTORIA_ASYNC_INFLIGHT_STALE_SEC", "7200")))
     if redis_manager:
         try:
             client = await redis_manager.get_client()
@@ -1057,13 +1061,27 @@ async def _async_sla_snapshot() -> dict:
                     parsed.append(value)
             if parsed:
                 ttc_samples = parsed
-            raw_inflight = await client.hvals(_ASYNC_INFLIGHT_REDIS_KEY)
-            for item in raw_inflight or []:
+            raw_inflight = await client.hgetall(_ASYNC_INFLIGHT_REDIS_KEY)
+            for raw_task_id, item in (raw_inflight or {}).items():
+                task_id = raw_task_id.decode("utf-8") if isinstance(raw_task_id, bytes) else str(raw_task_id)
                 created_raw = item.decode("utf-8") if isinstance(item, bytes) else item
                 elapsed = _elapsed_seconds_from_store({"created_at": created_raw})
                 if elapsed is not None:
+                    if elapsed > stale_inflight_sec:
+                        stale_inflight_ids.append(task_id)
+                        continue
                     inflight_max = max(inflight_max, elapsed)
                     inflight_n += 1
+            if stale_inflight_ids:
+                try:
+                    await client.hdel(_ASYNC_INFLIGHT_REDIS_KEY, *stale_inflight_ids)
+                    logger.warning(
+                        "[SLA] Cleared stale inflight entries: count=%s oldest_sec>%.0f",
+                        len(stale_inflight_ids),
+                        stale_inflight_sec,
+                    )
+                except Exception:
+                    pass
         except Exception:
             pass
     return {
@@ -3457,13 +3475,13 @@ Q: "покажи файлы в текущей директории" → План
                     "qwen3-coder:30b",
                     "phi3.5:3.8b",
                     "qwen2.5:3b",
-                    "tinyllama:1.1b-chat",
+                    "phi3.5:3.8b-stable",
                 ],
                 "frontend": [
                     "qwen3-coder:30b",
                     "phi3.5:3.8b",
                     "qwen2.5:3b",
-                    "tinyllama:1.1b-chat",
+                    "phi3.5:3.8b-stable",
                 ],
                 "ml": ["victoria-wisdom-24k:latest", "glm-4.7-flash:latest", "phi3.5:3.8b"],
                 "devops": ["glm-4.7-flash:latest", "phi3.5:3.8b", "qwen2.5:3b"],
@@ -3474,7 +3492,7 @@ Q: "покажи файлы в текущей директории" → План
                     "qwen3-coder:30b",
                     "phi3.5:3.8b",
                     "qwen2.5:3b",
-                    "tinyllama:1.1b-chat",
+                    "phi3.5:3.8b-stable",
                 ],
             }
 
@@ -3773,7 +3791,7 @@ Q: "покажи файлы в текущей директории" → План
                     "glm-4.7-flash:latest",
                     "victoria-wisdom-24k:latest",
                     "gemma3n:e4b",
-                    "tinyllama:1.1b-chat",
+                    "phi3.5:3.8b-stable",
                 ]
                 for pref in preferred_planner:
                     if pref.lower() in ollama_lower_to_exact:
