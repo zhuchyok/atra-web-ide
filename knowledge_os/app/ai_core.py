@@ -1490,9 +1490,19 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                     # попадают в контекст (distractor-документы типа README-шаблонов
                     # сбивали модель на «ответ не на задание», QC v10)
                     _min_sim = float(os.getenv("RAG_MIN_SIMILARITY", "0.45"))
-                    rows = [r for r in rows if float(r["similarity"]) >= _min_sim]
+                    _fallback_topk = max(
+                        1, int(os.getenv("RAG_MIN_SIMILARITY_FALLBACK_TOPK", "1"))
+                    )
+                    _pre_filter_rows = list(rows)
+                    rows = [r for r in _pre_filter_rows if float(r["similarity"]) >= _min_sim]
                     if not rows:
-                        return ""
+                        # Keep at least one best chunk so strict cutoff does not
+                        # fully zero out context on narrow/rare queries.
+                        rows = sorted(
+                            _pre_filter_rows,
+                            key=lambda r: float(r["similarity"]),
+                            reverse=True,
+                        )[:_fallback_topk]
 
                     def _adj(row):
                         meta = row["metadata"] or {}
@@ -1868,7 +1878,15 @@ async def run_smart_agent_async_impl(
             _lightweight_max,
         )
 
-    memory_crystals = "" if _lightweight else await load_memory_crystals(project_context)
+    memory_crystals = (
+        ""
+        if _lightweight
+        else await load_memory_crystals(
+            project_context,
+            task_category=category,
+            user_prompt=prompt,
+        )
+    )
 
     # [SINGULARITY 26.9] Queue complex tasks to Redis worker
     goal_lower = (prompt or "").lower()

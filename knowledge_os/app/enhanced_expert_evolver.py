@@ -36,6 +36,11 @@ def _is_sane_mutation(new_prompt: str) -> bool:
 
 import asyncpg
 
+try:
+    from promotion_engine import mutation_passes_qa_gate
+except ImportError:  # pragma: no cover - fallback for package-style imports
+    from .promotion_engine import mutation_passes_qa_gate
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -444,6 +449,29 @@ class ExpertEvolver:
                     if not _is_sane_mutation(new_prompt):
                         logger.error("🚨 [EEVOL] sanity gate rejected (metrics evolution): %s", str(new_prompt)[:80])
                         return False
+
+                    # QA-GATE: a fresh direct-promotion mutation has no test stats yet,
+                    # so it must pass the leak check and accumulated stats gate before
+                    # being promoted. If it fails, record it as 'shadow' (no blind promote).
+                    gate_passed, gate_reason = mutation_passes_qa_gate(new_prompt, 0, 0)
+                    if not gate_passed:
+                        logger.warning(
+                            "⏸️ [EEVOL] QA-gate blocked direct promotion for expert %s (reason: %s). "
+                            "Mutation recorded as shadow.",
+                            expert_id,
+                            gate_reason,
+                        )
+                        await self._record_mutation_event(
+                            conn=conn,
+                            expert_id=expert_id,
+                            mutated_prompt=new_prompt,
+                            base_version=base_version,
+                            source="enhanced_metrics_evolution",
+                            metrics=mutation_metrics,
+                            status="shadow",
+                        )
+                        return True
+
                     await conn.execute(
                         """
                         UPDATE experts

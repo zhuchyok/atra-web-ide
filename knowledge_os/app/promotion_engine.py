@@ -19,6 +19,46 @@ MIN_WIN_COUNT = int(os.getenv("PROMOTION_MIN_WIN_COUNT", "6"))
 WIN_RATE_THRESHOLD = float(os.getenv("PROMOTION_WIN_RATE_THRESHOLD", "0.65"))
 MIN_LOWER_BOUND = float(os.getenv("PROMOTION_MIN_LOWER_BOUND", "0.50"))
 WILSON_Z = float(os.getenv("PROMOTION_WILSON_Z", "1.96"))
+
+# QA-gate: minimum tests and win rate required for ANY direct promotion path
+# (evolver direct path, meta_architect hot-swap, promotion engine).
+QA_GATE_MIN_TESTS = int(os.getenv("QA_GATE_MIN_TESTS", "10"))
+QA_GATE_MIN_WIN_RATE = float(os.getenv("QA_GATE_MIN_WIN_RATE", "0.55"))
+# Substrings that indicate the LLM leaked its own instructions into the
+# "mutated prompt" instead of returning a clean prompt. Case-insensitive.
+QA_GATE_LEAK_MARKERS = (
+    "ответте только",
+    "ответьте только",
+    "верните только",
+    "текст нового промпта",
+    "ответте только текстом",
+)
+
+
+def mutation_passes_qa_gate(
+    mutated_prompt: str, total_tests: int, win_count: int
+) -> tuple[bool, str]:
+    """
+    Shared QA gate for promoting expert_mutations rows to status='promoted'.
+
+    Checks:
+      1. mutated_prompt does not contain leaked instruction markers (case-insensitive)
+      2. total_tests >= QA_GATE_MIN_TESTS (default 10)
+      3. win_rate (win_count/total_tests) >= QA_GATE_MIN_WIN_RATE (default 0.55)
+
+    Returns (passed, reason). reason is empty string when passed.
+    """
+    if mutated_prompt:
+        lowered = mutated_prompt.lower()
+        for marker in QA_GATE_LEAK_MARKERS:
+            if marker in lowered:
+                return False, f"leaked_instruction_marker:{marker!r}"
+    if total_tests < QA_GATE_MIN_TESTS:
+        return False, f"insufficient_tests:{total_tests}<{QA_GATE_MIN_TESTS}"
+    win_rate = (win_count / total_tests) if total_tests > 0 else 0.0
+    if win_rate < QA_GATE_MIN_WIN_RATE:
+        return False, f"insufficient_win_rate:{win_rate:.2f}<{QA_GATE_MIN_WIN_RATE}"
+    return True, ""
 PROMOTION_REPORT_INTERVAL_HOURS = int(os.getenv("PROMOTION_REPORT_INTERVAL_HOURS", "6"))
 PROMOTION_REPORT_WINDOW_HOURS = int(os.getenv("PROMOTION_REPORT_WINDOW_HOURS", "24"))
 
@@ -93,6 +133,22 @@ async def check_and_promote_mutations(conn: Optional[asyncpg.Connection] = None)
             win_rate = win_count / total if total > 0 else 0
 
             lower_bound = _wilson_lower_bound(win_count, total)
+
+            # QA-gate: reject leaked prompts even if stats pass
+            qa_ok, qa_reason = mutation_passes_qa_gate(
+                mut["mutated_prompt"] or "", total, win_count
+            )
+            if not qa_ok and qa_reason.startswith("leaked_instruction_marker"):
+                summary["gate_reasons"]["leaked_prompt"] = (
+                    summary["gate_reasons"].get("leaked_prompt", 0) + 1
+                )
+                logger.warning(
+                    "🚨 QA-gate rejected mutation %s (expert %s): leaked instruction marker in mutated_prompt (%s). Stays shadow.",
+                    mut["id"],
+                    mut["expert_id"],
+                    qa_reason,
+                )
+                continue
 
             if (
                 total >= MIN_TESTS

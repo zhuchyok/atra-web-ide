@@ -23,6 +23,35 @@ except ImportError:
     asyncpg = None
     ASYNCPG_AVAILABLE = False
 
+try:
+    from promotion_engine import QA_GATE_MIN_TESTS, mutation_passes_qa_gate
+except ImportError:  # pragma: no cover - fallback for package-style imports
+    try:
+        from .promotion_engine import QA_GATE_MIN_TESTS, mutation_passes_qa_gate
+    except ImportError:
+        QA_GATE_MIN_TESTS = 10
+
+        def mutation_passes_qa_gate(mutated_prompt, total_tests, win_count):
+            # Inline fallback of the shared QA gate (leak markers + stats thresholds)
+            markers = (
+                "ответте только",
+                "ответьте только",
+                "верните только",
+                "текст нового промпта",
+                "ответте только текстом",
+            )
+            if mutated_prompt:
+                low = mutated_prompt.lower()
+                for m in markers:
+                    if m in low:
+                        return False, f"leaked_instruction_marker:{m!r}"
+            if total_tests < QA_GATE_MIN_TESTS:
+                return False, f"insufficient_tests:{total_tests}<{QA_GATE_MIN_TESTS}"
+            win_rate = (win_count / total_tests) if total_tests > 0 else 0.0
+            if win_rate < 0.55:
+                return False, f"insufficient_win_rate:{win_rate:.2f}<0.55"
+            return True, ""
+
 # Local project imports with fallback
 try:
     from ai_core import run_smart_agent_async
@@ -681,6 +710,62 @@ class MetaArchitect:
                     logger.info(
                         f"🏆 [WINNER] Shadow version of {original_module} is a winner! Triggering Hot-Swap."
                     )
+
+                    # QA-GATE: never hot-swap blindly. Check the mutated code for leaked
+                    # instruction markers and require sufficient shadow test stats from
+                    # expert_mutations before promoting.
+                    qa_ok, qa_reason = True, ""
+                    if ASYNCPG_AVAILABLE:
+                        try:
+                            conn = await asyncpg.connect(self.db_url)
+                            try:
+                                stats_row = await conn.fetchrow(
+                                    """
+                                    SELECT m.mutated_prompt, m.total_tests, m.win_count
+                                    FROM expert_mutations m
+                                    JOIN experts e ON e.id = m.expert_id
+                                    WHERE e.name = $1
+                                    ORDER BY m.created_at DESC
+                                    LIMIT 1
+                                """,
+                                    original_module,
+                                )
+                            finally:
+                                await conn.close()
+                            if stats_row:
+                                mutation_text = stats_row["mutated_prompt"] or ""
+                                if not mutation_text:
+                                    # Fall back to the on-disk mutated module, if present
+                                    mutation_file = os.path.join(
+                                        WORKSPACE_ROOT, "knowledge_os", "app", f"{original_module}_v2.py"
+                                    )
+                                    if os.path.exists(mutation_file):
+                                        with open(mutation_file, "r", encoding="utf-8") as _f:
+                                            mutation_text = _f.read()
+                                qa_ok, qa_reason = mutation_passes_qa_gate(
+                                    mutation_text,
+                                    int(stats_row["total_tests"] or 0),
+                                    int(stats_row["win_count"] or 0),
+                                )
+                            else:
+                                qa_ok, qa_reason = (
+                                    False,
+                                    f"no_expert_mutations_stats (min_tests={QA_GATE_MIN_TESTS})",
+                                )
+                        except Exception as qa_err:
+                            qa_ok = False
+                            qa_reason = f"qa_gate_error:{qa_err}"
+                    else:
+                        qa_ok, qa_reason = False, "asyncpg_unavailable"
+
+                    if not qa_ok:
+                        logger.warning(
+                            "⏸️ [HOT-SWAP] QA-gate blocked promotion of %s (reason: %s). "
+                            "Mutation stays in shadow.",
+                            original_module,
+                            qa_reason,
+                        )
+                        continue
 
                     # Log lesson to knowledge nodes
                     conn = await asyncpg.connect(self.db_url)
