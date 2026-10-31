@@ -109,7 +109,10 @@ def render_chat_tab():
                     response_placeholder.markdown(full_response + "▌")
                 response_placeholder.markdown(full_response)
 
-            asyncio.run(get_response())
+            # [v149.68] блокирует вкладку на время ответа (до 10 мин) — честный
+            # индикатор вместо «зависло». Полный рефакторинг на async — отдельная задача.
+            with st.spinner("Виктория думает… (ответ может занять несколько минут)"):
+                asyncio.run(get_response())
 
             # Сохраняем ответ
             st.session_state.chat_messages.append({"role": "assistant", "content": full_response})

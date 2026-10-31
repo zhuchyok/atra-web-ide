@@ -358,7 +358,14 @@ def render_structure():
             """,
             (exp_data["id"],),
         )
-        metadata_last_evolve = (exp_data.get("metadata") or {}).get("last_evolution")
+        metadata_last_evolve = _meta_raw = exp_data.get("metadata")
+        if isinstance(_meta_raw, str):
+            try:
+                import json as _json
+                _meta_raw = _json.loads(_meta_raw)
+            except Exception:
+                _meta_raw = {}
+        _last_evo = (_meta_raw or {}).get("last_evolution")
         if latest_mutation:
             mut = latest_mutation[0]
             st.info(

@@ -508,10 +508,17 @@ def main():
             }
         )
 
-    total_tasks = results.get("tasks_count", [{}])[0].get("count", 0)
-    total_experts = results.get("experts_count", [{}])[0].get("count", 0)
-    total_nodes = results.get("intellectual_capital", [{}])[0].get("total_nodes", 0)
-    last_db_update = results.get("last_update", [{}])[0].get("last_db_update")
+    # [v149.68] безопасный доступ: fetch_parallel возвращает [] при ошибке запроса
+    def _first_count(key, field="count", default=0):
+        rows = results.get(key)
+        if isinstance(rows, list) and rows:
+            return rows[0].get(field, default)
+        return default
+
+    total_tasks = _first_count("tasks_count")
+    total_experts = _first_count("experts_count")
+    total_nodes = _first_count("intellectual_capital", "total_nodes")
+    last_db_update = _first_count("last_update", "last_db_update", None)
 
     # Получаем время последнего обновления данных из БД
     update_status = "нет данных"

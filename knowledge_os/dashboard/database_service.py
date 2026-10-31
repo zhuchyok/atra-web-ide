@@ -107,7 +107,9 @@ def fetch_data(query, params=None, cache_key=None):
             return []
         except Exception as e:
             logger.error(f"Неожиданная ошибка в fetch_data: {e}")
-            return []
+            # [v149.68] возврат None: st.cache_data НЕ кэширует None —
+            # «рывок соединения» не превратится в минуту «Нет данных» на всех вкладках
+            return None
     return []
 
 

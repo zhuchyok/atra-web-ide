@@ -442,7 +442,7 @@ def render_war_room():
             severity = "MEDIUM"
             color = "#cdd6f4"
 
-            with st.expander(f"🚨 {severity}: {s['topic']} ({s['status'].upper()})"):
+            with st.expander(f"🚨 {severity}: {s['topic']} ({(s['status'] or '').upper()})"):
                 st.caption(f"Создано: {format_msk(s['created_at'])}")
 
                 # Финальный план
@@ -544,8 +544,9 @@ def render_security():
                 )
         else:
             st.success("Угроз не обнаружено.")
-    except:
-        pass
+    except Exception as sec_err:
+        # [v149.68] молчаливый except скрывал сломанный SQL за «пустой секцией»
+        st.caption(f"⚠️ Секция безопасности недоступна: {sec_err}")
 
 
 def render_singularity_metrics():

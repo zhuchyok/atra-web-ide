@@ -607,6 +607,7 @@ def _render_put_task():
 
                 if success:
                     st.success("✅ Задача успешно создана!")
+                    st.rerun()  # [fix] сразу показать новую задачу в списке
                     st.cache_data.clear()
                 else:
                     st.error("❌ Ошибка при создании задачи")
