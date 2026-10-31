@@ -482,7 +482,7 @@ def main():
                 st.stop()
 
     # Шапка: логотип, раздел, время UTC, статус, метрики, обновить (всё на своих местах)
-    _section = st.session_state.get("dashboard_section", "Обзор")
+    _section = st.session_state.get("nav_section") or st.session_state.get("dashboard_section", "Обзор")  # [fix] widget state актуален на rerun
     col_header1, col_header2, col_header3, col_header4, col_header5 = st.columns([2, 1, 1, 1, 1])
 
     # ПАРАЛЛЕЛЬНЫЙ СБОР ДАННЫХ ДЛЯ ШАПКИ И МЕТРИК
@@ -725,9 +725,16 @@ def main():
         if finance_data and finance_data[0]:
             tok = finance_data[0]["total_tokens"] or 0
             cost = finance_data[0]["total_cost"] or 0
-            st.caption(f"💰 24ч: токены {tok:,} · ${cost:.4f}")
+            rows_with_tokens = finance_data[0].get("rows_with_tokens", 0) or 0
+            if rows_with_tokens == 0:
+                # token_logger.py в живом контуре не вызывается — interaction_logs
+                # пишутся с token_usage = 0. Честно показываем отсутствие учёта
+                # вместо фейковых нулей.
+                st.caption("💰 24ч: учёт токенов не ведётся")
+            else:
+                st.caption(f"💰 24ч: токены {tok:,} · ${cost:.4f}")
         else:
-            st.caption("💰 24ч: токены 0")
+            st.caption("💰 24ч: учёт токенов не ведётся")
         st.caption("Обновление: кнопка 🔄 в шапке")
         # Всё остальное — в expander «Подробнее»
         with st.expander("Подробнее"):

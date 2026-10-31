@@ -343,7 +343,7 @@ def fetch_sidebar_metrics():
             ),
             "experts": ("SELECT COUNT(*) as count FROM experts", ()),
             "finance": (
-                "SELECT COALESCE(SUM(token_usage), 0) as total_tokens, COALESCE(SUM(cost_usd), 0) as total_cost FROM interaction_logs WHERE created_at > NOW() - INTERVAL '24 hours'",
+                "SELECT COALESCE(SUM(token_usage), 0) as total_tokens, COALESCE(SUM(cost_usd), 0) as total_cost, COUNT(*) FILTER (WHERE token_usage > 0) as rows_with_tokens FROM interaction_logs WHERE created_at > NOW() - INTERVAL '24 hours'",
                 (),
             ),
             "failed_tasks": (

@@ -480,15 +480,20 @@ def render_health_status():
     if freshness:
         rows = []
         stale_count = 0
+        # [v149.66] per-source пороги: событийные источники (OKR раз в квартал,
+        # симуляции — ручной запуск) не «устарели», они редкосоздаваемые
+        rare_sources = {"okrs": 90 * 24 * 60, "simulations": 90 * 24 * 60}
         for item in freshness:
             age_minutes = item.get("age_minutes")
             last_ts = item.get("last_ts")
+            source = item.get("source")
+            stale_threshold = rare_sources.get(source, 24 * 60)
             if age_minutes is None:
                 freshness_flag = "⚪ нет данных"
             elif age_minutes <= 60:
                 freshness_flag = "🟢 актуально"
-            elif age_minutes <= 24 * 60:
-                freshness_flag = "🟡 устаревает"
+            elif age_minutes <= stale_threshold:
+                freshness_flag = "🟡 устаревает" if stale_threshold == 24 * 60 else "🟢 редко (норма)"
             else:
                 freshness_flag = "🔴 устарело"
                 stale_count += 1
