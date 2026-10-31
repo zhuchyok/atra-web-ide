@@ -843,6 +843,68 @@ _ASYNC_TTC_SAMPLES_MAX = 200
 _ASYNC_TTC_REDIS_KEY = "victoria:async_ttc_samples"
 _ASYNC_INFLIGHT_REDIS_KEY = "victoria:async_inflight"
 
+# [v150.69] Hands 11437 backpressure: Victoria RAG embeds were sending keep_alive=0
+# (unload nomic after every call) with no retry. That created local 503 waves on
+# hands without touching the brain slot.
+_hands_call_sem: Optional[asyncio.Semaphore] = None
+
+
+def _hands_max_inflight() -> int:
+    return max(1, int(os.getenv("VICTORIA_HANDS_MAX_INFLIGHT", "1")))
+
+
+def _hands_semaphore() -> asyncio.Semaphore:
+    global _hands_call_sem
+    if _hands_call_sem is None:
+        _hands_call_sem = asyncio.Semaphore(_hands_max_inflight())
+    return _hands_call_sem
+
+
+def _hands_keep_alive() -> int:
+    raw = str(os.getenv("VICTORIA_HANDS_KEEP_ALIVE", "-1")).strip()
+    if raw in {"0", "0s", "0s0"}:
+        return -1
+    try:
+        return int(raw)
+    except ValueError:
+        return -1
+
+
+async def _hands_post_json(
+    url: str, payload: Dict[str, Any], timeout: float
+) -> Optional[httpx.Response]:
+    """POST to hands (11437) with a process-wide slot and short 503/429 retry."""
+    retries = max(0, int(os.getenv("VICTORIA_HANDS_RETRY", "2")))
+    delays = (0.25, 0.7, 1.2)
+    body = dict(payload)
+    body.setdefault("keep_alive", _hands_keep_alive())
+    last_exc: Optional[Exception] = None
+    async with _hands_semaphore():
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            for attempt in range(retries + 1):
+                try:
+                    resp = await client.post(url, json=body)
+                    if resp.status_code in (429, 503) and attempt < retries:
+                        logger.warning(
+                            "[HANDS] HTTP %s %s attempt=%s/%s — retry",
+                            resp.status_code,
+                            url,
+                            attempt + 1,
+                            retries + 1,
+                        )
+                        await asyncio.sleep(delays[min(attempt, len(delays) - 1)])
+                        continue
+                    return resp
+                except (httpx.TimeoutException, httpx.TransportError) as exc:
+                    last_exc = exc
+                    if attempt < retries:
+                        await asyncio.sleep(delays[min(attempt, len(delays) - 1)])
+                        continue
+                    raise
+    if last_exc:
+        raise last_exc
+    return None
+
 
 async def _clear_async_inflight(task_id: str) -> None:
     """Terminal /run must not linger in victoria:async_inflight (timeout path too)."""
@@ -1066,12 +1128,30 @@ async def _async_sla_snapshot() -> dict:
                 task_id = raw_task_id.decode("utf-8") if isinstance(raw_task_id, bytes) else str(raw_task_id)
                 created_raw = item.decode("utf-8") if isinstance(item, bytes) else item
                 elapsed = _elapsed_seconds_from_store({"created_at": created_raw})
-                if elapsed is not None:
-                    if elapsed > stale_inflight_sec:
-                        stale_inflight_ids.append(task_id)
-                        continue
-                    inflight_max = max(inflight_max, elapsed)
-                    inflight_n += 1
+                if elapsed is None:
+                    continue
+                local = _run_task_store.get(task_id) or {}
+                redis_status = ""
+                redis_result = ""
+                try:
+                    rec = await redis_manager.get_task_status(task_id)
+                    if rec:
+                        redis_status = str(rec.get("status") or "").lower()
+                        redis_result = str(rec.get("result") or rec.get("output") or rec.get("error") or "")
+                except Exception:
+                    rec = None
+                local_status = str(local.get("status") or "").lower()
+                local_text = str(local.get("output") or local.get("error") or "")
+                terminal = (
+                    local_status in ("completed", "failed", "cancelled", "success")
+                    or redis_status in ("completed", "failed", "cancelled", "success")
+                    or "задача отменена" in (local_text + " " + redis_result).lower()
+                )
+                if terminal or elapsed > stale_inflight_sec:
+                    stale_inflight_ids.append(task_id)
+                    continue
+                inflight_max = max(inflight_max, elapsed)
+                inflight_n += 1
             if stale_inflight_ids:
                 try:
                     await client.hdel(_ASYNC_INFLIGHT_REDIS_KEY, *stale_inflight_ids)
@@ -2344,12 +2424,15 @@ class VictoriaAgent(BaseAgent):
         )
         model = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
         try:
-            async with httpx.AsyncClient(timeout=3.0) as client:
-                r = await client.post(
-                    embed_url, json={"model": model, "prompt": text[:8000], "keep_alive": 0}
-                )
-                r.raise_for_status()
-                return r.json().get("embedding")
+            r = await _hands_post_json(
+                embed_url,
+                {"model": model, "prompt": text[:8000]},
+                timeout=float(os.getenv("OLLAMA_EMBED_TIMEOUT_SEC", "8")),
+            )
+            if r is None:
+                return None
+            r.raise_for_status()
+            return r.json().get("embedding")
         except Exception as e:
             logger.debug(f"Embedding для RAG недоступен: {e}")
             return None
@@ -2367,11 +2450,12 @@ class VictoriaAgent(BaseAgent):
         )
         model = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
         try:
-            async with httpx.AsyncClient(timeout=min(5.0 + len(texts), 30.0)) as client:
-                r = await client.post(
-                    embed_url,
-                    json={"model": model, "input": [t[:8000] for t in texts], "keep_alive": 0},
-                )
+            r = await _hands_post_json(
+                embed_url,
+                {"model": model, "input": [t[:8000] for t in texts]},
+                timeout=min(5.0 + len(texts), 30.0),
+            )
+            if r is not None:
                 r.raise_for_status()
                 data = r.json()
                 if "embeddings" in data and isinstance(data["embeddings"], list):
@@ -7557,12 +7641,16 @@ async def _run_task_background(
             )
     except asyncio.CancelledError:
         logger.warning("[VICTORIA_CYCLE] background cancelled task_id=%s", task_id)
+        store["status"] = "failed"
+        store["stage"] = "failed"
+        store["error"] = "Задача отменена"
+        store["output"] = store.get("output") or "Задача отменена"
+        store["updated_at"] = datetime.now(timezone.utc).isoformat()
         if redis_manager:
             await redis_manager.update_task_status(task_id, "failed", result="Задача отменена")
         else:
             await _sync_store()
-            store["status"] = "failed"
-            store["error"] = "Задача отменена"
+        await _clear_async_inflight(task_id)
         raise
     except Exception as e:
         logger.info("[VICTORIA_CYCLE] background failed task_id=%s error=%s", task_id, str(e)[:200])
@@ -8180,12 +8268,16 @@ async def _try_fact_fast_track(goal: str) -> Optional[str]:
         "options": {"temperature": 0.1, "num_ctx": 2048, "num_predict": 256},
     }
     try:
-        async with httpx.AsyncClient(
-            timeout=float(os.getenv("VICTORIA_FACT_FAST_TRACK_TIMEOUT", "20"))
-        ) as c:
-            r = await c.post(f"{hands}/api/chat", json=payload)
-        if r.status_code != 200:
-            logger.info("[FACT-FAST-TRACK] HTTP %d — обычный пайплайн", r.status_code)
+        r = await _hands_post_json(
+            f"{hands}/api/chat",
+            payload,
+            timeout=float(os.getenv("VICTORIA_FACT_FAST_TRACK_TIMEOUT", "20")),
+        )
+        if r is None or r.status_code != 200:
+            logger.info(
+                "[FACT-FAST-TRACK] HTTP %s — обычный пайплайн",
+                None if r is None else r.status_code,
+            )
             return None
         _j = r.json()
         text = (_j.get("response") or ((_j.get("message") or {}).get("content")) or "").strip()

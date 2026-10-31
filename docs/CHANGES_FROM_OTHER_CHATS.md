@@ -20,6 +20,14 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-10-31 v150.69) — victoria-agent hands 11437 backpressure + cancel inflight ✅
+
+- Только контур Виктории (`src/agents/bridge/victoria_server.py`), мозг 11434 / `victoria-qwen38` не тронут.
+- RAG embed больше не шлёт `keep_alive: 0` (это выгружало nomic и плодило 503 на 11437).
+- Общий слот `VICTORIA_HANDS_MAX_INFLIGHT` (default 1) + retry 503/429 (`VICTORIA_HANDS_RETRY`, default 2) для embed и fact-fast-track.
+- `keep_alive` рук: `VICTORIA_HANDS_KEEP_ALIVE` default `-1`; `0` принудительно заменяется на `-1`.
+- Cancel-путь async `/run` теперь чистит `victoria:async_inflight`; SLA-снимок выкидывает terminal/«Задача отменена».
+
 ## § Последние изменения (2026-10-30 v150.68) — nightly debate quality-pass (quality-first routing) ✅
 
 - **`knowledge_os/app/nightly_learner.py`:**

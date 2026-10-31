@@ -47,6 +47,36 @@
 - Prometheus: `firing=0` на `9091` и `9092`.
 - Очередь без stuck; operational-tail контролируется launchd_watchdog.
 
+## § v150.69 (2026-10-31) — руки 11437: backpressure у Виктории + cancel-inflight; мозг не переезжал
+
+**Контракт слоёв (runtime, не история чатов):**
+
+| Слой | Порт | Модель | Это мозг? |
+| --- | --- | --- | --- |
+| Мозг | **11434 Ollama** | `victoria-qwen38:latest` | **Да. Основной.** `VICTORIA_MODEL` / `VICTORIA_PLANNER_MODEL` |
+| Запас | 11435 MLX | `victoria-wisdom-24k` (кэш) | Нет. `VICTORIA_MLX_BRAIN=false`, `USE_MLX_FOR_PLANNER=false`, `USE_MLX_FALLBACK=true` |
+| Руки | **11437 Ollama** | `phi3.5:3.8b-stable` + `nomic-embed-text` | Нет. Эмбеды и короткий fact-track |
+
+`11435/health=200` и кэш wisdom **не значат**, что мозг переехал. Это тёплый fallback.
+
+**Проблема 1:** ложный hung/p95 — отменённый async `/run` оставался в `victoria:async_inflight` со статусом `running` (текст уже «Задача отменена»). Два uvicorn-воркера не видели чужой in-memory store.
+
+**Проблема 2:** 503 на руках шли из `victoria-agent` (RAG embed), не из nightly/security. Корень: `keep_alive: 0` на каждом эмбеде выгружал nomic → reload → `maximum pending requests`.
+
+**Что внедрено** (`src/agents/bridge/victoria_server.py`):
+
+1. Cancel-путь пишет `failed` в store и вызывает `_clear_async_inflight`.
+2. `_async_sla_snapshot()` выкидывает terminal/«Задача отменена» из hash, не ждёт 7200с.
+3. Hands helper: семафор `VICTORIA_HANDS_MAX_INFLIGHT=1`, retry `VICTORIA_HANDS_RETRY=2`, `VICTORIA_HANDS_KEEP_ALIVE=-1` (`0` запрещён).
+4. RAG embed и fact-fast-track идут через helper. Мозг 11434 не менялся.
+
+**Верификация (2026-10-31):**
+
+- `11434/api/ps` → `victoria-qwen38:latest`; `victoria-agent` env: `VICTORIA_MLX_BRAIN=false`.
+- Hands probe: embed 200 / 14–41мс; после рестарта эмбеды Виктории на 11437 — 200, без новых 503.
+- `HLEN victoria:async_inflight=0`; `tg_deferred_alerts --once` → `over=False`, `inflight_n=0`.
+- `/metrics`: `victoria_async_ttc_p95_seconds=0`, `victoria_async_inflight=0`.
+
 ## 93. Singularity 31.2+: P0 Stabilization Closure (2026-07-19)
 
 - **Контекст:** изменения из параллельного чата приняты как базовые (full-first для expert-dialogue, расширенный контракт результата) и дожаты до устойчивого P0 состояния без отката чужих правок.
