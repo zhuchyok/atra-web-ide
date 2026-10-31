@@ -8,6 +8,207 @@ export PATH="/opt/homebrew/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
 WATCHDOG_TIMEOUT=45  # секунд — через сколько убивать Stopping/expired runner
 
 log() { echo "[$(date '+%H:%M:%S')] [OLLAMA-WATCHDOG] $*"; }
+STATE_DIR="/tmp/atra_runtime_state"
+BRAIN_NOT_READY_FLAG="${STATE_DIR}/brain_11434_not_ready"
+METRICS_DIR="${ATRA_METRICS_DIR:-/tmp/atra_metrics}"
+METRICS_FILE="${METRICS_DIR}/ollama_watchdog.prom"
+TIMEOUT_LIVE_COUNTER_FILE="${STATE_DIR}/wd_generate_timeout_but_live_total"
+mkdir -p "$STATE_DIR" 2>/dev/null || true
+mkdir -p "$METRICS_DIR" 2>/dev/null || true
+
+# [v150.31b] Anti-storm hysteresis knobs:
+# - Do not restart on first transient probe timeout.
+# - Require N consecutive probe failures + cooldown window.
+# - Apply startup grace after restart/warmup to avoid immediate self-restart loops.
+PROBE_FAILS_BEFORE_RESTART="${OLLAMA_WD_PROBE_FAILS_BEFORE_RESTART:-3}"
+PROBE_RESTART_COOLDOWN_SEC="${OLLAMA_WD_PROBE_RESTART_COOLDOWN_SEC:-300}"
+PROBE_STARTUP_GRACE_SEC="${OLLAMA_WD_PROBE_STARTUP_GRACE_SEC:-180}"
+BRAIN_PROBE_EVERY_SEC="${OLLAMA_WD_BRAIN_PROBE_EVERY_SEC:-180}"
+HANDS_PROBE_EVERY_SEC="${OLLAMA_WD_HANDS_PROBE_EVERY_SEC:-60}"
+PROBE_TIMEOUT_SEC_BRAIN="${OLLAMA_WD_PROBE_TIMEOUT_SEC_BRAIN:-25}"
+PROBE_TIMEOUT_SEC_HANDS="${OLLAMA_WD_PROBE_TIMEOUT_SEC_HANDS:-20}"
+
+state_get() {
+    local key="$1"
+    local file="${STATE_DIR}/${key}"
+    [ -f "$file" ] && cat "$file" 2>/dev/null || echo ""
+}
+
+state_set() {
+    local key="$1"
+    local val="$2"
+    echo "$val" > "${STATE_DIR}/${key}"
+}
+
+counter_get() {
+    local file="$1"
+    [ -f "$file" ] && cat "$file" 2>/dev/null || echo "0"
+}
+
+counter_inc() {
+    local file="$1"
+    local val
+    val="$(counter_get "$file")"
+    [ -z "$val" ] && val=0
+    val=$((val + 1))
+    echo "$val" > "$file"
+    echo "$val"
+}
+
+write_prom_metrics() {
+    local now
+    now="$(date +%s)"
+    local timeout_live_total
+    timeout_live_total="$(counter_get "$TIMEOUT_LIVE_COUNTER_FILE")"
+    local fail_11434 fail_11437
+    fail_11434="$(state_get "wd_probe_fail_11434")"
+    fail_11437="$(state_get "wd_probe_fail_11437")"
+    [ -z "$fail_11434" ] && fail_11434=0
+    [ -z "$fail_11437" ] && fail_11437=0
+    cat > "$METRICS_FILE" <<EOF
+# HELP atra_ollama_generate_timeout_but_live_total Generate probe timed out but lightweight liveness endpoint confirmed the service was up.
+# TYPE atra_ollama_generate_timeout_but_live_total counter
+atra_ollama_generate_timeout_but_live_total ${timeout_live_total}
+# HELP atra_ollama_watchdog_probe_failures Consecutive probe failures currently tracked by watchdog per port.
+# TYPE atra_ollama_watchdog_probe_failures gauge
+atra_ollama_watchdog_probe_failures{port="11434"} ${fail_11434}
+atra_ollama_watchdog_probe_failures{port="11437"} ${fail_11437}
+# HELP atra_ollama_watchdog_metrics_updated_unixtime Last metrics update timestamp.
+# TYPE atra_ollama_watchdog_metrics_updated_unixtime gauge
+atra_ollama_watchdog_metrics_updated_unixtime ${now}
+EOF
+}
+
+now_ts() { date +%s; }
+
+should_probe_now() {
+    local port="$1"
+    local now
+    now=$(now_ts)
+    local key="wd_probe_last_${port}"
+    local last
+    last="$(state_get "$key")"
+    [ -z "$last" ] && last=0
+    local every="$HANDS_PROBE_EVERY_SEC"
+    [ "$port" = "11434" ] && every="$BRAIN_PROBE_EVERY_SEC"
+    if [ $((now - last)) -lt "$every" ]; then
+        return 1
+    fi
+    state_set "$key" "$now"
+    return 0
+}
+
+in_startup_grace() {
+    local port="$1"
+    local now
+    now=$(now_ts)
+    local last_restart
+    last_restart="$(state_get "wd_last_restart_${port}")"
+    [ -z "$last_restart" ] && return 1
+    [ $((now - last_restart)) -lt "$PROBE_STARTUP_GRACE_SEC" ]
+}
+
+note_probe_success() {
+    local port="$1"
+    state_set "wd_probe_fail_${port}" "0"
+}
+
+note_probe_failure() {
+    local port="$1"
+    local now
+    now=$(now_ts)
+    local key="wd_probe_fail_${port}"
+    local n
+    n="$(state_get "$key")"
+    [ -z "$n" ] && n=0
+    n=$((n + 1))
+    state_set "$key" "$n"
+    state_set "wd_probe_last_fail_${port}" "$now"
+    echo "$n"
+}
+
+probe_cooldown_ok() {
+    local port="$1"
+    local now
+    now=$(now_ts)
+    local last_restart
+    last_restart="$(state_get "wd_last_restart_${port}")"
+    [ -z "$last_restart" ] && return 0
+    [ $((now - last_restart)) -ge "$PROBE_RESTART_COOLDOWN_SEC" ]
+}
+
+should_restart_after_probe_failure() {
+    local port="$1"
+    local fail_count
+    fail_count="$(state_get "wd_probe_fail_${port}")"
+    [ -z "$fail_count" ] && fail_count=0
+    if [ "$fail_count" -lt "$PROBE_FAILS_BEFORE_RESTART" ]; then
+        return 1
+    fi
+    probe_cooldown_ok "$port"
+}
+
+brain_warmup_gate() {
+    # [v150.30] Post-restart SLO gate for brain (11434):
+    # require 2 consecutive successful micro-generations before considering
+    # the serve "ready". This reduces first-request empty-reply flaps.
+    local port="$1"
+    [ "$port" != "11434" ] && return 0
+    [ "${OLLAMA_WD_BRAIN_WARMUP:-true}" != "true" ] && return 0
+
+    local model="${OLLAMA_WD_BRAIN_MODEL:-victoria-qwen38:latest}"
+    local attempts="${OLLAMA_WD_BRAIN_WARMUP_ATTEMPTS:-4}"
+    local need_ok="${OLLAMA_WD_BRAIN_WARMUP_CONSECUTIVE_OK:-2}"
+    local timeout="${OLLAMA_WD_BRAIN_WARMUP_TIMEOUT_SEC:-20}"
+    local streak=0
+
+    mkdir -p "$STATE_DIR" 2>/dev/null || true
+    touch "$BRAIN_NOT_READY_FLAG"
+    log "BRAIN-WARMUP :$port start (model=$model attempts=$attempts need_ok=$need_ok)"
+    local i=1
+    while [ "$i" -le "$attempts" ]; do
+        local body="/tmp/ollama_warmup_${port}.json"
+        local code
+        code=$(curl -s --max-time "$timeout" -o "$body" -w '%{http_code}' \
+            -X POST "http://localhost:${port}/api/generate" \
+            -H 'Content-Type: application/json' \
+            -d '{"model":"'"$model"'","prompt":"ok","stream":false,"options":{"num_predict":1,"num_ctx":2048}}' 2>/dev/null)
+        if [ "$code" = "200" ]; then
+            streak=$((streak + 1))
+            log "BRAIN-WARMUP :$port try=$i code=200 streak=$streak/$need_ok"
+            if [ "$streak" -ge "$need_ok" ]; then
+                rm -f "$BRAIN_NOT_READY_FLAG" 2>/dev/null || true
+                log "BRAIN-WARMUP :$port ready"
+                return 0
+            fi
+        else
+            streak=0
+            log "BRAIN-WARMUP :$port try=$i code=$code (streak reset)"
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+    log "BRAIN-WARMUP :$port not_ready after $attempts tries"
+    return 1
+}
+
+restart_serve() {
+    local port="$1"
+    local main_pid="$2"
+    state_set "wd_last_restart_${port}" "$(now_ts)"
+    launchctl kickstart -k "gui/$(id -u)/$([ "$port" = "11434" ] && echo homebrew.mxcl.ollama || echo com.atra.ollama-hands)" 2>/dev/null \
+        || kill -HUP "$main_pid" 2>/dev/null
+    if ! brain_warmup_gate "$port"; then
+        # [v150.31] One controlled second chance for brain: if first warmup gate
+        # fails, do one more restart+warmup before giving up.
+        if [ "$port" = "11434" ]; then
+            log "BRAIN-WARMUP :$port second_chance restart"
+            launchctl kickstart -k "gui/$(id -u)/homebrew.mxcl.ollama" 2>/dev/null \
+                || kill -HUP "$main_pid" 2>/dev/null
+            brain_warmup_gate "$port" || true
+        fi
+    fi
+}
 
 # [v150.3] ollama 0.33 переименовал раннеры: было «ollama runner», стало
 # «llama-server». Старый паттерн НИКОГДА не матчился → застрявшие в Stopping
@@ -64,20 +265,56 @@ except Exception:
         fi
     done
 
-    # [v150.25b] Универсальная 503-проба (случай 25.10 19:44: раннер жив,
-    # но очередь орфанена — старый детект смотрел только при 0 runner).
-    _probe_model="phi3.5:3.8b-stable"
-    [ "$PORT" = "11434" ] && _probe_model="victoria-qwen38:latest"
-    _probe=$(curl -s --max-time 8 -o /dev/null -w '%{http_code}' \
-        -X POST "http://localhost:${PORT}/api/generate" \
-        -H 'Content-Type: application/json' \
-        -d '{"model":"'"$_probe_model"'","prompt":"ok","stream":false,"options":{"num_predict":1,"num_ctx":2048}}' 2>/dev/null)
-    if [ "$_probe" = "503" ]; then
-        log "ORPHAN-QUEUE :$PORT — 503 (runners: $(pgrep -P "$MAIN_PID" -f llama-server 2>/dev/null | wc -l | tr -d ' ')), сброс serve"
-        launchctl kickstart -k "gui/$(id -u)/$([ "$PORT" = "11434" ] && echo homebrew.mxcl.ollama || echo com.atra.ollama-hands)" 2>/dev/null \
-            || kill -HUP "$MAIN_PID" 2>/dev/null
-        log "ORPHAN-QUEUE :$PORT — serve сброшен"
-        continue
+    # [v150.31b] Throttled health probe with hysteresis/cooldown/grace:
+    # avoid restart storms from transient 000/slow micro-generations.
+    if should_probe_now "$PORT"; then
+        _probe_model="phi3.5:3.8b-stable"
+        _probe_timeout="$PROBE_TIMEOUT_SEC_HANDS"
+        [ "$PORT" = "11434" ] && _probe_model="victoria-qwen38:latest" && _probe_timeout="$PROBE_TIMEOUT_SEC_BRAIN"
+        _probe_body="/tmp/ollama_probe_${PORT}.json"
+        rm -f "$_probe_body" 2>/dev/null || true
+        _probe=$(curl -s --max-time "$_probe_timeout" -o "$_probe_body" -w '%{http_code}' \
+            -X POST "http://localhost:${PORT}/api/generate" \
+            -H 'Content-Type: application/json' \
+            -d '{"model":"'"$_probe_model"'","prompt":"ok","stream":false,"options":{"num_predict":1,"num_ctx":2048}}' 2>/dev/null)
+        _probe_msg=""
+        [ -f "$_probe_body" ] && _probe_msg="$(tr -d '\n' < "$_probe_body" 2>/dev/null || true)"
+
+        # If curl says 000 but response body already has done=true, treat as slow-success, not failure.
+        if [ "$_probe" = "000" ] && echo "$_probe_msg" | grep -q '"done":true'; then
+            _probe="200"
+        fi
+        # Fallback liveness guard: under peak load /api/generate may hit timeout while
+        # serve is healthy; confirm with lightweight endpoint before counting a fail.
+        if [ "$_probe" = "000" ]; then
+            _live_code=$(curl -s --max-time 3 -o /tmp/ollama_live_${PORT}.json -w '%{http_code}' \
+                "http://localhost:${PORT}/api/version" 2>/dev/null || echo "000")
+            if [ "$_live_code" = "200" ]; then
+                _probe="200"
+                _probe_msg="timeout_on_generate_but_live_api_version"
+                _total="$(counter_inc "$TIMEOUT_LIVE_COUNTER_FILE")"
+                log "PROBE-TIMEOUT-LIVE :$PORT total=${_total} (generate timeout, /api/version=200)"
+            fi
+        fi
+
+        if [ "$_probe" = "200" ]; then
+            note_probe_success "$PORT"
+        elif [ "$_probe" = "503" ] || [ "$_probe" = "000" ] || { [ "$_probe" = "500" ] && echo "$_probe_msg" | grep -Eiq 'llama-server process no longer running|unexpected EOF|server disconnected'; }; then
+            _fails=$(note_probe_failure "$PORT")
+            if in_startup_grace "$PORT"; then
+                log "PROBE-DEFER :$PORT code=$_probe fails=${_fails}/${PROBE_FAILS_BEFORE_RESTART} (startup_grace ${PROBE_STARTUP_GRACE_SEC}s)"
+            elif should_restart_after_probe_failure "$PORT"; then
+                log "PROBE-RESTART :$PORT code=$_probe fails=${_fails}/${PROBE_FAILS_BEFORE_RESTART} body='$_probe_msg'"
+                restart_serve "$PORT" "$MAIN_PID"
+                log "PROBE-RESTART :$PORT — serve сброшен"
+                note_probe_success "$PORT"
+            else
+                log "PROBE-FAIL :$PORT code=$_probe fails=${_fails}/${PROBE_FAILS_BEFORE_RESTART} (cooldown/hysteresis)"
+            fi
+        else
+            # Unknown/non-critical probe outcome — do not escalate into restart.
+            log "PROBE-SKIP :$PORT code=$_probe"
+        fi
     fi
 
     if [ -z "$stuck_models" ]; then
@@ -94,13 +331,19 @@ except Exception:
         # внутри serve (баг 0.33), очередь ожиданий не очистилась → вечный 503,
         # но сторожу нечего ловить — процессов-то нет. Детект: запрос generate
         # получает 503 при живом serve → орочим очередь рестартом serve.
-        _probe=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}'             -X POST "http://localhost:${PORT}/api/generate"             -H 'Content-Type: application/json'             -d '{"model":"'"$([ "$PORT" = "11434" ] && echo victoria-qwen38:latest || echo phi3.5:3.8b-stable)"'","prompt":"ok","stream":false,"options":{"num_predict":1,"num_ctx":2048}}' 2>/dev/null)
-        if [ "$_probe" = "503" ]; then
-            log "ORPHAN-QUEUE :$PORT — 503 без раннеров, сброс serve (pid=$MAIN_PID)"
-            launchctl kickstart -k "gui/$(id -u)/$([ "$PORT" = "11434" ] && echo homebrew.mxcl.ollama || echo com.atra.ollama-hands)" 2>/dev/null                 || kill -HUP "$MAIN_PID" 2>/dev/null
+        _probe_body="/tmp/ollama_probe_norunner_${PORT}.json"
+        _probe=$(curl -s --max-time 5 -o "$_probe_body" -w '%{http_code}' \
+            -X POST "http://localhost:${PORT}/api/generate" \
+            -H 'Content-Type: application/json' \
+            -d '{"model":"'"$([ "$PORT" = "11434" ] && echo victoria-qwen38:latest || echo phi3.5:3.8b-stable)"'","prompt":"ok","stream":false,"options":{"num_predict":1,"num_ctx":2048}}' 2>/dev/null)
+        _probe_msg=""
+        [ -f "$_probe_body" ] && _probe_msg="$(tr -d '\n' < "$_probe_body" 2>/dev/null || true)"
+        if [ "$_probe" = "503" ] || { [ "$_probe" = "500" ] && echo "$_probe_msg" | grep -Eiq 'llama-server process no longer running|unexpected EOF|server disconnected'; }; then
+            log "ORPHAN-QUEUE :$PORT — probe=$_probe без раннеров, сброс serve (pid=$MAIN_PID)"
+            restart_serve "$PORT" "$MAIN_PID"
             log "ORPHAN-QUEUE :$PORT — serve сброшен, очередь очищена"
         else
-            log "Нет раннеров (:$PORT), проба=$_probe — инстанс спокоен"
+            log "Нет раннеров (:$PORT), проба=$_probe body='$_probe_msg' — инстанс спокоен"
         fi
         continue
     fi
@@ -136,3 +379,6 @@ except Exception:
         fi
     done
 done  # [v150.9] цикл по инстансам 11434, 11437
+
+# Export watchdog counters for scraping (node_exporter textfile style).
+write_prom_metrics
