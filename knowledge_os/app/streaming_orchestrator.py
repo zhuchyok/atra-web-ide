@@ -295,7 +295,7 @@ class StreamingOrchestrator:
                 knowledge_id = await pool.fetchval(
                     """
                     INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified, embedding)
-                    VALUES ($1, $2, 0.95, $3, true, $4::vector)
+                    VALUES ($1, $2, 0.7, $3, false, $4::vector)
                     RETURNING id
                 """,
                     node["domain_id"],
@@ -307,7 +307,7 @@ class StreamingOrchestrator:
                 knowledge_id = await pool.fetchval(
                     """
                     INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-                    VALUES ($1, $2, 0.95, $3, true)
+                    VALUES ($1, $2, 0.7, $3, false)
                     RETURNING id
                 """,
                     node["domain_id"],

@@ -14,6 +14,14 @@ except ImportError:
     import asyncpg
 # ------------------------------
 
+try:
+    from ingestion.quality_gate import IngestionQualityGate
+except ImportError:
+    from app.ingestion.quality_gate import IngestionQualityGate
+
+# [v150.28] Аудит P0: захардкоженный «research»-результат шёл в knowledge_nodes мимо гейта
+ingestion_gate = IngestionQualityGate()
+
 # Database connection pool
 pool = None
 
@@ -50,6 +58,24 @@ async def process_task(task):
     )
 
     # Log to knowledge_nodes
+    # [v150.28] Аудит P0: гейт до INSERT (shadow→enforce 50%); детерминированный
+    # canary по task_id — решение стабильно между реранами задачи
+    decision = ingestion_gate.evaluate(result, source_type="autonomous_worker")
+    if ingestion_gate.should_block(decision, key=str(task_id)):
+        await ingestion_gate.log_reject(
+            pool,
+            content=result,
+            source_type="autonomous_worker",
+            reason=decision.reason,
+            gate_stage="autonomous_worker",
+            metadata={"task_id": str(task_id), "expert": expert_name},
+        )
+        print(
+            f"[{datetime.now()}] Task {task_id}: knowledge rejected by quality gate "
+            f"({decision.reason}), skip INSERT"
+        )
+        return
+
     await pool.execute(
         """
         INSERT INTO knowledge_nodes (domain_id, content, metadata, confidence_score, source_ref)

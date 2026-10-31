@@ -105,7 +105,7 @@ class AutonomousOrchestrator:
             await conn.execute(
                 """
                 INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-                VALUES ($1, $2, 1.0, $3, true)
+                VALUES ($1, $2, 0.5, $3, false)
             """,
                 domain_id,
                 content,

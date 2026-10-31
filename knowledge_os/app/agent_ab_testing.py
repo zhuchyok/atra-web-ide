@@ -137,7 +137,7 @@ class AgentABTesting:
                 await conn.execute(
                     """
                     INSERT INTO knowledge_nodes (id, content, metadata, is_verified, created_at)
-                    VALUES ($1, $2, $3, TRUE, NOW())
+                    VALUES ($1, $2, $3, FALSE, NOW())
                 """,
                     node_id,
                     rule_content,

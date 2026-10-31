@@ -1,7 +1,6 @@
 import hashlib
 import json
 import os
-import random
 import re
 from dataclasses import dataclass
 from typing import Optional
@@ -74,12 +73,25 @@ class IngestionQualityGate:
             quality_score=float(judge_payload["quality_score"]),
         )
 
-    def should_block(self, decision: GateDecision) -> bool:
+    def should_block(self, decision: GateDecision, key: Optional[str] = None) -> bool:
+        """Решение о блокировке с процентным enforce.
+
+        [v150.28] Детерминированный canary: hash(key) % 100 < enforce_percent
+        вместо random.randint — решение стабильно между реранами для одного
+        и того же контента/задачи. key — content или task_id; без key бакет
+        считается от reason+score (стабильно, но грубее).
+        """
         if decision.decision == "accept":
             return False
         if self.shadow_mode:
             return False
-        return random.randint(1, 100) <= self.enforce_percent
+        if self.enforce_percent <= 0:
+            return False
+        if self.enforce_percent >= 100:
+            return True
+        bucket_source = str(key) if key else f"{decision.reason}:{decision.quality_score}"
+        digest = hashlib.sha256(bucket_source.encode("utf-8")).hexdigest()
+        return (int(digest, 16) % 100) < self.enforce_percent
 
     async def log_reject(
         self, conn, content: str, source_type: str, reason: str, gate_stage: str, metadata=None

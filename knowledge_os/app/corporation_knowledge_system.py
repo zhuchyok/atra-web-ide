@@ -442,7 +442,7 @@ class CorporationKnowledgeSystem:
             await conn.execute(
                 """
                 INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
-                VALUES ($1, $2, $3, 1.0, $4, true)
+                VALUES ($1, $2, $3, 0.7, $4, false)
             """,
                 domain_id,
                 content,
@@ -476,7 +476,7 @@ class CorporationKnowledgeSystem:
             await conn.execute(
                 """
                 INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
-                VALUES ($1, $2, $3, 1.0, $4, true)
+                VALUES ($1, $2, $3, 0.7, $4, false)
             """,
                 domain_id,
                 content,
@@ -516,7 +516,7 @@ class CorporationKnowledgeSystem:
             await conn.execute(
                 """
                 INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
-                VALUES ($1, $2, $3, 1.0, $4, true)
+                VALUES ($1, $2, $3, 0.7, $4, false)
             """,
                 domain_id,
                 content,
@@ -590,7 +590,7 @@ class CorporationKnowledgeSystem:
                         await conn.execute(
                             """
                             INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
-                            VALUES ($1, $2, $3, 0.9, $4, true)
+                            VALUES ($1, $2, $3, 0.7, $4, false)
                         """,
                             domain_id,
                             content,
@@ -628,7 +628,7 @@ class CorporationKnowledgeSystem:
             await conn.execute(
                 """
                 INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
-                VALUES ($1, $2, $3, 1.0, $4, true)
+                VALUES ($1, $2, $3, 0.7, $4, false)
             """,
                 domain_id,
                 content,
@@ -660,7 +660,7 @@ class CorporationKnowledgeSystem:
         await conn.execute(
             """
             INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
-            VALUES ($1, $2, $3, 1.0, $4, true)
+            VALUES ($1, $2, $3, 0.7, $4, false)
         """,
             domain_id,
             summary_content,

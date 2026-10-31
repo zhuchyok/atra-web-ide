@@ -667,7 +667,7 @@ class MetaArchitect:
             await conn.execute(
                 """
                 INSERT INTO knowledge_nodes (domain_id, content, is_verified, confidence_score, metadata)
-                VALUES ((SELECT id FROM domains WHERE name = 'Architecture' LIMIT 1), $1, true, 0.8, $2)
+                VALUES ((SELECT id FROM domains WHERE name = 'Architecture' LIMIT 1), $1, false, 0.5, $2)
             """,
                 node_content,
                 node_meta,
@@ -802,9 +802,7 @@ class MetaArchitect:
                             logger.warning(f"⚠️ [HOT-SWAP] Promotion failed for {original_module}")
                     except Exception as e:
                         # TODO: Convert f-string to %s formatting for performance
-                        logger.error(f"Failed to trigger hot-swap: {e}")
-                        # TODO: Convert f-string to %s formatting for performance
-                        logger.info(f"🔄 [HOT-SWAP] Promoting mutation to {original_module}.py")
+                        logger.error(f"🔥 [HOT-SWAP FAILED] Could not trigger hot-swap for {original_module}: {e}")
         if not ASYNCPG_AVAILABLE:
             logger.error("❌ asyncpg is not installed. Repair cycle aborted.")
             return "Error: asyncpg missing"

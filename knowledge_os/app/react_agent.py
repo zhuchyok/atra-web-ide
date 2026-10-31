@@ -91,11 +91,28 @@ class ReActAgent:
             os.path.exists("/.dockerenv")
             or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
         )
+        # [v150.27] phi-утечка на 11434: дефолтный исполнитель phi3.5 — модель
+        # РУК и должна идти на 11437 (OLLAMA_HANDS_URL), а не грузить мозгевой
+        # порт. Явный OLLAMA_API_URL по-прежнему побеждает.
+        def _default_ollama_url(model: str, docker_host: str) -> str:
+            if os.getenv("OLLAMA_API_URL"):
+                return os.getenv("OLLAMA_API_URL")
+            if str(model).startswith("phi3.5"):
+                if is_docker:
+                    return (
+                        os.getenv("OLLAMA_HANDS_URL")
+                        or "http://host.docker.internal:11437"
+                    )
+                return os.getenv("OLLAMA_HANDS_URL") or docker_host
+            return docker_host
+
         if is_docker:
-            self.ollama_url = os.getenv("OLLAMA_API_URL", "http://host.docker.internal:11434")
+            self.ollama_url = _default_ollama_url(
+                self.model_name, "http://host.docker.internal:11434"
+            )
             self.mlx_url = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
         else:
-            self.ollama_url = os.getenv("OLLAMA_API_URL", "http://localhost:11434")
+            self.ollama_url = _default_ollama_url(self.model_name, "http://localhost:11434")
             self.mlx_url = os.getenv("MLX_API_URL", "http://localhost:11435")
 
         # Для обратной совместимости

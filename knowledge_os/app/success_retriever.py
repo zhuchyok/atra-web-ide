@@ -146,7 +146,7 @@ class SuccessRetriever:
                             """
                             INSERT INTO knowledge_nodes
                                 (domain_id, content, confidence_score, metadata, is_verified)
-                            VALUES ($1, $2, 0.8, $3::jsonb, true)
+                            VALUES ($1, $2, 0.5, $3::jsonb, false)
                             """,
                             domain_id,
                             f"Success Retrieval Audit for: {query[:100]}",

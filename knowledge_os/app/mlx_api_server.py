@@ -222,6 +222,10 @@ _memory_critical_threshold = float(os.getenv("MLX_MEMORY_CRITICAL_PERCENT", "95"
 _last_memory_check = 0
 _memory_check_interval = 10  # секунд
 
+# Hard limits against Metal OOM from pathological prompts/generation requests.
+_max_prompt_chars = int(os.getenv("MLX_MAX_PROMPT_CHARS", "18000"))
+_max_generation_tokens = int(os.getenv("MLX_MAX_GENERATION_TOKENS", "1024"))
+
 # Максимум моделей в кэше одновременно (остальные выгружаются по LRU) — снижает пиковое потребление RAM и Metal OOM
 # Рекомендация после крашей Python (mlx::core::gpu::check_error): 5 моделей в кэше для Mac Studio M4 Max
 _max_cached_models = int(os.getenv("MLX_MAX_CACHED_MODELS", "5"))
@@ -437,6 +441,34 @@ class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     stream: Optional[bool] = False
     options: Optional[Dict] = None  # temperature, num_predict и др.
+
+
+def _truncate_prompt(prompt: str, max_chars: int) -> str:
+    if max_chars <= 0 or len(prompt) <= max_chars:
+        return prompt
+    # Keep both leading guardrails and trailing task focus.
+    head = int(max_chars * 0.4)
+    tail = max_chars - head
+    return f"{prompt[:head]}\n\n...[prompt truncated by MLX guard]...\n\n{prompt[-tail:]}"
+
+
+def _apply_request_limits(request: GenerateRequest) -> None:
+    if _max_generation_tokens > 0 and request.max_tokens > _max_generation_tokens:
+        logger.warning(
+            "⚠️ num_predict/max_tokens capped: requested=%s -> capped=%s",
+            request.max_tokens,
+            _max_generation_tokens,
+        )
+        request.max_tokens = _max_generation_tokens
+    if request.max_tokens < 1:
+        request.max_tokens = 1
+    if _max_prompt_chars > 0 and len(request.prompt) > _max_prompt_chars:
+        logger.warning(
+            "⚠️ prompt truncated by MLX guard: requested_chars=%s -> max_chars=%s",
+            len(request.prompt),
+            _max_prompt_chars,
+        )
+        request.prompt = _truncate_prompt(request.prompt, _max_prompt_chars)
 
 
 def check_memory() -> Dict[str, float]:
@@ -1061,6 +1093,7 @@ async def generate_text(request: GenerateRequest, http_request: Request):
         _temp = request.options.get("temperature")
         if isinstance(_temp, (int, float)):
             request.temperature = float(_temp)
+    _apply_request_limits(request)
 
     # Определяем приоритет из заголовка X-Request-Priority
     priority_header = http_request.headers.get("X-Request-Priority", "medium").lower()

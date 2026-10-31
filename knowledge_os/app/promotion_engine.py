@@ -245,7 +245,7 @@ async def check_and_promote_mutations(conn: Optional[asyncpg.Connection] = None)
                     await conn.execute(
                         """
                         INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified, source_ref)
-                        VALUES ($1, $2, 1.0, $3, TRUE, 'promotion_engine')
+                        VALUES ($1, $2, 0.5, $3, FALSE, 'promotion_engine')
                     """,
                         domain_id,
                         content,
@@ -402,7 +402,7 @@ async def _emit_rollout_report_if_due(summary: Dict[str, Any]) -> None:
             await conn.execute(
                 """
                 INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified, source_ref)
-                VALUES ($1, $2, 1.0, $3::jsonb, TRUE, 'promotion_engine_report')
+                VALUES ($1, $2, 0.5, $3::jsonb, FALSE, 'promotion_engine_report')
                 """,
                 domain_id,
                 report_text,

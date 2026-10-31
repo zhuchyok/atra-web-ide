@@ -18,6 +18,14 @@ from contextual_learner import (
     NeedPredictor,
     PersonalizationEngine,
 )
+
+try:
+    from ingestion.quality_gate import IngestionQualityGate
+except ImportError:
+    from app.ingestion.quality_gate import IngestionQualityGate
+
+# [v150.28] Аудит P0: capture_knowledge шёл мимо ingestion-гейта
+ingestion_gate = IngestionQualityGate()
 from enhanced_search import SearchMode, detect_search_mode, enhanced_search_knowledge
 from global_scout import GlobalScout
 from knowledge_graph import KnowledgeGraph, LinkType
@@ -137,6 +145,21 @@ async def capture_knowledge(content: str, domain: str, metadata: dict = None) ->
     """Save new knowledge and INVALIDATE relevant search cache."""
     db_pool = await get_pool()
     rd = await get_redis()
+
+    # [v150.28] Аудит P0: гейт до INSERT в knowledge_nodes (shadow→enforce 50%)
+    source_type = f"mcp_capture:{domain}"
+    decision = await ingestion_gate.evaluate_async(content, source_type=source_type)
+    if ingestion_gate.should_block(decision, key=content):
+        async with db_pool.acquire() as conn:
+            await ingestion_gate.log_reject(
+                conn,
+                content=content,
+                source_type=source_type,
+                reason=decision.reason,
+                gate_stage="mcp_capture_knowledge_enhanced",
+                metadata={"domain": domain, "quality_score": decision.quality_score},
+            )
+        return f"⛔ Knowledge rejected by quality gate: {decision.reason}"
 
     embedding = await get_embedding(content)
 

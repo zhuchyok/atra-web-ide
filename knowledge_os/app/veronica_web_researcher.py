@@ -29,6 +29,9 @@ _is_docker = (
 if _is_docker:
     _default_ollama = (
         os.getenv("OLLAMA_API_URL")
+        # [v150.27] phi-утечка на 11434: model_map здесь — только лёгкие модели
+        # рук (phi/qwen-coder/deepseek), victoria нет — значит идём на 11437.
+        or os.getenv("OLLAMA_HANDS_URL")
         or os.getenv("OLLAMA_BASE_URL")
         or "http://host.docker.internal:11434"
     )

@@ -285,7 +285,7 @@ OLLAMA_MODELS_FALLBACK = {
     "reasoning": os.getenv("MODEL_REASONING", "victoria-qwen38:latest"),
     "coding": os.getenv("MODEL_CODER", "phi3.5:3.8b"),
     "chat": "phi3.5:3.8b",
-    "fast": os.getenv("MODEL_FAST", "tinyllama:1.1b-chat"),
+    "fast": os.getenv("MODEL_FAST", "phi3.5:3.8b-stable"),
     "vision": os.getenv("MODEL_VISION", "minicpm-v:latest"),
     "vision_hd": "minicpm-v:latest",
     "vision_pdf": os.getenv("MODEL_VISION_PDF", "minicpm-v:latest"),
@@ -312,7 +312,7 @@ OLLAMA_MODELS = OLLAMA_MODELS_FALLBACK
 MODEL_MAP = {
     "coding": os.getenv("MODEL_CODING", OLLAMA_MODELS["coding"]),
     "reasoning": os.getenv("MODEL_REASONING", MLX_MODELS["reasoning"]),
-    "fast": "tinyllama:1.1b-chat",
+    "fast": "phi3.5:3.8b-stable",
     "vision": OLLAMA_MODELS["vision"],
     "vision_pdf": OLLAMA_MODELS["vision_pdf"],
     "default": os.getenv("MODEL_DEFAULT", OLLAMA_MODELS["default"]),
@@ -946,7 +946,7 @@ class LocalAIRouter:
             if node_type == "mlx":
                 return "phi3.5:3.8b-stable"
             else:
-                return "tinyllama:1.1b-chat"
+                return "phi3.5:3.8b-stable"
 
         if _HAS_MODEL_SCANNER and (_cached_mlx_models or _cached_ollama_models):
             # Динамический выбор из реально доступных моделей
@@ -1265,7 +1265,7 @@ class LocalAIRouter:
                     target_model = (
                         "phi3.5:3.8b-stable"
                         if "mlx" in str(getattr(self, "_active_node", {}).get("url", ""))
-                        else "tinyllama:1.1b-chat"
+                        else "phi3.5:3.8b-stable"
                     )
                     logger.warning(
                         f"❄️ [ICE MODE] System pressure detected! Downgrading expert request: {initial_model} -> {target_model}"
@@ -1298,11 +1298,11 @@ class LocalAIRouter:
             if avail_gb < 8:
                 if is_dialogue:
                     # For chat, speed is priority, so we downgrade
-                    if avail_gb < 4 and initial_model and "tinyllama" not in initial_model.lower():
+                    if avail_gb < 4 and initial_model and "phi3.5:3.8b-stable" not in initial_model.lower():
                         logger.warning(
-                            f"📉 [TIERING] RAM critical ({avail_gb:.1f}GB). Downgrading {initial_model} -> tinyllama:1.1b-chat (Chat Priority)"
+                            f"📉 [TIERING] RAM critical ({avail_gb:.1f}GB). Downgrading {initial_model} -> phi3.5:3.8b-stable (Chat Priority)"
                         )
-                        initial_model = "tinyllama:1.1b-chat"
+                        initial_model = "phi3.5:3.8b-stable"
                         model = initial_model
                     elif (
                         avail_gb < 8

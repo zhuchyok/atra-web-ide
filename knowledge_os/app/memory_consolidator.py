@@ -119,7 +119,7 @@ class MemoryConsolidator:
                     new_id = await conn.fetchval(
                         """
                         INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-                        VALUES ($1, $2, 1.0, $3, true)
+                        VALUES ($1, $2, 0.7, $3, false)
                         RETURNING id
                     """,
                         domain["id"],

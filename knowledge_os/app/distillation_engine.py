@@ -273,7 +273,13 @@ class KnowledgeDistiller:
                 if cloud_only:
                     return ""
 
-        url = os.getenv("OLLAMA_API_URL", "http://host.docker.internal:11434") + "/api/generate"
+        # [v150.27] phi-утечка на 11434: дистилл-учитель (phi3.5) должен идти на
+        # инстанс РУК (11437), а не на мозговой порт. Приоритет: явный
+        # OLLAMA_API_URL -> OLLAMA_HANDS_URL -> старый дефолт.
+        url = (
+            os.getenv("OLLAMA_API_URL")
+            or os.getenv("OLLAMA_HANDS_URL", "http://host.docker.internal:11434")
+        ).rstrip("/") + "/api/generate"
         teacher_timeout = float(os.getenv("DISTILL_TEACHER_TIMEOUT_SEC", "180"))
         busy_retries = max(0, min(int(os.getenv("DISTILL_OLLAMA_BUSY_RETRIES", "3")), 6))
         busy_backoff = float(os.getenv("DISTILL_OLLAMA_BUSY_BACKOFF_SEC", "4"))

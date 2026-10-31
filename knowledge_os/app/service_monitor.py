@@ -8,6 +8,7 @@ import asyncio
 import logging
 import os
 import subprocess
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -386,6 +387,93 @@ class ServiceMonitor:
         """Попытка перезапуска MLX Server через Supervisor"""
         # ... existing code ...
 
+    def _validate_mutation(self, module_name: str, mutation_path: str) -> bool:
+        """[P0 SAFETY] Static validation of a mutation before hot-swap.
+
+        Checks that the mutation file compiles (py_compile) and parses to a
+        non-trivial AST (at least one top-level import/def/class/assignment).
+        Returns True if the mutation is safe to swap in.
+        """
+        if not os.path.exists(mutation_path):
+            logger.error(
+                f"❌ [HOT-SWAP] Mutation file not found for {module_name}: {mutation_path}"
+            )
+            return False
+
+        # 1. Syntax check via py_compile
+        try:
+            import py_compile
+
+            py_compile.compile(mutation_path, doraise=True)
+        except py_compile.PyCompileError as e:
+            logger.error(
+                f"❌ [HOT-SWAP] Mutation for {module_name} failed syntax check, refusing swap: {e}"
+            )
+            return False
+
+        # 2. AST check: must parse and contain at least one top-level statement of substance
+        try:
+            import ast
+
+            with open(mutation_path, "r", encoding="utf-8") as f:
+                tree = ast.parse(f.read(), filename=mutation_path)
+            substantive = [
+                node
+                for node in tree.body
+                if isinstance(
+                    node, (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Assign)
+                )
+            ]
+            if not substantive:
+                logger.warning(
+                    f"⚠️ [HOT-SWAP] Mutation for {module_name} has no top-level imports/defs, refusing swap"
+                )
+                return False
+        except SyntaxError as e:
+            logger.error(
+                f"❌ [HOT-SWAP] Mutation for {module_name} failed AST parse, refusing swap: {e}"
+            )
+            return False
+
+        return True
+
+    def _verify_import_in_subprocess(self, module_name: str) -> bool:
+        """[P0 SAFETY] Verify the promoted module is importable in a fresh interpreter."""
+        import subprocess
+        import sys
+
+        app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # Parent of the package dir so `import app.<module>` / package-relative imports resolve
+        repo_root = os.path.dirname(app_dir)
+        try:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "import importlib, sys; "
+                        f"sys.path.insert(0, {repo_root!r}); "
+                        f"importlib.import_module('app.{module_name}')"
+                    ),
+                ],
+                cwd=app_dir,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                logger.error(
+                    f"❌ [HOT-SWAP] Import verification failed for {module_name}: "
+                    f"{result.stderr[-2000:]}"
+                )
+                return False
+            return True
+        except Exception as e:
+            logger.error(
+                f"❌ [HOT-SWAP] Import verification error for {module_name}: {e}"
+            )
+            return False
+
     async def promote_mutation(self, module_name: str, mutation_path: str):
         """[SINGULARITY 10.0] Atomically promote a mutated code version to production."""
         target_path = os.path.join(
@@ -393,9 +481,22 @@ class ServiceMonitor:
         )
         backup_path = target_path + ".bak"
 
+        # 0. [P0 SAFETY] Validate the mutation BEFORE any swap attempt
+        if not self._validate_mutation(module_name, mutation_path):
+            logger.warning(
+                f"⚠️ [HOT-SWAP] Mutation rejected for {module_name} (validation failed). "
+                "Quarantining mutation file."
+            )
+            try:
+                os.replace(mutation_path, mutation_path + ".rejected")
+            except OSError:
+                pass
+            return False
+
         # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🚀 [HOT-SWAP] Promoting mutation for {module_name}...")
 
+        swapped = False
         try:
             # 1. Create backup
             if os.path.exists(target_path):
@@ -405,6 +506,13 @@ class ServiceMonitor:
 
             # 2. Atomic swap
             os.replace(mutation_path, target_path)
+            swapped = True
+
+            # 3. [P0 SAFETY] Verify the promoted module actually imports in a fresh interpreter
+            if not self._verify_import_in_subprocess(module_name):
+                raise RuntimeError(
+                    f"Post-swap import verification failed for {module_name}"
+                )
 
             # 3. Restart relevant services
             # For ai_core, we might need to restart the main agent process
@@ -421,11 +529,19 @@ class ServiceMonitor:
                 source="service_monitor",
             )
             await self.event_bus.publish(event)
+            return True
 
         except Exception as e:
             # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [HOT-SWAP] Promotion failed for {module_name}: {e}")
-            await self.rollback_mutation(module_name)
+            if swapped:
+                # [P0 SAFETY] Immediate rollback to the backup taken before the swap
+                await self.rollback_mutation(module_name)
+                logger.error(
+                    f"🔥 [HOT-SWAP FAILED] {module_name} was swapped but failed verification; "
+                    "rolled back to previous version."
+                )
+            return False
 
     async def rollback_mutation(self, module_name: str):
         """Rollback to the previous version from backup."""

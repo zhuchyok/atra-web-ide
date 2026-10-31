@@ -517,10 +517,56 @@ class TaskDistributionSystem:
     ) -> Optional[TaskCollection]:
         """Собрать задачи отдела через Department Head"""
         try:
+            if not isinstance(department, str):
+                logger.warning(
+                    "⚠️ Department collect called with non-string department (%s), coercing",
+                    type(department).__name__,
+                )
+                department = str(department)
+
+            normalized_assignments: list[TaskAssignment] = []
+            for item in assignments or []:
+                if isinstance(item, TaskAssignment):
+                    normalized_assignments.append(item)
+                    continue
+                if isinstance(item, dict):
+                    try:
+                        status_raw = item.get("status", TaskStatus.PENDING)
+                        status = (
+                            status_raw
+                            if isinstance(status_raw, TaskStatus)
+                            else TaskStatus(str(status_raw))
+                        )
+                        normalized_assignments.append(
+                            TaskAssignment(
+                                task_id=str(item.get("task_id", "unknown_task")),
+                                subtask=str(item.get("subtask", "")),
+                                employee_name=str(item.get("employee_name", "unknown")),
+                                department=str(item.get("department", "General")),
+                                status=status,
+                                result=item.get("result"),
+                                manager_name=item.get("manager_name"),
+                                quality_score=float(item.get("quality_score", 0.0) or 0.0),
+                                correlation_id=item.get("correlation_id"),
+                                review_rejections=int(item.get("review_rejections", 0) or 0),
+                                recommended_model=item.get("recommended_model"),
+                            )
+                        )
+                    except Exception as parse_err:
+                        logger.warning(
+                            "⚠️ Skip malformed assignment dict during department collect: %s",
+                            parse_err,
+                        )
+                    continue
+                logger.warning(
+                    "⚠️ Skip non-assignment item during department collect: %s",
+                    type(item).__name__,
+                )
+
             # Фильтруем утвержденные задачи отдела
             dept_assignments = [
                 a
-                for a in assignments
+                for a in normalized_assignments
                 if a.department == department and a.status == TaskStatus.REVIEWED
             ]
 
