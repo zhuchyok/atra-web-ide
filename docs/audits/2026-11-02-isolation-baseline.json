@@ -1,0 +1,73 @@
+{
+  "captured_at": "2026-11-02T21:45:00+03:00",
+  "wave": "v150.70-per-task-isolation",
+  "brain": {
+    "port": 11434,
+    "api_ps": ["victoria-qwen38:latest"],
+    "note": "MLX 11435 is fallback only; VICTORIA_MLX_BRAIN not used as brain"
+  },
+  "hands": {
+    "port": 11437,
+    "api_ps": ["phi3.5:3.8b"],
+    "api_tags": ["phi3.5:3.8b-stable", "phi3.5:3.8b", "nomic-embed-text:latest"]
+  },
+  "coder": {
+    "port": 11436,
+    "api_ps": ["phi3.5:3.8b", "qwen3-coder:30b"]
+  },
+  "queue": {
+    "scan_system_status_12h": {
+      "total": 10,
+      "completed": 6,
+      "failed": 1,
+      "in_progress": 1,
+      "pending": 1
+    },
+    "stuck_tasks_count": 0,
+    "open_at_capture": [
+      {
+        "id": "db10c1d9-20f2-4330-895a-914f0d6430ad",
+        "status": "in_progress",
+        "title": "Security: 1 инцидентов (prompt_injection x1)",
+        "source": "security_responder"
+      },
+      {
+        "id": "4c2b4a74-2a43-443c-a73f-2d9980468dc1",
+        "status": "pending",
+        "title": "Debate hypothesis c0fc53f4",
+        "source": "nightly_hypothesis_debate"
+      }
+    ]
+  },
+  "assignee_48h": [
+    { "who": "Виктория", "n": 22 },
+    { "who": "none", "n": 18 },
+    { "who": "Анна", "n": 3 },
+    { "who": "Инна", "n": 2 }
+  ],
+  "overflow": {
+    "dynamic_workers": [
+      "knowledge_os-expert-worker-dynamic-1-1",
+      "knowledge_os-expert-worker-dynamic-2-1",
+      "knowledge_os-expert-worker-dynamic-3-1",
+      "knowledge_os-expert-worker-dynamic-4-1",
+      "knowledge_os-expert-worker-dynamic-5-1"
+    ],
+    "dynamic_1_env": {
+      "EXPERT_NAME": "Инна",
+      "EXPERT_POOL_MODE": "true",
+      "AI_PIPELINE_CRYSTALS_SKIP_OPERATIONAL": "unset (code default true)",
+      "WORKER_TASK_ISOLATION": "unset",
+      "RAG_NAMESPACE_FILTER": "unset"
+    },
+    "adopt_log_hits_48h": 0,
+    "adopt_log_note": "docker logs --since 48h had no '[POOL] Adopting expert' hits; code path still assigns expert_name = payload_expert"
+  },
+  "recent_errors": [
+    {
+      "id": "b8697385-44d6-4e72-8c1a-cb54ac367245",
+      "title": "Security: 2 инцидентов (prompt_injection x2)",
+      "error": "InterfaceError: cannot call Connection.execute(): connection has been released back to the pool"
+    }
+  ]
+}

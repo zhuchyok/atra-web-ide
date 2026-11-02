@@ -20,6 +20,20 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-02 v150.71) — overflow last_real_progress_at ✅
+
+- `expert_worker._mark_llm_call` и pickup `in_progress` пишут `last_real_progress_at=NOW()` — та же колонка, что `cognitive_quality_gate` stale.
+- Раньше overflow оставлял NULL → hung не считался. Heartbeat/`updated_at` не используем (маскирует RAG-loop).
+- Мозг 11434, pool, isolation не трогали. Тест: `test_last_real_progress_overflow.py`.
+
+## § Последние изменения (2026-11-02 v150.70) — per-task isolation overflow/RAG/judge ✅
+
+- Overflow adopt больше не перезаписывает identity слота: `run_expert` только на текущую задачу, слот (Инна/Юлия) остаётся. `EXPERT_POOL_MODE=true` не выключали.
+- RAG namespace: чанк с `metadata.expert_name` другого эксперта не попадает в контекст; доки без expert_name остаются и помечаются «СПРАВОЧНЫЙ КОНТЕКСТ (не задание)».
+- Judge skip при mismatch `task_id` (`judge_skipped=context_mismatch`), без регена по чужому фидбеку.
+- Env: `WORKER_TASK_ISOLATION`, `RAG_NAMESPACE_FILTER`, явный `AI_PIPELINE_CRYSTALS_SKIP_OPERATIONAL` в overflow compose.
+- Мозг 11434 / `victoria-qwen38` не трогали. Тесты изоляции: 11 passed.
+
 ## § Последние изменения (2026-10-31 v150.69) — victoria-agent hands 11437 backpressure + cancel inflight ✅
 
 - Только контур Виктории (`src/agents/bridge/victoria_server.py`), мозг 11434 / `victoria-qwen38` не тронут.

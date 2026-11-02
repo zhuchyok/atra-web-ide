@@ -84,6 +84,21 @@ except ImportError:
         except ImportError:
             ReActAgent = None
 
+try:
+    from task_isolation import (
+        isolation_enabled,
+        judge_should_skip,
+        resolve_adopt_identity,
+        with_task_isolation,
+    )
+except ImportError:
+    from app.task_isolation import (
+        isolation_enabled,
+        judge_should_skip,
+        resolve_adopt_identity,
+        with_task_isolation,
+    )
+
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
@@ -396,9 +411,16 @@ async def get_db_pool():
     return _db_pool
 
 
-async def judge_gate_score(question: str, answer: str):
+async def judge_gate_score(question: str, answer: str, task_id: str = ""):
     """[v149.58] Судья качества: score 1-10 + замечания. (None, None) = судья недоступен."""
     import httpx
+
+    if not str(answer or "").strip():
+        logger.info("[JUDGE-GATE] skip empty")
+        return None, "empty_answer"
+    if judge_should_skip(question=question, answer=answer, current_task_id=task_id):
+        logger.info("[JUDGE-GATE] skip mismatch")
+        return None, "context_mismatch"
 
     prompt = (
         "Ты строгий контролёр качества ответов. Оцени ОТВЕТ ассистента относительно ЗАДАНИЯ "
@@ -637,6 +659,8 @@ async def _mark_llm_call(conn, task_id: str) -> None:
     Защита от RAG-infinite-loop: сбрасывалка проверяет это поле, а не updated_at
     (который обновляет heartbeat каждые 15с, маскируя зависание в RAG-фазе).
     Google SRE principle: track the operation that matters, not the heartbeat proxy.
+    [v150.71] last_real_progress_at — та же колонка, что смотрит cognitive_quality_gate.
+    Overflow раньше её не писал → hung in_progress с NULL не считался stale.
     """
     try:
         try:
@@ -644,7 +668,8 @@ async def _mark_llm_call(conn, task_id: str) -> None:
         except ValueError:
             return
         await conn.execute(
-            "UPDATE tasks SET last_llm_call_at = NOW() WHERE id = $1 AND status = 'in_progress'",
+            "UPDATE tasks SET last_llm_call_at = NOW(), last_real_progress_at = NOW() "
+            "WHERE id = $1 AND status = 'in_progress'",
             task_id,
         )
     except Exception as _e:
@@ -802,6 +827,7 @@ async def _bootstrap_canonical_task(
         return None
 
 
+@with_task_isolation
 async def process_task(task_data: dict):
     """Выполняет задачу и сохраняет результат."""
     task_id = str(task_data["task_id"])
@@ -1417,7 +1443,8 @@ async def process_task(task_data: dict):
                             return
 
                     await conn.execute(
-                        "UPDATE tasks SET status = 'in_progress', updated_at = NOW() WHERE id = $1",
+                        "UPDATE tasks SET status = 'in_progress', updated_at = NOW(), "
+                        "last_real_progress_at = NOW() WHERE id = $1",
                         db_task_id,
                     )
                     await conn.execute(
@@ -2442,9 +2469,41 @@ async def process_task(task_data: dict):
                 ):
                     try:
                         _gate_question = description if isinstance(description, str) else str(description or "")
-                        gate_score, gate_issues = await judge_gate_score(
-                            _gate_question, report_text
-                        )
+                        if judge_should_skip(
+                            question=_gate_question,
+                            answer=report_text,
+                            current_task_id=str(task_id),
+                        ):
+                            logger.info(
+                                "🧑‍⚖️ [JUDGE-GATE] skip mismatch task=%s",
+                                task_id,
+                            )
+                            try:
+                                gate_meta = {"judge_skipped": "context_mismatch"}
+                                if is_valid_uuid:
+                                    _meta_pool = await get_db_pool()
+                                    async with _meta_pool.acquire() as _meta_conn:
+                                        await _meta_conn.execute(
+                                            """
+                                            UPDATE tasks
+                                            SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
+                                            WHERE id = $1
+                                            """,
+                                            db_task_id,
+                                            json.dumps(gate_meta, ensure_ascii=False),
+                                        )
+                                metadata = {**(metadata or {}), **gate_meta}
+                            except Exception as _gm_err:
+                                logger.warning(
+                                    "[JUDGE-GATE] mismatch meta write failed for %s: %s",
+                                    task_id,
+                                    _gm_err,
+                                )
+                            gate_score, gate_issues = None, "context_mismatch"
+                        else:
+                            gate_score, gate_issues = await judge_gate_score(
+                                _gate_question, report_text, task_id=str(task_id)
+                            )
                         gate_regen = 0
                         try:
                             gate_regen = int((metadata or {}).get("judge_regen", 0))
@@ -3964,13 +4023,20 @@ async def worker_loop():
                         )
                         if payload_expert and payload_expert != expert_name:
                             if _expert_pool:
-                                logger.info(
-                                    "🔄 [POOL] Adopting expert '%s' (was '%s') for task %s",
-                                    payload_expert,
-                                    expert_name,
-                                    payload.get("task_id"),
+                                run_expert, slot_expert, _action = resolve_adopt_identity(
+                                    expert_name, payload_expert, True
                                 )
-                                expert_name = payload_expert
+                                logger.info(
+                                    "🔄 [POOL] Adopting expert '%s' (slot '%s') for task %s restore_worker=%s",
+                                    run_expert,
+                                    slot_expert,
+                                    payload.get("task_id"),
+                                    slot_expert,
+                                )
+                                payload["expert_name"] = run_expert
+                                payload["_slot_expert_name"] = slot_expert
+                                if not isolation_enabled():
+                                    expert_name = payload_expert
                             else:
                                 logger.info(
                                     "⏭️ [WORKER] Skip чужого payload: payload=%s worker=%s task=%s",

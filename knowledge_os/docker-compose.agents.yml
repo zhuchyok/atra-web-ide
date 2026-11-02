@@ -33,6 +33,10 @@ x-dynamic-worker-env: &dynamic-worker-env
   INGESTION_GATE_ENFORCE_PERCENT: "25"
   # [v149.61] LTM off: третий слой context bleed для worker-задач
   LTM_RECALL_ENABLED: "false"
+  # [v150.70] per-task isolation: adopt не мутирует слот; RAG namespace; crystals skip
+  WORKER_TASK_ISOLATION: ${WORKER_TASK_ISOLATION:-true}
+  RAG_NAMESPACE_FILTER: ${RAG_NAMESPACE_FILTER:-true}
+  AI_PIPELINE_CRYSTALS_SKIP_OPERATIONAL: ${AI_PIPELINE_CRYSTALS_SKIP_OPERATIONAL:-true}
 
 # HOST_PROJECT_ROOT required when recreate runs via docker.sock from orchestrator
 x-dynamic-worker-volumes: &dynamic-worker-volumes

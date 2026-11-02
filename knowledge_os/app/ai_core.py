@@ -1490,9 +1490,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                     # попадают в контекст (distractor-документы типа README-шаблонов
                     # сбивали модель на «ответ не на задание», QC v10)
                     _min_sim = float(os.getenv("RAG_MIN_SIMILARITY", "0.45"))
-                    _fallback_topk = max(
-                        1, int(os.getenv("RAG_MIN_SIMILARITY_FALLBACK_TOPK", "1"))
-                    )
+                    _fallback_topk = max(1, int(os.getenv("RAG_MIN_SIMILARITY_FALLBACK_TOPK", "1")))
                     _pre_filter_rows = list(rows)
                     rows = [r for r in _pre_filter_rows if float(r["similarity"]) >= _min_sim]
                     if not rows:
@@ -1529,6 +1527,23 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                         (_adj(r) for r in rows), key=lambda r: r["similarity"], reverse=True
                     )[:6]
 
+                    # [v150.70] per-expert namespace: drop chunks owned by another expert.
+                    # Generic project docs (no metadata.expert_name) stay.
+                    try:
+                        from task_isolation import filter_namespace_rows, namespace_filter_enabled
+                    except ImportError:
+                        from app.task_isolation import (
+                            filter_namespace_rows,
+                            namespace_filter_enabled,
+                        )
+
+                    if namespace_filter_enabled():
+                        _ns_kept = filter_namespace_rows(rows)
+                        if _ns_kept:
+                            rows = _ns_kept
+                        else:
+                            rows = filter_namespace_rows(_pre_filter_rows)
+
                     # [SINGULARITY 23.3] Cross-Encoder Reranking for Python RAG
                     try:
                         # [SINGULARITY 29.6] Skip reranking for R&D to save memory
@@ -1555,7 +1570,10 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                     # [SINGULARITY 21.25] Deep Memory Hierarchical Enrichment
                     deep_memory = await _enrich_with_deep_memory(rows, pool)
 
-                    context = "\n📚 [KNOWLEDGE CONTEXT (AI Research & Corp)]:\n"
+                    context = (
+                        "\n--- СПРАВОЧНЫЙ КОНТЕКСТ (не задание) ---\n"
+                        "📚 [KNOWLEDGE CONTEXT (AI Research & Corp)]:\n"
+                    )
                     if deep_memory:
                         context = deep_memory + context
                     for row in rows:
