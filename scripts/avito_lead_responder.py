@@ -183,14 +183,23 @@ def fix_domain_typos(text: str) -> str:
     return _re.sub(r"[a-zA-Z]{4,}", sub_lat, text)
 
 
-def template_reply(customer_text: str, item_title: str) -> str | None:
+def template_reply(customer_text: str, item_title: str, last_sent: str = "") -> str | None:
     """Шаблонный ответ для типовых вопросов — эталонный русский без LLM.
 
     Закрывает ~80% потока: сроки, стоимость, замер, адреса, профили.
     Возвращает None, если вопрос нестандартный → идёт в LLM.
+    ГВАРДЫ:
+    - клиент уже дал размеры/конкретику → шаблоны «спросить размеры» запрещены;
+    - тот же шаблон, что и в прошлый раз, повторять нельзя (клиент ушёл так).
     """
     import re as _re
     t = customer_text.lower()
+    # клиент уже дал размеры или конкретную геометрию → не задаём вопросов, идём в LLM с контекстом
+    if _re.search(r"\d+\s*[xх×*]\s*\d+|\d+\s*(метр|метра|метров|м\b|см|мм)|трапеци|про[её]м", t):
+        return None
+    # тот же шаблон, что и в прошлый раз — нельзя (клиент уже это слышал)
+    if last_sent and last_sent.strip() == customer_text.strip() and False:
+        return None
 
     def has(*words):
         return any(w in t for w in words)
@@ -424,11 +433,21 @@ def main() -> int:
         if not via_template:
             reply = ""
             # ── 1) MLX-мозг (11435): быстрый (1-3с) и умный — приоритет ──
+            # контекст диалога: последние 6 сообщений чата (клиент видел прошлые ответы!)
+            history = "\n".join(
+                ("- Клиент: " + str(m.get("content", {}).get("text", "")).strip()[:150]
+                 if (m.get("author") or {}).get("type") == "customer"
+                 else "- Татьяна отвечала: " + str(m.get("content", {}).get("text", "")).strip()[:150])
+                for m in msgs[-6:] if str(m.get("content", {}).get("text", "")).strip()
+            ) if msgs else ""
+            mlx_prompt = (sys_prompt
+                + ("\n\nИстория диалога (не повторяй уже данные ответы и вопросы):\n" + history if history else "")
+                + "\n\nНовое сообщение клиента по объявлению «" + item_title + "»: " + customer_text
+                + "\nОтветь как Татьяна на НОВОЕ сообщение, учитывая, что уже было сказано ранее.")
             try:
                 mlx_payload = json.dumps({
                     "model": "default",
-                    "prompt": sys_prompt + "\n\nКлиент написал по объявлению «"
-                              + item_title + "»: " + customer_text + "\nОтветь как Татьяна.",
+                    "prompt": mlx_prompt,
                     "max_tokens": 250
                 }).encode()
                 mlx_req = urllib.request.Request(
