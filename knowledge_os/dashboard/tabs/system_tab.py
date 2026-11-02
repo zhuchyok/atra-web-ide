@@ -1,10 +1,11 @@
 import os
-import re
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import streamlit as st
 from database_service import _normalize_metadata, fetch_data, fetch_data_freshness
+from docker_services import fetch_autonomous_services
+from freshness import classify_source_freshness
 
 
 def format_msk(dt):
@@ -302,49 +303,19 @@ def render_expert_sandbox():
 
     st.markdown("---")
     st.markdown("#### 🏗️ Автономные Микросервисы")
-    # Показываем автономный контур по именам и compose-service, а не только legacy svc-*
-    try:
-        import docker
-
-        def _is_autonomous_service(container):
-            name = container.name or ""
-            labels = container.labels or {}
-            compose_service = labels.get("com.docker.compose.service", "")
-            patterns = (
-                r"^svc-",
-                r"^sandbox-",
-                r"^knowledge_os-expert-worker-",
-                r"^(victoria-agent|veronica-agent)$",
-                r"^(knowledge_evolution|knowledge_nightly|knowledge_os_worker|knowledge_os_orchestrator|performance-watchdog)$",
-            )
-            if any(re.match(pattern, name) for pattern in patterns):
-                return True
-            return any(
-                token in compose_service
-                for token in ("expert-worker", "sandbox", "victoria-agent", "veronica-agent")
-            )
-
-        client = docker.from_env()
-        services = [c for c in client.containers.list() if _is_autonomous_service(c)]
-        services.sort(key=lambda c: c.name)
-        if services:
-            st.success(f"Найдено автономных сервисов: {len(services)}")
-            for svc in services:
-                with st.expander(f"📦 {svc.name} (ID: {svc.id[:8]})"):
-                    st.write(f"Статус: {svc.status}")
-                    st.write(f"Образ: {svc.image.tags[0] if svc.image.tags else 'unknown'}")
-                    if st.button(f"🛑 Остановить {svc.name}", key=f"stop_autonomous_{svc.id}"):
-                        svc.stop()
-                        st.rerun()
-        else:
-            st.info("Автономные микросервисы не обнаружены среди запущенных контейнеров.")
-    except Exception as e:
+    services, docker_err = fetch_autonomous_services()
+    if docker_err:
         st.warning("Не удалось загрузить список сервисов.")
-        st.caption(f"Причина: {e}")
-        st.caption(
-            "Если dashboard запущен в Docker, подключите /var/run/docker.sock "
-            "или используйте API backend для списка сервисов."
-        )
+        st.caption(f"Причина: {docker_err}")
+        st.caption("Список читается с docker-proxy (GET /containers/json), без docker.sock в dashboard.")
+    elif services:
+        st.success(f"Найдено автономных сервисов: {len(services)}")
+        for svc in services:
+            with st.expander(f"📦 {svc['name']} (ID: {svc['id']})"):
+                st.write(f"Статус: {svc['status']}")
+                st.write(f"Образ: {svc['image']}")
+    else:
+        st.info("Автономные микросервисы не обнаружены среди запущенных контейнеров.")
 
     st.markdown("---")
     st.markdown("#### 🛡️ Система Самодиагностики (Singularity 31.2+)")
@@ -381,7 +352,6 @@ def render_expert_sandbox():
                     df_metrics[["name", "cpu_percent", "memory_usage_mb", "net_tx_mb"]],
                     width="stretch",
                 )
-
                 if anomalies:
                     for a in anomalies:
                         st.error(
@@ -401,6 +371,11 @@ def render_expert_sandbox():
                     st.success(
                         "✅ Все микросервисы работают в штатном режиме. Аномалий не обнаружено."
                     )
+            else:
+                st.caption(
+                    "CPU/RAM контейнеров через docker.sock недоступны (дашборд без сокета). "
+                    "Список сервисов выше идёт через docker-proxy."
+                )
             loop.close()
         except ImportError as ie:
             st.warning(f"Компоненты самодиагностики еще не загружены в контейнер: {ie}")
@@ -480,22 +455,12 @@ def render_health_status():
     if freshness:
         rows = []
         stale_count = 0
-        # [v149.66] per-source пороги: событийные источники (OKR раз в квартал,
-        # симуляции — ручной запуск) не «устарели», они редкосоздаваемые
-        rare_sources = {"okrs": 90 * 24 * 60, "simulations": 90 * 24 * 60}
         for item in freshness:
             age_minutes = item.get("age_minutes")
             last_ts = item.get("last_ts")
             source = item.get("source")
-            stale_threshold = rare_sources.get(source, 24 * 60)
-            if age_minutes is None:
-                freshness_flag = "⚪ нет данных"
-            elif age_minutes <= 60:
-                freshness_flag = "🟢 актуально"
-            elif age_minutes <= stale_threshold:
-                freshness_flag = "🟡 устаревает" if stale_threshold == 24 * 60 else "🟢 редко (норма)"
-            else:
-                freshness_flag = "🔴 устарело"
+            freshness_flag, is_stale = classify_source_freshness(source, age_minutes)
+            if is_stale:
                 stale_count += 1
 
             rows.append(
@@ -558,6 +523,33 @@ def render_singularity_metrics():
 
     t_filter = get_time_filter(time_range, "created_at")
 
+    ops = fetch_data(f"""
+        SELECT
+            COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+            COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+            COUNT(*) FILTER (WHERE status IN ('pending', 'queued')) AS pending,
+            COUNT(*) FILTER (WHERE status = 'in_progress') AS in_progress,
+            AVG(EXTRACT(EPOCH FROM (updated_at - created_at)))
+                FILTER (WHERE status = 'completed') AS avg_duration
+        FROM tasks
+        WHERE {t_filter}
+    """)
+    row = ops[0] if ops else {}
+    total = int(row.get("total") or 0)
+    completed = int(row.get("completed") or 0)
+    failed = int(row.get("failed") or 0)
+    pending = int(row.get("pending") or 0)
+    in_progress = int(row.get("in_progress") or 0)
+    success_rate = (completed / total * 100) if total else 0
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Задач за период", f"{total:,}", f"{success_rate:.1f}% completed")
+    m2.metric("Failed", f"{failed:,}")
+    m3.metric("Pending / queued", f"{pending:,}")
+    m4.metric("In progress", f"{in_progress:,}")
+    if row.get("avg_duration"):
+        st.caption(f"⏱️ Ср. время completed: {row['avg_duration']:.1f} сек · окно: {time_range}")
+
     # Метрики A/B теста оркестратора
     orch_stats = fetch_data(f"""
         SELECT
@@ -601,6 +593,11 @@ def render_singularity_metrics():
             template="plotly_dark",
         )
         st.plotly_chart(fig, width="stretch")
+    else:
+        st.caption(
+            "A/B-метки orchestrator_version в выбранном окне пусты "
+            "(последние v2/existing — апрель 2026). Ниже — живые KPI задач, не заглушка."
+        )
 
     # П.4 пушка: виджет «ответил эксперт» vs fallback (из backend /metrics/summary)
     backend_url = resolve_backend_url().get("url")
@@ -636,9 +633,6 @@ def render_singularity_metrics():
                             st.success("Доля fallback в норме")
         except Exception:
             pass
-
-    if not orch_stats:
-        st.info("Метрики оркестрации V2 и A/B тестирования пока не накоплены.")
 
 
 def render_projects():

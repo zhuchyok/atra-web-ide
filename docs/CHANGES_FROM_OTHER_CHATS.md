@@ -20,6 +20,14 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-02 v150.72) — дашборд: свежесть + docker-proxy, без sock ✅
+
+- Редкие источники (okrs/simulations/file_comments) больше не поднимают «Обнаружены устаревшие источники». Operational >24h — да.
+- Список автономных сервисов: HTTP GET docker-proxy `:2376/containers/json`, не `docker.from_env()`. Сокет в dashboard не монтировать. Stop с UI снят.
+- Singularity 31.2+: KPI задач за выбранное окно всегда; A/B `orchestrator_version` за 7д пуст (апрель) — не заглушка «не накоплены».
+- Self-Dev: патчи с диска `logs/self_dev_patches`; git в образе нет. Env: `DOCKER_PROXY_URL`.
+- Тесты: `test_dashboard_freshness.py`, `test_dashboard_docker_services.py`. Мозг 11434 / pool не трогали.
+
 ## § Последние изменения (2026-11-02 v150.71) — overflow last_real_progress_at ✅
 
 - `expert_worker._mark_llm_call` и pickup `in_progress` пишут `last_real_progress_at=NOW()` — та же колонка, что `cognitive_quality_gate` stale.

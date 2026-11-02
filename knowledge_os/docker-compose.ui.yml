@@ -59,6 +59,7 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os
       PYTHONPATH: /app/project/knowledge_os/app
       BACKEND_URL: http://atra-web-ide-backend:8000
+      DOCKER_PROXY_URL: http://docker-proxy:2376
       VICTORIA_URL: ${VICTORIA_URL:-http://victoria-agent:8000}
       MLX_BASE_URL: ${MLX_BASE_URL:-http://host.docker.internal:11435}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}

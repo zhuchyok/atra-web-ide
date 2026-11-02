@@ -101,6 +101,27 @@
 
 **Верификация:** `pytest knowledge_os/tests/test_last_real_progress_overflow.py` + isolation → 10 passed.
 
+## § v150.72 (2026-11-02) — дашборд 8501: свежесть без ложной тревоги + список сервисов через docker-proxy
+
+**Контракт слоёв не менялся.** docker.sock в `corporation-dashboard` не монтировали (сокет только docker-proxy / log-scanner).
+
+**Проблемы (ложные «не работает»):**
+
+1. Свежесть: `okrs` (22.07) и `simulations` (30.01) поднимали «Обнаружены устаревшие источники: 2» при живых tasks/nodes.
+2. Автономные микросервисы: `docker.from_env()` → FileNotFoundError `/var/run/docker.sock`; текст предлагал смонтировать сокет. docker-proxy на `2376` уже отдавал список.
+3. Singularity 31.2+: фильтр `orchestrator_version IS NOT NULL` за 7 дней = 0 строк (последние v2/existing — апрель) → заглушка «не накоплены».
+4. Self-Dev: очередь pending=0 (честно); патчи на диске были, `git` в образе нет.
+
+**Что внедрено:**
+
+1. `knowledge_os/dashboard/freshness.py` — rare (`okrs`/`simulations`/`file_comments`) не инкрементят `stale_count`; operational >24h = 🔴.
+2. `knowledge_os/dashboard/docker_services.py` — GET `DOCKER_PROXY_URL/containers/json` (default `http://docker-proxy:2376`). Кнопку Stop убрали (proxy GET-only).
+3. `system_tab.py` — KPI задач за окно всегда; A/B-метки только если есть.
+4. `selfdev_tab.py` — патчи с `logs/self_dev_patches` на вкладке очереди; git не требуется.
+5. `docker-compose.ui.yml`: `DOCKER_PROXY_URL=http://docker-proxy:2376`.
+
+**Верификация (live):** pytest freshness+docker_services 6 passed; docker-proxy healthy; из dashboard 15 автономных; sock отсутствует; браузер: список 15, KPI 7д, очередь пуста + 2 патча, баннер свежести снят.
+
 ## 93. Singularity 31.2+: P0 Stabilization Closure (2026-07-19)
 
 - **Контекст:** изменения из параллельного чата приняты как базовые (full-first для expert-dialogue, расширенный контракт результата) и дожаты до устойчивого P0 состояния без отката чужих правок.

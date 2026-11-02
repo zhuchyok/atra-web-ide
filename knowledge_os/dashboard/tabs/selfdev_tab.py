@@ -1,29 +1,31 @@
 """Вкладка 🧪 Self-Dev — витрина контура саморазработки.
 
 Показывает: очередь dev_loop-задач, последние выполненные (с отчётами),
-коммиты ветки auto/dev-loop и форму постановки задачи агенту-патчеру.
+патчи на диске и форму постановки задачи агенту-патчеру.
 """
-import subprocess
+import json
+from pathlib import Path
 
 import streamlit as st
 
 from database_service import fetch_data, run_query
 
 BRANCH = "auto/dev-loop"
+PATCH_DIR = Path("/app/project/logs/self_dev_patches")
 
 
-def _branch_log() -> list:
-    try:
-        log = subprocess.run(
-            ["git", "log", f"main..{BRANCH}", "--oneline", "--no-merges", "-15"],
-            cwd="/app/project",
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        return [l for l in log.stdout.strip().splitlines() if l]
-    except Exception:
+def _load_patch_metas(limit: int = 10) -> list[dict]:
+    if not PATCH_DIR.exists():
         return []
+    rows = []
+    for mf in sorted(PATCH_DIR.glob("*.json"))[-limit:]:
+        try:
+            meta = json.loads(mf.read_text())
+        except Exception:
+            continue
+        meta["_stem"] = mf.stem
+        rows.append(meta)
+    return list(reversed(rows))
 
 
 def render_selfdev_tab():
@@ -36,7 +38,6 @@ def render_selfdev_tab():
     tabs = st.tabs(["📋 Очередь и результаты", "🌿 Ветка auto/dev-loop", "➕ Поставить задачу агенту"])
 
     with tabs[0]:
-        # Телеметрия контура за 30 дней: сколько задач на каком этапе
         stats = fetch_data(
             """SELECT status, count(*) AS n FROM tasks
                WHERE metadata->>'source'='dev_loop'
@@ -77,24 +78,14 @@ def render_selfdev_tab():
         if not done:
             st.info("Выполненных dev_loop-задач пока нет.")
 
+        _render_patches()
+
     with tabs[1]:
-        st.subheader("📦 Патчи на ревью (logs/self_dev_patches)")
-        st.caption("Файлы — первоисточник (ветку могут трогать синхронизаторы). Применить: git am <файл.patch>")
-        import json as _json
-        from pathlib import Path as _Path
-        patch_dir = _Path("/app/project/logs/self_dev_patches")
-        metas = sorted(patch_dir.glob("*.json")) if patch_dir.exists() else []
-        if metas:
-            for mf in reversed(metas[-10:]):
-                try:
-                    meta = _json.loads(mf.read_text())
-                except Exception:
-                    continue
-                with st.expander(f"🧪 {meta.get('title','?')[:80]} — {meta.get('created','')[:16]}"):
-                    st.caption(meta.get("report", ""))
-                    st.code(mf.stem + ".patch", language=None)
-        else:
-            st.info("Патчей пока нет.")
+        _render_patches()
+        st.caption(
+            "git в образе dashboard не установлен — ветка не читается из контейнера. "
+            "Источник истины для ревью: файлы в logs/self_dev_patches."
+        )
 
     with tabs[2]:
         st.subheader("➕ Поставить задачу агенту-патчеру")
@@ -125,3 +116,16 @@ def render_selfdev_tab():
                         st.cache_data.clear()
                     else:
                         st.error("Не удалось создать задачу")
+
+
+def _render_patches():
+    st.subheader("📦 Патчи на ревью (logs/self_dev_patches)")
+    st.caption("Файлы — первоисточник (ветку могут трогать синхронизаторы). Применить: git am <файл.patch>")
+    metas = _load_patch_metas()
+    if metas:
+        for meta in metas:
+            with st.expander(f"🧪 {str(meta.get('title', '?'))[:80]} — {str(meta.get('created', ''))[:16]}"):
+                st.caption(meta.get("report", ""))
+                st.code(meta.get("_stem", "") + ".patch", language=None)
+    else:
+        st.info("Патчей пока нет.")
