@@ -251,8 +251,10 @@ def render_wisdom_tab():
                     f"Создано: {created_label} | type={sop.get('node_type') or 'domain:SOP'} | `{file_path}`"
                 )
             with col_b:
-                if st.button("Открыть", key=f"open_sop_{idx}_{file_path}"):
-                    st.info(content_text[:2000] if content_text else f"Путь: {file_path}")
+                # [v149.68] st.info исчезал при следующем rerun → expander держит
+                # контент стабильно между реранами
+                with st.expander("Открыть"):
+                    st.markdown(content_text[:2000] if content_text else f"Путь: `{file_path}`")
     else:
         st.info("SOP пока не созданы. Генерируются из задач с audit_score ≥ 8.")
 
