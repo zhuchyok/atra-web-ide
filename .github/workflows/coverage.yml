@@ -56,6 +56,22 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-cov pytest-asyncio
 
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Init schema (experts, domains, tasks, knowledge_nodes)
+        env:
+          PGPASSWORD: secret
+        run: |
+          psql -h localhost -p 5432 -U admin -d knowledge_os -f knowledge_os/db/init.sql
+
+      - name: Apply migrations
+        env:
+          DATABASE_URL: postgresql://admin:secret@localhost:5432/knowledge_os
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python knowledge_os/scripts/apply_migrations.py
+
       - name: Run tests with coverage
         env:
           DATABASE_URL: postgresql://admin:secret@localhost:5432/knowledge_os
