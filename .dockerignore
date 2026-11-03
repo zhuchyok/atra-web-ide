@@ -101,3 +101,42 @@ knowledge_os/app/skills/
 rust_core/target/
 completions/
 .coverage*
+
+# [v150.11] Аудит COPY-слоя 8.4GB — добираем остатки контекста
+# Рантайм-данные knowledge_base (2.3GB, ai_research) — код создаёт/пишет её сам, в образ не нужна
+knowledge_os/knowledge_base/
+knowledge_os/backups/
+knowledge_os/training_data/
+knowledge_os/docs/
+knowledge_os/venv/
+# Все точечные venv-варианты (.venv-agents, .venv_swarm, .venv_audit и любые другие)
+.venv*/
+**/.venv*/
+.venv-*/
+**/.venv-*/
+# Рабочие копии/артефакты инструментов
+.code-review-graph/
+.selfdev-worktree/
+agent-transcripts/
+terminals/
+.cursor/
+# Доки и отчёты — не рантайм
+docs/
+*.md
+!knowledge_os/app/**/*.md
+# Тяжёлые конфиг-данные
+configs/training/
+configs/evals/
+# Grafana/prometheus дашборды (не рантайм агентов)
+grafana/
+prometheus/
+# Базы данных-артефакты
+*.db
+*.sqlite3
+coverage.xml
+htmlcov/
+# Прочие тяжести верхнего уровня
+certs/
+setki21_nginx/
+daemon.json
+grafana_data/
