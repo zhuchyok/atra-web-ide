@@ -20,6 +20,15 @@ export VICTORIA_URL="${VICTORIA_URL:-http://localhost:8010}"
 CURATOR_SCRIPT="$ROOT/scripts/curator_send_tasks_to_victoria.py"
 if [ ! -f "$TASKS_FILE" ]; then
   echo "Файл задач не найден: $TASKS_FILE. Используем быстрый набор (2 задачи)."
-  exec python3 "$CURATOR_SCRIPT" --tasks "привет" "что ты умеешь?" --async --max-wait "$MAX_WAIT"
+  python3 "$CURATOR_SCRIPT" --tasks "привет" "что ты умеешь?" --async --max-wait "$MAX_WAIT"
+else
+  python3 "$CURATOR_SCRIPT" --file "$TASKS_FILE" --async --max-wait "$MAX_WAIT"
 fi
-exec python3 "$CURATOR_SCRIPT" --file "$TASKS_FILE" --async --max-wait "$MAX_WAIT"
+
+# Еженедельный самоаудит Виктории — по понедельникам (или принудительно SELF_AUDIT=1)
+SELF_AUDIT_FILE="$ROOT/scripts/curator_self_audit_tasks.txt"
+DOW="$(date +%u)"
+if { [ "$DOW" = "1" ] || [ "${SELF_AUDIT:-0}" = "1" ]; } && [ -f "$SELF_AUDIT_FILE" ]; then
+  echo "=== Самоаудит Виктории ($(date '+%F %T')) ==="
+  python3 "$CURATOR_SCRIPT" --file "$SELF_AUDIT_FILE" --async --max-wait "$MAX_WAIT"
+fi
