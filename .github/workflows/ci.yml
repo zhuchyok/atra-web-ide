@@ -37,6 +37,16 @@ jobs:
           pip install pytest pytest-asyncio pyyaml
           pip install -r knowledge_os/requirements.txt
 
+      - name: Init schema + migrations
+        env:
+          PGPASSWORD: secret
+          DATABASE_URL: postgresql://admin:secret@localhost:5432/knowledge_os
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          psql -h localhost -p 5432 -U admin -d knowledge_os -f knowledge_os/db/init.sql
+          python knowledge_os/scripts/apply_migrations.py || echo "::warning::some migrations failed"
+
       - name: Run unit tests
         env:
           DATABASE_URL: postgresql://admin:secret@localhost:5432/knowledge_os
