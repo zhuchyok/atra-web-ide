@@ -8296,7 +8296,7 @@ async def _try_fact_fast_track(goal: str) -> Optional[str]:
         r = await _hands_post_json(
             f"{hands}/api/chat",
             payload,
-            timeout=float(os.getenv("VICTORIA_FACT_FAST_TRACK_TIMEOUT", "20")),
+            timeout=float(os.getenv("VICTORIA_FACT_FAST_TRACK_TIMEOUT", "60")),
         )
         if r is None or r.status_code != 200:
             logger.info(
