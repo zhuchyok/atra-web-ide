@@ -364,7 +364,7 @@ def format_live_fact_answer(
             "victoria_async",
         )
     ):
-        bits.append(
+        line = (
             "p50="
             + str(float(ttc.get("p50") or 0.0))
             + " p95="
@@ -376,6 +376,17 @@ def format_live_fact_answer(
             + " inflight="
             + str(int(ttc.get("inflight_n") or 0))
         )
+        by_reason = ttc.get("by_reason") or {}
+        if by_reason:
+            try:
+                from src.agents.bridge.async_ttc import format_reason_p95_line
+            except ImportError:
+                from async_ttc import format_reason_p95_line
+
+            extra = format_reason_p95_line(by_reason)
+            if extra:
+                line += " by_reason=" + extra
+        bits.append(line)
     is_status_overview = "статус" in g and any(
         x in g for x in ("проект", "систем", "роя", "swarm")
     )
@@ -419,22 +430,22 @@ def is_fact_seeking_question(goal: str) -> bool:
     # слово-маркер («объясни backpressure в очередях задач» ≠ «сколько в очереди»).
     if any(g.startswith(v) for v in ("объясни", "что такое", "напиши", "найди", "расскажи", "сравни", "проанализируй", "разбери")):
         return False
-    
+
     # Исключаем автоматические задачи (лог сканер, медицинские задачи и т.д.)
     # Эти задачи требуют реальной обработки, а не детерминированного ответа
     automated_prefixes = ["[log_scanner]", "[medic]", "[proactive]", "[feedback]"]
     if any(g.startswith(prefix) for prefix in automated_prefixes):
         return False
-    
+
     # Исключаем задачи которые начинаются с маркера ошибки - это задачи на исправление
     if g.startswith("ошибка") or g.startswith("error") or g.startswith("исправь"):
         return False
-    
+
     # Исключаем задачи с "ошибка" в контексте лог сканера или исправления
     # Если goal содержит "ошибка" и "контейнер" или "исправь" - это задача на исправление
     if "ошибка" in g and ("контейнер" in g or "исправь" in g or "log_scanner" in g):
         return False
-    
+
     return any(m in g for m in FACT_SEEKING_MARKERS)
 
 

@@ -112,3 +112,24 @@ def test_ttc_metrics_are_fact_seeking():
         ttc={"p50": 11.5, "p95": 27.3, "samples": 4, "inflight_max": 0.0, "inflight_n": 0},
     )
     assert ans == "p50=11.5 p95=27.3 samples=4 inflight_max=0.0 inflight=0"
+
+
+def test_ttc_metrics_append_by_reason_when_present():
+    ans = format_live_fact_answer(
+        "какие victoria_async_ttc p50 p95 samples",
+        ttc={
+            "p50": 11.5,
+            "p95": 480.0,
+            "samples": 5,
+            "inflight_max": 0.0,
+            "inflight_n": 0,
+            "by_reason": {
+                "quick": {"p95": 12.0, "samples": 3},
+                "timeout_watchdog": {"p95": 480.0, "samples": 2},
+            },
+        },
+    )
+    assert ans.startswith("p50=11.5 p95=480.0 samples=5 inflight_max=0.0 inflight=0")
+    assert "by_reason=" in ans
+    assert "timeout_watchdog:p95=480.0/n=2" in ans
+    assert "quick:p95=12.0/n=3" in ans

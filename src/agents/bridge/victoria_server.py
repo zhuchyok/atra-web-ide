@@ -838,7 +838,7 @@ VICTORIA_ASYNC_TTC = _create_metric(
 VICTORIA_ACTIVE_REQUESTS = _create_metric(
     "victoria_active_requests", Gauge, "Number of active Victoria requests"
 )
-_async_ttc_samples: list[float] = []
+_async_ttc_samples: list[tuple[float, str]] = []
 _ASYNC_TTC_SAMPLES_MAX = 200
 _ASYNC_TTC_REDIS_KEY = "victoria:async_ttc_samples"
 _ASYNC_INFLIGHT_REDIS_KEY = "victoria:async_inflight"
@@ -1076,12 +1076,12 @@ def _record_async_ttc(store: dict, status_final: str) -> Optional[float]:
     duration = round(duration, 3)
     store["duration_seconds"] = duration
     store["_sla_ttc_recorded"] = True
-    reason = str(store.get("handoff_reason") or "unknown")[:64]
+    reason = sanitize_reason(store.get("handoff_reason") or "unknown")
     try:
         VICTORIA_ASYNC_TTC.labels(status=status_final, handoff_reason=reason).observe(duration)
     except Exception:
         pass
-    _async_ttc_samples.append(duration)
+    _async_ttc_samples.append((duration, reason))
     if len(_async_ttc_samples) > _ASYNC_TTC_SAMPLES_MAX:
         del _async_ttc_samples[: len(_async_ttc_samples) - _ASYNC_TTC_SAMPLES_MAX]
     logger.info(
@@ -1093,13 +1093,19 @@ def _record_async_ttc(store: dict, status_final: str) -> Optional[float]:
     return duration
 
 
-async def _push_ttc_sample(duration: Optional[float]) -> None:
+async def _push_ttc_sample(
+    duration: Optional[float], reason: Optional[str] = None, store: Optional[dict] = None
+) -> None:
     """Share TTC samples across Uvicorn workers via Redis list."""
     if duration is None or not redis_manager:
         return
+    if store is not None:
+        if store.get("_sla_ttc_pushed"):
+            return
+        store["_sla_ttc_pushed"] = True
     try:
         client = await redis_manager.get_client()
-        await client.lpush(_ASYNC_TTC_REDIS_KEY, str(duration))
+        await client.lpush(_ASYNC_TTC_REDIS_KEY, encode_ttc_sample(duration, reason))
         await client.ltrim(_ASYNC_TTC_REDIS_KEY, 0, _ASYNC_TTC_SAMPLES_MAX - 1)
     except Exception:
         pass
@@ -1107,7 +1113,7 @@ async def _push_ttc_sample(duration: Optional[float]) -> None:
 
 async def _async_sla_snapshot() -> dict:
     """p50/p95/samples/inflight for /metrics and live-fact answers. Cross-worker via Redis."""
-    ttc_samples = list(_async_ttc_samples)
+    tagged: list[tuple[float, str]] = list(_async_ttc_samples)
     inflight_max = 0.0
     inflight_n = 0
     stale_inflight_ids: list[str] = []
@@ -1116,13 +1122,13 @@ async def _async_sla_snapshot() -> dict:
         try:
             client = await redis_manager.get_client()
             raw_samples = await client.lrange(_ASYNC_TTC_REDIS_KEY, 0, _ASYNC_TTC_SAMPLES_MAX - 1)
-            parsed = []
+            parsed: list[tuple[float, str]] = []
             for item in raw_samples or []:
-                value = _coerce_float(item.decode("utf-8") if isinstance(item, bytes) else item)
-                if value is not None:
-                    parsed.append(value)
+                row = parse_ttc_sample(item)
+                if row is not None:
+                    parsed.append(row)
             if parsed:
-                ttc_samples = parsed
+                tagged = parsed
             raw_inflight = await client.hgetall(_ASYNC_INFLIGHT_REDIS_KEY)
             for raw_task_id, item in (raw_inflight or {}).items():
                 task_id = raw_task_id.decode("utf-8") if isinstance(raw_task_id, bytes) else str(raw_task_id)
@@ -1164,6 +1170,7 @@ async def _async_sla_snapshot() -> dict:
                     pass
         except Exception:
             pass
+    ttc_samples = [duration for duration, _reason in tagged]
     return {
         "p50": round(_percentile(ttc_samples, 0.50), 3),
         "p95": round(_percentile(ttc_samples, 0.95), 3),
@@ -1171,6 +1178,7 @@ async def _async_sla_snapshot() -> dict:
         "inflight_max": round(inflight_max, 3),
         "inflight_n": inflight_n,
         "ttc_samples": ttc_samples,
+        "by_reason": ttc_by_reason(tagged),
     }
 
 # Лимит шагов агента. Для чата/Telegram клиенты передают max_steps=50 (VICTORIA_MAX_STEPS_CHAT / VICTORIA_MAX_STEPS)
@@ -1208,6 +1216,22 @@ _victoria_semaphore: Optional[asyncio.Semaphore] = None
 # Debug mode: VICTORIA_DEBUG=true enables verbose logging at all levels
 VICTORIA_DEBUG = os.getenv("VICTORIA_DEBUG", "false").lower() in ("true", "1", "yes")
 
+try:
+    from src.agents.bridge.async_ttc import (
+        encode_ttc_sample,
+        parse_ttc_sample,
+        render_reason_metrics,
+        sanitize_reason,
+        ttc_by_reason,
+    )
+except ImportError:
+    from async_ttc import (  # type: ignore[no-redef]
+        encode_ttc_sample,
+        parse_ttc_sample,
+        render_reason_metrics,
+        sanitize_reason,
+        ttc_by_reason,
+    )
 from src.agents.bridge.enhanced_router import delegate_to_veronica
 from src.agents.bridge.project_registry import get_main_project, get_projects_registry
 from src.agents.bridge.task_detector import (
@@ -7672,10 +7696,11 @@ async def _run_task_background(
         raise
     finally:
         status_final = store.get("status") or "unknown"
-        _record_async_ttc(store, status_final)
+        duration = _record_async_ttc(store, status_final)
         store["stage"] = store.get("stage") or status_final
         store["updated_at"] = datetime.now(timezone.utc).isoformat()
         await _sync_store()
+        await _push_ttc_sample(duration, store.get("handoff_reason"), store)
         if store.get("knowledge_os_task_id"):
             await _record_orchestration_task_complete(
                 agent,
@@ -9280,7 +9305,9 @@ async def run_task(
                             except Exception:
                                 pass
                         await _clear_async_inflight(task_id)
-                        await _push_ttc_sample(duration)
+                        await _push_ttc_sample(
+                            duration, store.get("handoff_reason"), store
+                        )
 
         _create_tracked_task(_bounded_background_run()).add_done_callback(_done_callback)
         logger.info(
@@ -11219,6 +11246,7 @@ async def metrics():
         "# HELP victoria_async_inflight Number of in-flight async /run tasks\n"
         "# TYPE victoria_async_inflight gauge\n"
         f"victoria_async_inflight {inflight_n}\n"
+        + render_reason_metrics(sla.get("by_reason") or {})
     )
 
     # === RED Metrics from isolated registry ===
