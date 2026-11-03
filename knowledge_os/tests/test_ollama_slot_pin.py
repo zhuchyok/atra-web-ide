@@ -61,6 +61,19 @@ def test_keep_alive_policy_brain_is_24h():
     assert get_keep_alive("phi3.5:3.8b", mlx_alive=True) == -1
 
 
+def test_brain_keep_alive_stays_24h_during_mlx_cooldown():
+    import time
+
+    import ollama_keep_alive_policy as policy
+    from ollama_keep_alive_policy import get_keep_alive
+
+    policy._last_mlx_failure_time = time.time()
+    try:
+        assert get_keep_alive("victoria-qwen38:latest", mlx_alive=True) == "24h"
+    finally:
+        policy._last_mlx_failure_time = 0.0
+
+
 def test_worker_phi_call_sites_use_8192():
     import pathlib
 

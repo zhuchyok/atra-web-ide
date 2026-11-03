@@ -209,6 +209,30 @@
 
 **Не трогали:** TTC 420, Rapid-MLX, LightRAG, mem Анны, pool.
 
+## § v150.80 (2026-11-03) — TTC p95 split by handoff_reason
+
+**Корень:** Redis `victoria:async_ttc_samples` хранил голый float; `/metrics` отдавал один unlabeled p95. Histogram уже был `{status,handoff_reason}`, rolling gauge — нет. Алерт 420 смотрит unlabeled p95 и смешивает quick с `timeout_*`.
+
+**Контракт:** sample = JSON `{d,r}`; старый float → `unknown`. Overall `victoria_async_ttc_p95_seconds` без фильтра timeout. Extra: `victoria_async_ttc_p95_by_reason_seconds` / `samples_by_reason`, cap 16, остальное `other`. Live-fact `by_reason=` только если buckets есть.
+
+**Не трогали:** порог 420, Rapid-MLX, LightRAG, mem Анны, pool.
+
+## § v150.81 (2026-11-03) — XAUTOCLAIM: reclaim, не STALE-DROP
+
+**Корень:** `autoclaim_tasks` уже был, но тот же цикл ACK-ает idle>5min (включая только что claimed). Early-xack до `process_task` убирал in-flight из PEL — мёртвый воркер нельзя было reclaim.
+
+**Контракт:** `classify_pending` — zombie / reclaim (dead consumer) / keep (live heartbeat + inflight). ACK после `process_task`. Слепой XAUTOCLAIM в том же loop не зовём: он украл бы живые 2700s задачи.
+
+**Не трогали:** TTC 420, pin ctx, pool, mem Анны.
+
+## § v150.82 (2026-11-03) — мозг 24h даже в MLX cooldown
+
+**Корень:** `get_keep_alive` в recovery cooldown возвращал `-1` до пина. Live `/api/ps` expires 2319 при таблице `24h`. Warmup пропускает уже загруженную модель — TTL не обновлялся.
+
+**Фикс:** BRAIN_MARKERS → `24h` первой проверкой. Следующий успешный generate выставит TTL. Не выгружали 27B ради пробы (пинг 240с timeout, слот занят).
+
+**Не трогали:** TTC 420, pool, mem Анны.
+
 ## 93. Singularity 31.2+: P0 Stabilization Closure (2026-07-19)
 
 - **Контекст:** изменения из параллельного чата приняты как базовые (full-first для expert-dialogue, расширенный контракт результата) и дожаты до устойчивого P0 состояния без отката чужих правок.

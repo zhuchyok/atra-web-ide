@@ -20,6 +20,27 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-03 v150.82) — мозг 24h даже в MLX cooldown ✅
+
+- `get_keep_alive`: qwen38/24h раньше cooldown `-1`. Live expires 2319 был хвост `-1`, warmup skip-if-loaded.
+- Не выгружали мозг. Следующий generate выставит 24h.
+- TTC 420 / pool / mem Анны не трогали.
+
+## § Последние изменения (2026-11-03 v150.81) — XAUTOCLAIM reclaim, не STALE-DROP ✅
+
+- XAUTOCLAIM уже был (`autoclaim_tasks`). Дыра: STALE-DROP ACK idle>5min в том же цикле + early-xack до process.
+- `stream_reclaim.classify_pending`: live heartbeat → keep; dead/idle → reclaim; >10 deliveries → zombie; inflight → keep.
+- ACK после `process_task`. Слепой XAUTOCLAIM в loop убран (украл бы живые 2700s).
+- TTC 420 / pin / pool / mem Анны не трогали.
+
+## § Последние изменения (2026-11-03 v150.80) — TTC p95 split by handoff_reason ✅
+
+- Redis sample: JSON `{d,r}`; голый float читается как `unknown` (upgrade без пустого p95).
+- Unlabeled `victoria_async_ttc_p95_seconds` без фильтра `timeout_*`; алерт 420 не трогали.
+- Extra gauges: `victoria_async_ttc_p95_by_reason_seconds`, `victoria_async_ttc_samples_by_reason` (cap 16, rest `other`).
+- Live-fact: `by_reason=` только если buckets есть; старая строка без by_reason Exact.
+- Модуль `src/agents/bridge/async_ttc.py`. Rapid-MLX / LightRAG / pool / mem Анны не трогали.
+
 ## § Последние изменения (2026-11-03 v150.79) — pin ctx, не adaptive ✅
 
 - Корень: `local_router._get_adaptive_options` слал phi `16384`; FAST PATH/JUDGE — `4096` на 11437; `get_keep_alive` мозгу `-1` (runner не держится). Native `num_ctx` = reload (ollama#13929).

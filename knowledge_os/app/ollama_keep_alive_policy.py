@@ -166,6 +166,13 @@ def get_keep_alive(
     6. Smart Keep-Alive по размеру модели
     7. Дефолт 300
     """
+    # [v150.82] Brain pin first. MLX cooldown used to return -1 for qwen38
+    # (expires 2319) before the 24h table could run.
+    from ollama_slot_pin import BRAIN_MARKERS, pinned_keep_alive
+
+    if model_name and any(m in model_name.lower() for m in BRAIN_MARKERS):
+        return pinned_keep_alive(model_name)
+
     # 1. Fallback-мозг: пока MLX недоступен, v3.5 в Ollama не выгружается
     if model_name and any(m in model_name for m in FALLBACK_BRAIN_MODELS):
         if not mlx_alive:
@@ -202,12 +209,6 @@ def get_keep_alive(
         else:
             # Кулдаун прошёл, сбрасываем время сбоя
             _last_mlx_failure_time = 0
-
-    # [v150.79] Мозг на 11434: keep_alive=-1 не держит runner, нужен "24h".
-    from ollama_slot_pin import BRAIN_MARKERS, pinned_keep_alive
-
-    if model_name and any(m in model_name.lower() for m in BRAIN_MARKERS):
-        return pinned_keep_alive(model_name)
 
     # 2. Бессмертные по имени (moondream и т.д.)
     if model_name and any(m in model_name for m in IMMORTAL_MODELS):
