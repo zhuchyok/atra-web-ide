@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import json
+import logging
 import os
 from datetime import datetime
 from typing import Optional
@@ -25,6 +26,8 @@ def _is_sane_mutation(new_prompt: str) -> bool:
     return any(h in low for h in ("ты ", "you are", "твоя роль", "your role"))
 
 import asyncpg
+
+logger = logging.getLogger(__name__)
 
 # [SINGULARITY 10.0+] GraphRAG Integration
 try:

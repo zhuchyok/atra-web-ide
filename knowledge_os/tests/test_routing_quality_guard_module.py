@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 
 import pytest
 
@@ -24,10 +25,13 @@ class _FakeRedis:
 
 @pytest.mark.asyncio
 async def test_guard_once_apply_sets_flags():
+    # События должны попадать в окно агрегации (window_hours): ts — «сейчас»,
+    # иначе guard отвечает insufficient_events → canary_only.
+    _now_ms = str(int(time.time() * 1000) - 1000)
     row = (
-        "1789244632662-0",
+        f"{_now_ms}-0",
         {
-            "ts": "1789244632658",
+            "ts": _now_ms,
             "selected_route": "ollama_studio",
             "selected_model": "victoria-wisdom-24k:latest",
             "latency_ms": "7.7",

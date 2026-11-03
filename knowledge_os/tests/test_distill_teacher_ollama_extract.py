@@ -1,5 +1,14 @@
 """Teacher Ollama extract: thinking-model empty response trap."""
 
+import sys
+from pathlib import Path
+
+# app/ использует двойной импорт (from ollama_slot_pin / from app.ollama_slot_pin);
+# в тестах нужен сам каталог app в sys.path, иначе v150.82 brain-pin импорт падает.
+_APP_ROOT = Path(__file__).resolve().parents[1] / "app"
+if str(_APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(_APP_ROOT))
+
 from app.distillation_engine import KnowledgeDistiller
 
 
@@ -37,9 +46,16 @@ def test_should_disable_thinking_for_victoria():
 
 def test_ollama_generate_body_sets_think_false_for_victoria():
     d = KnowledgeDistiller()
+    # [v150] wisdom-модель в Ollama больше не существует: ремап на руки phi3.5
+    # (контракт подтверждён test_distill_teacher_wisdom_remaps_to_phi) — think не нужен.
     body = d._ollama_generate_body("victoria-wisdom-v3.5:latest", "prompt")
-    assert body.get("think") is False
+    assert body["model"] == "phi3.5:3.8b"
+    assert "think" not in body
     assert body["options"]["num_predict"] >= 128
+    # Немапленная thinking-модель (qwen3) по-прежнему получает think=False.
+    body_qwen = d._ollama_generate_body("qwen3:8b", "prompt")
+    assert body_qwen.get("think") is False
+    assert body_qwen["options"]["num_predict"] >= 128
     body_phi = d._ollama_generate_body("phi3.5:3.8b", "prompt")
     assert "think" not in body_phi
 

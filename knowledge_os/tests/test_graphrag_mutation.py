@@ -42,11 +42,15 @@ async def test_graphrag_context_injection():
     mock_graphrag = AsyncMock()
     mock_graphrag.retrieve_graph_context.return_value = mock_graph_context
 
-    # Mock LocalAIRouter and mutation generation
+    # Mock LocalAIRouter and mutation generation.
+    # [v148.3] Sanity-гейт мутаций: new_prompt обязан быть валидной персоной
+    # (>200 симв., обращение «Ты ...», без мета-маркеров вида "improved prompt"),
+    # иначе UPDATE experts не выполняется.
     mock_result_json = json.dumps(
         {
-            "new_prompt": "Evolved prompt with GraphRAG knowledge and some very long text to pass validation. "
-            * 5,
+            "new_prompt": "Ты — TestExpert, ведущий тестировщик графа знаний. "
+            "Твоя роль — проверять целостность связей GraphRAG и отчётливо фиксировать находки. "
+            * 2,
             "assigned_skills": ["test-skill"],
             "reasoning": "Because of GraphRAG context",
         }
@@ -83,7 +87,7 @@ async def test_graphrag_context_injection():
         mock_conn.execute.assert_called_once()
         update_args = mock_conn.execute.call_args[0]
         assert "UPDATE experts" in update_args[0]
-        assert "Evolved prompt with GraphRAG knowledge" in update_args[1]
+        assert "Ты — TestExpert, ведущий тестировщик графа знаний" in update_args[1]
 
 
 if __name__ == "__main__":

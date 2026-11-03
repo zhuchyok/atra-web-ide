@@ -74,7 +74,12 @@ def test_wisdom_guard_pins_phi_after_unload():
     assert "def pin_phi():" in text
     assert "pinned phi3.5:3.8b" in text
     assert "def pin_nomic():" in text
-    assert "11434 держит только phi3.5:3.8b и nomic" in text
+    # [v150.1/v150.8] Старый контракт «11434 = только phi+nomic» выгружал мозг 1130 раз
+    # (война с brain-keepalive, см. MASTER_REFERENCE.md §754). Новый контракт:
+    # на 11434 живёт ТОЛЬКО мозг, руки/эмбеддер переехали на 11437.
+    assert "11434 держит только phi3.5:3.8b и nomic" not in text
+    assert 'BRAIN_ALLOW = ("victoria-qwen38", "qwen3.8")' in text
+    assert "На 11434 живёт ТОЛЬКО мозг" in text
     assert "def _enforce_hands_slot():" in text
     assert "urlopen(req, timeout=60)" in text
 

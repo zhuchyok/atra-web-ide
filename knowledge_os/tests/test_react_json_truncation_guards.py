@@ -26,4 +26,5 @@ def test_react_uses_stage_specific_token_limits():
 
 def test_expert_dialogue_predict_limit_is_configurable():
     text = EXPERT_WORKER.read_text(encoding="utf-8")
-    assert 'EXPERT_DIALOGUE_NUM_PREDICT", "4096"' in text
+    # v150.79: вызов os.getenv разложен форматтером по строкам — сверяем без учёта пробелов.
+    assert 'EXPERT_DIALOGUE_NUM_PREDICT", "4096"' in " ".join(text.split())
