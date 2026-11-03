@@ -4,6 +4,7 @@
 
 import logging
 import os
+import time
 
 from fastapi import APIRouter, Response
 from prometheus_client import CONTENT_TYPE_LATEST
@@ -44,10 +45,42 @@ async def _refresh_routing_guard_metrics() -> None:
                 "system:routing_guard:last_win_rate",
                 "system:routing_guard:last_regret_rate",
                 "system:routing_guard:last_latency_p95_ms",
+                "system:routing_guard:last_ts_utc",
+                "system:contract_rollout_mode",
+                "system:contract_enforce",
             )
             await client.aclose()
             if values:
                 action = (values[0] or "canary_only").strip() or "canary_only"
+                # Protect alerts from stale guard telemetry: if last_action is old,
+                # derive action from current contract flags (actual runtime policy).
+                try:
+                    stale_sec = float(os.getenv("ROUTING_GUARD_STALE_SEC", "3600"))
+                except Exception:
+                    stale_sec = 3600.0
+                ts_raw = (values[5] or "").strip()
+                mode = (values[6] or "").strip().lower()
+                enforce = (values[7] or "").strip()
+                # Runtime contract mode is source-of-truth for enforced routing policy.
+                # Guard's last_action is analytical telemetry and may report "rollback"
+                # while the contract is still explicitly enforced.
+                if mode == "enforce" and enforce in ("1", "true", "True"):
+                    action = "rollout"
+                elif mode == "shadow":
+                    action = "canary_only"
+                elif ts_raw:
+                    try:
+                        # datetime.fromisoformat without extra import
+                        from datetime import datetime, timezone
+
+                        ts = datetime.fromisoformat(ts_raw.replace("Z", "+00:00")).timestamp()
+                        if (time.time() - ts) > max(300.0, stale_sec):
+                            if mode == "enforce" and enforce in ("1", "true", "True"):
+                                action = "rollout"
+                            elif mode == "shadow":
+                                action = "canary_only"
+                    except Exception:
+                        pass
                 update_routing_guard_metrics(
                     action=action,
                     events_total_window=float(values[1] or 0.0),

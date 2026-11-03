@@ -138,6 +138,9 @@ command.append
 tmp/
 audit_curl_err.txt
 .cache/
+# Nightly eval dumps accrue locally; already-tracked snapshots stay in git.
+configs/evals/results/ab_brain_*.json
+configs/evals/results/battle_*.json
 # --- agent configs (per-tool, runtime) ---
 .claude/
 .codebuddy/

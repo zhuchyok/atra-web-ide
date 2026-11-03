@@ -23,6 +23,9 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434")
+_fallback_raw = os.getenv("EMBED_FALLBACK_URLS", "")
+_fallback_urls = [u.strip().rstrip("/") for u in _fallback_raw.split(",") if u.strip()]
+_embed_endpoints = [OLLAMA_URL.rstrip("/"), *_fallback_urls]
 EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
 EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "768"))
 BATCH_CONCURRENCY = int(os.getenv("EMBED_BATCH_CONCURRENCY", "4"))
@@ -56,36 +59,61 @@ async def _embed(text: str) -> List[float]:
     global _upstream_cooldown_until_ts
     if asyncio.get_event_loop().time() < _upstream_cooldown_until_ts:
         raise HTTPException(status_code=503, detail="upstream embeddings cooldown active")
-    async with _semaphore:
-        response = await _client.post(
-            f"{OLLAMA_URL}/api/embeddings",
-            json={"model": EMBED_MODEL, "prompt": text},
-        )
-    if response.status_code in (429, 500, 503):
-        _upstream_cooldown_until_ts = max(
-            _upstream_cooldown_until_ts, asyncio.get_event_loop().time() + _UPSTREAM_COOLDOWN_SEC
-        )
-        raise HTTPException(status_code=503, detail=f"ollama overloaded ({response.status_code})")
-    response.raise_for_status()
-    embedding = response.json().get("embedding")
-    if not embedding or len(embedding) != EMBEDDING_DIM:
-        raise ValueError(
-            f"Ollama вернул {len(embedding) if embedding else 0} измерений, ожидалось {EMBEDDING_DIM}"
-        )
-    return embedding
+    errors: list[str] = []
+    saw_overload = False
+    for endpoint in _embed_endpoints:
+        async with _semaphore:
+            response = await _client.post(
+                f"{endpoint}/api/embeddings",
+                json={"model": EMBED_MODEL, "prompt": text},
+            )
+        if response.status_code == 200:
+            embedding = response.json().get("embedding")
+            if embedding and len(embedding) == EMBEDDING_DIM:
+                return embedding
+            errors.append(
+                f"{endpoint}: bad_dim={len(embedding) if embedding else 0} expected={EMBEDDING_DIM}"
+            )
+            continue
+        if response.status_code in (429, 500, 503):
+            saw_overload = True
+            _upstream_cooldown_until_ts = max(
+                _upstream_cooldown_until_ts,
+                asyncio.get_event_loop().time() + _UPSTREAM_COOLDOWN_SEC,
+            )
+            errors.append(f"{endpoint}: overloaded({response.status_code})")
+            continue
+        if response.status_code in (400, 404):
+            errors.append(f"{endpoint}: model_unavailable({response.status_code})")
+            continue
+        errors.append(f"{endpoint}: http_{response.status_code}")
+
+    if saw_overload:
+        raise HTTPException(status_code=503, detail="all embedding upstreams overloaded")
+    raise HTTPException(status_code=500, detail="; ".join(errors) or "embedding upstream failed")
 
 
 @app.get("/health")
 async def health():
+    issues: list[str] = []
+    available_on: list[str] = []
     try:
-        r = await _client.get(f"{OLLAMA_URL}/api/tags", timeout=5.0)
-        models = [m.get("name", "") for m in r.json().get("models", [])]
-        model_ok = any(m.startswith(EMBED_MODEL) for m in models)
+        for endpoint in _embed_endpoints:
+            try:
+                r = await _client.get(f"{endpoint}/api/tags", timeout=5.0)
+                models = [m.get("name", "") for m in r.json().get("models", [])]
+                if any(m.startswith(EMBED_MODEL) for m in models):
+                    available_on.append(endpoint)
+            except Exception as exc:
+                issues.append(f"{endpoint}:{exc}")
+        model_ok = bool(available_on)
         return {
             "status": "healthy" if model_ok else "degraded",
             "backend": "ollama",
             "model": EMBED_MODEL,
             "model_available": model_ok,
+            "available_on": available_on,
+            "issues": issues,
             "dim": EMBEDDING_DIM,
         }
     except Exception as e:

@@ -59,6 +59,13 @@ scrape_configs:
     metrics_path: "/metrics"
     scrape_interval: 30s
 
+  # Host watchdog textfile metrics exported by node-exporter container.
+  - job_name: "watchdog-metrics"
+    static_configs:
+      - targets: ["atra-watchdog-exporter:9100"]
+    metrics_path: "/metrics"
+    scrape_interval: 30s
+
   - job_name: "prometheus"
     static_configs:
       - targets: ["localhost:9090"]

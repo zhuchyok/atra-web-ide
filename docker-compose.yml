@@ -157,6 +157,7 @@ services:
     mem_limit: 2g
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -178,6 +179,28 @@ services:
         aliases:
           - atra-prometheus # для Grafana (knowledge_os и др.), ожидающей этот hostname
     restart: unless-stopped
+
+  # ============================================
+  # Watchdog Metrics Exporter - textfile (.prom) -> /metrics
+  # ============================================
+  watchdog-metrics-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: atra-watchdog-exporter
+    command:
+      - --collector.disable-defaults
+      - --collector.textfile
+      - --collector.textfile.directory=/textfile
+      - --web.listen-address=:9100
+    volumes:
+      - /tmp/atra_metrics:/textfile:ro
+    networks:
+      - atra-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:9100/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   # ============================================
   # Grafana - дашборды (День 5). Порт 3002 (3000=frontend, 3001=Knowledge OS Grafana)

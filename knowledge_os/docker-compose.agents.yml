@@ -371,6 +371,11 @@ services:
       ORCHESTRATOR_BACKGROUND_SOURCES: ""
       # [v149.61] LTM off: orchestrator-генерации без чужих «памятей»
       LTM_RECALL_ENABLED: "false"
+      # [v150.28] Аудит P0: ingestion-гейт из shadow → enforce 50%.
+      # 2719 записей в knowledge_reject_log — гейт стабильно отсекает мусор.
+      # Постепенный rollout (50%, не 100): неделя наблюдения → 100.
+      INGESTION_GATE_SHADOW_MODE: "false"
+      INGESTION_GATE_ENFORCE_PERCENT: ${INGESTION_GATE_ENFORCE_PERCENT:-50}
       # [v149.62] debate-генератор off (69% брака, общий гейт в nightly_learner)
       HYPOTHESIS_DEBATES_ENABLED: "false"
       ORCHESTRATOR_CONTRACT_ROLLOUT_MODE: "auto"
@@ -649,6 +654,9 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os?application_name=knowledge_os_worker
       # [v149.58e] quality-freeze: см. orchestrator — фоновые источники off
       ORCHESTRATOR_BACKGROUND_SOURCES: ""
+      # [v150.28] Аудит P0: ingestion-гейт из shadow → enforce 50% (см. orchestrator)
+      INGESTION_GATE_SHADOW_MODE: "false"
+      INGESTION_GATE_ENFORCE_PERCENT: ${INGESTION_GATE_ENFORCE_PERCENT:-50}
       CONTAINER_NAME: "knowledge_os_worker"
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
@@ -792,6 +800,9 @@ services:
       CONTAINER_NAME: "knowledge_nightly"
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      # [v150.27] phi-утечка на 11434: distill-учитель phi3.5 и busy-probe
+      # должны ходить на инстанс РУК (11437), а не грузить мозгевой порт.
+      OLLAMA_HANDS_URL: http://host.docker.internal:11437
       OLLAMA_NUM_PARALLEL: "5"
       OLLAMA_GLOBAL_MAX_SLOTS: "4"
       OLLAMA_MAX_QUEUE: "100"
