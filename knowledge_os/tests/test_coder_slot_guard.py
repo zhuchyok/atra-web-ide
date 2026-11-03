@@ -54,6 +54,36 @@ def test_pin_brain_skipped_when_qwen38_loaded():
     assert _should_pin_brain(["qwen3.8:latest"]) is False
 
 
+def test_brain_runner_alive_detects_blob(monkeypatch):
+    import ollama_wisdom_guard as g
+
+    monkeypatch.setattr(
+        g.subprocess,
+        "check_output",
+        lambda *a, **k: "bikos 1 llama-server --model /Users/x/.ollama-brain/blobs/sha256-aa\n",
+    )
+    assert g._brain_runner_alive() is True
+    monkeypatch.setattr(
+        g.subprocess,
+        "check_output",
+        lambda *a, **k: "bikos 1 llama-server --model /Users/x/.ollama-hands-local/blobs/sha256-bb\n",
+    )
+    assert g._brain_runner_alive() is False
+
+
+def test_pin_brain_ghost_does_not_generate():
+    import pathlib
+
+    src = (pathlib.Path(__file__).resolve().parents[2] / "scripts" / "ollama_wisdom_guard.py").read_text(
+        encoding="utf-8"
+    )
+    brain_fn = src.split("def pin_brain():", 1)[1].split("def _should_unload(", 1)[0]
+    assert "GHOST" in brain_fn
+    assert "_brain_runner_alive" in brain_fn
+    assert "kickstart only 11434" in brain_fn
+    assert "would hang" in brain_fn
+
+
 def test_pin_brain_keep_alive_is_duration_not_minus_one():
     import pathlib
 

@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v150.84 (2026-11-03) — phi -c 32768 это 8192×4; ghost не generate
+
+**Не баг:** `/api/ps` phi `context_length=8192`, `llama-server -c 32768 -np 4`. Plist `OLLAMA_NUM_CTX=8192` `OLLAMA_NUM_PARALLEL=4`. `-c` = per-slot ctx × parallel. 11437 не рестартовали.
+
+**Дыра:** ghost `/api/ps` без llama-server → generate hang. `pin_brain` skip-if-loaded не видел труп. Теперь: нет `.ollama-brain` runner → не generate; 2 полла → kickstart только 11434.
+
+**Не трогали:** TTC 420, pool, mem Анны, unload 27B ради phi.
+
 ## § v150.83 (2026-11-03) — live 24h: ghost runner + watchdog 2048
 
 **Корень:** `/api/ps` держал victoria-qwen38 с expires 2319, llama-server по blob не было — generate висел до GIN. `pin_brain` skip-if-loaded. После kickstart только 11434 пин 16384+24h встал (`expires 2026-11-04 20:47`). Через ~1 мин `ollama_runner_watchdog.sh` слал `num_ctx=2048` без keep_alive; plist `OLLAMA_KEEP_ALIVE=-1` → runner `-c 2048`, expires снова 2319.

@@ -11,6 +11,7 @@ Env: WISDOM_GUARD_DRY_RUN=true — не выгружать (сухой прог�
 import json
 import json as _json
 import os
+import subprocess
 import time
 import urllib.request
 from datetime import datetime
@@ -186,9 +187,71 @@ def _should_pin_brain(loaded) -> bool:
     )
 
 
+def _brain_runner_alive() -> bool:
+    """[v150.84] /api/ps может держать ghost: имя есть, llama-server нет. Generate тогда висит до GIN."""
+    try:
+        out = subprocess.check_output(["ps", "aux"], timeout=5, text=True)
+    except Exception:
+        return True
+    return any(
+        "llama-server" in ln and "ollama-brain" in ln for ln in out.splitlines()
+    )
+
+
+def _ghost_hits_path() -> str:
+    d = os.getenv("ATRA_RUNTIME_STATE_DIR", "/tmp/atra_runtime_state")
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, "brain_ghost_hits")
+
+
+def _note_brain_ghost() -> int:
+    path = _ghost_hits_path()
+    try:
+        hits = int((open(path, encoding="utf-8").read() or "0").strip() or "0")
+    except Exception:
+        hits = 0
+    hits += 1
+    try:
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(str(hits))
+    except Exception:
+        pass
+    return hits
+
+
+def _clear_brain_ghost() -> None:
+    try:
+        os.remove(_ghost_hits_path())
+    except FileNotFoundError:
+        pass
+    except Exception:
+        pass
+
+
+def _kickstart_brain_serve() -> None:
+    uid = os.getuid()
+    subprocess.run(
+        ["launchctl", "kickstart", "-k", f"gui/{uid}/homebrew.mxcl.ollama"],
+        check=False,
+        timeout=15,
+    )
+
+
 def pin_brain():
     loaded = _ps()
     if not _should_pin_brain(loaded):
+        if not _brain_runner_alive():
+            hits = _note_brain_ghost()
+            _log(
+                f"GHOST brain in /api/ps without llama-server (hit={hits}) — skip generate (would hang)"
+            )
+            # Two consecutive polls (~2 min) before kickstart, so a cold load is not killed.
+            if hits >= 2 and not DRY:
+                _log("GHOST — kickstart only 11434")
+                _kickstart_brain_serve()
+                _clear_brain_ghost()
+        else:
+            _clear_brain_ghost()
         return
     body = {
         "model": "victoria-qwen38:latest",

@@ -20,6 +20,12 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-03 v150.84) — phi 32768 = 8192×4; ghost skip ✅
+
+- Не рестартовали 11437: `-c 32768 -np 4` при ps 8192 — это NUM_PARALLEL, не чужой num_ctx.
+- `pin_brain`: нет llama-server `.ollama-brain` → не generate (hang); 2×60с → kickstart только 11434.
+- TTC 420 / 11436 / mem Анны не трогали.
+
 ## § Последние изменения (2026-11-03 v150.83) — live 24h, watchdog больше не бьёт ctx 2048 ✅
 
 - Ghost: `/api/ps` qwen38 без llama-server → kickstart только 11434, пин `keep_alive=24h` `num_ctx=16384`.

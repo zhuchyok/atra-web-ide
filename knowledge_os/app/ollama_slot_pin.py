@@ -10,6 +10,7 @@ def pinned_num_ctx(model_name: Optional[str]) -> int:
     if "phi3.5:3.8b-stable" in key or key.endswith("-stable"):
         return 2048
     if "phi3.5" in key or key.startswith("phi3"):
+        # Per-slot ctx. llama-server -c is this times OLLAMA_NUM_PARALLEL (8192*4=32768).
         return 8192
     if any(m in key for m in SMALL_MARKERS):
         return 2048
