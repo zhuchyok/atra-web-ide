@@ -25,10 +25,10 @@ else
   python3 "$CURATOR_SCRIPT" --file "$TASKS_FILE" --async --max-wait "$MAX_WAIT"
 fi
 
-# Еженедельный самоаудит Виктории — по понедельникам (или принудительно SELF_AUDIT=1)
+# Ежедневный самоаудит Виктории (интенсивный режим доводки; SELF_AUDIT=0 — отключить,
+# когда система станет стабильной вернём к понедельникам: DOW="$(date +%u)"; [ "$DOW" = "1" ])
 SELF_AUDIT_FILE="$ROOT/scripts/curator_self_audit_tasks.txt"
-DOW="$(date +%u)"
-if { [ "$DOW" = "1" ] || [ "${SELF_AUDIT:-0}" = "1" ]; } && [ -f "$SELF_AUDIT_FILE" ]; then
+if [ "${SELF_AUDIT:-1}" != "0" ] && [ -f "$SELF_AUDIT_FILE" ]; then
   echo "=== Самоаудит Виктории ($(date '+%F %T')) ==="
   python3 "$CURATOR_SCRIPT" --file "$SELF_AUDIT_FILE" --async --max-wait "$MAX_WAIT"
 fi
