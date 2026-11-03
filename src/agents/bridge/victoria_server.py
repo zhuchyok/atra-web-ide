@@ -8270,14 +8270,37 @@ async def _try_fact_fast_track(goal: str) -> Optional[str]:
         return None
     import httpx
 
-    # [v150.9] Полоса фактов: phi3.5:3.8b-stable на инстансе рук (11437) —
-    # ОТДЕЛЬНЫЙ раннер (воркеры жгут базовый тег «phi3.5:3.8b», -stable никто
-    # не занимает), свой планировщик, не делит очередь ни с мозгом, ни с
-    # диалогами. keep_alive -1 — резидентна после первого вызова.
-    # Промах/таймаут → None → обычный пайплайн (сквозной фолбэк).
+    # [v150.86] Не холодный -stable: на 11437 слота два (base+nomic).
+    # Резидентный base @8192 — факты за секунды; cold-stable ждал 60с → мозг ~100с.
     hands = os.getenv("OLLAMA_HANDS_URL") or "http://host.docker.internal:11437"
+    try:
+        from ollama_slot_pin import fact_fast_track_slot
+    except Exception:
+        try:
+            from app.ollama_slot_pin import fact_fast_track_slot
+        except Exception:
+            logger.info("[FACT-FAST-TRACK] slot helper missing — обычный пайплайн")
+            return None
+    loaded: list = []
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            ps = await client.get(f"{hands.rstrip('/')}/api/ps")
+            if ps.status_code == 200:
+                loaded = [
+                    str((m or {}).get("name") or "")
+                    for m in (ps.json().get("models") or [])
+                    if isinstance(m, dict)
+                ]
+    except Exception as e:
+        logger.info("[FACT-FAST-TRACK] /api/ps miss (%s) — обычный пайплайн", type(e).__name__)
+        return None
+    slot = fact_fast_track_slot(loaded)
+    if slot is None:
+        logger.info("[FACT-FAST-TRACK] нет резидентной phi на руках %s — обычный пайплайн", loaded)
+        return None
+    model, num_ctx = slot
     payload = {
-        "model": "phi3.5:3.8b-stable",
+        "model": model,
         "messages": [
             {
                 "role": "system",
@@ -8290,7 +8313,7 @@ async def _try_fact_fast_track(goal: str) -> Optional[str]:
         ],
         "stream": False,
         "keep_alive": -1,
-        "options": {"temperature": 0.1, "num_ctx": 2048, "num_predict": 256},
+        "options": {"temperature": 0.1, "num_ctx": num_ctx, "num_predict": 256},
     }
     try:
         r = await _hands_post_json(
@@ -8321,7 +8344,7 @@ async def _try_fact_fast_track(goal: str) -> Optional[str]:
                 text = text[len(_pref):].strip()
         if not text or len(text) < 1:
             return None
-        logger.info("[FACT-FAST-TRACK] phi@11437 (%d симв): %s", len(text), q[:60])
+        logger.info("[FACT-FAST-TRACK] %s@11437 ctx=%s (%d симв): %s", model, num_ctx, len(text), q[:60])
         return text
     except Exception as e:
         logger.info("[FACT-FAST-TRACK] промах (%s) — обычный пайплайн", type(e).__name__)

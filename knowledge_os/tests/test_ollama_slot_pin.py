@@ -5,13 +5,31 @@ APP = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
 if APP not in sys.path:
     sys.path.insert(0, APP)
 
-from ollama_slot_pin import pinned_keep_alive, pinned_num_ctx, pinned_options
+from ollama_slot_pin import (
+    fact_fast_track_slot,
+    pinned_keep_alive,
+    pinned_num_ctx,
+    pinned_options,
+)
 
 
 def test_brain_ctx_and_keep_alive():
     assert pinned_num_ctx("victoria-qwen38:latest") == 16384
     assert pinned_keep_alive("victoria-qwen38:latest") == "24h"
     assert pinned_keep_alive("qwen3.8:latest") == "24h"
+
+
+def test_fact_fast_track_uses_resident_phi_not_cold_stable():
+    assert fact_fast_track_slot(["phi3.5:3.8b", "nomic-embed-text:latest"]) == (
+        "phi3.5:3.8b",
+        8192,
+    )
+    assert fact_fast_track_slot(["phi3.5:3.8b-stable", "nomic-embed-text:latest"]) == (
+        "phi3.5:3.8b-stable",
+        2048,
+    )
+    assert fact_fast_track_slot(["nomic-embed-text:latest"]) is None
+    assert fact_fast_track_slot([]) is None
 
 
 def test_phi_base_not_stable():

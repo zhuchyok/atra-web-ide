@@ -19,6 +19,19 @@ def pinned_num_ctx(model_name: Optional[str]) -> int:
     return 16384
 
 
+def fact_fast_track_slot(
+    loaded_names: Optional[list] = None,
+) -> Optional[tuple[str, int]]:
+    """Resident phi only. Do not cold-load -stable: 11437 holds 2 models (base+nomic).
+    Missing stable + 60s wait used to fall through to the 27B brain (~100s)."""
+    names = [str(n or "") for n in (loaded_names or [])]
+    if any("phi3.5:3.8b-stable" in n for n in names):
+        return ("phi3.5:3.8b-stable", 2048)
+    if any("phi3.5" in n for n in names):
+        return ("phi3.5:3.8b", 8192)
+    return None
+
+
 def pinned_keep_alive(model_name: Optional[str]) -> Union[int, str]:
     key = (model_name or "").lower()
     if any(m in key for m in BRAIN_MARKERS):
