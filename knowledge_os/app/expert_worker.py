@@ -99,6 +99,11 @@ except ImportError:
         with_task_isolation,
     )
 
+try:
+    from ollama_slot_pin import pinned_options
+except ImportError:
+    from app.ollama_slot_pin import pinned_options
+
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
@@ -449,11 +454,10 @@ async def judge_gate_score(question: str, answer: str, task_id: str = ""):
                             "messages": [{"role": "user", "content": prompt}],
                             "stream": False,
                             "format": "json",
-                            "options": {
-                                "num_ctx": 4096,
-                                "num_predict": 200,
-                                "temperature": 0.1,
-                            },
+                            "options": pinned_options(
+                                model,
+                                extra={"num_predict": 200, "temperature": 0.1},
+                            ),
                         },
                     )
                 if resp.status_code != 200:
@@ -1078,7 +1082,11 @@ async def process_task(task_data: dict):
             pass
         except Exception as hb_err:
             # TODO: Convert f-string to %s formatting for performance
-            logger.error(f"❌ [HEARTBEAT] Loop failed for {task_id}: {hb_err}")
+            hb_msg = str(hb_err)
+            if "Lost task own" in hb_msg:
+                logger.warning("❌ [HEARTBEAT] Loop failed for %s: %s", task_id, hb_err)
+            else:
+                logger.error("❌ [HEARTBEAT] Loop failed for %s: %s", task_id, hb_err)
 
     hb_task = asyncio.create_task(heartbeat_loop())
 
@@ -1672,22 +1680,19 @@ async def process_task(task_data: dict):
                                                 "model": _dialogue_model,
                                                 "messages": _messages,
                                                 "stream": False,
-                                                # [v150.2] Без num_ctx ollama авто-растит контекст
-                                                # под длину промпта (RAG-набивка → 32768/65536 →
-                                                # predicted 26GiB → эвикция мозга). Кап контракта.
-                                                # [v150.4] num_predict: без потолка ollama генерит
-                                                # до конца контекста — марафон 16K токенов на phi
-                                                # (20 мин на 13 t/s) морил голодом все полосы.
-                                                # [v150.9] 16384→4096: диалоги короткие, а prompt-eval 16K-набивок
-                                                # превращал инстанс рук в марафон-слот.
-                                                "options": {
-                                                    "num_ctx": 4096,
-                                                    "num_predict": int(
-                                                        os.getenv(
-                                                            "EXPERT_DIALOGUE_NUM_PREDICT", "4096"
-                                                        )
-                                                    ),
-                                                },
+                                                # [v150.79] Pin слота рук: 8192. 4096/16384 =
+                                                # reload runner и выселение nomic.
+                                                "options": pinned_options(
+                                                    _dialogue_model,
+                                                    extra={
+                                                        "num_predict": int(
+                                                            os.getenv(
+                                                                "EXPERT_DIALOGUE_NUM_PREDICT",
+                                                                "4096",
+                                                            )
+                                                        ),
+                                                    },
+                                                ),
                                             },
                                             headers=_headers,
                                         )
@@ -2739,6 +2744,9 @@ async def process_task(task_data: dict):
                     await client.delete(f"blackboard:heartbeat:{task_id}")
                     # [SINGULARITY 31.2] Release task from expert's active set
                     await bb.release_task(task_id, expert_name)
+                    await client.hdel("blackboard:goals", str(task_id))
+                    if db_task_id:
+                        await client.hdel("blackboard:goals", str(db_task_id))
 
                     # [SINGULARITY 29.3] Notify R&D completion
                     if task_data.get("metadata", {}).get("is_rd"):
@@ -3164,6 +3172,21 @@ async def _handle_task_error(
 
 async def worker_loop():
     """Основной цикл воркера: слушает Redis Stream."""
+    def _log_worker_exit(reason: str) -> None:
+        logger.warning(
+            "🛑 [WORKER] exit reason=%s expert=%s",
+            reason,
+            os.getenv("EXPERT_NAME", "?"),
+        )
+
+    atexit.register(lambda: _log_worker_exit("atexit"))
+
+    def _on_signal(signum, _frame):
+        _log_worker_exit(f"signal:{signum}")
+
+    signal.signal(signal.SIGTERM, _on_signal)
+    signal.signal(signal.SIGINT, _on_signal)
+
     client = await redis_manager.get_client()
 
     # [SINGULARITY 28.7] Identify this worker
@@ -3331,13 +3354,19 @@ async def worker_loop():
                                     db_status = str(db_state["status"] or "")
                                     assignee_name = str(db_state["assignee_name"] or "").strip()
                                     if assignee_name and assignee_name != expert_name:
-                                        logger.info(
+                                        logger.debug(
                                             "⏭️ [AUTONOMY] Skip blackboard claim for %s: DB assignee is %s",
                                             task_id,
                                             assignee_name,
                                         )
                                         continue
                                     if db_status in ("completed", "failed", "cancelled"):
+                                        try:
+                                            await policy_client.hdel(
+                                                "blackboard:goals", str(task_id)
+                                            )
+                                        except Exception:
+                                            pass
                                         continue
                                     if db_status == "in_progress":
                                         owner = (db_state["processing_worker"] or "").strip()
@@ -3364,7 +3393,7 @@ async def worker_loop():
                                             and owner != expert_name
                                             and age_sec < reclaim_after_sec
                                         ):
-                                            logger.info(
+                                            logger.debug(
                                                 "⏭️ [AUTONOMY] Skip blackboard claim for %s: owned by %s (age %.0fs)",
                                                 task_id,
                                                 owner,
@@ -3400,7 +3429,7 @@ async def worker_loop():
                         winner = await blackboard.resolve_auction(task_id)
                         if winner == expert_name:
                             # TODO: Convert f-string to %s formatting for performance
-                            logger.error(f"🏆 [AUCTION] {expert_name} WON task {task_id}")
+                            logger.info("🏆 [AUCTION] %s WON task %s", expert_name, task_id)
                             payload = {
                                 "task_id": task_id,
                                 "expert_name": expert_name,
@@ -3611,7 +3640,7 @@ async def worker_loop():
                                 continue
 
                             # TODO: Convert f-string to %s formatting for performance
-                            logger.error(f"🔄 [RESURRECTION] Found my task {tid}. Resuming...")
+                            logger.info("🔄 [RESURRECTION] Found my task %s. Resuming...", tid)
                             payload = {
                                 "task_id": tid,
                                 "expert_name": expert_name,
@@ -3622,8 +3651,10 @@ async def worker_loop():
                             recovered_count += 1
 
                 if recovered_count > 0:
-                    logger.error(
-                        f"✅ [RESURRECTION] Successfully resumed {recovered_count} tasks for {expert_name}"
+                    logger.info(
+                        "✅ [RESURRECTION] Successfully resumed %s tasks for %s",
+                        recovered_count,
+                        expert_name,
                     )
             except Exception as e:
                 # TODO: Convert f-string to %s formatting for performance
@@ -4185,6 +4216,12 @@ async def worker_loop():
                                 )
                             try:
                                 await process_task(_p)
+                            except asyncio.CancelledError:
+                                logger.warning(
+                                    "⚠️ [WORKER] task cancelled (timeout leak) id=%s — not failing worker",
+                                    _id,
+                                )
+                                return
                             except Exception as e:
                                 # TODO: Convert f-string to %s formatting for performance
                                 logger.error(f"❌ [WORKER] Ошибка обработки сообщения {_id}: {e}")
@@ -4224,6 +4261,12 @@ async def worker_loop():
                             # TODO: Convert f-string to %s formatting for performance
                             logger.warning(f"⚠️ [WORKER] Failed to xack on msg {msg_id}: {xack_err}")
 
+        except asyncio.CancelledError:
+            logger.warning(
+                "⚠️ [WORKER] CancelledError in loop (timeout leak) — continue, expert=%s",
+                os.getenv("EXPERT_NAME", "?"),
+            )
+            await asyncio.sleep(1)
         except Exception as e:
             # TODO: Convert f-string to %s formatting for performance
             logger.error(f"⚠️ [WORKER] Ошибка в цикле: {e}")

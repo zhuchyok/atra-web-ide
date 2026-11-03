@@ -266,6 +266,12 @@ class PerformanceWatchdog:
                 from services.blackboard_service import get_blackboard_service
             blackboard = get_blackboard_service()
             result = await blackboard.reconcile_goals_with_tasks(stale_minutes=15)
+            try:
+                purged = await blackboard.purge_stale_open_goals()
+                if purged.get("removed"):
+                    logger.info("🧹 [RECONCILE] purged stale open goals: %s", purged)
+            except Exception as purge_err:
+                logger.debug("purge_stale_open_goals skipped: %s", purge_err)
             if result.get("reopened_no_heartbeat") or result.get("reopened_policy_mismatch"):
                 # TODO: Convert f-string to %s formatting for performance
                 logger.warning(f"♻️ [RECONCILE] Blackboard recovered tasks: {result}")

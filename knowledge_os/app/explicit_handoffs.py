@@ -5,6 +5,7 @@ Explicit Handoffs - Явные и структурированные handoffs м
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -341,6 +342,17 @@ _DETERMINISTIC_ROUTES: List[Dict] = [
 ]
 
 
+def keyword_in_text(text: str, keyword: str) -> bool:
+    """Подстрока, но 'test' не матчит latest/fastest/contest."""
+    hay = (text or "").lower()
+    needle = (keyword or "").lower()
+    if not needle:
+        return False
+    if needle == "test":
+        return re.search(r"(?<![a-z])test(?![a-z])", hay) is not None
+    return needle in hay
+
+
 def detect_deterministic_handoff(
     from_agent: str,
     task_description: str,
@@ -359,7 +371,7 @@ def detect_deterministic_handoff(
     text = (task_description + " " + task_result + " " + category).lower()
 
     for route in _DETERMINISTIC_ROUTES:
-        if any(kw.lower() in text for kw in route["keywords"]):
+        if any(keyword_in_text(text, kw) for kw in route["keywords"]):
             to_agent = route["expert"]
             # Не handoff-им сами себе
             if to_agent == from_agent:

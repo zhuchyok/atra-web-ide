@@ -122,6 +122,93 @@
 
 **Верификация (live):** pytest freshness+docker_services 6 passed; docker-proxy healthy; из dashboard 15 автономных; sock отсутствует; браузер: список 15, KPI 7д, очередь пуста + 2 патча, баннер свежести снят.
 
+## § v150.73 (2026-11-03) — слот кодера 11436 + гвард не рвёт цикл на втором phi
+
+**Контракт слоёв не менялся.** Мозг `victoria-qwen38` на 11434 не удаляли. Порог TTC 420 не поднимали. Тег `hf.co/unsloth/Qwen3.8-27B-GGUF:Q8_0` на 11434 не удаляли (другой digest, не loaded).
+
+**Проблемы:**
+
+1. На 11436 рядом с `qwen3-coder:30b` сидел `phi3.5` (чужой слот). Watchdog `ollama_runner_watchdog.sh` 11436 не зондирует.
+2. Wisdom-guard каждые ~3 мин писал `err: timed out`: после пина базового phi пытался грузить `phi3.5:3.8b-stable` (второй ~15GB). Таймаут 120с обрывал `_enforce` **до** гигиены 11436 — поэтому phi на кодере жила.
+3. `VictoriaAsyncTtcP95High`: p95=641с / 141 сэмпл, порог 420, hung=0. Это accept→terminal `/run` (`timeout_sync_safe_mode` / `request_async_mode` / `timeout_enhanced_solve`), не nightly debates. Корень: один 27B-слот 11434 делят Victoria и executor воркеров (`OLLAMA_BASE_URL=11434`).
+4. anna-1 RestartCount=290, Exit=0, OOM=false, healthcheck = grep cmdline. Корня выхода нет (events ring пуст, traceback за 24ч нет). mem_limit 2g не поднимали.
+
+**Что внедрено:**
+
+1. `scripts/ollama_wisdom_guard.py`: `CODER`/`CODER_ALLOW`, выгрузка не-coder с 11436; `_should_pin_stable` — не грузить второй phi, если базовый уже на 11437; `pin_brain` если 11434 пуст (`keep_alive=-1`, ctx 2048); pin\_\* каждый в своём try.
+2. Живая выгрузка phi с 11436 (`keep_alive=0`). Мозг после evict вернули вручную и теперь держит гвард.
+3. Тесты: `knowledge_os/tests/test_coder_slot_guard.py`.
+
+**Не делали:** поднять порог 420; исключить timeout\_\* из p95; `ollama rm` unsloth; перевести Anna/overflow executor на 11437 (контракт, отдельный дизайн); bump mem Анны.
+
+**Верификация:** pytest coder-slot 4 passed; `/api/ps` 11434=`victoria-qwen38:latest`, 11437=`phi3.5:3.8b`+`nomic`, 11436=`qwen3-coder:30b`; inflight=0; TTC alert ещё горит (окно 141 сэмпл, хвосты timeout сами состарятся).
+
+## § v150.74 (2026-11-03) — Anna 290 рестартов: гнилой blackboard, не OOM
+
+**Контракт слоёв не менялся.** Порог TTC 420 не поднимали. Unsloth-тег не удаляли.
+
+**Корень:** `blackboard:goals` = 5108 ключей, из них 5106 `bidding_open` (4864 старше 7 дней, 3469 target=Анна). Autonomy каждые 10с: 5k SELECT + 5k INFO-строк. json-file без max-size — смерть процесса (Exit=0 каждые ~40 мин) тонет в логе. `reconcile_goals_with_tasks` только _открывает_ claimed, мусор не чистит.
+
+**Что сделано:**
+
+1. Живая чистка: HDEL 5074 stale open (>24ч), осталось 34.
+2. `blackboard_freshness.is_fresh_open_goal` + фильтр в `get_unclaimed_tasks`; `purge_stale_open_goals`.
+3. Skip-логи autonomy → debug; SIGTERM/atexit пишут `🛑 [WORKER] exit reason=`.
+4. Анну рестартнули один раз, чтобы подхватить код. Skip flood после рестарта = 0.
+
+**Верификация:** pytest stale-goals+coder-slot 9 passed; HLEN goals=34; anna healthy; слоты 11434/11437/11436 по контракту; inflight=0. TTC p95 всё ещё 641/141 — честный алерт.
+
+## § v150.75 (2026-11-03) — кран AUTO-HANDOFF, CODER-SOLO, CancelledError Анны
+
+**Контракт слоёв не менялся.** TTC 420 / unsloth / mem Анны не трогали.
+
+1. `test` больше не матчит `latest` (`keyword_in_text`). HDEL `blackboard:goals` на completed + autonomy terminal. Watchdog вызывает `purge_stale_open_goals`. GC `assignee` NameError починен.
+2. `url_is_ollama` видит 11436/11437; **CODER-SOLO-GATE** не пускает phi/nomic на coder. Embed-fallback больше не включает 11436.
+3. `worker_loop` / `_run_task` ловят `CancelledError` и не роняют процесс (таймаут 2700с).
+
+**Верификация:** pytest v150.75+stale+coder 13 passed.
+
+## § v150.76 (2026-11-03) — nomic на 11437: не 30с пин, а очередь hung embed
+
+**Контракт слоёв не менялся.** TTC 420 / unsloth / mem Анны / EXPERT_POOL_MODE не трогали. Мозг и coder не рестартили.
+
+**Корень:** два слоя. (1) `pin_nomic` timeout=30с не отменяет load на Ollama → hung `/api/embed` каждые 60с. (2) phi@16k × NUM_PARALLEL=4 = 15.9GB KV — Ollama выселяет nomic при любом pin_phi. `/api/embeddings` → 503 за 500µs.
+
+**Что сделано:**
+
+1. `pin_nomic`: timeout 240с; backoff 900с после fail; пин nomic **до** phi.
+2. `pin_phi` `num_ctx=8192` (не 16384). Hands plist: `OLLAMA_NUM_CTX=8192`, `OLLAMA_CONTEXT_LENGTH=8192`, `OLLAMA_MAX_LOADED_MODELS=2`.
+3. `_should_pin_phi`: любой phi (base/-stable) = слот занят — не грузить второй. `_should_pin_stable([])` = False (пустой слот — работа `pin_phi`).
+4. Рестарт только `com.atra.ollama-hands`. Мозг 11434 / coder 11436 не трогали.
+5. Overflow dynamic-2/3/4 рестартнуты под CODER-SOLO (стартовали до `local_router` 16:55).
+6. Тесты: `_should_pin_nomic` / `_should_pin_phi` / backoff / ctx 8192 в `test_coder_slot_guard.py`.
+
+**Верификация:** 11434=`victoria-qwen38:latest` 29.88GB ctx 16384; 11437=`nomic-embed-text` 0.37GB + `phi3.5:3.8b-stable` 3.98GB (`/api/embeddings` 200 / 29ms / 768); 11436=`qwen3-coder:30b`. Guard 3 цикла подряд держит тройку слотов. pytest coder-slot+v150.75+stale 19 passed.
+
+## § v150.77 (2026-11-03) — порог TTC 420 не поднимали; сирота Debate закрыта
+
+**Порог 420 не помогает latency.** Live: `p95=0 samples=0 inflight=0 over=False` — окно сэмплов пустое после рестарта victoria-agent. Поднять 420→720 спрячет следующий честный p95 27B, `/run` не ускорит. hung-порог 600 тоже не трогали.
+
+**Корень pending:** `create_debate_for_hypothesis` держал `HYPOTHESIS_DEBATES_ENABLED` **внутри docstring** — флаг compose `false` не работал. INSERT pending, orchestrator `BACKGROUND_SOURCES=""` не диспатчит → вечный pending.
+
+**Что сделано:** гейт вынесен в код; сирота `b5e427a3` cancelled; nightly+orchestrator рестарт. TTC/unsloth/mem Анны/pool не трогали.
+
+**Верификация:** pending/in_progress/queued=0; TTC over=False; Anna restarts=0 uptime>45мин; pytest debate+slots.
+
+## § v150.78 (2026-11-03) — канарейка не переразмеряет мозг
+
+**Корень ctx=2048 на 11434:** `launchd_watchdog` http-canary слал `num_ctx=2048` на `victoria-qwen38` каждые 300с — Ollama перезагружала runner. Hands-canary 2048 так же дёргала phi.
+
+**Фикс:** brain canary `num_ctx=16384` + `keep_alive=24h`; hands `8192` + `keep_alive=-1`. Worker ops (`AUCTION WON`, `RESURRECTION Found/resumed`) → info. TTC 420 не поднимали.
+
+## § v150.79 (2026-11-03) — pin ctx, не adaptive
+
+**Корень:** `_get_adaptive_options` слал phi `num_ctx=16384`; FAST PATH/JUDGE — `4096`; `get_keep_alive` мозгу `-1`. Ollama native API при смене ctx перезагружает runner (ollama#13929) и может выселить nomic/мозг (#19326).
+
+**Контракт:** мозг 16384/`24h`; phi base 8192/`-1`; phi-stable 2048; coder 16384 (живой runner, не 8192 — иначе reload 30b). Таблица в `ollama_slot_pin.py`. Чужой `num_ctx` в extra игнорируется.
+
+**Не трогали:** TTC 420, Rapid-MLX, LightRAG, mem Анны, pool.
+
 ## 93. Singularity 31.2+: P0 Stabilization Closure (2026-07-19)
 
 - **Контекст:** изменения из параллельного чата приняты как базовые (full-first для expert-dialogue, расширенный контракт результата) и дожаты до устойчивого P0 состояния без отката чужих правок.

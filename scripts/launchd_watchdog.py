@@ -107,6 +107,8 @@ def problem_key(problem: str) -> str:
         return "[CURSOR-GROWTH] threshold"
     if problem.startswith("[DISK-GROWTH] "):
         return "[DISK-GROWTH] threshold"
+    if problem.startswith("[OLLAMA-WD] "):
+        return "[OLLAMA-WD] threshold"
     return problem
 
 
@@ -318,7 +320,8 @@ def http_canaries(state: dict) -> list:
             "hands phi3.5@11437",
             "http://127.0.0.1:11437/api/generate",
             {"model": "phi3.5:3.8b", "prompt": "ok", "stream": False,
-             "options": {"num_predict": 1, "num_ctx": 2048}},
+             "keep_alive": -1,
+             "options": {"num_predict": 1, "num_ctx": 8192}},
             180,
         ),
         # Brain canary can amplify warmup flaps right after watchdog restart.
@@ -346,7 +349,8 @@ def http_canaries(state: dict) -> list:
                 "brain victoria-qwen38@11434",
                 "http://127.0.0.1:11434/api/generate",
                 {"model": "victoria-qwen38:latest", "prompt": "ok", "stream": False,
-                 "options": {"num_predict": 1, "num_ctx": 2048}},
+                 "keep_alive": "24h",
+                 "options": {"num_predict": 1, "num_ctx": 16384}},
                 240,
             )
         )
@@ -574,6 +578,79 @@ def _disk_growth_watch(state: dict) -> list:
     return problems
 
 
+def _parse_prom_gauge(text: str, metric_name: str) -> float | None:
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if not line.startswith(metric_name):
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        try:
+            return float(parts[-1])
+        except Exception:
+            return None
+    return None
+
+
+def _ollama_watchdog_metrics_watch(state: dict) -> list:
+    """Track ollama watchdog degradation metric and alert on sustained growth."""
+    problems = []
+    prom_path = Path(os.environ.get("OLLAMA_WD_METRICS_PATH", "/tmp/atra_metrics/ollama_watchdog.prom"))
+    stale_sec = int(os.environ.get("OLLAMA_WD_METRICS_STALE_SEC", "900"))
+    min_window_sec = int(os.environ.get("OLLAMA_WD_TIMEOUT_WINDOW_SEC", "1800"))
+    rate_warn_per_h = float(os.environ.get("OLLAMA_WD_TIMEOUT_LIVE_WARN_PER_H", "12"))
+
+    if not prom_path.exists():
+        problems.append(f"[OLLAMA-WD] metrics file missing: {prom_path}")
+        return problems
+
+    try:
+        text = prom_path.read_text(encoding="utf-8")
+    except Exception as e:
+        problems.append(f"[OLLAMA-WD] metrics read failed: {e}")
+        return problems
+
+    counter = _parse_prom_gauge(text, "atra_ollama_generate_timeout_but_live_total")
+    updated_ts = _parse_prom_gauge(text, "atra_ollama_watchdog_metrics_updated_unixtime")
+    if counter is None:
+        problems.append("[OLLAMA-WD] metric missing: atra_ollama_generate_timeout_but_live_total")
+        return problems
+    if updated_ts is None:
+        problems.append("[OLLAMA-WD] metric missing: atra_ollama_watchdog_metrics_updated_unixtime")
+        return problems
+
+    now_ts = time.time()
+    if now_ts - updated_ts > stale_sec:
+        problems.append(f"[OLLAMA-WD] metrics stale: age>{stale_sec}s")
+
+    prev_counter = state.get("ollama_wd_timeout_live_prev")
+    prev_ts = state.get("ollama_wd_timeout_live_prev_ts")
+    state["ollama_wd_timeout_live_prev"] = float(counter)
+    state["ollama_wd_timeout_live_prev_ts"] = now_ts
+
+    if prev_counter is None or prev_ts is None:
+        return problems
+
+    elapsed = now_ts - float(prev_ts)
+    if elapsed < min_window_sec:
+        return problems
+
+    delta = float(counter) - float(prev_counter)
+    if delta <= 0:
+        return problems
+
+    rate_h = delta * 3600.0 / elapsed
+    if rate_h >= rate_warn_per_h:
+        problems.append(
+            f"[OLLAMA-WD] generate timeout-but-live rate {rate_h:.1f}/h "
+            f"(delta={delta:.0f} over {elapsed/60:.0f}m, warn>={rate_warn_per_h:.1f}/h)"
+        )
+    return problems
+
+
 def main() -> int:
     _load_dotenv()
     state = load_state()
@@ -608,6 +685,8 @@ def main() -> int:
     problems.extend(_cursor_size_watch(state))
     # [v150.34] Контроль top-growers на диске и дневной отчёт по приросту.
     problems.extend(_disk_growth_watch(state))
+    # [v150.36] Контроль устойчивого роста transient generate-timeouts у ollama watchdog.
+    problems.extend(_ollama_watchdog_metrics_watch(state))
 
     fresh_problems = []
     for p in problems:

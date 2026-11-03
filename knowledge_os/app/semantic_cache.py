@@ -73,14 +73,11 @@ _is_docker = (
 _default_embed_base = (
     "http://host.docker.internal:11437" if _is_docker else "http://localhost:11437"
 )
-_legacy_brain_base = (
-    "http://host.docker.internal:11434" if _is_docker else "http://localhost:11434"
-)
-_coder_base = "http://host.docker.internal:11436" if _is_docker else "http://localhost:11436"
 # [FIX] Принудительно используем IP хоста для Ollama из контейнера, если host.docker.internal не резолвится
 _embed_base = os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_API_URL") or _default_embed_base
 OLLAMA_EMBED_URL = os.getenv("OLLAMA_EMBED_URL") or f"{_embed_base.rstrip('/')}/api/embeddings"
-_fallback_default = f"{_legacy_brain_base.rstrip('/')}/api/embeddings,{_coder_base.rstrip('/')}/api/embeddings"
+# [v150.75] 11436 = coder, не nomic. 11437 busy не должен грузить эмбеддер на coder.
+_fallback_default = ""
 OLLAMA_EMBED_FALLBACK_URLS = [
     u.strip()
     for u in os.getenv("OLLAMA_EMBED_FALLBACK_URLS", _fallback_default).split(",")

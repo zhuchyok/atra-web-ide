@@ -33,6 +33,25 @@ try:
 except ImportError:
     get_ab_test = None
 
+# [v150.75] 11436/11437 — тоже Ollama. Старый детект смотрел только 11434 →
+# 503 на руках открывал CB и phi уезжал на coder.
+_HANDS_MODEL_MARKERS = ("phi3.5", "nomic", "smollm", "tinyllama", "moondream")
+
+
+def url_is_ollama(url: str) -> bool:
+    u = (url or "").lower()
+    return any(p in u for p in ("11434", "11436", "11437")) or "ollama" in u
+
+
+def is_hands_model(model: Optional[str]) -> bool:
+    key = (model or "").lower()
+    return any(t in key for t in _HANDS_MODEL_MARKERS)
+
+
+def skip_hands_on_coder_slot(url: str, model: Optional[str]) -> bool:
+    return "11436" in (url or "") and is_hands_model(model)
+
+
 # Load Balancer
 try:
     from load_balancer import get_load_balancer
@@ -481,7 +500,7 @@ class LocalAIRouter:
         """Treat classic and dedicated executor URLs as Ollama nodes."""
         url = str(node.get("url", "")).lower()
         routing_key = str(node.get("routing_key", "")).lower()
-        return ("11434" in url) or ("ollama" in url) or ("ollama" in routing_key)
+        return url_is_ollama(url) or ("ollama" in routing_key)
 
     @staticmethod
     def _is_wisdom_model(name: Optional[str]) -> bool:
@@ -1298,7 +1317,11 @@ class LocalAIRouter:
             if avail_gb < 8:
                 if is_dialogue:
                     # For chat, speed is priority, so we downgrade
-                    if avail_gb < 4 and initial_model and "phi3.5:3.8b-stable" not in initial_model.lower():
+                    if (
+                        avail_gb < 4
+                        and initial_model
+                        and "phi3.5:3.8b-stable" not in initial_model.lower()
+                    ):
                         logger.warning(
                             f"📉 [TIERING] RAM critical ({avail_gb:.1f}GB). Downgrading {initial_model} -> phi3.5:3.8b-stable (Chat Priority)"
                         )
@@ -1579,6 +1602,11 @@ class LocalAIRouter:
                     "⚡ [WISDOM-TAP] skip Ollama KV warmup for %s (мозг в MLX)",
                     ollama_model,
                 )
+            elif skip_hands_on_coder_slot(str(ollama_nodes[0].get("url", "")), ollama_model):
+                logger.info(
+                    "🚦 [CODER-SOLO-GATE] skip warmup %s on 11436",
+                    ollama_model,
+                )
             else:
                 session_id = session_id or getattr(self, "_current_session_id", "default")
                 current_history = []
@@ -1729,7 +1757,7 @@ class LocalAIRouter:
                     continue
 
             # Определяем, это Ollama или MLX API Server
-            is_ollama = "11434" in node_url_base or "ollama" in node_url_base.lower()
+            is_ollama = url_is_ollama(node_url_base)
             is_mlx = "11435" in node_url_base or "mlx" in node_url_base.lower()
 
             # [Prioritization] Worker с OLLAMA_REQUEST_PRIORITY=low уступает Ollama victoria-agent.
@@ -2030,13 +2058,17 @@ class LocalAIRouter:
                 t in (model or "").lower()
                 for t in ("phi3.5", "nomic", "smollm", "tinyllama", "moondream")
             )
-            if (
-                _hands_node_active
-                and _is_hands_model
-                and "11434" in node_url_base
-            ):
+            if _hands_node_active and _is_hands_model and "11434" in node_url_base:
                 logger.info(
                     "🚦 [BRAIN-SOLO-GATE] руки (%s) не на мозговом узле 11434 — ждёт hands-узел",
+                    model,
+                )
+                continue
+
+            # [v150.75] 11436 = только coder. 11437 busy больше не сливает phi на coder.
+            if skip_hands_on_coder_slot(node_url_base, model):
+                logger.info(
+                    "🚦 [CODER-SOLO-GATE] руки (%s) не на 11436 — ждёт hands-узел",
                     model,
                 )
                 continue
@@ -2813,6 +2845,23 @@ class LocalAIRouter:
                 logger.info("⚡ [WISDOM-TAP] skip Ollama stream for %s (мозг в MLX)", model)
                 return
 
+        if node and skip_hands_on_coder_slot(str(node.get("url", "")), model):
+            alt = [
+                n
+                for n in healthy_nodes
+                if not skip_hands_on_coder_slot(str(n.get("url", "")), model)
+            ]
+            if alt:
+                node = alt[0]
+                logger.info(
+                    "🚦 [CODER-SOLO-GATE] stream reroute %s → %s",
+                    model,
+                    node.get("name"),
+                )
+            else:
+                logger.info("🚦 [CODER-SOLO-GATE] skip stream %s on 11436", model)
+                return
+
         node_url = f"{node['url']}/api/generate"
         # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🌊 [STREAMING] Node: {node['name']} | Model: {model}")
@@ -2885,50 +2934,13 @@ class LocalAIRouter:
             return
 
     def _get_adaptive_options(self, model_name: str) -> Dict:
-        """
-        [SINGULARITY 24.9] Adaptive Context Window — NUM_PARALLEL-aware.
-        total_vram ≈ num_parallel × kv_cache(num_ctx) + model_weights.
-        [v150.1] Реальность: NUM_PARALLEL=4, Docker VM 32GB wired, MLX-резиденты —
-        бюджет системной памяти для мозга ~28-35GB. Тяжёлым (мозг/coder) — 16K.
-        """
-        options = {}
-        try:
-            # [v150.1] Аудит 2026-10-08: 32768 гарантированно эвиктило мозг
-            # (predicted 33.8GiB @32K > system_free ~27.7GiB при Docker VM 32GB wired
-            #  и MLX-резидентах; ollama.log «predicted to exceed available memory, evicting»).
-            # Реальность: мозг victoria-qwen38 ≈29GB, OLLAMA_NUM_PARALLEL=4, хост 128GB.
-            # 16384 для тяжёлых влезает с запасом; длинные контексты — per-request
-            # options num_ctx в батл-ранере (перекрывает этот дефолт).
-            SAFE_MAX_CTX = 16384
-            # [v150.4] Потолок генерации: без num_predict ollama генерит до конца
-            # контекста — марафонская задача на phi (16K токенов ≈ 20 мин на 13 t/s)
-            # морила голодом все полосы (запросы к idle-мозгу висели минутами).
-            # 4096 ≈ 5 мин максимум; явный num_predict вызывающего перекрывает
-            # только если он передаёт свои options (тогда adaptive не применяется).
-            options["num_predict"] = int(os.getenv("ROUTER_DEFAULT_NUM_PREDICT", "1200"))
+        """[v150.79] Pin, не adaptive: чужой num_ctx = reload runner (ollama#13929)."""
+        from ollama_slot_pin import pinned_options
 
-            model_lower = model_name.lower()
-            if "tinyllama" in model_lower or "moondream" in model_lower or "nomic" in model_lower:
-                options["num_ctx"] = 4096  # Small models need only small context
-            elif "phi3.5" in model_lower or "phi3" in model_lower:
-                # §53 библии: phi3.5 immortal с адаптивным контекстом 16384.
-                options["num_ctx"] = 16384
-            else:
-                options["num_ctx"] = SAFE_MAX_CTX
-
-            import psutil
-
-            ram = psutil.virtual_memory()
-            available_gb = ram.available / (1024**3)
-
-            logger.info(
-                f"🧠 [ADAPTIVE CONTEXT] Model: {model_name} | RAM Available: {available_gb:.1f}GB | Selected num_ctx: {options['num_ctx']}"
-            )
-        except Exception as e:
-            # TODO: Convert f-string to %s formatting for performance
-            logger.debug(f"Failed to calculate adaptive context: {e}")
-
-        return options
+        return pinned_options(
+            model_name,
+            extra={"num_predict": int(os.getenv("ROUTER_DEFAULT_NUM_PREDICT", "1200"))},
+        )
 
     @staticmethod
     def _should_disable_thinking(model_name: Optional[str]) -> bool:

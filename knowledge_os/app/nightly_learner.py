@@ -228,15 +228,22 @@ async def create_debate_for_hypothesis(
     domain_id: Optional[str] = None,
     complexity: Optional[str] = None,
 ) -> Optional[str]:
+    """Run Expert Council on a hypothesis and enqueue a verification task.
+
+    HYPOTHESIS_DEBATES_ENABLED=false skips insert (quality-freeze v149.62).
+    The env check must be real code, not a docstring — otherwise orphans sit
+    pending forever because orchestrator BACKGROUND_SOURCES is empty.
     """
-    Run Expert Council on a hypothesis and also enqueue a verification task.
-    Restores pre-8.2 behavior (council nodes for Wisdom tab) + task hook.
-    if os.getenv("HYPOTHESIS_DEBATES_ENABLED", "true").strip().lower() not in ("1", "true", "yes"):
-        logger.info("⏸️ [DEBATE] create_debate_for_hypothesis: disabled (HYPOTHESIS_DEBATES_ENABLED=false)")
+    if os.getenv("HYPOTHESIS_DEBATES_ENABLED", "true").strip().lower() not in (
+        "1",
+        "true",
+        "yes",
+    ):
+        logger.info(
+            "⏸️ [DEBATE] create_debate_for_hypothesis: disabled (HYPOTHESIS_DEBATES_ENABLED=false)"
+        )
         return None
 
-
-    """
     expert = None
     if domain_id:
         try:

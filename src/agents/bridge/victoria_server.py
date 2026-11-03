@@ -11525,7 +11525,7 @@ async def autonomous_code(request: dict):
             "model": coder_model,
             "prompt": ask_prompt,
             "stream": False,
-            "options": {"temperature": 0.1, "num_predict": 700, "num_ctx": 8192},
+            "options": {"temperature": 0.1, "num_predict": 700, "num_ctx": 16384},
         }
         async with aiohttp.ClientSession() as sess:
             async with sess.post(

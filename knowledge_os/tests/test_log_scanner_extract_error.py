@@ -67,6 +67,37 @@ def test_ignore_nightly_ai_core_audit_timeout():
     ) is None
 
 
+def test_ignore_worker_ops_logged_as_error():
+    scanner = LogScanner()
+    assert scanner.extract_error(
+        "ERROR:ExpertWorker:🔄 [RESURRECTION] Found my task 4730fb20-7e73-459d-a970-20615b4b24f5. Resuming..."
+    ) is None
+    assert scanner.extract_error(
+        "ERROR:ExpertWorker:✅ [RESURRECTION] Successfully resumed 1 tasks for Инна"
+    ) is None
+    assert scanner.extract_error(
+        "ERROR:ExpertWorker:🏆 [AUCTION] Юлия WON task 09cbc470-24f3-4072-90dd-153e53727261"
+    ) is None
+    assert scanner.extract_error(
+        "ERROR:ExpertWorker:❌ [HEARTBEAT] Loop failed for 4730fb20-7e73-459d-a970-20615b4b24f5: Lost task own"
+    ) is None
+    assert scanner.extract_error(
+        "ERROR:app.ai_core:⛔ [LOOP-BREAKER] Виктория: промпт(Проанализируй текст"
+    ) is None
+    assert scanner.extract_error('FATAL: role "postgres" does not exist') is None
+    assert scanner.extract_error(
+        "ERROR ❌ [DISTILLATION] Failed to parse wisdom for node 8ab34478-9dd8-4623-86"
+    ) is None
+
+
+def test_still_catches_resurrection_recovery_failed():
+    scanner = LogScanner()
+    hit = scanner.extract_error(
+        "ERROR:ExpertWorker:❌ [RESURRECTION] Recovery failed: boom"
+    )
+    assert hit is not None
+
+
 def test_still_catches_real_type_and_sql_errors():
     scanner = LogScanner()
     typo = scanner.extract_error(

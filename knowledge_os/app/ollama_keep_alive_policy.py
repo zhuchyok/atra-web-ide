@@ -203,6 +203,12 @@ def get_keep_alive(
             # Кулдаун прошёл, сбрасываем время сбоя
             _last_mlx_failure_time = 0
 
+    # [v150.79] Мозг на 11434: keep_alive=-1 не держит runner, нужен "24h".
+    from ollama_slot_pin import BRAIN_MARKERS, pinned_keep_alive
+
+    if model_name and any(m in model_name.lower() for m in BRAIN_MARKERS):
+        return pinned_keep_alive(model_name)
+
     # 2. Бессмертные по имени (moondream и т.д.)
     if model_name and any(m in model_name for m in IMMORTAL_MODELS):
         return -1

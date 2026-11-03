@@ -20,6 +20,55 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-03 v150.79) — pin ctx, не adaptive ✅
+
+- Корень: `local_router._get_adaptive_options` слал phi `16384`; FAST PATH/JUDGE — `4096` на 11437; `get_keep_alive` мозгу `-1` (runner не держится). Native `num_ctx` = reload (ollama#13929).
+- Таблица `knowledge_os/app/ollama_slot_pin.py`: мозг 16384/`24h`, phi base 8192, phi-stable 2048, coder 16384 (как живой 11436). Чужой `num_ctx` в extra отбрасывается.
+- TTC 420 / Rapid-MLX / LightRAG / pool / mem Анны не трогали.
+
+## § Последние изменения (2026-11-03 v150.78) — канарейка не жмёт ctx мозга; ops-логи не ERROR ✅
+
+- Корень ctx=2048 на 11434: `launchd_watchdog` brain-canary слал `num_ctx=2048` → Ollama перезагружала 27B. Canary: мозг 16384+`keep_alive=24h`, руки 8192.
+- `AUCTION WON` / `RESURRECTION Found|resumed` → `logger.info`; `Lost task own` → warning. `Recovery failed` остаётся error.
+- TTC 420 / unsloth / pool не трогали.
+
+## § Последние изменения (2026-11-03 v150.77b) — LOG_SCANNER: ops ERROR не инцидент ✅
+
+- Хиты `RESURRECTION Found/resumed`, `AUCTION WON`, `Lost task own`, `LOOP-BREAKER`, `role postgres does not exist` — штатные ERROR-логи, не падения. IGNORE сужен; `Recovery failed` по-прежнему ловится.
+- Правило 91: 11434 = мозг qwen38, руки на 11437. TTC 420 не поднимали.
+
+## § Последние изменения (2026-11-03 v150.77) — TTC 420 не поднимали; debate-сирота ✅
+
+- Порог 420 не помогает: live p95=0 samples=0 over=False (окно пустое). Поднять = спрятать следующий 27B p95, не ускорить `/run`.
+- `HYPOTHESIS_DEBATES_ENABLED` был внутри docstring `create_debate_for_hypothesis` → INSERT вопреки freeze. Гейт в коде. Сирота `Debate hypothesis 6eb96b99` cancelled.
+- TTC / unsloth / Anna mem / pool не трогали.
+
+## § Последние изменения (2026-11-03 v150.76) — nomic 11437: backoff + 240с, не 30с spam ✅
+
+- Корень: (1) `pin_nomic` timeout 30с → hung `/api/embed`; (2) phi@16k×4 = 15.9GB выселяет nomic.
+- Гвард: timeout 240с, backoff 900с, nomic до phi, `num_ctx=8192`. Hands: `MAX_LOADED_MODELS=2`, ctx 8192. Рестарт только 11437.
+- Overflow 2/3/4 рестартнуты под CODER-SOLO. TTC 420 / unsloth / Anna mem / pool не трогали.
+
+## § Последние изменения (2026-11-03 v150.75) — CODER-SOLO + handoff test≠latest + Anna CancelledError ✅
+
+- Роутер: 11436/11437 = Ollama; руки не едут на coder при 503 рук. Embed-fallback без 11436.
+- AUTO-HANDOFF: `test` не внутри `latest`. HDEL goals на terminal + purge в watchdog.
+- Anna: CancelledError в loop не валит процесс. Тест: `test_v150_75_slot_and_handoff.py`.
+
+## § Последние изменения (2026-11-03 v150.74) — blackboard stale bidding_open / Anna ✅
+
+- 5106 гнилых `bidding_open` (месяцы) кормили autonomy Анны: 5k SQL + INFO каждые 10с → лог затирал Exit=0 каждые ~40 мин.
+- HDEL 5074 старше 24ч (осталось 34). `get_unclaimed_tasks` больше не отдаёт протухшее. Skip-логи debug + shutdown log.
+- Тест: `test_blackboard_stale_goals.py`. TTC порог / unsloth / мозг не трогали.
+
+## § Последние изменения (2026-11-03 v150.73) — гигиена 11436 + гвард не зависает на phi-stable ✅
+
+- 11436 = только coder. phi/мозг на этом порту выгружаются (`CODER_ALLOW`).
+- `pin_stable` не стартует второй 15GB-слот, если на 11437 уже есть базовый phi. Timeout пина больше не рвёт цикл до coder-hygiene.
+- `pin_brain`: пустой 11434 снова получает `victoria-qwen38` (brain-keepalive выключен).
+- TTC p95 641>420 оставлен как честный алерт (не порог, не фильтр timeout_*). Анна 290 рестартов — наблюдение (Exit=0, OOM=false). Unsloth-тег на 11434 не удаляли.
+- Тест: `test_coder_slot_guard.py`. Мозг 11434 / pool не трогали.
+
 ## § Последние изменения (2026-11-02 v150.72) — дашборд: свежесть + docker-proxy, без sock ✅
 
 - Редкие источники (okrs/simulations/file_comments) больше не поднимают «Обнаружены устаревшие источники». Operational >24h — да.

@@ -11,7 +11,15 @@ try:
 except ImportError:
     from redis_manager import get_redis_manager
 
+try:
+    from app.services.blackboard_freshness import OPEN_GOAL_MAX_AGE_SEC, is_fresh_open_goal
+except ImportError:
+    from services.blackboard_freshness import OPEN_GOAL_MAX_AGE_SEC, is_fresh_open_goal
+
 logger = logging.getLogger("BlackboardService")
+
+# [v150.74] Stale bidding_open (months) must not enter the autonomy scan.
+_OPEN_GOAL_MAX_AGE_SEC = int(os.getenv("BLACKBOARD_OPEN_GOAL_MAX_AGE_SEC", str(OPEN_GOAL_MAX_AGE_SEC)))
 
 
 class BlackboardService:
@@ -573,6 +581,7 @@ class BlackboardService:
                 # Если ключа heartbeat нет — воркер умер
                 if not await client.exists(heartbeat_key):
                     logger.warning(f"♻️ [GC] Task {task_id} lost heartbeat. Reclaiming...")
+                    assignee = data.get("assignee")
                     data["status"] = "bidding_open"
                     data["assignee"] = None
                     data["reclaimed_at"] = datetime.now(timezone.utc).isoformat()
@@ -633,9 +642,39 @@ class BlackboardService:
         unclaimed = []
         for task_id, raw_data in all_goals.items():
             data = json.loads(raw_data)
-            if data["status"] in ("unclaimed", "bidding_open"):
+            if is_fresh_open_goal(data):
                 unclaimed.append(data)
         return unclaimed
+
+    async def purge_stale_open_goals(
+        self, max_age_sec: int = _OPEN_GOAL_MAX_AGE_SEC
+    ) -> Dict[str, int]:
+        """Удалить протухшие unclaimed/bidding_open из blackboard:goals. Живые (<max_age) не трогать."""
+        client = await self.redis.get_client()
+        key = f"{self.key_prefix}goals"
+        all_goals = await client.hgetall(key)
+        now = datetime.now(timezone.utc)
+        removed = 0
+        kept = 0
+        for task_id, raw_data in all_goals.items():
+            task_id_str = task_id.decode() if isinstance(task_id, bytes) else str(task_id)
+            data = json.loads(raw_data)
+            if data.get("status") not in ("unclaimed", "bidding_open"):
+                kept += 1
+                continue
+            if is_fresh_open_goal(data, max_age_sec=max_age_sec, now=now):
+                kept += 1
+                continue
+            await client.hdel(key, task_id_str)
+            removed += 1
+        if removed:
+            logger.info(
+                "🧹 [BLACKBOARD] purged stale open goals removed=%s kept=%s max_age_sec=%s",
+                removed,
+                kept,
+                max_age_sec,
+            )
+        return {"removed": removed, "kept": kept}
 
     async def reconcile_goals_with_tasks(self, stale_minutes: int = 15) -> Dict[str, int]:
         """

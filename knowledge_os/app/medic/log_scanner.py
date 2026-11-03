@@ -127,11 +127,18 @@ IGNORE_PATTERNS = [
     re.compile(r"Ollama embed failed after"),
     re.compile(r"\[OLLAMA-DIRECT\] Failed to call Ollama"),
     re.compile(r"\[DISTILLATION\] Failed to get response"),
+    re.compile(r"\[DISTILLATION\] Failed to parse wisdom"),
     re.compile(r"server busy, please try again"),
     re.compile(r'column "usage_count" does not exist'),
     # Nightly WARNING, not a crash. Bare TimeoutError must not open a task.
     re.compile(r"ai_core audit failed/timeout"),
     re.compile(r"TimeoutError\(\)"),
+    # Worker ops logged at ERROR: recovery/auction/breaker are not incidents.
+    re.compile(r"\[RESURRECTION\] (?!Recovery failed)"),
+    re.compile(r"🏆 \[AUCTION\].*WON task"),
+    re.compile(r"\[HEARTBEAT\] Loop failed.*Lost task own"),
+    re.compile(r"\[LOOP-BREAKER\]"),
+    re.compile(r'role "postgres" does not exist'),
 ]
 
 # Containers to never scan (avoid self-referential loops)

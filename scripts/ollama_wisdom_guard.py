@@ -18,6 +18,7 @@ from datetime import datetime
 OLLAMA = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
 # [v150.8] Руки живут на выделенном инстансе 11437 (свой планировщик)
 HANDS = os.getenv("OLLAMA_HANDS_URL", "http://127.0.0.1:11437").rstrip("/")
+CODER = os.getenv("OLLAMA_CODER_URL", "http://127.0.0.1:11436").rstrip("/")
 POLL = int(os.getenv("WISDOM_GUARD_POLL_SEC", "60"))
 DRY = os.getenv("WISDOM_GUARD_DRY_RUN", "false").lower() in ("1", "true", "yes")
 
@@ -50,6 +51,12 @@ def unload(model):
     _log(f"unloaded {model} from {OLLAMA}")
 
 
+def _should_pin_phi(loaded) -> bool:
+    """[v150.76] Любой phi (base или -stable) = слот рук занят.
+    Точный тег грузил второй 9–16GB поверх stable → HTTP 500 / выселял nomic."""
+    return not any("phi3.5" in (n or "") for n in (loaded or []))
+
+
 def pin_phi():  # [v150.8] пин на инстансе рук (11437)
     """После выгрузки wisdom слот 11434 не должен оставаться пустым.
     [v150.1] num_ctx обязателен: без опций ollama 0.33 авто-размеряет KV под
@@ -57,30 +64,44 @@ def pin_phi():  # [v150.8] пин на инстансе рук (11437)
     [v150.10] Точное сравнение тегов: '-stable'.startswith('phi3.5:3.8b')
     ломало проверку (базовая phi считалась загруженной)."""
     loaded = _ps(HANDS)
-    if any(n in ("phi3.5:3.8b", "phi3.5:3.8b:latest") for n in loaded):
+    if not _should_pin_phi(loaded):
         return
     body = {
         "model": "phi3.5:3.8b",
         "prompt": "ok",
         "stream": False,
         "keep_alive": -1,
-        "options": {"num_ctx": 16384},
+        # [v150.76] 8192 не 16384: 16k×4 parallel = 16GB KV, Ollama выселяет nomic.
+        "options": {"num_ctx": 8192},
     }
     data = json.dumps(body).encode()
     req = urllib.request.Request(
         f"{HANDS}/api/generate", data=data, headers={"Content-Type": "application/json"}
     )
-    # [v150.2] 240с: cold-load phi@16K занимает минуты (Metal-аллокация 15GB под
-    # давлением Docker VM) — при 60с пин вечно отваливался и «спамил» err: timed out
+    # [v150.2] 240с: cold-load phi занимает минуты (Metal под давлением Docker VM) —
+    # при 60с пин вечно отваливался и «спамил» err: timed out
     urllib.request.urlopen(req, timeout=240).read()
     _log(f"pinned phi3.5:3.8b on {HANDS}")
+
+
+def _should_pin_stable(loaded) -> bool:
+    """[v150.73] Второй phi (stable) не грузим, если на руках уже есть базовый.
+    Иначе pin_stable держит гвард 120с, не доходит до гигиены 11436 и давит мозг."""
+    names = loaded or []
+    if not names:
+        return False
+    if any(n.startswith("phi3.5:3.8b-stable") for n in names):
+        return False
+    if any("phi3.5" in (n or "") for n in names):
+        return False
+    return True
 
 
 def pin_stable():  # [v150.10] факт-полоса: -stable — отдельный раннер, никто
     # кроме факт-фаст-трека её не занимает; без пина выселялась при рестартах
     # инстанса → факты теряли свои 4-9с. Лёгкая аллокация: ctx 2048.
     loaded = _ps(HANDS)
-    if any(n.startswith("phi3.5:3.8b-stable") for n in loaded):
+    if not _should_pin_stable(loaded):
         return
     body = {
         "model": "phi3.5:3.8b-stable",
@@ -97,20 +118,46 @@ def pin_stable():  # [v150.10] факт-полоса: -stable — отдельн
     _log(f"pinned phi3.5:3.8b-stable (факт-полоса) on {HANDS}")
 
 
+_PIN_NOMIC_FAIL_AT = 0.0
+_PIN_NOMIC_BACKOFF_SEC = int(os.getenv("WISDOM_GUARD_NOMIC_BACKOFF_SEC", "900"))
+
+
+def _should_pin_nomic(loaded) -> bool:
+    """[v150.76] Пин только если nomic нет в /api/ps."""
+    return not any("nomic" in (n or "") for n in (loaded or []))
+
+
+def _nomic_backoff_active(now=None) -> bool:
+    """[v150.76] После timeout не класть ещё один hung /api/embed — Ollama не отменяет load."""
+    t = now if now is not None else time.time()
+    return (t - _PIN_NOMIC_FAIL_AT) < _PIN_NOMIC_BACKOFF_SEC
+
+
 def pin_nomic():  # [v150.8] пин на инстансе рук (11437)
+    global _PIN_NOMIC_FAIL_AT
     loaded = _ps(HANDS)
-    if any("nomic" in n for n in loaded):
+    if not _should_pin_nomic(loaded):
+        return
+    if _nomic_backoff_active():
+        _log("pin_nomic skip: backoff after timeout")
         return
     body = {"model": "nomic-embed-text", "input": "ping", "keep_alive": -1}
     data = json.dumps(body).encode()
     req = urllib.request.Request(
         f"{HANDS}/api/embed", data=data, headers={"Content-Type": "application/json"}
     )
-    urllib.request.urlopen(req, timeout=30).read()
+    # [v150.76] 240с как pin_phi: cold-load рядом с phi@16K не укладывается в 30с.
+    # Client timeout не отменяет runner — 30с каждые 60с копило hung embed.
+    try:
+        urllib.request.urlopen(req, timeout=240).read()
+    except Exception:
+        _PIN_NOMIC_FAIL_AT = time.time()
+        raise
     _log(f"pinned nomic-embed-text on {HANDS}")
 
 
 HANDS_ALLOW = ("phi3.5", "nomic", "smollm", "tinyllama", "moondream")
+CODER_ALLOW = ("qwen3-coder", "qwen2.5-coder")
 
 
 def unload_hands(model):
@@ -132,6 +179,34 @@ def _should_unload_hands(name: str) -> bool:
     return not any(a in key for a in HANDS_ALLOW)
 
 
+def _should_pin_brain(loaded) -> bool:
+    """[v150.73] Пустой 11434 = дыра в контракте. brain-keepalive выключен — пин здесь."""
+    return not any(
+        any(b in (n or "").lower() for b in BRAIN_ALLOW) for n in (loaded or [])
+    )
+
+
+def pin_brain():
+    loaded = _ps()
+    if not _should_pin_brain(loaded):
+        return
+    body = {
+        "model": "victoria-qwen38:latest",
+        "prompt": "ok",
+        "stream": False,
+        # [v150.76] keep_alive=-1 на 11434 не держит runner (ps пустеет сразу
+        # после generate). "24h" оставляет victoria-qwen38 в /api/ps.
+        "keep_alive": "24h",
+        "options": {"num_predict": 1, "num_ctx": 16384},
+    }
+    data = json.dumps(body).encode()
+    req = urllib.request.Request(
+        f"{OLLAMA}/api/generate", data=data, headers={"Content-Type": "application/json"}
+    )
+    urllib.request.urlopen(req, timeout=240).read()
+    _log(f"pinned victoria-qwen38:latest on {OLLAMA}")
+
+
 def _should_unload(name: str) -> bool:
     """[v150.8] 11434 = ТОЛЬКО мозг (v149.4). Руки/эмбеддер/прочее — на 11437,
     их присутствие здесь = чужой слот (конкуренция за память с мозгом)."""
@@ -139,6 +214,24 @@ def _should_unload(name: str) -> bool:
     if not key:
         return False
     return not any(b in key for b in BRAIN_ALLOW)
+
+
+def _should_unload_coder(name: str) -> bool:
+    """[v150.73] 11436 = только coder. phi/nomic/мозг на этом порту = чужой слот."""
+    key = (name or "").lower()
+    if not key:
+        return False
+    return not any(a in key for a in CODER_ALLOW)
+
+
+def unload_coder(model):
+    body = {"model": model, "keep_alive": 0}
+    data = json.dumps(body).encode()
+    req = urllib.request.Request(
+        f"{CODER}/api/generate", data=data, headers={"Content-Type": "application/json"}
+    )
+    urllib.request.urlopen(req, timeout=60).read()
+    _log(f"unloaded {model} from {CODER}")
 
 
 def _enforce_hands_slot():
@@ -152,9 +245,16 @@ def _enforce_hands_slot():
         else:
             _log(f"dry-run unload skipped: {evict}")
     if not DRY:
-        pin_phi()
-        pin_stable()
-        pin_nomic()
+        for fn, label in (
+            (pin_brain, "pin_brain"),
+            (pin_nomic, "pin_nomic"),
+            (pin_phi, "pin_phi"),
+            (pin_stable, "pin_stable"),
+        ):
+            try:
+                fn()
+            except Exception as e:
+                _log(f"{label} skip: {e}")
     left = _ps()
         # [v150.13] гигиена 11437: не-руки (например мозг-утечка) — выгрузить
     try:
@@ -177,12 +277,23 @@ def _enforce_hands_slot():
     except Exception as _e:
         _log(f"hands-hygiene err: {_e}")
 
-    _log(f"ok: brain{OLLAMA}={left} hands{HANDS}={_ps(HANDS)}")
-
-
-while True:
     try:
-        _enforce_hands_slot()
-    except Exception as e:
-        _log(f"err: {e}")
-    time.sleep(POLL)
+        stray_coder = [n for n in _ps(CODER) if _should_unload_coder(n)]
+        if stray_coder:
+            _log(f"evict from {CODER} (не-coder): {stray_coder}")
+            if not DRY:
+                for _n in stray_coder:
+                    unload_coder(_n)
+    except Exception as _e:
+        _log(f"coder-hygiene err: {_e}")
+
+    _log(f"ok: brain{OLLAMA}={left} hands{HANDS}={_ps(HANDS)} coder{CODER}={_ps(CODER)}")
+
+
+if __name__ == "__main__":
+    while True:
+        try:
+            _enforce_hands_slot()
+        except Exception as e:
+            _log(f"err: {e}")
+        time.sleep(POLL)
