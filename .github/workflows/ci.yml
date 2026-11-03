@@ -9,6 +9,20 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: knowledge_os
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     steps:
       - uses: actions/checkout@v4
 
@@ -24,6 +38,9 @@ jobs:
           pip install -r knowledge_os/requirements.txt
 
       - name: Run unit tests
+        env:
+          DATABASE_URL: postgresql://admin:secret@localhost:5432/knowledge_os
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           python -m pytest knowledge_os/tests/ \
             --ignore=knowledge_os/tests/test_e2e.py \
