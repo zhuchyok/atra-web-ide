@@ -225,6 +225,12 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v150.85 (2026-11-03) — две нормы TTC в Telegram
+
+**Корень:** Deferred Monitor сравнивал unlabeled p95 с 180с. Хвост `timeout_*` (15 мин) = HIGH, хотя текст сам писал «это нормально».
+
+**Контракт:** обычные 180с, сложные 900с. Page только свой хвост. Алерт 420 / hung 600 не меняли.
+
 ## § v150.84 (2026-11-03) — phi -c 32768 это 8192×4; ghost не generate
 
 **Не баг:** `/api/ps` phi `context_length=8192`, `llama-server -c 32768 -np 4`. Plist `OLLAMA_NUM_CTX=8192` `OLLAMA_NUM_PARALLEL=4`. `-c` = per-slot ctx × parallel. 11437 не рестартовали.
