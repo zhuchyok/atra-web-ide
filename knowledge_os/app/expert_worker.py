@@ -170,6 +170,10 @@ try:
     from app.expert_stream_routing import SHARED_EXPERT_STREAM, worker_stream_name
 except ImportError:
     from expert_stream_routing import SHARED_EXPERT_STREAM, worker_stream_name
+try:
+    from app.stream_reclaim import classify_pending, live_consumers_from_hash, pending_id
+except ImportError:
+    from stream_reclaim import classify_pending, live_consumers_from_hash, pending_id
 
 _expert_name_env = os.getenv("EXPERT_NAME", "").strip()
 STREAM_NAME = worker_stream_name(_expert_name_env)
@@ -3837,6 +3841,7 @@ async def worker_loop():
 
     # Startup hygiene pass (safe: pending==0 only).
     await _cleanup_stale_stream_consumers()
+    _inflight_msg_ids: set[str] = set()
 
     while True:
         try:
@@ -3844,10 +3849,8 @@ async def worker_loop():
             if now_ts - last_cleanup_ts >= cleanup_interval_sec:
                 await _cleanup_stale_stream_consumers()
                 last_cleanup_ts = now_ts
-            # [FULL FIX 2026-04-08] Three-phase pending management:
-            # Phase 1: Kill zombie messages (>10 deliveries) → ACK Redis + mark PostgreSQL failed
-            # Phase 2: Xclaim legitimately stale messages (idle >5min, deliveries ≤10)
-            # Phase 3: xreadgroup("0") reads OUR pending (including just-xclaimed) + new + autoclaim
+            # [v150.81] Classify PEL: zombie / reclaim dead-consumer / keep live+inflight.
+            # Do not STALE-DROP ids we just claimed — that made XAUTOCLAIM a no-op.
 
             pending_info = await client.xpending(f"stream:{STREAM_NAME}", GROUP_NAME)
             if pending_info["pending"] > 0:
@@ -3855,8 +3858,20 @@ async def worker_loop():
                     f"stream:{STREAM_NAME}", GROUP_NAME, "-", "+", 10
                 )
                 if p_range:
+                    try:
+                        raw_hb = await client.hgetall(RUNTIME_WORKER_HEARTBEAT_KEY)
+                    except Exception:
+                        raw_hb = {}
+                    classified = classify_pending(
+                        p_range,
+                        live_consumers=live_consumers_from_hash(raw_hb, now=time.time()),
+                        inflight_ids=_inflight_msg_ids,
+                        min_idle_ms=300000,
+                    )
                     # Phase 1: Zombies → DLQ + PostgreSQL sync
-                    zombie_msg_ids = [p["message_id"] for p in p_range if p["times_delivered"] > 10]
+                    zombie_msg_ids = [
+                        pending_id(p) for p in classified["zombies"] if pending_id(p)
+                    ]
                     if zombie_msg_ids:
                         zombie_task_ids = []
                         for zmid in zombie_msg_ids:
@@ -3911,11 +3926,9 @@ async def worker_loop():
                                     f"💀 [DLQ] PostgreSQL updated: {updated} zombie tasks → failed"
                                 )
 
-                    # Phase 2: Xclaim legitimately stale (idle >5min, not zombies)
+                    # Phase 2: Xclaim dead-consumer idle (not live heartbeat, not inflight)
                     claimable = [
-                        p["message_id"]
-                        for p in p_range
-                        if p["times_delivered"] <= 10 and p["time_since_delivered"] > 300000
+                        pending_id(p) for p in classified["reclaim"] if pending_id(p)
                     ]
                     if claimable:
                         logger.info(
@@ -3930,76 +3943,33 @@ async def worker_loop():
                 GROUP_NAME, CONSUMER_NAME, {f"stream:{STREAM_NAME}": "0"}, count=5
             )
 
-            # Phase 3b: Autoclaim stale messages from OTHER consumers (idle >5min)
-            stale_messages = await redis_manager.autoclaim_tasks(
-                STREAM_NAME, GROUP_NAME, CONSUMER_NAME, min_idle_time_ms=300000
-            )
+            # Phase 3b: heartbeat-aware reclaim is Phase 2 xclaim of classified["reclaim"].
+            # Blind XAUTOCLAIM here would steal live 2700s tasks after delayed ACK.
+            stale_messages = []
 
             # Phase 3c: New messages (blocking 5s)
             messages = await client.xreadgroup(
                 GROUP_NAME, CONSUMER_NAME, {f"stream:{STREAM_NAME}": ">"}, count=1, block=5000
             )
 
-            # [STALE-DROP] Drop only truly stale pending (idle > 5 min).
-            # _run_task xack'ает сразу после старта → свежие сообщения в pending не задерживаются.
-            # Если висит >5 мин — это остаток от прошлого запуска или упавший background task.
-            _stale_cutoff_ms = 300_000
-            _p_range = await client.xpending_range(
-                f"stream:{STREAM_NAME}",
-                GROUP_NAME,
-                min="-",
-                max="+",
-                count=10,
-            )
-            _stale_pending = [p for p in _p_range if p["time_since_delivered"] > _stale_cutoff_ms]
-            if _stale_pending:
-                _stale_ids = [p["message_id"] for p in _stale_pending]
-                await client.xack(f"stream:{STREAM_NAME}", GROUP_NAME, *_stale_ids)
-                for _p in _stale_pending:
-                    try:
-                        _msg_data = await client.xrange(
-                            f"stream:{STREAM_NAME}",
-                            min=_p["message_id"],
-                            max=_p["message_id"],
-                        )
-                        if _msg_data:
-                            _raw = _msg_data[0][1].get(b"payload") or _msg_data[0][1].get("payload")
-                            _payload = json.loads(_raw) if isinstance(_raw, (str, bytes)) else None
-                            if _payload:
-                                _task_id = _payload.get("task_id")
-                                if _task_id:
-                                    async with db_pool.acquire() as _conn:
-                                        _db_id, _ = await _resolve_canonical_task_id(
-                                            _conn, _task_id, _payload.get("metadata") or {}
-                                        )
-                                        if _db_id:
-                                            await _conn.execute(
-                                                """UPDATE tasks
-                                                   SET status = 'failed',
-                                                       updated_at = NOW(),
-                                                       metadata = COALESCE(metadata, '{}'::jsonb) ||
-                                                           jsonb_build_object('worker_dropped_stale_pending', true)
-                                                   WHERE id = $1
-                                                     AND status IN ('pending', 'in_progress')""",
-                                                _db_id,
-                                            )
-                    except Exception as _drop_err:
-                        logger.warning(
-                            f"⚠️ [STALE-DROP] Failed to process stale msg {_p['message_id']}: {_drop_err}"
-                        )
-                # TODO: Convert f-string to %s formatting for performance
-                logger.warning(f"🧹 [STALE-DROP] Dropped {len(_stale_ids)} stale pending messages")
-
-            # pending_mine всё ещё нужен для Phase 3c: если не обработан через background,
-            # попадёт в all_messages и будет повторно разобран.
+            # [v150.81] Do not ACK-drop idle PEL. Dead consumers go through reclaim.
+            # Skip in-flight so xreadgroup("0") does not double-run a long task.
             if pending_mine:
-                # Только сообщения idle <= 5min — свежие (background ещё работает)
-                _fresh_pending = [
-                    p for p in _p_range if p["time_since_delivered"] <= _stale_cutoff_ms
-                ]
-                _fresh_ids = set(p["message_id"] for p in _fresh_pending)
                 pending_mine = [
-                    (s, [m for m in ms if m[0] in _fresh_ids]) for s, ms in pending_mine
+                    (
+                        s,
+                        [
+                            m
+                            for m in ms
+                            if (
+                                m[0].decode("utf-8", errors="replace")
+                                if isinstance(m[0], bytes)
+                                else str(m[0])
+                            )
+                            not in _inflight_msg_ids
+                        ],
+                    )
+                    for s, ms in pending_mine
                 ]
                 pending_mine = [(s, ms) for s, ms in pending_mine if ms]
                 if not pending_mine:
@@ -4204,16 +4174,19 @@ async def worker_loop():
                             await client.xack(f"stream:{STREAM_NAME}", GROUP_NAME, msg_id)
                             continue
 
-                        # [CONCURRENCY] Process task in background so main loop can continue
-                        # reading new messages without blocking on slow process_task (up to 2700s).
-                        # Сразу xack чтобы выйти из PENDING — Phase 3a не дропнет свежую таску.
-                        async def _run_task(_p=payload, _id=msg_id):
-                            try:
-                                await client.xack(f"stream:{STREAM_NAME}", GROUP_NAME, _id)
-                            except Exception as _xack_err:
-                                logger.warning(
-                                    f"⚠️ [WORKER] Failed to early-xack {_id}: {_xack_err}"
-                                )
+                        # [CONCURRENCY] Background process_task (up to 2700s).
+                        # ACK after result so XAUTOCLAIM can reclaim a dead worker's PEL.
+                        # In-flight set stops xreadgroup("0") from double-running.
+                        _mid = (
+                            msg_id.decode("utf-8", errors="replace")
+                            if isinstance(msg_id, bytes)
+                            else str(msg_id)
+                        )
+                        if _mid in _inflight_msg_ids:
+                            continue
+                        _inflight_msg_ids.add(_mid)
+
+                        async def _run_task(_p=payload, _id=msg_id, _mid=_mid):
                             try:
                                 await process_task(_p)
                             except asyncio.CancelledError:
@@ -4223,7 +4196,6 @@ async def worker_loop():
                                 )
                                 return
                             except Exception as e:
-                                # TODO: Convert f-string to %s formatting for performance
                                 logger.error(f"❌ [WORKER] Ошибка обработки сообщения {_id}: {e}")
                                 _task_id = _p.get("task_id") if isinstance(_p, dict) else None
                                 if _task_id:
@@ -4250,6 +4222,16 @@ async def worker_loop():
                                         logger.warning(
                                             f"⚠️ [WORKER] Failed to mark task failed {_id}: {_db_err}"
                                         )
+                            finally:
+                                _inflight_msg_ids.discard(_mid)
+                                try:
+                                    await client.xack(
+                                        f"stream:{STREAM_NAME}", GROUP_NAME, _id
+                                    )
+                                except Exception as _xack_err:
+                                    logger.warning(
+                                        f"⚠️ [WORKER] Failed to xack {_id}: {_xack_err}"
+                                    )
 
                         asyncio.create_task(_run_task())
                     except Exception as e:
