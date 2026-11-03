@@ -20,6 +20,13 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-03 v150.83) — live 24h, watchdog больше не бьёт ctx 2048 ✅
+
+- Ghost: `/api/ps` qwen38 без llama-server → kickstart только 11434, пин `keep_alive=24h` `num_ctx=16384`.
+- Сторож `ollama_runner_watchdog.sh` слал 2048; plist `OLLAMA_KEEP_ALIVE=-1` → 2319. Пробы мозга: 16384+24h.
+- `brain_keepalive.sh`: руки на 11437, phi 8192 (не 16384).
+- Live 20:47: expires 2026-11-04 20:47, ctx 16384, runner `.ollama-brain` жив. TTC 420 / pool / mem Анны не трогали.
+
 ## § Последние изменения (2026-11-03 v150.82) — мозг 24h даже в MLX cooldown ✅
 
 - `get_keep_alive`: qwen38/24h раньше cooldown `-1`. Live expires 2319 был хвост `-1`, warmup skip-if-loaded.

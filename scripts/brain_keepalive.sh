@@ -30,15 +30,16 @@ trap 'rmdir "$LOCKDIR" 2>/dev/null' EXIT
 # ollama 0.33 бесконечно морит загрузки НОВЫХ раннеров — phi/nomic не могли
 # подняться часами, encode отдавал 500. Перед прогревом мозга пиним руки
 # и ждём их резидентности (счётчик на случай больной очереди).
-_hands_ok() { curl -s --max-time 5 "$U/api/ps" 2>/dev/null | /usr/bin/grep -q '"phi3.5:3.8b'; }
+H="http://127.0.0.1:11437"
+_hands_ok() { curl -s --max-time 5 "$H/api/ps" 2>/dev/null | /usr/bin/grep -q '"phi3.5:3.8b'; }
 if ! _hands_ok; then
   echo "$(ts) hands-first: пин phi3.5+nomic перед мозгом" >> "$LOG"
   # [v150.12] Руки живут на 11437 (v150.8) — пиним ИХ инстанс, не мозговой!
   # До сих пор пин шёл на $U (11434) — это и был «загадочный пиннер phi»,
   # кормивший карусель «гард выгружает / кипер грузит».
-  H="http://127.0.0.1:11437"
+  # [v150.83] phi ctx 8192 (не 16384): 16k×4 выселяет nomic. Проверка рук — 11437.
   curl -s --max-time 300 "$H/api/generate" \
-    -d '{"model":"phi3.5:3.8b","prompt":"ok","stream":false,"keep_alive":-1,"options":{"num_ctx":16384,"num_predict":1}}' >/dev/null 2>&1 &
+    -d '{"model":"phi3.5:3.8b","prompt":"ok","stream":false,"keep_alive":-1,"options":{"num_ctx":8192,"num_predict":1}}' >/dev/null 2>&1 &
   curl -s --max-time 120 "$H/api/embed" \
     -d '{"model":"nomic-embed-text","input":"ping","keep_alive":-1}' >/dev/null 2>&1
   _w=0; while ! _hands_ok && [ $_w -lt 24 ]; do sleep 5; _w=$((_w+1)); done
@@ -72,7 +73,7 @@ if [ "$FREE" -lt 40 ]; then echo "$(ts) skip: RAM free ${FREE}% < 40%" >> "$LOG"
 # curl отваливался, api/ps не видел модель → «LOAD FAILED» → kickstart -k ВСЕГО
 # сервера посреди загрузки → прогресс обнулялся → вечная карусель 503 (20.10).
 curl -s --max-time 600 "$U/api/generate" \
-  -d "{\"model\":\"$M\",\"prompt\":\"ok\",\"stream\":false,\"keep_alive\":\"12h\"}" >/dev/null 2>&1
+  -d "{\"model\":\"$M\",\"prompt\":\"ok\",\"stream\":false,\"keep_alive\":\"24h\",\"options\":{\"num_predict\":1,\"num_ctx\":16384}}" >/dev/null 2>&1
 
 RESP=$(curl -s --max-time 30 "$U/api/tags" 2>/dev/null)
 if ! echo "$RESP" | grep -q "qwen38"; then

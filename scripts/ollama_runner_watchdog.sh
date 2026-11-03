@@ -148,6 +148,18 @@ should_restart_after_probe_failure() {
     probe_cooldown_ok "$port"
 }
 
+probe_generate_payload() {
+    # [v150.83] 11434 must not send num_ctx=2048: Ollama reloads the 27B runner
+    # (native num_ctx change) and plist OLLAMA_KEEP_ALIVE=-1 then stamps expires 2319.
+    local port="$1"
+    local model="$2"
+    if [ "$port" = "11434" ]; then
+        printf '%s' '{"model":"'"$model"'","prompt":"ok","stream":false,"keep_alive":"24h","options":{"num_predict":1,"num_ctx":16384}}'
+    else
+        printf '%s' '{"model":"'"$model"'","prompt":"ok","stream":false,"keep_alive":-1,"options":{"num_predict":1,"num_ctx":2048}}'
+    fi
+}
+
 brain_warmup_gate() {
     # [v150.30] Post-restart SLO gate for brain (11434):
     # require 2 consecutive successful micro-generations before considering
@@ -172,7 +184,7 @@ brain_warmup_gate() {
         code=$(curl -s --max-time "$timeout" -o "$body" -w '%{http_code}' \
             -X POST "http://localhost:${port}/api/generate" \
             -H 'Content-Type: application/json' \
-            -d '{"model":"'"$model"'","prompt":"ok","stream":false,"options":{"num_predict":1,"num_ctx":2048}}' 2>/dev/null)
+            -d "$(probe_generate_payload "$port" "$model")" 2>/dev/null)
         if [ "$code" = "200" ]; then
             streak=$((streak + 1))
             log "BRAIN-WARMUP :$port try=$i code=200 streak=$streak/$need_ok"
@@ -276,7 +288,7 @@ except Exception:
         _probe=$(curl -s --max-time "$_probe_timeout" -o "$_probe_body" -w '%{http_code}' \
             -X POST "http://localhost:${PORT}/api/generate" \
             -H 'Content-Type: application/json' \
-            -d '{"model":"'"$_probe_model"'","prompt":"ok","stream":false,"options":{"num_predict":1,"num_ctx":2048}}' 2>/dev/null)
+            -d "$(probe_generate_payload "$PORT" "$_probe_model")" 2>/dev/null)
         _probe_msg=""
         [ -f "$_probe_body" ] && _probe_msg="$(tr -d '\n' < "$_probe_body" 2>/dev/null || true)"
 
@@ -335,7 +347,7 @@ except Exception:
         _probe=$(curl -s --max-time 5 -o "$_probe_body" -w '%{http_code}' \
             -X POST "http://localhost:${PORT}/api/generate" \
             -H 'Content-Type: application/json' \
-            -d '{"model":"'"$([ "$PORT" = "11434" ] && echo victoria-qwen38:latest || echo phi3.5:3.8b-stable)"'","prompt":"ok","stream":false,"options":{"num_predict":1,"num_ctx":2048}}' 2>/dev/null)
+            -d "$(probe_generate_payload "$PORT" "$([ "$PORT" = "11434" ] && echo victoria-qwen38:latest || echo phi3.5:3.8b-stable)")" 2>/dev/null)
         _probe_msg=""
         [ -f "$_probe_body" ] && _probe_msg="$(tr -d '\n' < "$_probe_body" 2>/dev/null || true)"
         if [ "$_probe" = "503" ] || { [ "$_probe" = "500" ] && echo "$_probe_msg" | grep -Eiq 'llama-server process no longer running|unexpected EOF|server disconnected'; }; then

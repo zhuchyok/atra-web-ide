@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v150.83 (2026-11-03) — live 24h: ghost runner + watchdog 2048
+
+**Корень:** `/api/ps` держал victoria-qwen38 с expires 2319, llama-server по blob не было — generate висел до GIN. `pin_brain` skip-if-loaded. После kickstart только 11434 пин 16384+24h встал (`expires 2026-11-04 20:47`). Через ~1 мин `ollama_runner_watchdog.sh` слал `num_ctx=2048` без keep_alive; plist `OLLAMA_KEEP_ALIVE=-1` → runner `-c 2048`, expires снова 2319.
+
+**Фикс:** пробы 11434 → `num_ctx=16384` + `keep_alive=24h`. `brain_keepalive.sh`: руки проверять на 11437, phi ctx 8192. Live: ctx 16384, expires ~now+24h, llama-server `.ollama-brain` жив. 11436/11437 не рестартили.
+
+**Не трогали:** TTC 420, pool, mem Анны, unload unsloth.
+
 ## § v150.82 (2026-11-03) — мозг 24h даже в MLX cooldown
 
 **Корень:** `get_keep_alive` в recovery cooldown возвращал `-1` до пина. Live `/api/ps` expires 2319 при таблице `24h`. Warmup пропускает уже загруженную модель — TTL не обновлялся.

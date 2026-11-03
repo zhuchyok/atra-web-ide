@@ -84,6 +84,22 @@ def test_pin_phi_ctx_leaves_room_for_nomic():
     assert '"num_ctx": 16384' not in src.split("def pin_nomic", 1)[0]
 
 
+def test_runner_watchdog_brain_probe_uses_contract_ctx():
+    import pathlib
+
+    src = (
+        pathlib.Path(__file__).resolve().parents[2] / "scripts" / "ollama_runner_watchdog.sh"
+    ).read_text(encoding="utf-8")
+    helper = src.split("probe_generate_payload()", 1)[1].split("brain_warmup_gate()", 1)[0]
+    brain_branch = helper.split('port" = "11434"', 1)[1].split("else", 1)[0]
+    assert '"num_ctx":16384' in brain_branch
+    assert '"keep_alive":"24h"' in brain_branch
+    assert "2048" not in brain_branch
+    rest = src.replace(helper, "", 1)
+    assert '"num_ctx":2048' not in rest
+    assert rest.count("probe_generate_payload") >= 3
+
+
 def test_launchd_canaries_use_contract_ctx():
     import pathlib
 
