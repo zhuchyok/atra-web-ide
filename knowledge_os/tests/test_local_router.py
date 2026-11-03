@@ -58,6 +58,12 @@ async def test_context_saved_before_mlx_call(mock_context_mirror):
 async def test_failover_uses_mirrored_context(mock_context_mirror):
     """Test that if MLX fails, Ollama is called."""
     router = LocalAIRouter()
+    # [v150.x] Анти-спиральный бэкофф — глобальное состояние модуля; без сброса
+    # загрязняется предыдущими тестами (в CI без живых узлов) и меняет путь failover.
+    import app.local_router as _lr
+
+    _lr._LLM_FAIL_STREAK = 0
+    _lr._LLM_LAST_FAIL_TS = None
     router.context_mirror = mock_context_mirror
     # [v150.x] Сканер моделей дергает живой /api/tags и меняет выбор модели — замораживаем.
     router._refresh_available_models = AsyncMock()
