@@ -20,7 +20,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-asyncio pyyaml asyncpg redis httpx
+          pip install pytest pytest-asyncio pyyaml
+          pip install -r knowledge_os/requirements.txt
 
       - name: Run unit tests
         run: |
