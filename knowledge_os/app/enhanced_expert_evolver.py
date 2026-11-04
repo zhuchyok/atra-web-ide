@@ -18,7 +18,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
 
-
 # [v148.3] Sanity-гейт мутаций (см. expert_evolver.py): запрещаем метакомментарии.
 _MUTATION_META_MARKERS = (
     "улучшенн", "revamped", "обновленный промпт", "как gemini", "как ai,",

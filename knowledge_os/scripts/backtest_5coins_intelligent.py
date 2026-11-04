@@ -60,6 +60,8 @@ from src.signals.indicators import add_technical_indicators
 from src.signals.risk import get_dynamic_sl_level
 from src.utils.shared_utils import get_dynamic_tp_levels
 
+logger = logging.getLogger(__name__)
+
 # pylint: enable=wrong-import-position
 
 # Импорт оптимизированных параметров

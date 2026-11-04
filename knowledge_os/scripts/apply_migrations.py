@@ -6,6 +6,8 @@ Singularity 8.0: Database Migrations
 
 import asyncio
 import logging
+
+logger = logging.getLogger(__name__)
 import os
 import sys
 from pathlib import Path
@@ -22,8 +24,7 @@ except ImportError:
     ASYNCPG_AVAILABLE = False
     logger.info("❌ asyncpg не установлен. Установите: pip install asyncpg")
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 # Путь к директории с миграциями
 MIGRATIONS_DIR = Path(__file__).parent.parent / "db" / "migrations"

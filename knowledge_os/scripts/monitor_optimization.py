@@ -28,10 +28,10 @@ def show_progress():
 
     # Ищем строки с прогрессом
     progress_lines = [
-        l
-        for l in lines
+        line
+        for line in lines
         if any(
-            x in l
+            x in line
             for x in [
                 "Прогресс",
                 "завершен",

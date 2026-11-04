@@ -4,6 +4,7 @@
 Проверяет только релевантный тренд (BTC/ETH/SOL) в зависимости от корреляции монеты
 """
 
+import asyncio
 import logging
 from typing import Any, Dict, Optional
 
@@ -24,10 +25,8 @@ except ImportError:
 
 # Импорт CorrelationManager
 try:
-    from src.risk.correlation_risk import CorrelationRiskManager
+    from src.risk.correlation_risk import CorrelationRiskManager, get_correlation_manager
 
-    # Создаем экземпляр если нужно, или используем синглтон
-    _manager = CorrelationRiskManager()
     CORRELATION_MANAGER_AVAILABLE = True
 except ImportError as e:
     CORRELATION_MANAGER_AVAILABLE = False

@@ -18,7 +18,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import pandas as pd
-
 from data.historical_data_loader import HistoricalDataLoader
 from scripts.run_advanced_backtest import AdvancedBacktest
 

@@ -17,6 +17,7 @@ os.environ["volume_profile_threshold"] = "0.6"
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scripts.backtest_5coins_intelligent import load_yearly_data
+
 from src.signals.core import soft_entry_signal
 from src.signals.filters_volume_vwap import check_volume_profile_filter
 

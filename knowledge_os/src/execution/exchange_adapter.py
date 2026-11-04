@@ -1,5 +1,6 @@
 """Обёртка для работы с биржами через ccxt (Bitget по умолчанию)."""
 
+import asyncio
 import inspect
 import logging
 import re

@@ -15,6 +15,7 @@ os.environ["DISABLE_EXTRA_FILTERS"] = "true"
 os.environ["volume_profile_threshold"] = "0.6"
 
 from scripts.backtest_5coins_intelligent import load_yearly_data, run_backtest
+
 from src.signals.indicators import add_technical_indicators
 
 

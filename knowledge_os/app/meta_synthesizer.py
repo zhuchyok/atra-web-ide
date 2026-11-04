@@ -1,10 +1,13 @@
 import asyncio
 import json
+import logging
 import os
 import subprocess
 from datetime import datetime
 
 import asyncpg
+
+logger = logging.getLogger(__name__)
 
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 

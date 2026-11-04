@@ -102,7 +102,7 @@ def main() -> None:
         for lesson_dict in data["lessons"]:
             agent_name = lesson_dict.get("agent", "unknown")
             # Группируем уроки по агентам
-            agent_lessons = [l for l in data["lessons"] if l.get("agent") == agent_name]
+            agent_lessons = [line for line in data["lessons"] if line.get("agent") == agent_name]
             if agent_lessons:
                 # Берем топ-5 уроков для каждого агента
                 top_lessons = sorted(agent_lessons, key=lambda x: x.get("count", 0), reverse=True)[

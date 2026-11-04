@@ -1,10 +1,10 @@
 """Victoria Medic — контур самовосстановления Виктории."""
 
 from medic.feedback_loop import FeedbackLoop, get_feedback_loop
-from medic.sandbox import Sandbox, get_sandbox
-from medic.rollback_manager import RollbackManager, get_rollback_manager
 from medic.metrics_dashboard import MetricsDashboard, get_dashboard
 from medic.proactive_monitor import ProactiveMonitor, get_proactive_monitor
+from medic.rollback_manager import RollbackManager, get_rollback_manager
+from medic.sandbox import Sandbox, get_sandbox
 
 __all__ = [
     "FeedbackLoop",

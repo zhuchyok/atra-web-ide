@@ -19,9 +19,9 @@ class ContextCompressor:
             return logs
 
         critical_lines = [
-            l
-            for l in lines
-            if any(keyword in l.upper() for keyword in ["ERROR", "CRITICAL", "EXCEPTION", "FAIL"])
+            line
+            for line in lines
+            if any(keyword in line.upper() for keyword in ["ERROR", "CRITICAL", "EXCEPTION", "FAIL"])
         ]
 
         # Keep recent lines
@@ -49,7 +49,7 @@ class ContextCompressor:
         # Remove multiple newlines
         prompt = re.sub(r"\n{3,}", "\n\n", prompt)
         # Remove trailing/leading whitespace per line
-        prompt = "\n".join([l.strip() for l in prompt.splitlines()])
+        prompt = "\n".join([line.strip() for line in prompt.splitlines()])
         return prompt.strip()
 
     @staticmethod

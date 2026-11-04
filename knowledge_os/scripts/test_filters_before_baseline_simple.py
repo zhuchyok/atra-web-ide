@@ -20,7 +20,6 @@ os.environ["volume_profile_threshold"] = "0.6"  # Оптимизированны
 import logging
 
 import pandas as pd
-
 from scripts.backtest_5coins_intelligent import (
     FEE,
     RISK_PER_TRADE,
@@ -29,6 +28,7 @@ from scripts.backtest_5coins_intelligent import (
     get_symbol_tp_sl_multipliers,
     load_yearly_data,
 )
+
 from src.signals.risk import get_dynamic_sl_level
 from src.utils.shared_utils import get_dynamic_tp_levels
 

@@ -103,7 +103,6 @@ def run_detailed_backtest(df: pd.DataFrame, symbol: str, initial_balance: float)
     """Запускает детальный бэктест с сохранением всех сделок (использует логику из backtest_5coins_simple.py)"""
 
     # Импортируем необходимые модули для monkey patching
-    import src.signals.core as core_module
     from scripts.optimize_all_filters_comprehensive import (
         check_amt_with_params,
         check_fibonacci_zone_with_params,
@@ -116,6 +115,8 @@ def run_detailed_backtest(df: pd.DataFrame, symbol: str, initial_balance: float)
         check_trend_strength_with_params,
         check_volume_imbalance_with_params,
     )
+
+    import src.signals.core as core_module
     from src.signals.filters_volume_vwap import check_volume_profile_filter, check_vwap_filter
 
     # Оптимальные параметры (как в backtest_5coins_simple.py)

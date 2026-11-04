@@ -9,6 +9,7 @@
 ВАЖНО: Фокус на КАЧЕСТВЕ, а не на количестве сигналов!
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple

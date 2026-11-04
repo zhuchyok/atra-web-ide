@@ -363,7 +363,7 @@ class DialogueController:
                 final_answer = "\n\n".join(parts)
                 lengths = [len(r) for r in responses_list.values()]
                 avg_len = sum(lengths) / len(lengths)
-                variance = sum((l - avg_len) ** 2 for l in lengths) / len(lengths)
+                variance = sum((line - avg_len) ** 2 for line in lengths) / len(lengths)
                 score = max(0.3, 1.0 - min(1.0, variance / (avg_len**2 + 1)))
             else:
                 final_answer = "Эксперты не предоставили ответов."

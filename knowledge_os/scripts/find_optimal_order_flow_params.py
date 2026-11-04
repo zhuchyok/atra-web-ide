@@ -17,8 +17,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import logging
 
 import pandas as pd
-
-from config import USE_VP_FILTER, USE_VWAP_FILTER
 from scripts.backtest_5coins_intelligent import (
     FEE,
     RISK_PER_TRADE,
@@ -27,6 +25,8 @@ from scripts.backtest_5coins_intelligent import (
     get_symbol_tp_sl_multipliers,
     load_yearly_data,
 )
+
+from config import USE_VP_FILTER, USE_VWAP_FILTER
 from src.signals.filters_volume_vwap import check_volume_profile_filter, check_vwap_filter
 from src.signals.risk import get_dynamic_sl_level
 from src.utils.shared_utils import get_dynamic_tp_levels

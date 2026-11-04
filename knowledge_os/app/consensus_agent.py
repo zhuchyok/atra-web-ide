@@ -6,6 +6,7 @@ Consensus Agent - Механизм консенсуса для мультиаг�
 import asyncio
 import logging
 import os
+import uuid
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone

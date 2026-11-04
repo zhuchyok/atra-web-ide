@@ -1,7 +1,7 @@
 import ast
 import logging
 import os
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 

@@ -9,6 +9,8 @@ import asyncio
 import hashlib
 import json
 import logging
+
+logger = logging.getLogger(__name__)
 import os
 import subprocess
 import sys
@@ -30,7 +32,6 @@ except ImportError:
     sys.exit(1)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-logger = logging.getLogger(__name__)
 
 REPOS = ["https://github.com/asgeirtj/system_prompts_leaks.git"]
 

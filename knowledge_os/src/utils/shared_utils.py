@@ -34,7 +34,7 @@ def get_msk_now() -> datetime:
     except (ImportError, Exception):
         # Fallback к UTC+3 (без timezone)
         # Просто добавляем 3 часа к UTC
-        from datetime import timedelta, timezone
+        from datetime import timedelta
 
         from src.shared.utils.datetime_utils import get_utc_now
 

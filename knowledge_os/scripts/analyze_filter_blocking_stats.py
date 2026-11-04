@@ -14,7 +14,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import logging
 
 import pandas as pd
-
 from scripts.backtest_5coins_intelligent import (
     FEE,
     RISK_PER_TRADE,
@@ -23,6 +22,7 @@ from scripts.backtest_5coins_intelligent import (
     get_symbol_tp_sl_multipliers,
     load_yearly_data,
 )
+
 from src.signals.risk import get_dynamic_sl_level
 from src.utils.shared_utils import get_dynamic_tp_levels
 
@@ -292,7 +292,7 @@ def check_microstructure_with_params(df, i, params):
             ):
                 return True
 
-        support_absorption = [l for l in absorption_levels if l["type"] == "support"]
+        support_absorption = [line for line in absorption_levels if line["type"] == "support"]
         for level in support_absorption:
             distance_pct = abs(current_price - level["price"]) / current_price * 100
             if (

@@ -15,6 +15,8 @@ from pathlib import Path
 # Добавляем корневую директорию в путь
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from typing import Dict, List
+
 from config import DATABASE
 from src.database.query_profiler import QueryProfiler, get_query_profiler
 

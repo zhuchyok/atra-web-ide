@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional
 import asyncpg
 import jwt
 from cryptography.fernet import Fernet
+from fastapi import HTTPException
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

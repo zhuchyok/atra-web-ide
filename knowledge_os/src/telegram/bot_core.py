@@ -8,7 +8,6 @@ import sys
 import time
 from types import SimpleNamespace
 
-from telegram import BotCommand, Update
 from telegram.ext import (
     ApplicationBuilder,
     CallbackQueryHandler,
@@ -16,6 +15,8 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+
+from telegram import BotCommand, Update
 
 # Импорты из существующих модулей
 # (unused imports removed)

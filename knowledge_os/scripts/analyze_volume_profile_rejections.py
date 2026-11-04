@@ -1,5 +1,4 @@
 
-logger = logging.getLogger(__name__)
 #!/usr/bin/env python3
 """
 🔍 АНАЛИЗ ОТКЛОНЕНИЙ VOLUME PROFILE ФИЛЬТРА
@@ -7,6 +6,8 @@ logger = logging.getLogger(__name__)
 """
 
 import logging
+
+logger = logging.getLogger(__name__)
 import os
 import sys
 import traceback
@@ -20,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Импорты после добавления пути
 from scripts.backtest_5coins_intelligent import TEST_SYMBOLS, load_yearly_data
+
 from src.analysis.volume_profile import (
     VolumeProfileAnalyzer,  # pylint: disable=import-outside-toplevel
 )

@@ -1,12 +1,13 @@
 import logging
 from datetime import datetime
 
+from telegram.error import TelegramError
+from telegram.ext import ContextTypes
+
 # Импорты из наших модулей
 from src.database.db import Database
 from src.shared.utils.datetime_utils import get_utc_now
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.error import TelegramError
-from telegram.ext import ContextTypes
 
 try:
     from src.execution.exchange_api import get_current_price_robust

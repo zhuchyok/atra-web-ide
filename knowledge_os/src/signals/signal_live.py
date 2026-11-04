@@ -1526,6 +1526,7 @@ except ImportError as e:
 # Инициализация расширенных защитных механизмов
 try:
     from scripts.recovery.emergency_response import EmergencyResponseSystem
+
     from src.filters.multi_timeframe import MultiTimeframeConfirmer
     from src.filters.volume_spike import VolumeSpikeDetector
 

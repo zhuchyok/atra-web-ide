@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 
 import streamlit as st
-
 from database_service import fetch_data, run_query
 
 BRANCH = "auto/dev-loop"

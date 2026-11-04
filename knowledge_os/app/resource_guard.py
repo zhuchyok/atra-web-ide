@@ -1,7 +1,8 @@
 import logging
 import os
+from typing import Any, Dict, Tuple
+
 import psutil
-from typing import Dict, Any, Tuple
 
 logger = logging.getLogger("ResourceGuard")
 

@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 WORKER = ROOT / "knowledge_os" / "app" / "telegram_notifications_worker.py"
 

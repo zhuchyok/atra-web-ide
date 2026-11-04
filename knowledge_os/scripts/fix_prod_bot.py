@@ -45,7 +45,7 @@ def check_bot_status():
     )
     if stdout.strip():
         print(stdout)
-        process_count = len([l for l in stdout.strip().split("\n") if l.strip()])
+        process_count = len([line for line in stdout.strip().split("\n") if line.strip()])
         print(f"\nКоличество процессов: {process_count}")
     else:
         print("❌ Процессы не найдены - бот не запущен!")

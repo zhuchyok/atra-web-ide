@@ -1,6 +1,7 @@
 """Tests for rest_api.py /api/health/all endpoint."""
 
 import json
+
 import pytest
 
 
@@ -45,16 +46,18 @@ class TestHealthAll:
 
     def test_redis_check_type(self):
         """Redis check should return dict with status."""
-        from app.rest_api import _check_redis
         import asyncio
+
+        from app.rest_api import _check_redis
         result = asyncio.run(_check_redis())
         assert isinstance(result, dict)
         assert "status" in result
 
     def test_postgres_check_type(self):
         """Postgres check should return dict with status."""
-        from app.rest_api import _check_postgres
         import asyncio
+
+        from app.rest_api import _check_postgres
         result = asyncio.run(_check_postgres())
         assert isinstance(result, dict)
         assert "status" in result

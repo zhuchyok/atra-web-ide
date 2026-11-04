@@ -603,6 +603,8 @@ class ServiceMonitor:
     # [SINGULARITY 25.1] Retry logic for failed tasks (Igor & Roman)
     async def retry_failed_tasks(self, limit: int = 11):
         """Находит последние проваленные задачи и перезапускает их."""
+        from app.db_pool import get_pool
+
         pool = await get_pool()
         async with pool.acquire() as conn:
             # Находим задачи с таймаутами или ошибками связи

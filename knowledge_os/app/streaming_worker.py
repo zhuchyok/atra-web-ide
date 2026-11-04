@@ -21,7 +21,6 @@ from typing import Any, Dict, Optional
 sys.path.insert(0, "/root/knowledge_os/src")
 
 import asyncpg
-
 from infrastructure.streaming import (
     EventConsumer,
     EventProducer,

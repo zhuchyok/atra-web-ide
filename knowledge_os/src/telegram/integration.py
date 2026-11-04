@@ -13,9 +13,10 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
+from telegram.ext import ContextTypes
+
 from src.shared.utils.datetime_utils import get_utc_now
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ContextTypes
 
 logger = logging.getLogger(__name__)
 

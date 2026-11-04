@@ -187,7 +187,7 @@ class StaticLevelsDetector:
 
     def get_nearest_support(self, price: float, levels: List[Dict]) -> Optional[float]:
         """Находит ближайший уровень поддержки (ниже текущей цены)"""
-        supports = [l["price"] for l in levels if l["price"] < price]
+        supports = [line["price"] for line in levels if line["price"] < price]
         if not supports:
             return None
         # Ближайший уровень поддержки - это максимальный из тех, что ниже цены
@@ -195,7 +195,7 @@ class StaticLevelsDetector:
 
     def get_nearest_resistance(self, price: float, levels: List[Dict]) -> Optional[float]:
         """Находит ближайший уровень сопротивления (выше текущей цены)"""
-        resistances = [l["price"] for l in levels if l["price"] > price]
+        resistances = [line["price"] for line in levels if line["price"] > price]
         if not resistances:
             return None
         # Ближайший уровень сопротивления - это минимальный из тех, что выше цены

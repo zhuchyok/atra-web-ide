@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 AI_CORE = ROOT / "knowledge_os" / "app" / "ai_core.py"
 

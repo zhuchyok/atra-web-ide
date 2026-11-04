@@ -10,8 +10,8 @@ APP_DIR = ROOT / "app"
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
-from medic.watchdog import Watchdog, Incident
-from medic.repair import RepairToolkit, PROTECTED_FILES
+from medic.repair import PROTECTED_FILES, RepairToolkit
+from medic.watchdog import Incident, Watchdog
 
 
 def test_medic_signatures_classification():

@@ -8,11 +8,12 @@
 import logging
 import sqlite3
 
+from telegram.ext import ContextTypes
+
 from config import ATRA_ENV, DATABASE
 from src.database.db import Database
 from src.shared.utils.datetime_utils import get_utc_now
 from telegram import Update
-from telegram.ext import ContextTypes
 
 try:
     from src.telegram.utils import safe_format_price

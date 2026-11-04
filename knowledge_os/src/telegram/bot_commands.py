@@ -8,12 +8,13 @@ import logging
 import os
 from datetime import datetime, timedelta
 
+from telegram.ext import ContextTypes
+
 from src.core.state import signals_log_path
 from src.database.db import Database
 from src.shared.utils.datetime_utils import get_utc_now
 from src.telegram.handlers import start_accept_button_countdown
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ContextTypes
 
 # Импорты из наших модулей
 try:

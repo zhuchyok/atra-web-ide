@@ -8,13 +8,13 @@ Log Scanner — мониторинг Docker логов и отправка ош�
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
 import re
 import subprocess
 import time
-import hashlib
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set
@@ -124,7 +124,14 @@ IGNORE_PATTERNS = [
     re.compile(r"RAG retrieval превысил таймаут"),
     re.compile(r"продолжаем без контекста"),
     re.compile(r'terminating background worker "parallel worker"'),
-    re.compile(r"Ollama embed failed after"),
+    # Guard refusal is success — do not open a fix loop on the lock.
+    re.compile(r"\[SOURCE_GUARD\]"),
+    re.compile(r"SOURCE_GUARD:"),
+    re.compile(r"\[RATE_LIMIT\] Throttled"),
+    re.compile(r"Ошибка отправки в Victoria"),
+    # visual-search 404 when nomic is not on the probed host.
+    re.compile(r"Ollama embed failed(?::| after)"),
+    re.compile(r'model ["\']nomic-embed-text["\'] not found'),
     re.compile(r"\[OLLAMA-DIRECT\] Failed to call Ollama"),
     re.compile(r"\[DISTILLATION\] Failed to get response"),
     re.compile(r"\[DISTILLATION\] Failed to parse wisdom"),
@@ -140,6 +147,112 @@ IGNORE_PATTERNS = [
     re.compile(r"\[LOOP-BREAKER\]"),
     re.compile(r'role "postgres" does not exist'),
 ]
+
+try:
+    from source_guard import PROTECTED_SOURCE_PREFIXES as _PROTECTED_PREFIXES
+except ImportError:  # pragma: no cover — same prefixes as source_guard
+    _PROTECTED_PREFIXES = (
+        "knowledge_os/app/",
+        "src/agents/",
+        "backend/app/",
+        "src/api/",
+        "src/core/",
+        "src/middleware/",
+        "knowledge_os/scripts/",
+    )
+
+_FILE_IN_LOG = re.compile(
+    r"""(?:File\s+")([^"]+\.py)|(?:/workspace/atra-web-ide/|/app/)([^\s:"']+\.py)""",
+    re.I,
+)
+_NOISE_MARKERS = (
+    "[SOURCE_GUARD]",
+    "SOURCE_GUARD:",
+    "[RATE_LIMIT] Throttled",
+    "Ошибка отправки в Victoria",
+    "nomic-embed-text",
+)
+_RUNBOOK_MARKERS = (
+    "connection refused",
+    "connectionrefusederror",
+    "server busy",
+    "out of memory",
+    "out-of-memory",
+    "oom-kill",
+    "sigkill",
+)
+_PATCH_TYPES = frozenset(
+    {
+        "TypeError",
+        "SyntaxError",
+        "NameError",
+        "ImportError",
+        "ModuleNotFoundError",
+        "AttributeError",
+        "KeyError",
+        "IndentationError",
+    }
+)
+
+
+def extract_code_path(message: str) -> str:
+    """Путь .py из traceback, без корня workspace/app."""
+    if not message:
+        return ""
+    m = _FILE_IN_LOG.search(message)
+    if not m:
+        return ""
+    raw = (m.group(1) or m.group(2) or "").replace("\\", "/")
+    for prefix in ("/workspace/atra-web-ide/", "/app/"):
+        if raw.startswith(prefix):
+            raw = raw[len(prefix) :]
+    return raw.lstrip("/")
+
+
+def _is_protected_code_path(path: str) -> bool:
+    normalized = (path or "").replace("\\", "/").lstrip("/")
+    if not normalized:
+        return False
+    blob = f"/{normalized}"
+    return any(f"/{prefix}" in blob for prefix in _PROTECTED_PREFIXES)
+
+
+def classify_scanner_incident(container: str, error: Dict) -> str:
+    """noise | runbook | human | patch. Default human: no file = no write."""
+    msg = str((error or {}).get("message") or "")
+    et = str((error or {}).get("type") or "")
+    low = msg.lower()
+    if any(m.lower() in low for m in _NOISE_MARKERS):
+        return "noise"
+    if any(m in low for m in _RUNBOOK_MARKERS):
+        return "runbook"
+    path = extract_code_path(msg)
+    if path and _is_protected_code_path(path):
+        return "human"
+    if path and (et in _PATCH_TYPES or any(t in msg for t in _PATCH_TYPES)):
+        return "patch"
+    return "human"
+
+
+def build_scanner_goal(container: str, error: Dict, klass: str, code_path: str = "") -> str:
+    """Goal for /run: no consilium triggers, no default 'исправь'."""
+    typ = (error or {}).get("type") or "?"
+    msg = str((error or {}).get("message") or "")[:160]
+    head = f"[LOG_SCANNER] class={klass} container={container} type={typ}."
+    if klass == "runbook":
+        return (
+            f"{head} Ops signal, not a code change. "
+            f"If a known runbook exists (pin/kickstart), name it. Else escalate to human. Msg: {msg}"
+        )
+    if klass == "patch":
+        return (
+            f"{head} file={code_path}. Propose a patch only via write_file with SOURCE_GUARD. "
+            f"Do not call autonomous-code. Do not git_push. Do not touch src/agents. Msg: {msg}"
+        )
+    return (
+        f"{head} Do not write files. Short: what broke and whether a human is needed. Msg: {msg}"
+    )
+
 
 # Containers to never scan (avoid self-referential loops)
 SKIP_CONTAINERS = {
@@ -348,25 +461,31 @@ class LogScanner:
         self._task_timestamps.append(now)
         return True
 
-    async def send_to_victoria(self, container: str, error: Dict) -> bool:
+    async def send_to_victoria(
+        self,
+        container: str,
+        error: Dict,
+        *,
+        klass: str = "human",
+        code_path: str = "",
+    ) -> bool:
         """Отправить ошибку в Victoria через event bus."""
+        if klass == "noise":
+            return False
         # Rate limit check
         if not self._check_rate_limit():
             return False
 
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                # Send via /run endpoint with error context
-                # [v149.55d] без слова «Проанализируй» — оно триггерит
-                # consilium-классификатор (подстрока «анализ») и каждая
-                # ошибка сканера запускала консилиум-дебат на 3 агента
+                # [v149.55d] без «Проанализируй» — consilium.
+                # [v150.89] без «Исправь» — класс сигнала, не автопатч.
                 payload = {
-                    "goal": f"[LOG_SCANNER] Обнаружена ошибка в контейнере {container}. "
-                            f"Тип: {error['type']}. "
-                            f"Сообщение: {error['message'][:200]}. "
-                            f"Исправь ошибку или сообщи, если требуется вмешательство человека.",
+                    "goal": build_scanner_goal(container, error, klass, code_path),
                     "context": {
                         "source": "log_scanner",
+                        "class": klass,
+                        "code_path": code_path,
                         "container": container,
                         "error_type": error["type"],
                         "error_message": error["message"],
@@ -423,16 +542,22 @@ class LogScanner:
             if self.dedup.is_duplicate(container, error_hash):
                 continue
 
+            klass = classify_scanner_incident(container, error)
+            code_path = extract_code_path(error.get("message") or "")
+            if klass == "noise":
+                continue
+
             # New error found!
             errors_found += 1
             self.error_count += 1
 
             logger.warning(
-                f"🔍 [LOG_SCANNER] {container}: {error['type']}: {error['message'][:100]}"
+                f"🔍 [LOG_SCANNER] class={klass} {container}: {error['type']}: {error['message'][:100]}"
             )
 
-            # Send to Victoria
-            await self.send_to_victoria(container, error)
+            await self.send_to_victoria(
+                container, error, klass=klass, code_path=code_path
+            )
 
         return errors_found
 

@@ -511,7 +511,6 @@ class EarlyWarningSystem:
             if not critical_warnings:
                 logger.info("ℹ️ [EARLY WARNING] Нет критичных предупреждений для эскалации")
                 return []
-                logger.critical(f"🚨 [CRITICAL] {warning.description}")
 
             # Отправка уведомлений в Telegram и/или Email при настройке env
             if critical_warnings:

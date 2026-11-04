@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 PERPETUAL_EVOLUTION = ROOT / "knowledge_os" / "app" / "perpetual_evolution.py"
 

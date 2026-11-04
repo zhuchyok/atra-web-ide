@@ -4,6 +4,7 @@
 Автор: Сергей (DevOps) + Игорь (Backend)
 """
 
+import asyncio
 import glob
 import logging
 import os

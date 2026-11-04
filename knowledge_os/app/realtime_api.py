@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import uuid
 from collections.abc import AsyncGenerator

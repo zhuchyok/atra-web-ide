@@ -1,5 +1,4 @@
 
-logger = logging.getLogger(__name__)
 #!/usr/bin/env python3
 """One-shot priority re-distill smoke (default limit=2)."""
 
@@ -12,6 +11,7 @@ import os
 import sys
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 
 def _setup_path() -> None:

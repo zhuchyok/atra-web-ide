@@ -1463,7 +1463,7 @@ async def phase_heavy_tail(
         _eb_allowed, _eb_left = await check_budget("curiosity")
         if not _eb_allowed:
             logger.warning("🚫 Curiosity: error budget исчерпан — пропуск фазы (%s)", _eb_left)
-            raise RuntimeError(f"error_budget_exhausted:curiosity")
+            raise RuntimeError("error_budget_exhausted:curiosity")
         curiosity = get_curiosity_engine()
         gap_result = await curiosity.scan_for_gaps()
         logger.info("  %s", gap_result)

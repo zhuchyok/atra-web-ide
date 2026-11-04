@@ -29,8 +29,9 @@ async def process_task(goal: str) -> str:
 
 async def main():
     """Main loop - read from queue"""
-    import redis
     import time
+
+    import redis
 
     REDIS_URL = os.getenv("REDIS_URL", "redis://knowledge_os_redis:6379/0")
     r = redis.from_url(REDIS_URL, decode_responses=True)

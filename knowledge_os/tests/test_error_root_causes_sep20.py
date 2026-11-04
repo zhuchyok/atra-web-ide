@@ -4,7 +4,6 @@ from pathlib import Path
 
 from app.available_models_scanner import _skip_as_ollama_hands
 
-
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "knowledge_os" / "app"
 

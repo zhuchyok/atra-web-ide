@@ -1,5 +1,4 @@
 
-logger = logging.getLogger(__name__)
 #!/usr/bin/env python3
 """
 Отправляет оперативный risk-отчёт в Telegram.
@@ -13,6 +12,8 @@ import argparse
 import asyncio
 import json
 import logging
+
+logger = logging.getLogger(__name__)
 import sys
 from pathlib import Path
 

@@ -161,13 +161,8 @@ def get_symbol_specific_parameters(
             "rsi_oversold": 40,
             "rsi_overbought": 60,
             "trend_strength": 0.15,
-            "quality_score": 0.6,
-            "momentum_threshold": -5.0,  # ✅ Пересчитано: 0.7 (было 0.7)
-            "rsi_oversold": 40,  # Фиксировано
-            "rsi_overbought": 60,  # Фиксировано
-            "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.65,  # ✅ Пересчитано: 0.65 (было 0.72)
             "momentum_threshold": -5.0,  # Фиксировано
+            "quality_score": 0.65,  # Фиксировано
             # Результаты (13.12.2025, переоптимизация): return=+0.71%, Sharpe=+2.000, WinRate=70.6%
         },
         "ETHUSDT": {
@@ -176,11 +171,6 @@ def get_symbol_specific_parameters(
             "rsi_overbought": 60,
             "trend_strength": 0.15,
             "quality_score": 0.6,
-            "momentum_threshold": -5.0,  # ✅ Пересчитано: 0.7 (было 0.6)
-            "rsi_oversold": 40,  # Фиксировано
-            "rsi_overbought": 60,  # Фиксировано
-            "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.65,  # ✅ Пересчитано: 0.65 (было 0.7)
             "momentum_threshold": -5.0,  # Фиксировано
             # Результаты (13.12.2025, переоптимизация): return=+0.81%, Sharpe=+2.000, WinRate=76.1%
         },
@@ -190,11 +180,6 @@ def get_symbol_specific_parameters(
             "rsi_overbought": 60,
             "trend_strength": 0.15,
             "quality_score": 0.6,
-            "momentum_threshold": -5.0,  # ✅ Пересчитано: 0.6 (было 0.3)
-            "rsi_oversold": 40,  # Фиксировано
-            "rsi_overbought": 60,  # Фиксировано
-            "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.72,  # ✅ Пересчитано: 0.72 (было 0.6)
             "momentum_threshold": -5.0,  # Фиксировано
             # Результаты (13.12.2025, переоптимизация): return=+1.76%, Sharpe=+2.000, WinRate=87.1%
         },
@@ -204,11 +189,6 @@ def get_symbol_specific_parameters(
             "rsi_overbought": 60,
             "trend_strength": 0.15,
             "quality_score": 0.6,
-            "momentum_threshold": -5.0,  # ✅ Пересчитано: 0.7 (было 0.4)
-            "rsi_oversold": 40,  # Фиксировано
-            "rsi_overbought": 60,  # Фиксировано
-            "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.7,  # ✅ Пересчитано: 0.7 (было 0.65)
             "momentum_threshold": -5.0,  # Фиксировано
             # Результаты (13.12.2025, переоптимизация): return=+0.93%, Sharpe=+2.000, WinRate=76.1%
         },
@@ -218,11 +198,6 @@ def get_symbol_specific_parameters(
             "rsi_overbought": 60,
             "trend_strength": 0.15,
             "quality_score": 0.6,
-            "momentum_threshold": -5.0,  # ✅ Пересчитано: 0.4 (было 0.5)
-            "rsi_oversold": 40,  # Фиксировано
-            "rsi_overbought": 60,  # Фиксировано
-            "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.72,  # ✅ Пересчитано: 0.72 (было 0.68)
             "momentum_threshold": -5.0,  # Фиксировано
             # Результаты (13.12.2025, переоптимизация): return=+0.69%, Sharpe=+2.000, WinRate=73.8%
         },
@@ -233,11 +208,6 @@ def get_symbol_specific_parameters(
             "rsi_overbought": 60,
             "trend_strength": 0.15,
             "quality_score": 0.6,
-            "momentum_threshold": -5.0,  # ✅ Пересчитано: 0.7 (было 0.4)
-            "rsi_oversold": 40,  # Фиксировано
-            "rsi_overbought": 60,  # Фиксировано
-            "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.65,  # ✅ Пересчитано: 0.65 (было 0.7)
             "momentum_threshold": -5.0,  # Фиксировано
             # Результаты (13.12.2025, переоптимизация): return=+0.69%, Sharpe=+2.000, WinRate=77.6%
         },
@@ -247,11 +217,6 @@ def get_symbol_specific_parameters(
             "rsi_overbought": 60,
             "trend_strength": 0.15,
             "quality_score": 0.6,
-            "momentum_threshold": -5.0,  # ✅ Пересчитано: 0.7 (было 0.4)
-            "rsi_oversold": 40,  # Фиксировано
-            "rsi_overbought": 60,  # Фиксировано
-            "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.65,  # ✅ Пересчитано: 0.65 (было 0.72)
             "momentum_threshold": -5.0,  # Фиксировано
             # Результаты (13.12.2025, переоптимизация): return=+0.98%, Sharpe=+2.000, WinRate=80.6%
         },
@@ -261,11 +226,6 @@ def get_symbol_specific_parameters(
             "rsi_overbought": 60,
             "trend_strength": 0.15,
             "quality_score": 0.6,
-            "momentum_threshold": -5.0,  # ✅ Пересчитано: 0.7 (было 0.6)
-            "rsi_oversold": 40,  # Фиксировано
-            "rsi_overbought": 60,  # Фиксировано
-            "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.65,  # ✅ Пересчитано: 0.65 (было 0.6)
             "momentum_threshold": -5.0,  # Фиксировано
             # Результаты (13.12.2025, переоптимизация): return=+0.51%, Sharpe=+2.000, WinRate=75.9%
         },
@@ -275,11 +235,6 @@ def get_symbol_specific_parameters(
             "rsi_overbought": 60,
             "trend_strength": 0.15,
             "quality_score": 0.6,
-            "momentum_threshold": -5.0,  # ✅ Пересчитано: 0.7 (без изменений)
-            "rsi_oversold": 40,  # Фиксировано
-            "rsi_overbought": 60,  # Фиксировано
-            "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.65,  # ✅ Пересчитано: 0.65 (было 0.6)
             "momentum_threshold": -5.0,  # Фиксировано
             # Результаты (13.12.2025, переоптимизация): return=-0.25%, Sharpe=-2.000, WinRate=69.8%
         },
@@ -289,11 +244,6 @@ def get_symbol_specific_parameters(
             "rsi_overbought": 60,
             "trend_strength": 0.15,
             "quality_score": 0.6,
-            "momentum_threshold": -5.0,  # ✅ Пересчитано: 0.7 (было 0.6)
-            "rsi_oversold": 40,  # Фиксировано
-            "rsi_overbought": 60,  # Фиксировано
-            "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.7,  # ✅ Пересчитано: 0.7 (было 0.65)
             "momentum_threshold": -5.0,  # Фиксировано
             # Результаты (13.12.2025, переоптимизация): return=+0.31%, Sharpe=+2.000, WinRate=74.6%
         },
@@ -304,11 +254,6 @@ def get_symbol_specific_parameters(
             "rsi_overbought": 60,
             "trend_strength": 0.15,
             "quality_score": 0.6,
-            "momentum_threshold": -5.0,  # ✅ Пересчитано: 0.7
-            "rsi_oversold": 40,  # Фиксировано
-            "rsi_overbought": 60,  # Фиксировано
-            "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.6,  # ✅ Пересчитано: 0.6
             "momentum_threshold": -5.0,  # Фиксировано
             # Результаты (13.12.2025, переоптимизация): return=+0.25%, Sharpe=+2.000, WinRate=73.6%
         },
@@ -317,13 +262,8 @@ def get_symbol_specific_parameters(
             "rsi_oversold": 40,
             "rsi_overbought": 60,
             "trend_strength": 0.15,
-            "quality_score": 0.6,
-            "momentum_threshold": -5.0,  # ✅ Пересчитано: 0.5
-            "rsi_oversold": 40,  # Фиксировано
-            "rsi_overbought": 60,  # Фиксировано
-            "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.72,  # ✅ Пересчитано: 0.72
             "momentum_threshold": -5.0,  # Фиксировано
+            "quality_score": 0.72,  # Фиксировано
             # Результаты (13.12.2025, переоптимизация): return=+0.61%, Sharpe=+2.000, WinRate=73.5%
         },
         "UNIUSDT": {
@@ -331,13 +271,8 @@ def get_symbol_specific_parameters(
             "rsi_oversold": 40,
             "rsi_overbought": 60,
             "trend_strength": 0.15,
-            "quality_score": 0.6,
-            "momentum_threshold": -5.0,  # ✅ Пересчитано: 0.6
-            "rsi_oversold": 40,  # Фиксировано
-            "rsi_overbought": 60,  # Фиксировано
-            "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.72,  # ✅ Пересчитано: 0.72
             "momentum_threshold": -5.0,  # Фиксировано
+            "quality_score": 0.72,  # Фиксировано
             # Результаты (13.12.2025, переоптимизация): return=+0.14%, Sharpe=+2.000, WinRate=76.7%
         },
         "NEARUSDT": {
@@ -346,11 +281,6 @@ def get_symbol_specific_parameters(
             "rsi_overbought": 60,
             "trend_strength": 0.15,
             "quality_score": 0.6,
-            "momentum_threshold": -5.0,  # ✅ Пересчитано: 0.4
-            "rsi_oversold": 40,  # Фиксировано
-            "rsi_overbought": 60,  # Фиксировано
-            "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.72,  # ✅ Пересчитано: 0.72
             "momentum_threshold": -5.0,  # Фиксировано
             # Результаты (13.12.2025, переоптимизация): return=+0.16%, Sharpe=+2.000, WinRate=80.2%
         },
@@ -359,7 +289,6 @@ def get_symbol_specific_parameters(
             "rsi_oversold": 40,  # Фиксировано
             "rsi_overbought": 60,  # Фиксировано
             "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.7,  # ✅ Пересчитано: 0.7
             "momentum_threshold": -5.0,  # Фиксировано
             # Результаты (пересчет 30.11.2025): return=-0.01%, Sharpe=-0.00
         },
@@ -386,13 +315,8 @@ def get_symbol_specific_parameters(
             "rsi_oversold": 40,
             "rsi_overbought": 60,
             "trend_strength": 0.15,
-            "quality_score": 0.6,
-            "momentum_threshold": -5.0,  # ✅ Пересчитано: 0.7
-            "rsi_oversold": 40,  # Фиксировано
-            "rsi_overbought": 60,  # Фиксировано
-            "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.7,  # ✅ Пересчитано: 0.7
             "momentum_threshold": -5.0,  # Фиксировано
+            "quality_score": 0.7,  # Фиксировано
             # Результаты (13.12.2025, переоптимизация): return=-3.43%, Sharpe=-2.000, WinRate=73.0%
         },
         "FETUSDT": {
@@ -401,11 +325,6 @@ def get_symbol_specific_parameters(
             "rsi_overbought": 60,
             "trend_strength": 0.15,
             "quality_score": 0.65,
-            "momentum_threshold": -5.0,  # ✅ Пересчитано: 0.7
-            "rsi_oversold": 40,  # Фиксировано
-            "rsi_overbought": 60,  # Фиксировано
-            "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.72,  # ✅ Пересчитано: 0.72
             "momentum_threshold": -5.0,  # Фиксировано
             # Результаты (13.12.2025): return=-16.06%, Sharpe=-0.030, WinRate=80.4%
         },
@@ -415,11 +334,6 @@ def get_symbol_specific_parameters(
             "rsi_overbought": 60,
             "trend_strength": 0.15,
             "quality_score": 0.72,
-            "momentum_threshold": -5.0,  # ✅ Пересчитано: 0.4
-            "rsi_oversold": 40,  # Фиксировано
-            "rsi_overbought": 60,  # Фиксировано
-            "trend_strength": 0.15,  # Фиксировано
-            "quality_score": 0.7,  # ✅ Пересчитано: 0.7
             "momentum_threshold": -5.0,  # Фиксировано
             # Результаты (13.12.2025): return=+114.56%, Sharpe=+0.306, WinRate=78.4%
         },
@@ -431,11 +345,6 @@ def get_symbol_specific_parameters(
             "rsi_overbought": 60,
             "trend_strength": 0.15,
             "quality_score": 0.6,
-            "momentum_threshold": -5.0,  # ✅ Оптимизировано: 0.6 (было 0.4)
-            "rsi_oversold": 40,
-            "rsi_overbought": 60,
-            "trend_strength": 0.15,
-            "quality_score": 0.7,
             "momentum_threshold": -5.0,
             # Результаты (13.12.2025, переоптимизация): return=-0.38%, Sharpe=-2.000, WinRate=66.7%
         },
@@ -444,7 +353,6 @@ def get_symbol_specific_parameters(
             "rsi_oversold": 40,
             "rsi_overbought": 60,
             "trend_strength": 0.15,
-            "quality_score": 0.65,
             "momentum_threshold": -5.0,
             # Результаты (пересчет 30.11.2025): return=-0.11%, Sharpe=-0.01
         },

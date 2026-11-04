@@ -245,7 +245,7 @@ async def get_cache_and_context(
     images: Optional[list] = None
 ) -> Tuple[Optional[str], str]:
     """Check cache and load RAG context in parallel."""
-    from ai_core import _get_knowledge_context, _get_cache_manager
+    from ai_core import _get_cache_manager, _get_knowledge_context
     cache = _get_cache_manager(category)
 
     tasks = []
@@ -322,6 +322,7 @@ import os as _os
 from datetime import datetime as _datetime
 from typing import Optional as _Optional
 
+
 async def run_smart_agent_async_v2(
     prompt: str,
     expert_name: str = "Виктория",
@@ -343,10 +344,18 @@ async def run_smart_agent_async_v2(
 
     try:
         from ai_core import (
-            _get_db_pool, _get_local_router, _get_cache_manager,
-            audit_efficiency, _build_error_response, _get_expert_id,
-            _normalize_output_for_user, _run_local_llm, _run_cloud_agent_async,
-            _get_knowledge_context, get_episodic_memory_manager, get_distillation_engine
+            _build_error_response,
+            _get_cache_manager,
+            _get_db_pool,
+            _get_expert_id,
+            _get_knowledge_context,
+            _get_local_router,
+            _normalize_output_for_user,
+            _run_cloud_agent_async,
+            _run_local_llm,
+            audit_efficiency,
+            get_distillation_engine,
+            get_episodic_memory_manager,
         )
     except ImportError:
         # Fallback to original

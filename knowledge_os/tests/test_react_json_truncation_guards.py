@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 REACT_AGENT = ROOT / "knowledge_os" / "app" / "react_agent.py"
 EXPERT_WORKER = ROOT / "knowledge_os" / "app" / "expert_worker.py"

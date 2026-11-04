@@ -2,13 +2,13 @@
 """Victoria Worker - processes code tasks from PostgreSQL queue (not Redis)"""
 
 import asyncio
-import redis
 import json
-import aiohttp
 import os
 import sys
-import asyncpg
 
+import aiohttp
+import asyncpg
+import redis
 
 POSTGRES_URL = os.getenv("POSTGRES_DIRECT_URL", "postgresql://admin:secret@knowledge_postgres:5432/knowledge_os")
 REDIS_URL = os.getenv("REDIS_URL", "redis://knowledge_os_redis:6379/0")
@@ -79,12 +79,13 @@ async def process_task(conn, goal: str, task_id: str):
                     print(f"Done {task_id} (fallback, DB updated)", flush=True)
                     return
     except Exception as e:
+        error_msg = str(e)
         print(f"Fallback error: {e}", flush=True)
 
     await conn.execute(
         "UPDATE tasks SET status = 'failed', result = $2, updated_at = NOW() WHERE id = $1",
         task_id,
-        str(e)
+        error_msg
     )
 
 

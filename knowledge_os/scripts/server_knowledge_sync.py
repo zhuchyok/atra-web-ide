@@ -135,7 +135,6 @@ class ServerKnowledgeSync:
         # 3. Define Hierarchy
         hierarchy_data = {
             "Виктория": {"level": 0, "parent": None, "dept": "Management"},
-            "Виктория": {"level": 0, "parent": None, "dept": "Management"},
             "Дмитрий": {"level": 1, "parent": "Виктория", "dept": "ML/AI"},
             "Мария": {"level": 1, "parent": "Виктория", "dept": "Risk Management"},
             "Сергей": {"level": 1, "parent": "Виктория", "dept": "DevOps/Infra"},

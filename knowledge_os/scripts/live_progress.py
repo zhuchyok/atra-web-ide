@@ -51,7 +51,7 @@ def show_progress():
 
         if important:
             return "\n".join(important[-15:])
-        return "\n".join([l.rstrip() for l in lines[-10:]])
+        return "\n".join([line.rstrip() for line in lines[-10:]])
     except Exception as e:
         return f"❌ Ошибка: {e}"
 

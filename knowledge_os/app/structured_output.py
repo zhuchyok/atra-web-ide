@@ -10,9 +10,11 @@ Usage:
 """
 
 import json
+import logging
 import os
 from typing import Any, Dict, Optional, Type
 
+import httpx
 from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger(__name__)

@@ -7,6 +7,9 @@ from datetime import datetime, timezone
 import asyncpg
 from resource_manager import acquire_resource_lock
 
+# Минимальная вероятность бага, при которой задача попадает в аудит
+MIN_BUG_PROBABILITY = 0.5
+
 # Import Code-Smell Predictor (Singularity 9.0)
 try:
     from code_smell_predictor import CodeSmellPredictor
@@ -168,7 +171,7 @@ async def run_code_audit():
                             await predictor.save_prediction(prediction)
 
                             # Фильтруем задачи по bug_probability > 0.5
-                            if bug_probability < 0.5:  # MIN_BUG_PROBABILITY = 0.5
+                            if bug_probability < MIN_BUG_PROBABILITY:
                                 print(
                                     f"⏭️ Skipping task {t['title']} (bug_probability: {bug_probability:.2f} < {MIN_BUG_PROBABILITY})"
                                 )

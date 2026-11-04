@@ -310,7 +310,7 @@ async def run_hourly_pending_checks():
 ARBITRAGE_AVAILABLE = False
 
 try:
-    from manual_trading import manual_trading  # noqa: F401; pylint: disable=unused-import
+    from manual_trading import manual_trading  # noqa: F401  # pylint: disable=unused-import
 
     MANUAL_TRADING_AVAILABLE = True
 except ImportError:

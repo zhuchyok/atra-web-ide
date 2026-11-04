@@ -16,10 +16,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Optional
 
+from telegram.ext import ContextTypes
+
 from config import ATRA_ENV, DATABASE
 from src.database.db import Database
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ContextTypes
 
 try:
     from src.core.state import signals_log_path

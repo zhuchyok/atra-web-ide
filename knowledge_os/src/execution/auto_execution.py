@@ -2,6 +2,7 @@
 Модуль для автоматического исполнения торговых сигналов на биржах.
 """
 
+import asyncio
 import logging
 from decimal import Decimal
 from typing import Any, Dict, List, Optional

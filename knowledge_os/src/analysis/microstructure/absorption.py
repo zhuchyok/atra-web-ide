@@ -161,8 +161,8 @@ class AbsorptionLevels:
                 return []
 
             # Группируем по типу
-            support_levels = [l for l in levels if l["type"] == "support"]
-            resistance_levels = [l for l in levels if l["type"] == "resistance"]
+            support_levels = [line for line in levels if line["type"] == "support"]
+            resistance_levels = [line for line in levels if line["type"] == "resistance"]
 
             clustered = []
 

@@ -18,6 +18,7 @@ os.environ["volume_profile_threshold"] = "0.6"
 import logging
 
 from scripts.backtest_5coins_intelligent import load_yearly_data, run_backtest
+
 from src.signals.filters_volume_vwap import get_vp_filter_stats, reset_vp_filter_stats
 
 logging.basicConfig(level=logging.INFO)

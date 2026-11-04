@@ -201,7 +201,7 @@ class CheckpointManager:
                             created_at=row["created_at"],
                             expires_at=row["expires_at"],
                         )
-                        self.checkpoints[checkpoint_id] = checkpoint
+                        self.checkpoints[checkpoint.checkpoint_id] = checkpoint
                         return checkpoint
             except Exception as e:
                 # TODO: Convert f-string to %s formatting for performance
@@ -249,7 +249,7 @@ class CheckpointManager:
                             created_at=row["created_at"],
                             expires_at=row["expires_at"],
                         )
-                        self.checkpoints[checkpoint_id] = checkpoint
+                        self.checkpoints[checkpoint.checkpoint_id] = checkpoint
                         return checkpoint
             except Exception as e:
                 # TODO: Convert f-string to %s formatting for performance

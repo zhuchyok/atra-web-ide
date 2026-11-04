@@ -6,10 +6,11 @@ Infrastructure layer implementation of Telegram bot.
 
 from typing import Optional
 
+from telegram.ext import Application
+
 from src.application.dto.signal_dto import SignalDTO
 from src.shared.config.settings import settings
 from telegram import Bot
-from telegram.ext import Application
 
 
 class TelegramBot:

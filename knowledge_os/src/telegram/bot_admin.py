@@ -5,10 +5,11 @@
 
 import logging
 
+from telegram.ext import ContextTypes
+
 # Импорты из наших модулей
 from src.database.db import Database
 from telegram import Update
-from telegram.ext import ContextTypes
 
 # Инициализация базы данных
 db = Database()

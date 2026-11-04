@@ -9,11 +9,11 @@ from datetime import datetime
 from functools import wraps
 
 import pandas as pd
+from telegram.error import BadRequest, TelegramError
 
 from config import TELEGRAM_CHAT_IDS
 from src.execution.exchange_api import get_symbol_precision
 from src.shared.utils.datetime_utils import get_utc_now
-from telegram.error import BadRequest, TelegramError
 
 
 async def safe_edit_message_text(query, text: str, **kwargs):

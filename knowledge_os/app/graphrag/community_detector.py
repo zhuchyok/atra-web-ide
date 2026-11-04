@@ -36,9 +36,9 @@ class CommunityDetector:
                 # 2. Строим взвешенный граф смежности
                 adj = {}
                 nodes = set()
-                for l in links:
-                    s, t = str(l["source_node_id"]), str(l["target_node_id"])
-                    w = float(l["strength"])
+                for line in links:
+                    s, t = str(line["source_node_id"]), str(line["target_node_id"])
+                    w = float(line["strength"])
                     nodes.add(s)
                     nodes.add(t)
                     if s not in adj:
@@ -63,8 +63,8 @@ class CommunityDetector:
                         if node in adj:
                             label_weights = {}
                             for neighbor, weight in adj[node]:
-                                l = labels[neighbor]
-                                label_weights[l] = label_weights.get(l, 0) + weight
+                                line = labels[neighbor]
+                                label_weights[line] = label_weights.get(line, 0) + weight
 
                             if label_weights:
                                 new_label = max(label_weights, key=label_weights.get)

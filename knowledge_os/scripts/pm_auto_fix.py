@@ -20,7 +20,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from observability.tracing import get_tracer
-
 from scripts.pm_auto_optimize import AutoOptimizer
 from scripts.pm_daily_check import ProjectManager
 

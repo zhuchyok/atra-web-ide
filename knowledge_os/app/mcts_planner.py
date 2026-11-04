@@ -5,6 +5,7 @@ Supports imaginary rollouts, backpropagation, and rollback.
 """
 
 import asyncio
+import json
 import logging
 import math
 import os

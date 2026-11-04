@@ -11,6 +11,8 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Union
 
+import pandas as pd
+
 logger = logging.getLogger(__name__)
 
 

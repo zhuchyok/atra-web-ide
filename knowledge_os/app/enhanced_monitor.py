@@ -560,8 +560,6 @@ async def run_monitoring_cycle():
 
     # Мониторинг памяти моделей
     try:
-        import os
-
         from model_memory_manager import get_memory_manager
 
         server_url = os.getenv("SERVER_LLM_URL", "http://localhost:11434")

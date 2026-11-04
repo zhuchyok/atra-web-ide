@@ -13,13 +13,13 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import pandas as pd
+from telegram.error import BadRequest, TelegramError
+from telegram.ext import ContextTypes
 
 from config import TELEGRAM_TOKEN, TELEGRAM_TOKEN_DEV, TOKEN
 from src.database.db import Database
 from src.shared.utils.datetime_utils import get_utc_now
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.error import BadRequest, TelegramError
-from telegram.ext import ContextTypes
 
 # Импорты с fallback для обратной совместимости
 try:
@@ -210,11 +210,12 @@ class LazyDB:
                 return stub
             return getattr(db_instance, name)
         except Exception as e:
+            error_text = str(e)
             logging.error("❌ Ошибка при получении атрибута %s из db: %s", name, e)
 
             # Возвращаем stub функцию
             def stub(*args, **kwargs):
-                logging.warning("⚠️ Вызов stub для %s (ошибка: %s)", name, e)
+                logging.warning("⚠️ Вызов stub для %s (ошибка: %s)", name, error_text)
                 return None
 
             return stub
@@ -1405,7 +1406,7 @@ async def notify_all(text, **kwargs):
         return False  # Возвращаем False при ошибке
 
 
-from src.telegram.utils import rate_limit_api_call, safe_delete_message, safe_edit_message_text
+from src.telegram.utils import safe_delete_message, safe_edit_message_text
 
 
 @profile
@@ -3352,7 +3353,7 @@ async def handle_close_button(query, user_data, data):
                             )
                             break
         except Exception as e:
-            logger.warning("⚠️ Ошибка обновления паттернов при закрытии: %s", e)
+            logging.warning("⚠️ Ошибка обновления паттернов при закрытии: %s", e)
 
         # Сохраняем данные
         db.save_user_data(user_id, user_data)

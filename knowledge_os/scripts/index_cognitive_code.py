@@ -15,6 +15,8 @@ import argparse
 import asyncio
 import json
 import logging
+
+logger = logging.getLogger(__name__)
 import os
 import sys
 from pathlib import Path
@@ -37,7 +39,6 @@ except ImportError as e:
     sys.exit(1)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 _docs_root = Path(os.getenv("CURATED_DOCS_DIR", str(ko_root / "docs")))

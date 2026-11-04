@@ -15,7 +15,7 @@ from pathlib import Path
 
 import httpx
 
-from medic.repair import RepairToolkit, PROTECTED_FILES, APP_DIR
+from medic.repair import APP_DIR, PROTECTED_FILES, RepairToolkit
 from medic.watchdog import Incident, Watchdog
 
 logging.basicConfig(

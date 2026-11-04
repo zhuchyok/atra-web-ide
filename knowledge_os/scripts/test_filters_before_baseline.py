@@ -166,7 +166,6 @@ def test_filters_before_baseline():
                 def patched_run_backtest(df, symbol=None, mode="soft", intelligent_system=None):
                     # Импортируем все необходимое
                     import pandas as pd
-
                     from scripts.backtest_5coins_intelligent import (
                         FEE,
                         RISK_PER_TRADE,
@@ -176,6 +175,7 @@ def test_filters_before_baseline():
                         add_technical_indicators,
                         get_symbol_tp_sl_multipliers,
                     )
+
                     from src.signals.core import soft_entry_signal
                     from src.signals.risk import get_dynamic_sl_level
                     from src.utils.shared_utils import get_dynamic_tp_levels

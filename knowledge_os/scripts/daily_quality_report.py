@@ -25,13 +25,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from sources_hub import SourcesHub  # noqa: E402
-
 from scripts.compare_sizing_performance import (  # noqa: E402
     _load_position_events,
     _load_trades,
     _match_trades,
 )
+from sources_hub import SourcesHub  # noqa: E402
+
 from src.database.db import Database  # noqa: E402
 
 

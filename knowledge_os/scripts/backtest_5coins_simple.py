@@ -5,6 +5,7 @@
 """
 
 import json
+import logging
 import os
 import sys
 import warnings
@@ -41,6 +42,8 @@ os.environ["DISABLE_EXTRA_FILTERS"] = "false"
 from src.signals.indicators import add_technical_indicators
 from src.signals.risk import get_dynamic_sl_level
 from src.utils.shared_utils import get_dynamic_tp_levels
+
+logger = logging.getLogger(__name__)
 
 # Импорт оптимизированных параметров
 try:

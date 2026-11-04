@@ -1,6 +1,7 @@
 """Tests for agent_messaging.py — Agent-to-Agent messaging layer."""
 
 import json
+
 import pytest
 from app.agent_messaging import AgentMessage
 

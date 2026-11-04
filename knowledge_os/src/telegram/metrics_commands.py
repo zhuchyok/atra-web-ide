@@ -7,11 +7,11 @@ import logging
 from datetime import datetime, timedelta
 
 from performance_metrics_calculator import get_metrics_calculator
+from telegram.ext import ContextTypes
 from trade_tracker import get_trade_tracker
 
 from src.shared.utils.datetime_utils import get_utc_now
 from telegram import Update
-from telegram.ext import ContextTypes
 
 logger = logging.getLogger(__name__)
 

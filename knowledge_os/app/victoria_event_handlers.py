@@ -6,6 +6,7 @@ Victoria Event Handlers - Обработчики событий для Victoria
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -102,23 +103,6 @@ class VictoriaEventHandlers:
         context.state = state
         # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"💾 Checkpoint создан: {state.value}")
-
-    async def handle_performance_degraded(self, event: Event) -> Dict[str, Any]:
-        """Обработчик деградации производительности (Макс/Дмитрий)"""
-        metric = event.payload.get("metric")
-        value = event.payload.get("value")
-        expert = event.payload.get("expert")
-
-        # TODO: Convert f-string to %s formatting for performance
-        logger.info(f"🚨 [AUTONOMOUS] {expert} обнаружил проблему: {metric} = {value}")
-
-        # Автоматическая постановка задачи на исправление
-        if self.victoria:
-            task_prompt = f"ЭКСТРЕННО: {expert} обнаружил деградацию {metric} до {value}. Проведи диагностику и исправь."
-            # В реальности здесь вызывается Victoria Enhanced для планирования и выполнения
-            # await self.victoria.solve(task_prompt, priority='high')
-
-        return {"status": "task_created", "expert": expert, "metric": metric}
 
     async def handle_performance_degraded(self, event: Event) -> Dict[str, Any]:
         """Обработчик деградации производительности (Макс/Дмитрий)"""

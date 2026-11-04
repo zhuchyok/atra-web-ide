@@ -284,9 +284,9 @@ class BacktestReportGenerator:
             lines.append("## 🤖 Анализ использования паттернов и индивидуальных параметров")
             lines.append("")
 
-            trades_with_params = self.trades_df[
-                self.trades_df.get("symbol_params_used", False) == True
-            ]
+            params_used = self.trades_df.get("symbol_params_used", False)
+            params_mask = params_used.eq(True) if hasattr(params_used, "eq") else params_used
+            trades_with_params = self.trades_df[params_mask]
             trades_with_patterns = self.trades_df[self.trades_df.get("patterns_analyzed", 0) > 0]
 
             if len(trades_with_params) > 0:
@@ -427,8 +427,8 @@ class BacktestReportGenerator:
             return ""
 
         lines = []
-        btc_aligned = self.trades_df[self.trades_df["btc_trend"] == True]
-        btc_opposite = self.trades_df[self.trades_df["btc_trend"] == False]
+        btc_aligned = self.trades_df[self.trades_df["btc_trend"].eq(True)]
+        btc_opposite = self.trades_df[self.trades_df["btc_trend"].eq(False)]
 
         if len(btc_aligned) > 0:
             win_rate_aligned = (btc_aligned["pnl"] > 0).sum() / len(btc_aligned) * 100

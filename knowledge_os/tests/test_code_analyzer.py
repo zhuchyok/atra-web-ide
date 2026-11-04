@@ -49,17 +49,17 @@ def standalone_func():
 
         # Проверка связей
         # 1. Наследование
-        inheritance = [l for l in analyzer.links if l.link_type == "inherits"]
+        inheritance = [line for line in analyzer.links if line.link_type == "inherits"]
         assert len(inheritance) == 1
         assert inheritance[0].source_name == "Derived"
         assert inheritance[0].target_name == "Base"
 
         # 2. Вызовы
-        calls = [l for l in analyzer.links if l.link_type == "calls"]
+        calls = [line for line in analyzer.links if line.link_type == "calls"]
         # standalone_func вызывает Derived() и d.method()
         # Derived.method вызывает print() и self.other_method()
 
-        call_targets = [l.target_name for l in calls]
+        call_targets = [line.target_name for line in calls]
         assert "print" in call_targets
         assert "self.other_method" in call_targets
         assert "Derived" in call_targets
@@ -85,8 +85,8 @@ import asyncpg as pg
         analyzer = CodeAnalyzer(base_path=os.getcwd())
         analyzer.analyze_file(test_file)
 
-        depends = [l for l in analyzer.links if l.link_type == "depends_on"]
-        targets = [l.target_name for l in depends]
+        depends = [line for line in analyzer.links if line.link_type == "depends_on"]
+        targets = [line.target_name for line in depends]
 
         assert "os" in targets
         assert "datetime.datetime" in targets

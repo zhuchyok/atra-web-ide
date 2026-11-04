@@ -195,8 +195,8 @@ class DNARefactorEngine:
             summary += f"[{e['created_at'].strftime('%H:%M')}] {e['event_type']}: {str(e['payload'])[:100]}\n"
 
         summary += "\n--- CRITICAL LOGS (Low Score/Errors) ---\n"
-        for l in logs:
-            meta = l["metadata"]
+        for log in logs:
+            meta = log["metadata"]
             if isinstance(meta, str):
                 try:
                     meta = json.loads(meta)
@@ -204,7 +204,7 @@ class DNARefactorEngine:
                     meta = {}
             error_val = meta.get("error") if isinstance(meta, dict) else "None"
             summary += (
-                f"Q: {l['user_query'][:50]} | Score: {l['feedback_score']} | Error: {error_val}\n"
+                f"Q: {log['user_query'][:50]} | Score: {log['feedback_score']} | Error: {error_val}\n"
             )
 
         return summary

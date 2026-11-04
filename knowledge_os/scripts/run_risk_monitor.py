@@ -320,6 +320,9 @@ def write_outputs(
 
     # 🆕 Экспорт метрик агентов в Prometheus формат
     try:
+        # observability.metrics может отсутствовать в окружении — тогда экспорт пропускается
+        from observability.metrics import get_agent_metrics
+
         agent_metrics = get_agent_metrics()
         agent_metrics.export_to_file()
         LOGGER.debug("✅ Метрики агентов экспортированы")

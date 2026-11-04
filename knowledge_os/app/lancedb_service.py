@@ -5,9 +5,9 @@ Provides zero-latency RAG and knowledge retrieval.
 """
 
 import asyncio
+import fcntl
 import logging
 import os
-import fcntl
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Optional

@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sys
 import time
 from datetime import datetime
@@ -21,7 +22,7 @@ except ImportError:
     web = None
 
 try:
-    from prometheus_client import Counter, Gauge, Histogram, REGISTRY
+    from prometheus_client import REGISTRY, Counter, Gauge, Histogram
 
     _PROMETHEUS_AVAILABLE = True
 except ImportError:

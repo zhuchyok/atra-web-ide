@@ -194,7 +194,7 @@ def check_microstructure_with_params(df, i, params):
             ):
                 return True
 
-        support_absorption = [l for l in absorption_levels if l["type"] == "support"]
+        support_absorption = [line for line in absorption_levels if line["type"] == "support"]
         for level in support_absorption:
             distance_pct = abs(current_price - level["price"]) / current_price * 100
             if (

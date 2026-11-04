@@ -1,4 +1,5 @@
 import re
+
 """
 Model Enhancer - Комплексная система улучшения качества и скорости моделей
 Объединяет: Self-Consistency, Speculative Decoding, Enhanced RAG, CoT, Ensemble

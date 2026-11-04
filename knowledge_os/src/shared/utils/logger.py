@@ -70,10 +70,6 @@ def setup_logging(
     # Добавляем ELK handler если включен
     if use_elk:
         try:
-            # Импортируем ELK handler
-            import os
-            import sys
-
             # Добавляем путь к app если нужно (для контейнера)
             current_dir = os.path.dirname(os.path.abspath(__file__))
             app_path = os.path.join(current_dir, "../../../app")

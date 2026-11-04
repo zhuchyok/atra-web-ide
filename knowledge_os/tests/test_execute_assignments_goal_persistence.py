@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 EXECUTE_ASSIGNMENTS = ROOT / "knowledge_os" / "app" / "execute_assignments.py"
 

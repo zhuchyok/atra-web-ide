@@ -1,6 +1,7 @@
 """Tests for self_check_system.py — container health checks."""
 
 import json
+
 import pytest
 
 

@@ -60,8 +60,8 @@ class ZoneBasedTPSLCalculator:
                 )
 
             # Находим ближайшие уровни выше и ниже цены входа
-            levels_above = [l for l in fib_levels if l.price > entry_price]
-            levels_below = [l for l in fib_levels if l.price < entry_price]
+            levels_above = [line for line in fib_levels if line.price > entry_price]
+            levels_below = [line for line in fib_levels if line.price < entry_price]
 
             if direction == "LONG":
                 # LONG: TP на уровнях сопротивления выше, SL на уровнях поддержки ниже
@@ -77,7 +77,7 @@ class ZoneBasedTPSLCalculator:
 
                 # TP2: следующий уровень сопротивления выше TP1
                 if levels_above:
-                    higher_resistances = [l for l in levels_above if l.price > tp1_price]
+                    higher_resistances = [line for line in levels_above if line.price > tp1_price]
                     if higher_resistances:
                         tp2_level = min(higher_resistances, key=lambda x: x.price)
                         tp2_price = tp2_level.price
@@ -125,7 +125,7 @@ class ZoneBasedTPSLCalculator:
 
                 # TP2: следующий уровень поддержки ниже TP1
                 if levels_below:
-                    lower_supports = [l for l in levels_below if l.price < tp1_price]
+                    lower_supports = [line for line in levels_below if line.price < tp1_price]
                     if lower_supports:
                         tp2_level = max(lower_supports, key=lambda x: x.price)
                         tp2_price = tp2_level.price

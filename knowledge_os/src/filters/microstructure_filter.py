@@ -103,7 +103,7 @@ def check_microstructure_filter(
                         break
 
             # Проверяем уровни поглощения (поддержка)
-            support_absorption = [l for l in absorption_levels if l["type"] == "support"]
+            support_absorption = [line for line in absorption_levels if line["type"] == "support"]
             near_absorption = False
             absorption_reason = None
 
@@ -154,7 +154,7 @@ def check_microstructure_filter(
                         break
 
             # Проверяем уровни поглощения (сопротивление)
-            resistance_absorption = [l for l in absorption_levels if l["type"] == "resistance"]
+            resistance_absorption = [line for line in absorption_levels if line["type"] == "resistance"]
             near_absorption = False
             absorption_reason = None
 

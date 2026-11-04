@@ -1,3 +1,11 @@
+"""Новые команды Telegram-бота (фрагмент для(commands.py_new))."""
+
+import logging
+from datetime import datetime
+
+from config import ATRA_ENV
+
+
 async def status_cmd(update, _context):
     """Показывает статус системы (упрощенный)"""
     try:

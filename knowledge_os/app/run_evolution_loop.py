@@ -18,8 +18,8 @@ INTERVAL = int(os.getenv("EVOLUTION_INTERVAL_SEC", "28800"))
 
 
 async def main():
-    from perpetual_evolution import PerpetualEvolution
     from error_budget import check_budget, record_failure, record_success
+    from perpetual_evolution import PerpetualEvolution
 
     engine = PerpetualEvolution()
 

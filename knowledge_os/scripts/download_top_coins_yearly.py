@@ -15,9 +15,8 @@ from src.shared.utils.datetime_utils import get_utc_now
 # Добавляем путь к проекту
 sys.path.append(str(Path(__file__).parent.parent))
 
-from pair_filtering import get_filtered_top_usdt_pairs_fast
-
 from data.historical_data_loader import HistoricalDataLoader
+from pair_filtering import get_filtered_top_usdt_pairs_fast
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)

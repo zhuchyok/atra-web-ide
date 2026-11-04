@@ -398,7 +398,7 @@ class FeedbackLoop:
                 container,
                 error_type,
             )
-            return [dict(l) for l in lessons]
+            return [dict(line) for line in lessons]
 
         except Exception as e:
             logger.error(f"❌ [FEEDBACK] Ошибка получения уроков: {e}")

@@ -1,5 +1,4 @@
 
-logger = logging.getLogger(__name__)
 """
 Отправляет последний отчёт daily_quality_report в Telegram.
 
@@ -13,6 +12,8 @@ import argparse
 import asyncio
 import json
 import logging
+
+logger = logging.getLogger(__name__)
 import sys
 from pathlib import Path
 from typing import Any, Dict, Optional

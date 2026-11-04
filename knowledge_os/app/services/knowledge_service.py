@@ -1,7 +1,7 @@
+import datetime as _datetime
 import json
 import logging
 import os
-import datetime as _datetime
 from typing import Dict, List, Optional
 
 import asyncpg

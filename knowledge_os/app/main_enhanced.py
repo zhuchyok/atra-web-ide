@@ -1,5 +1,4 @@
 
-logger = logging.getLogger(__name__)
 """
 Enhanced MCP Server with Multimodal Search
 Улучшенный MCP сервер с мультимодальным поиском
@@ -7,7 +6,10 @@ Enhanced MCP Server with Multimodal Search
 
 import asyncio
 import json
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 
 import asyncpg
 import httpx
@@ -269,7 +271,7 @@ async def get_logs_for_reflexion(limit: int = 10) -> str:
         )
         if not logs:
             return "No new logs to analyze."
-        return json.dumps([dict(l) for l in logs])
+        return json.dumps([dict(line) for line in logs])
 
 
 @mcp.tool()
