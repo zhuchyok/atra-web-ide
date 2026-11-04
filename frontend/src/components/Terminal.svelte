@@ -1,225 +1,247 @@
 <script>
-  import { onMount } from 'svelte'
-  import { Terminal } from 'xterm'
-  import { FitAddon } from '@xterm/addon-fit'
-  import 'xterm/css/xterm.css'
+  import { onMount } from "svelte";
+  import { Terminal } from "xterm";
+  import { FitAddon } from "@xterm/addon-fit";
+  import "xterm/css/xterm.css";
 
-  let container
-  let term
-  let fitAddon
-  let currentLine = ''
+  let container;
+  let term;
+  let fitAddon;
+  let currentLine = "";
 
   function writeln(t, msg) {
-    t.writeln('\x1b[32m' + msg + '\x1b[0m')
+    t.writeln("\x1b[32m" + msg + "\x1b[0m");
   }
 
-  let ws = null
-  let isConnected = false
-  let connectionTimeoutId = null
-  const PTY_CONNECT_TIMEOUT_MS = 10000
+  let ws = null;
+  let isConnected = false;
+  let connectionTimeoutId = null;
+  const PTY_CONNECT_TIMEOUT_MS = 10000;
 
   function clearConnectionTimeout() {
     if (connectionTimeoutId != null) {
-      clearTimeout(connectionTimeoutId)
-      connectionTimeoutId = null
+      clearTimeout(connectionTimeoutId);
+      connectionTimeoutId = null;
     }
   }
 
   async function connectPTY() {
-    clearConnectionTimeout()
+    clearConnectionTimeout();
     try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       // Используем порт 8081 для Rust Gateway и новый эндпоинт /api/terminal/ws
-      const wsUrl = `${protocol}//${window.location.hostname}:8081/api/terminal/ws`
-      console.log('Connecting to Rust Terminal:', wsUrl)
-      ws = new WebSocket(wsUrl)
+      const wsUrl = `${protocol}//${window.location.hostname}:8081/api/terminal/ws`;
+      console.log("Connecting to Rust Terminal:", wsUrl);
+      ws = new WebSocket(wsUrl);
 
       connectionTimeoutId = setTimeout(() => {
         if (ws && ws.readyState === WebSocket.CONNECTING) {
-          ws.close()
-          connectionTimeoutId = null
-          term.writeln('\r\n\x1b[31m❌ Подключение к PTY превысило время ожидания\x1b[0m')
-          term.writeln('\x1b[90mПроверьте, что Rust Gateway запущен (порт 8081). Повторить: введите help и Enter.\x1b[0m\r\n')
-          term.write('$ ')
+          ws.close();
+          connectionTimeoutId = null;
+          term.writeln(
+            "\r\n\x1b[31m❌ Подключение к PTY превысило время ожидания\x1b[0m"
+          );
+          term.writeln(
+            "\x1b[90mПроверьте, что Rust Gateway запущен (порт 8081). Повторить: введите help и Enter.\x1b[0m\r\n"
+          );
+          term.write("$ ");
         }
-      }, PTY_CONNECT_TIMEOUT_MS)
+      }, PTY_CONNECT_TIMEOUT_MS);
 
       ws.onopen = () => {
-        clearConnectionTimeout()
-        isConnected = true
-        term.writeln('\r\n\x1b[32m✅ Подключено к PTY терминалу\x1b[0m\r\n')
-        term.write('$ ')
-      }
+        clearConnectionTimeout();
+        isConnected = true;
+        term.writeln("\r\n\x1b[32m✅ Подключено к PTY терминалу\x1b[0m\r\n");
+        term.write("$ ");
+      };
 
       // Gateway отправляет бинарные кадры — декодируем, иначе xterm не отображает вывод PTY
-      ws.binaryType = 'arraybuffer'
+      ws.binaryType = "arraybuffer";
 
       ws.onmessage = (event) => {
         if (event.data instanceof ArrayBuffer) {
-          term.write(new TextDecoder().decode(event.data))
+          term.write(new TextDecoder().decode(event.data));
         } else {
-          term.write(event.data)
+          term.write(event.data);
         }
-      }
+      };
 
       ws.onerror = () => {
-        clearConnectionTimeout()
+        clearConnectionTimeout();
         if (!isConnected) {
-          term.writeln('\r\n\x1b[31m❌ Ошибка подключения к PTY\x1b[0m')
-          term.writeln('\x1b[90mПовторить: введите help и Enter\x1b[0m\r\n')
+          term.writeln("\r\n\x1b[31m❌ Ошибка подключения к PTY\x1b[0m");
+          term.writeln("\x1b[90mПовторить: введите help и Enter\x1b[0m\r\n");
         }
-        isConnected = false
-      }
+        isConnected = false;
+      };
 
       ws.onclose = () => {
-        clearConnectionTimeout()
-        isConnected = false
+        clearConnectionTimeout();
+        isConnected = false;
         if (ws && ws.readyState !== WebSocket.CLOSING) {
-          term.writeln('\r\n\x1b[33m⚠️ Соединение закрыто\x1b[0m\r\n')
+          term.writeln("\r\n\x1b[33m⚠️ Соединение закрыто\x1b[0m\r\n");
         }
-      }
+      };
     } catch (e) {
-      clearConnectionTimeout()
-      console.error('PTY connection error:', e)
-      term.writeln('\r\n\x1b[31m❌ Ошибка: ' + (e.message || 'подключение к PTY') + '\x1b[0m\r\n')
-      isConnected = false
+      clearConnectionTimeout();
+      console.error("PTY connection error:", e);
+      term.writeln(
+        "\r\n\x1b[31m❌ Ошибка: " +
+          (e.message || "подключение к PTY") +
+          "\x1b[0m\r\n"
+      );
+      isConnected = false;
     }
   }
 
   async function askVictoria(t, goal) {
-    t.writeln('\r\n\x1b[33m🤖 Victoria...\x1b[0m')
+    t.writeln("\r\n\x1b[33m🤖 Victoria...\x1b[0m");
     try {
-      const r = await fetch(`http://${window.location.hostname}:8081/api/terminal/ask`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: goal }),
-      })
-      const data = await r.json()
-      const resp = data.response || data.error || 'Нет ответа'
-      const lines = String(resp).split('\n')
+      const r = await fetch(
+        `http://${window.location.hostname}:8081/api/terminal/ask`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command: goal }),
+        }
+      );
+      const data = await r.json();
+      const resp = data.response || data.error || "Нет ответа";
+      const lines = String(resp).split("\n");
       for (const line of lines) {
-        t.writeln('\x1b[36m' + line + '\x1b[0m')
+        t.writeln("\x1b[36m" + line + "\x1b[0m");
       }
     } catch (e) {
-      t.writeln('\x1b[31mОшибка: ' + (e.message || 'нет связи с бэкендом') + '\x1b[0m')
+      t.writeln(
+        "\x1b[31mОшибка: " + (e.message || "нет связи с бэкендом") + "\x1b[0m"
+      );
     }
-    t.write('\r\n$ ')
+    t.write("\r\n$ ");
   }
 
   function runCommand(t, cmd) {
-    const trimmed = cmd.trim()
-    const isVictoriaCmd = /^v\s+/i.test(trimmed)
+    const trimmed = cmd.trim();
+    const isVictoriaCmd = /^v\s+/i.test(trimmed);
     if (isVictoriaCmd && (isConnected || !ws)) {
-      const goal = trimmed.replace(/^v\s+/i, '').trim().replace(/^["']|["']$/g, '')
-      askVictoria(t, goal)
-      return
+      const goal = trimmed
+        .replace(/^v\s+/i, "")
+        .trim()
+        .replace(/^["']|["']$/g, "");
+      askVictoria(t, goal);
+      return;
     }
     if (isConnected && ws && ws.readyState === WebSocket.OPEN) {
       // Отправляем команду через PTY
-      ws.send(cmd + '\r')
+      ws.send(cmd + "\r");
     } else {
       // Локальный режим (fallback)
-      const c = cmd.trim().toLowerCase()
-      if (c === 'clear' || c === 'cls') {
-        t.clear()
-        return
+      const c = cmd.trim().toLowerCase();
+      if (c === "clear" || c === "cls") {
+        t.clear();
+        return;
       }
-      if (c === 'help' || c === '') {
-        writeln(t, 'ATRA Web IDE Terminal (xterm.js)')
-        writeln(t, '  help, clear — команды')
-        writeln(t, '  v "задача" — спросить Victoria Agent')
-        writeln(t, '  Снаружи: bash scripts/chat_victoria.sh — интерактивный чат')
-        writeln(t, '  Подключение к PTY...')
-        connectPTY()
-        return
+      if (c === "help" || c === "") {
+        writeln(t, "ATRA Web IDE Terminal (xterm.js)");
+        writeln(t, "  help, clear — команды");
+        writeln(t, '  v "задача" — спросить Victoria Agent');
+        writeln(
+          t,
+          "  Снаружи: bash scripts/chat_victoria.sh — интерактивный чат"
+        );
+        writeln(t, "  Подключение к PTY...");
+        connectPTY();
+        return;
       }
-      writeln(t, `\x1b[33m$\x1b[0m ${cmd}`)
-      writeln(t, `\x1b[90mПодключение к PTY...\x1b[0m`)
-      connectPTY()
+      writeln(t, `\x1b[33m$\x1b[0m ${cmd}`);
+      writeln(t, `\x1b[90mПодключение к PTY...\x1b[0m`);
+      connectPTY();
     }
   }
 
   onMount(() => {
-    if (!container) return
+    if (!container) return;
     term = new Terminal({
       cursorBlink: true,
       theme: {
-        background: '#16213e',
-        foreground: '#e0e0e0',
-        cursor: '#667eea',
-        cursorAccent: '#667eea',
+        background: "#16213e",
+        foreground: "#e0e0e0",
+        cursor: "#667eea",
+        cursorAccent: "#667eea",
       },
       fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
       fontSize: 13,
-    })
-    fitAddon = new FitAddon()
-    term.loadAddon(fitAddon)
-    term.open(container)
-    fitAddon.fit()
+    });
+    fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(container);
+    fitAddon.fit();
 
-    term.writeln('')
-    writeln(term, 'ATRA Web IDE — Terminal (xterm.js)')
-    writeln(term, 'Подключение к PTY...')
+    term.writeln("");
+    writeln(term, "ATRA Web IDE — Terminal (xterm.js)");
+    writeln(term, "Подключение к PTY...");
 
     // Подключаемся к PTY
-    connectPTY()
+    connectPTY();
 
     // Отправляем resize при изменении размера
     const ro = new ResizeObserver(() => {
-      fitAddon?.fit()
+      fitAddon?.fit();
       if (ws && ws.readyState === WebSocket.OPEN) {
-        const cols = term.cols
-        const rows = term.rows
+        const cols = term.cols;
+        const rows = term.rows;
         // Наш Rust Gateway пока не обрабатывает JSON resize,
         // но мы оставляем структуру для будущего расширения
         // ws.send(JSON.stringify({ type: 'resize', cols, rows }))
       }
-    })
-    ro.observe(container)
+    });
+    ro.observe(container);
 
     term.onData((data) => {
-      const key = data
-      if (key === '\r' || key === '\n') {
+      const key = data;
+      if (key === "\r" || key === "\n") {
         // В PTY-режиме символы уже стримятся по одному — отправляем только Enter,
         // иначе вся строка уйдёт в шелл второй раз (задвоение команды)
         if (isConnected && ws && ws.readyState === WebSocket.OPEN) {
-          ws.send('\r')
+          ws.send("\r");
         } else {
-          runCommand(term, currentLine)
+          runCommand(term, currentLine);
         }
-        currentLine = ''
-        return
+        currentLine = "";
+        return;
       }
-      if (key === '\u007F' || key === '\b') {
+      if (key === "\u007F" || key === "\b") {
         if (currentLine.length > 0) {
-          currentLine = currentLine.slice(0, -1)
-          term.write('\b \b')
+          currentLine = currentLine.slice(0, -1);
+          term.write("\b \b");
         }
-        return
+        return;
       }
-      if (key >= ' ' && key <= '~' || key.length > 1) {
-        const newLine = currentLine + key
-        const isVictoria = /^v\s+/i.test(newLine)
-        currentLine = newLine
+      if ((key >= " " && key <= "~") || key.length > 1) {
+        const newLine = currentLine + key;
+        const isVictoria = /^v\s+/i.test(newLine);
+        currentLine = newLine;
         if (isConnected && ws?.readyState === WebSocket.OPEN && !isVictoria) {
-          ws.send(data)
+          ws.send(data);
         } else {
-          term.write(key)
+          term.write(key);
         }
       }
-    })
+    });
 
     return () => {
       if (ws) {
-        ws.close()
+        ws.close();
       }
-      ro.disconnect()
-      term.dispose()
-    }
-  })
+      ro.disconnect();
+      term.dispose();
+    };
+  });
 </script>
 
-<div class="terminal-wrap h-full w-full bg-atra-darker rounded overflow-hidden" bind:this={container}></div>
+<div
+  class="terminal-wrap h-full w-full bg-atra-darker rounded overflow-hidden"
+  bind:this={container}
+/>
 
 <style>
   .terminal-wrap :global(.xterm) {

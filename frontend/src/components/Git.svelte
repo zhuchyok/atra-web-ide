@@ -1,14 +1,16 @@
 <script>
-  import { onMount } from 'svelte';
-  const GATEWAY = `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:8081`;
+  import { onMount } from "svelte";
+  const GATEWAY = `http://${
+    typeof window !== "undefined" ? window.location.hostname : "localhost"
+  }:8081`;
 
   let status = { lines: [], error: null };
-  let diff = '';
-  let branch = { current: '', branches: [] };
+  let diff = "";
+  let branch = { current: "", branches: [] };
   let log = { commits: [] };
-  let commitMessage = '';
+  let commitMessage = "";
   let loading = true;
-  let activeTab = 'status';
+  let activeTab = "status";
 
   async function fetchStatus() {
     loading = true;
@@ -30,12 +32,12 @@
 
   async function fetchDiff() {
     loading = true;
-    diff = '';
+    diff = "";
     try {
       const r = await fetch(`${GATEWAY}/api/git/diff`);
       const data = await r.json();
-      if (r.ok) diff = data.stdout || '';
-      else diff = data.error || 'Not a git repo';
+      if (r.ok) diff = data.stdout || "";
+      else diff = data.error || "Not a git repo";
     } catch (e) {
       diff = e.message;
     } finally {
@@ -45,15 +47,15 @@
 
   async function fetchBranch() {
     loading = true;
-    branch = { current: '', branches: [] };
+    branch = { current: "", branches: [] };
     try {
       const r = await fetch(`${GATEWAY}/api/git/branch`);
       const data = await r.json();
       if (r.ok) {
-        branch.current = data.current || '';
+        branch.current = data.current || "";
         branch.branches = data.branches || [];
       } else {
-        branch.current = data.error || '—';
+        branch.current = data.error || "—";
       }
     } catch (e) {
       branch.current = e.message;
@@ -80,17 +82,17 @@
     if (!commitMessage.trim()) return;
     try {
       const r = await fetch(`${GATEWAY}/api/git/commit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: commitMessage.trim(), paths: null }),
       });
       const data = await r.json();
       if (r.ok && data.success) {
-        commitMessage = '';
+        commitMessage = "";
         fetchStatus();
         fetchLog();
       } else {
-        alert(data.error || data.stderr || 'Commit failed');
+        alert(data.error || data.stderr || "Commit failed");
       }
     } catch (e) {
       alert(e.message);
@@ -99,13 +101,13 @@
 
   function onTab(tab) {
     activeTab = tab;
-    if (tab === 'status') fetchStatus();
-    else if (tab === 'diff') fetchDiff();
-    else if (tab === 'branch') fetchBranch();
-    else if (tab === 'log') fetchLog();
+    if (tab === "status") fetchStatus();
+    else if (tab === "diff") fetchDiff();
+    else if (tab === "branch") fetchBranch();
+    else if (tab === "log") fetchLog();
   }
 
-  onMount(() => onTab('status'));
+  onMount(() => onTab("status"));
 </script>
 
 <div class="git-panel p-4 h-full flex flex-col bg-atra-dark text-gray-200">
@@ -115,41 +117,57 @@
 
   <div class="flex gap-2 mb-3 flex-wrap">
     <button
-      class="px-3 py-1.5 rounded text-sm transition-colors {activeTab === 'status' ? 'bg-atra-primary text-white' : 'bg-atra-accent/30 hover:bg-atra-accent/50'}"
-      on:click={() => onTab('status')}
-    >Status</button>
+      class="px-3 py-1.5 rounded text-sm transition-colors {activeTab ===
+      'status'
+        ? 'bg-atra-primary text-white'
+        : 'bg-atra-accent/30 hover:bg-atra-accent/50'}"
+      on:click={() => onTab("status")}>Status</button
+    >
     <button
-      class="px-3 py-1.5 rounded text-sm transition-colors {activeTab === 'diff' ? 'bg-atra-primary text-white' : 'bg-atra-accent/30 hover:bg-atra-accent/50'}"
-      on:click={() => onTab('diff')}
-    >Diff</button>
+      class="px-3 py-1.5 rounded text-sm transition-colors {activeTab === 'diff'
+        ? 'bg-atra-primary text-white'
+        : 'bg-atra-accent/30 hover:bg-atra-accent/50'}"
+      on:click={() => onTab("diff")}>Diff</button
+    >
     <button
-      class="px-3 py-1.5 rounded text-sm transition-colors {activeTab === 'branch' ? 'bg-atra-primary text-white' : 'bg-atra-accent/30 hover:bg-atra-accent/50'}"
-      on:click={() => onTab('branch')}
-    >Branches</button>
+      class="px-3 py-1.5 rounded text-sm transition-colors {activeTab ===
+      'branch'
+        ? 'bg-atra-primary text-white'
+        : 'bg-atra-accent/30 hover:bg-atra-accent/50'}"
+      on:click={() => onTab("branch")}>Branches</button
+    >
     <button
-      class="px-3 py-1.5 rounded text-sm transition-colors {activeTab === 'log' ? 'bg-atra-primary text-white' : 'bg-atra-accent/30 hover:bg-atra-accent/50'}"
-      on:click={() => onTab('log')}
-    >Log</button>
+      class="px-3 py-1.5 rounded text-sm transition-colors {activeTab === 'log'
+        ? 'bg-atra-primary text-white'
+        : 'bg-atra-accent/30 hover:bg-atra-accent/50'}"
+      on:click={() => onTab("log")}>Log</button
+    >
   </div>
 
   {#if loading}
     <p class="text-sm text-gray-500">Loading…</p>
-  {:else if activeTab === 'status'}
+  {:else if activeTab === "status"}
     {#if status.error}
       <p class="text-red-400 text-sm">{status.error}</p>
     {:else}
-      <pre class="text-xs font-mono overflow-auto flex-1 whitespace-pre-wrap border border-atra-accent rounded p-2 min-h-[120px]">{status.lines.length ? status.lines.join('\n') : 'working tree clean'}</pre>
+      <pre
+        class="text-xs font-mono overflow-auto flex-1 whitespace-pre-wrap border border-atra-accent rounded p-2 min-h-[120px]">{status
+          .lines.length
+          ? status.lines.join("\n")
+          : "working tree clean"}</pre>
     {/if}
-  {:else if activeTab === 'diff'}
-    <pre class="text-xs font-mono overflow-auto flex-1 whitespace-pre-wrap border border-atra-accent rounded p-2 min-h-[120px]">{diff || 'No changes'}</pre>
-  {:else if activeTab === 'branch'}
+  {:else if activeTab === "diff"}
+    <pre
+      class="text-xs font-mono overflow-auto flex-1 whitespace-pre-wrap border border-atra-accent rounded p-2 min-h-[120px]">{diff ||
+        "No changes"}</pre>
+  {:else if activeTab === "branch"}
     <p class="text-sm mb-2">Current: <strong>{branch.current}</strong></p>
     <ul class="text-sm list-disc list-inside space-y-1">
       {#each branch.branches as b}
         <li>{b}</li>
       {/each}
     </ul>
-  {:else if activeTab === 'log'}
+  {:else if activeTab === "log"}
     <ul class="text-xs font-mono overflow-auto space-y-1 min-h-[120px]">
       {#each log.commits as c}
         <li class="flex gap-2 flex-wrap">
@@ -174,8 +192,8 @@
       <button
         class="px-3 py-1.5 rounded text-sm bg-atra-primary hover:opacity-90 disabled:opacity-50"
         on:click={doCommit}
-        disabled={!commitMessage.trim()}
-      >Commit</button>
+        disabled={!commitMessage.trim()}>Commit</button
+      >
     </div>
   </div>
 </div>

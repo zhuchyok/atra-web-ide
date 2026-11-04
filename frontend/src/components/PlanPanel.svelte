@@ -1,34 +1,37 @@
 <script>
-  let goal = ''
-  let planResult = ''
-  let loading = false
-  let error = null
+  let goal = "";
+  let planResult = "";
+  let loading = false;
+  let error = null;
 
   async function fetchPlan() {
-    if (!goal.trim()) return
-    loading = true
-    error = null
-    planResult = ''
+    if (!goal.trim()) return;
+    loading = true;
+    error = null;
+    planResult = "";
     try {
-      const base = import.meta.env?.DEV ? '' : ''
+      const base = import.meta.env?.DEV ? "" : "";
       const res = await fetch(`${base}/api/chat/plan`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ goal: goal.trim() })
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || data.error || 'Ошибка запроса плана')
-      planResult = data.plan || ''
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goal: goal.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(data.detail || data.error || "Ошибка запроса плана");
+      planResult = data.plan || "";
     } catch (e) {
-      error = e.message || String(e)
+      error = e.message || String(e);
     } finally {
-      loading = false
+      loading = false;
     }
   }
 </script>
 
 <div class="h-full flex flex-col bg-atra-dark p-4">
-  <div class="p-2 border-b border-atra-accent/50 text-xs text-gray-400 uppercase tracking-wider mb-4">
+  <div
+    class="p-2 border-b border-atra-accent/50 text-xs text-gray-400 uppercase tracking-wider mb-4"
+  >
     План — только планирование (без выполнения), как в Cursor
   </div>
   <div class="flex flex-col gap-3 flex-1 min-h-0">
@@ -39,7 +42,7 @@
       class="w-full bg-atra-darker border border-atra-accent rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-atra-primary resize-none"
       rows="4"
       disabled={loading}
-    ></textarea>
+    />
     <button
       on:click={fetchPlan}
       disabled={loading || !goal.trim()}
@@ -52,14 +55,24 @@
       {/if}
     </button>
     {#if error}
-      <div class="bg-red-900/30 border border-red-700 rounded-lg p-3 text-red-300 text-sm">
+      <div
+        class="bg-red-900/30 border border-red-700 rounded-lg p-3 text-red-300 text-sm"
+      >
         {error}
       </div>
     {/if}
     {#if planResult}
-      <div class="flex-1 min-h-0 flex flex-col border border-atra-accent rounded-lg overflow-hidden">
-        <div class="p-2 border-b border-atra-accent text-xs text-gray-400 uppercase">План Виктории</div>
-        <div class="flex-1 overflow-y-auto p-4 text-sm text-gray-300 whitespace-pre-wrap font-mono">
+      <div
+        class="flex-1 min-h-0 flex flex-col border border-atra-accent rounded-lg overflow-hidden"
+      >
+        <div
+          class="p-2 border-b border-atra-accent text-xs text-gray-400 uppercase"
+        >
+          План Виктории
+        </div>
+        <div
+          class="flex-1 overflow-y-auto p-4 text-sm text-gray-300 whitespace-pre-wrap font-mono"
+        >
           {planResult}
         </div>
       </div>

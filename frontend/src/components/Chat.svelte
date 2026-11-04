@@ -1,65 +1,85 @@
 <script>
-  import { onMount, afterUpdate, createEventDispatcher } from 'svelte'
-  import { fly } from 'svelte/transition'
-  import { marked } from 'marked'
-  import hljs from 'highlight.js'
-  import { messages, isLoading, isStreaming, error, sendMessage, loadExperts, selectedExpert, clearMessages, chatMode } from '../stores/chat.js'
+  import { onMount, afterUpdate, createEventDispatcher } from "svelte";
+  import { fly } from "svelte/transition";
+  import { marked } from "marked";
+  import hljs from "highlight.js";
+  import {
+    messages,
+    isLoading,
+    isStreaming,
+    error,
+    sendMessage,
+    loadExperts,
+    selectedExpert,
+    clearMessages,
+    chatMode,
+  } from "../stores/chat.js";
 
-  const dispatch = createEventDispatcher()
+  const dispatch = createEventDispatcher();
 
   /** Вкладка центральной панели: 'chat' | 'agent' | 'plan'. Режим задаётся вкладкой: Чат = ask, Агент = agent (без дублирования кнопок). */
-  export let centerTab = 'chat'
+  export let centerTab = "chat";
 
-  let inputValue = ''
-  let messagesContainer
-  $: if (centerTab === 'agent') { chatMode.set('agent') }
-  $: if (centerTab === 'chat') { chatMode.set('ask') }
-  $: lastMessage = $messages.length > 0 ? $messages[$messages.length - 1] : null
+  let inputValue = "";
+  let messagesContainer;
+  $: if (centerTab === "agent") {
+    chatMode.set("agent");
+  }
+  $: if (centerTab === "chat") {
+    chatMode.set("ask");
+  }
+  $: lastMessage =
+    $messages.length > 0 ? $messages[$messages.length - 1] : null;
   // Показывать курсор только у того сообщения, которое сейчас стримится (последнее по id)
-  $: isStreamingLast = $isStreaming && lastMessage && lastMessage.role === 'assistant'
+  $: isStreamingLast =
+    $isStreaming && lastMessage && lastMessage.role === "assistant";
 
   // Настройка marked
   marked.setOptions({
     breaks: true,
-    gfm: true
-  })
+    gfm: true,
+  });
 
   onMount(() => {
-    loadExperts()
+    loadExperts();
     // Debug: подписка на изменения сообщений
-    messages.subscribe(msgs => {
-      console.log('Messages updated:', msgs.length, msgs.map(m => m.content?.slice(0, 50)))
-    })
-  })
+    messages.subscribe((msgs) => {
+      console.log(
+        "Messages updated:",
+        msgs.length,
+        msgs.map((m) => m.content?.slice(0, 50))
+      );
+    });
+  });
 
   afterUpdate(() => {
     // Автоскролл к последнему сообщению
     if (messagesContainer) {
-      messagesContainer.scrollTop = messagesContainer.scrollHeight
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
-  })
+  });
 
   function handleSubmit() {
-    if (!inputValue.trim() || $isLoading) return
+    if (!inputValue.trim() || $isLoading) return;
 
-    sendMessage(inputValue.trim())
-    inputValue = ''
+    sendMessage(inputValue.trim());
+    inputValue = "";
   }
 
   function handleKeydown(event) {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault()
-      handleSubmit()
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleSubmit();
     }
   }
 
   function renderMarkdown(content) {
-    if (!content) return ''
+    if (!content) return "";
     try {
-      return marked.parse(content)
+      return marked.parse(content);
     } catch (e) {
-      console.error('Markdown error:', e)
-      return content
+      console.error("Markdown error:", e);
+      return content;
     }
   }
 </script>
@@ -68,11 +88,15 @@
   <!-- Режим задаётся вкладками: Чат = Ask, Агент = Агент, План = отдельная вкладка (кнопки «Режим» убраны, дублирования нет) -->
 
   <!-- Шаги агента (панель во время стриминга — как в Cursor, с анимацией появления) -->
-  {#if $isStreaming && lastMessage && lastMessage.role === 'assistant' && lastMessage.steps && lastMessage.steps.length > 0}
-    <div class="agent-steps-panel shrink-0 border-b border-atra-accent/50 bg-atra-darker/80 px-4 py-3 cursor-style-panel">
-      <div class="text-xs font-semibold text-atra-primary uppercase tracking-wider mb-2 flex items-center gap-2">
+  {#if $isStreaming && lastMessage && lastMessage.role === "assistant" && lastMessage.steps && lastMessage.steps.length > 0}
+    <div
+      class="agent-steps-panel shrink-0 border-b border-atra-accent/50 bg-atra-darker/80 px-4 py-3 cursor-style-panel"
+    >
+      <div
+        class="text-xs font-semibold text-atra-primary uppercase tracking-wider mb-2 flex items-center gap-2"
+      >
         <span class="cursor-thinking-dots">
-          <span></span><span></span><span></span>
+          <span /><span /><span />
         </span>
         Шаги агента
       </div>
@@ -83,16 +107,18 @@
             in:fly={{ y: -8, duration: 200, delay: i * 60 }}
             out:fly={{ y: -4, duration: 150 }}
           >
-            <span class="step-icon">{#if step.stepType === 'thought'}💭{:else if step.stepType === 'exploration'}🔍{:else if step.stepType === 'action'}⚡{:else}•{/if}</span>
+            <span class="step-icon"
+              >{#if step.stepType === "thought"}💭{:else if step.stepType === "exploration"}🔍{:else if step.stepType === "action"}⚡{:else}•{/if}</span
+            >
             <span class="step-title">{step.title}</span>
             {#if step.content}
               <span class="step-desc">— {step.content}</span>
             {/if}
-            {#if step.title === 'Рекомендация'}
+            {#if step.title === "Рекомендация"}
               <button
                 type="button"
                 class="agent-suggestion-btn"
-                on:click|stopPropagation={() => dispatch('switchToAgent')}
+                on:click|stopPropagation={() => dispatch("switchToAgent")}
               >
                 Перейти в Агент
               </button>
@@ -111,7 +137,7 @@
     {#if $messages.length === 0}
       <div class="text-center text-gray-500 mt-8">
         <div class="text-4xl mb-4">👋</div>
-        <p class="text-lg">Привет! Я {$selectedExpert?.name || 'ассистент'}.</p>
+        <p class="text-lg">Привет! Я {$selectedExpert?.name || "ассистент"}.</p>
         <p class="text-sm mt-2">Спросите меня что-нибудь о коде или проекте.</p>
         {#if $selectedExpert?.role}
           <p class="text-xs mt-1 text-gray-600">{$selectedExpert.role}</p>
@@ -119,54 +145,67 @@
       </div>
     {/if}
 
-    {#each $messages as message, idx (message.id + '-' + (message.content?.length || 0) + '-' + (message.steps?.length || 0))}
+    {#each $messages as message, idx (message.id + "-" + (message.content?.length || 0) + "-" + (message.steps?.length || 0))}
       <div class="chat-message {message.role === 'user' ? 'ml-8' : 'mr-8'}">
-        <div class="flex items-start gap-3 {message.role === 'user' ? 'flex-row-reverse' : ''}">
+        <div
+          class="flex items-start gap-3 {message.role === 'user'
+            ? 'flex-row-reverse'
+            : ''}"
+        >
           <!-- Avatar -->
-          <div class="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-medium
+          <div
+            class="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-medium
             {message.role === 'user'
               ? 'bg-atra-primary'
               : 'bg-gradient-to-br from-atra-primary to-atra-secondary'}
-          ">
-            {message.role === 'user' ? 'У' : message.expertName?.[0] || 'A'}
+          "
+          >
+            {message.role === "user" ? "У" : message.expertName?.[0] || "A"}
           </div>
 
           <!-- Content -->
           <div class="flex-1 min-w-0">
-            {#if message.role === 'assistant' && message.expertName}
-              <div class="text-xs text-atra-primary mb-1">{message.expertName}</div>
+            {#if message.role === "assistant" && message.expertName}
+              <div class="text-xs text-atra-primary mb-1">
+                {message.expertName}
+              </div>
             {/if}
 
             <!-- Шаги агента (как в Cursor): вертикальная линия, появление по одному -->
-            {#if message.role === 'assistant' && message.steps && message.steps.length > 0}
+            {#if message.role === "assistant" && message.steps && message.steps.length > 0}
               <div class="agent-steps cursor-style-steps mb-3">
-                {#each message.steps as step, i (message.id + '-step-' + i)}
+                {#each message.steps as step, i (message.id + "-step-" + i)}
                   <div
                     class="agent-step step-{step.stepType}"
                     data-step-type={step.stepType}
                     in:fly={{ x: -12, duration: 220, delay: i * 50 }}
                   >
-                    <div class="step-dot"></div>
+                    <div class="step-dot" />
                     <div class="step-body">
                       <div class="step-header">
                         <span class="step-icon">
-                          {#if step.stepType === 'thought'}💭
-                          {:else if step.stepType === 'exploration'}🔍
-                          {:else if step.stepType === 'action'}⚡
-                          {:else if step.stepType === 'clarification'}❓
+                          {#if step.stepType === "thought"}💭
+                          {:else if step.stepType === "exploration"}🔍
+                          {:else if step.stepType === "action"}⚡
+                          {:else if step.stepType === "clarification"}❓
                           {:else}•
                           {/if}
                         </span>
-                        <span class="step-title">{step.title}{#if step.duration} <span class="step-duration">({step.duration})</span>{/if}</span>
+                        <span class="step-title"
+                          >{step.title}{#if step.duration}
+                            <span class="step-duration">({step.duration})</span
+                            >{/if}</span
+                        >
                       </div>
                       {#if step.content}
                         <div class="step-content">{step.content}</div>
                       {/if}
-                      {#if step.title === 'Рекомендация'}
+                      {#if step.title === "Рекомендация"}
                         <button
                           type="button"
                           class="agent-suggestion-btn"
-                          on:click|stopPropagation={() => dispatch('switchToAgent')}
+                          on:click|stopPropagation={() =>
+                            dispatch("switchToAgent")}
                         >
                           Перейти в Агент
                         </button>
@@ -178,18 +217,24 @@
             {/if}
 
             <!-- Блок ответа + мигающий курсор при стриминге (как в Cursor) -->
-            <div class="rounded-lg p-3
+            <div
+              class="rounded-lg p-3
               {message.role === 'user'
                 ? 'bg-atra-primary text-white'
                 : 'bg-atra-darker border border-atra-accent'}
-            ">
-              {#if message.role === 'assistant'}
+            "
+            >
+              {#if message.role === "assistant"}
                 {#key message.id}
-                  <div class="prose prose-invert prose-sm max-w-none relative break-words">
+                  <div
+                    class="prose prose-invert prose-sm max-w-none relative break-words"
+                  >
                     {#if message.content}
                       {@html renderMarkdown(message.content)}
                       {#if isStreamingLast && lastMessage && message.id === lastMessage.id}
-                        <span class="streaming-cursor" aria-hidden="true">▌</span>
+                        <span class="streaming-cursor" aria-hidden="true"
+                          >▌</span
+                        >
                       {/if}
                     {:else}
                       <span class="text-gray-500">Агент думает</span>
@@ -214,16 +259,20 @@
 
     <!-- Индикатор «агент работает» — как в Cursor (плавные точки) -->
     {#if $isStreaming}
-      <div class="cursor-agent-working ml-8 flex items-center gap-2 text-gray-400 text-sm py-2">
+      <div
+        class="cursor-agent-working ml-8 flex items-center gap-2 text-gray-400 text-sm py-2"
+      >
         <span class="cursor-thinking-dots large">
-          <span></span><span></span><span></span>
+          <span /><span /><span />
         </span>
         <span>Агент работает…</span>
       </div>
     {/if}
 
     {#if $error}
-      <div class="bg-red-900/30 border border-red-700 rounded-lg p-3 text-red-300 text-sm flex items-center justify-between">
+      <div
+        class="bg-red-900/30 border border-red-700 rounded-lg p-3 text-red-300 text-sm flex items-center justify-between"
+      >
         <span>{$error}</span>
         <button
           class="text-red-400 hover:text-red-200 ml-2"
@@ -245,7 +294,7 @@
         class="flex-1 bg-atra-darker border border-atra-accent rounded-lg px-4 py-2 text-sm resize-none focus:outline-none focus:border-atra-primary transition-colors"
         rows="2"
         disabled={$isLoading}
-      ></textarea>
+      />
 
       <button
         type="submit"
@@ -278,22 +327,40 @@
     background: var(--atra-primary, #6366f1);
     animation: cursor-dot 1.2s ease-in-out infinite both;
   }
-  .cursor-thinking-dots span:nth-child(1) { animation-delay: 0s; }
-  .cursor-thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
-  .cursor-thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+  .cursor-thinking-dots span:nth-child(1) {
+    animation-delay: 0s;
+  }
+  .cursor-thinking-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+  .cursor-thinking-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+  }
   .cursor-thinking-dots.large span {
     width: 6px;
     height: 6px;
   }
   @keyframes cursor-dot {
-    0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
-    40% { opacity: 1; transform: scale(1); }
+    0%,
+    80%,
+    100% {
+      opacity: 0.3;
+      transform: scale(0.8);
+    }
+    40% {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
   .cursor-thinking-inline span {
     animation: cursor-dot 1.2s ease-in-out infinite both;
   }
-  .cursor-thinking-inline span:nth-child(2) { animation-delay: 0.2s; }
-  .cursor-thinking-inline span:nth-child(3) { animation-delay: 0.4s; }
+  .cursor-thinking-inline span:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+  .cursor-thinking-inline span:nth-child(3) {
+    animation-delay: 0.4s;
+  }
 
   /* Мигающий курсор в конце стрима (как в Cursor) */
   .streaming-cursor {
@@ -306,7 +373,9 @@
     animation: cursor-blink 0.8s step-end infinite;
   }
   @keyframes cursor-blink {
-    50% { opacity: 0; }
+    50% {
+      opacity: 0;
+    }
   }
 
   /* Шаги агента в сообщении: вертикальная линия + точки (как в Cursor) */
@@ -366,17 +435,33 @@
     font-size: 0.75rem;
   }
   .agent-steps.cursor-style-steps .agent-step.step-thought .step-dot,
-  .agent-steps.cursor-style-steps .agent-step.step-thought .step-title { color: #a78bfa; }
-  .agent-steps.cursor-style-steps .agent-step.step-thought .step-dot { background: #a78bfa; }
+  .agent-steps.cursor-style-steps .agent-step.step-thought .step-title {
+    color: #a78bfa;
+  }
+  .agent-steps.cursor-style-steps .agent-step.step-thought .step-dot {
+    background: #a78bfa;
+  }
   .agent-steps.cursor-style-steps .agent-step.step-exploration .step-dot,
-  .agent-steps.cursor-style-steps .agent-step.step-exploration .step-title { color: #38bdf8; }
-  .agent-steps.cursor-style-steps .agent-step.step-exploration .step-dot { background: #38bdf8; }
+  .agent-steps.cursor-style-steps .agent-step.step-exploration .step-title {
+    color: #38bdf8;
+  }
+  .agent-steps.cursor-style-steps .agent-step.step-exploration .step-dot {
+    background: #38bdf8;
+  }
   .agent-steps.cursor-style-steps .agent-step.step-action .step-dot,
-  .agent-steps.cursor-style-steps .agent-step.step-action .step-title { color: #34d399; }
-  .agent-steps.cursor-style-steps .agent-step.step-action .step-dot { background: #34d399; }
+  .agent-steps.cursor-style-steps .agent-step.step-action .step-title {
+    color: #34d399;
+  }
+  .agent-steps.cursor-style-steps .agent-step.step-action .step-dot {
+    background: #34d399;
+  }
   .agent-steps.cursor-style-steps .agent-step.step-clarification .step-dot,
-  .agent-steps.cursor-style-steps .agent-step.step-clarification .step-title { color: #fbbf24; }
-  .agent-steps.cursor-style-steps .agent-step.step-clarification .step-dot { background: #fbbf24; }
+  .agent-steps.cursor-style-steps .agent-step.step-clarification .step-title {
+    color: #fbbf24;
+  }
+  .agent-steps.cursor-style-steps .agent-step.step-clarification .step-dot {
+    background: #fbbf24;
+  }
 
   /* Панель шагов во время стриминга: вертикальный список (как в Cursor) */
   .agent-steps-panel.cursor-style-panel {
@@ -401,12 +486,31 @@
     background: rgba(99, 102, 241, 0.08);
     border-color: rgba(99, 102, 241, 0.4);
   }
-  .agent-step-badge .step-icon { opacity: 0.95; flex-shrink: 0; }
-  .agent-step-badge .step-title { font-weight: 600; color: #e2e8f0; }
-  .agent-step-badge .step-desc { color: #94a3b8; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
-  .agent-step-badge.step-thought .step-title { color: #a78bfa; }
-  .agent-step-badge.step-exploration .step-title { color: #38bdf8; }
-  .agent-step-badge.step-action .step-title { color: #34d399; }
+  .agent-step-badge .step-icon {
+    opacity: 0.95;
+    flex-shrink: 0;
+  }
+  .agent-step-badge .step-title {
+    font-weight: 600;
+    color: #e2e8f0;
+  }
+  .agent-step-badge .step-desc {
+    color: #94a3b8;
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 400;
+  }
+  .agent-step-badge.step-thought .step-title {
+    color: #a78bfa;
+  }
+  .agent-step-badge.step-exploration .step-title {
+    color: #38bdf8;
+  }
+  .agent-step-badge.step-action .step-title {
+    color: #34d399;
+  }
   .agent-suggestion-btn {
     margin-left: auto;
     padding: 0.25rem 0.5rem;
@@ -432,8 +536,12 @@
     animation: cursor-fade-in 0.2s ease-out;
   }
   @keyframes cursor-fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   /* Highlight.js тема */

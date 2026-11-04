@@ -20,7 +20,9 @@ export async function loadFileTree(path = "") {
   try {
     // Используем порт 8081 для Rust Gateway
     const response = await fetch(
-      `http://${window.location.hostname}:8081/api/files/list_v2?path=${encodeURIComponent(path)}`,
+      `http://${
+        window.location.hostname
+      }:8081/api/files/list_v2?path=${encodeURIComponent(path)}`
     );
     if (response.ok) {
       const data = await response.json();
@@ -41,7 +43,9 @@ export async function loadFileTree(path = "") {
 export async function loadFile(filePath) {
   try {
     const response = await fetch(
-      `http://${window.location.hostname}:8081/api/files/read_v2?path=${encodeURIComponent(filePath)}`,
+      `http://${
+        window.location.hostname
+      }:8081/api/files/read_v2?path=${encodeURIComponent(filePath)}`
     );
     if (response.ok) {
       const data = await response.json();
@@ -87,7 +91,7 @@ export async function saveFile(filePath, content) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ path: filePath, content }),
-      },
+      }
     );
 
     if (response.ok) {
@@ -123,7 +127,7 @@ export async function createFile(path, type = "file", content = "") {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ path, type, content }),
-      },
+      }
     );
 
     if (response.ok) {
@@ -142,10 +146,12 @@ export async function deleteFile(path) {
   try {
     // Используем порт 8081 для Rust Gateway
     const response = await fetch(
-      `http://${window.location.hostname}:8081/api/files/delete_v2?path=${encodeURIComponent(path)}`,
+      `http://${
+        window.location.hostname
+      }:8081/api/files/delete_v2?path=${encodeURIComponent(path)}`,
       {
         method: "DELETE",
-      },
+      }
     );
 
     if (response.ok) {

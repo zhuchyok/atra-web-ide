@@ -112,7 +112,9 @@ async def system_metrics():
                             result["tasks_current"]["alert"] = alert_msg
                             logger.warning(alert_msg)
                             try:
-                                from app.services.telegram_alerts import send_general_alert
+                                from app.services.telegram_alerts import (
+                                    send_task_execution_alert,
+                                )
 
                                 await send_task_execution_alert(
                                     0, 0, alert_msg
