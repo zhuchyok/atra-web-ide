@@ -13,5 +13,41 @@
     "file": "knowledge_os/app/expert_worker.py",
     "function": "start_sidecar_heartbeat",
     "call": "Thread"
+  },
+  {
+    "file": "knowledge_os/app/ai_core.py",
+    "function": "run_smart_agent_sync",
+    "call": "ThreadPoolExecutor",
+    "reason": "sync-мост к async-агенту, один пул на вызов"
+  },
+  {
+    "file": "knowledge_os/app/nightly_learner.py",
+    "function": "run_nightly_cycle",
+    "call": "MetaArchitect",
+    "reason": "ночной цикл — единственная точка создания"
+  },
+  {
+    "file": "knowledge_os/app/nightly_learner.py",
+    "function": "run_continuous_priority_redistill",
+    "call": "KnowledgeDistiller",
+    "reason": "фоновый редистилл — единственная точка создания"
+  },
+  {
+    "file": "knowledge_os/app/victoria_local_agent.py",
+    "function": "generate_local",
+    "call": "LocalAIRouter",
+    "reason": "тонкая обёртка над singleton-роутером"
+  },
+  {
+    "file": "knowledge_os/app/victoria_local_agent.py",
+    "function": "generate_local_sync",
+    "call": "ThreadPoolExecutor",
+    "reason": "sync-мост"
+  },
+  {
+    "file": "knowledge_os/app/victoria_local_agent.py",
+    "function": "_via_router",
+    "call": "LocalAIRouter",
+    "reason": "обёртка над singleton-роутером"
   }
 ]
