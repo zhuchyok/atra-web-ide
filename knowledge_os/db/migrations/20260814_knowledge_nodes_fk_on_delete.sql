@@ -3,6 +3,8 @@
 
 ALTER TABLE expert_discussions
     DROP CONSTRAINT IF EXISTS expert_discussions_knowledge_node_id_fkey;
+ALTER TABLE expert_discussions
+    ADD COLUMN IF NOT EXISTS knowledge_node_id UUID;
 
 ALTER TABLE expert_discussions
     ADD CONSTRAINT expert_discussions_knowledge_node_id_fkey
@@ -11,6 +13,8 @@ ALTER TABLE expert_discussions
 
 ALTER TABLE tasks
     DROP CONSTRAINT IF EXISTS tasks_knowledge_node_id_fkey;
+ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS knowledge_node_id UUID;
 
 ALTER TABLE tasks
     ADD CONSTRAINT tasks_knowledge_node_id_fkey

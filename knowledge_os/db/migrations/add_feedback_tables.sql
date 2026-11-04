@@ -34,6 +34,12 @@ CREATE TABLE IF NOT EXISTS adaptive_learning_logs (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Таблицу мог создать add_contextual_memory без этих колонок — дополняем
+ALTER TABLE adaptive_learning_logs
+    ADD COLUMN IF NOT EXISTS cycle_type VARCHAR(50) DEFAULT 'feedback_analysis',
+    ADD COLUMN IF NOT EXISTS examples_updated INTEGER DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS examples_deleted INTEGER DEFAULT 0;
+
 -- Индекс для логов
 CREATE INDEX IF NOT EXISTS idx_adaptive_logs_created_at ON adaptive_learning_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_adaptive_logs_cycle_type ON adaptive_learning_logs(cycle_type);

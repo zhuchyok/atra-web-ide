@@ -139,26 +139,31 @@ class MigrationApplier:
                 # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"📋 Уже применено миграций: {len(applied_migrations)}")
 
-                # Применяем непримененные миграции
+                # Применяем непримененные миграции.
+                # Алфавитный порядок не отражает зависимости (add_cache_* раньше
+                # add_semantic_cache, создающего таблицу) — поэтому многопроходно:
+                # failed-миграции ретраятся, пока проходят новые (зависимости успевают создаться).
                 applied_count = 0
                 failed_count = 0
-
-                for migration_file in migration_files:
-                    migration_name = migration_file.name
-
-                    if migration_name in applied_migrations:
+                pending = [f for f in migration_files if f.name not in applied_migrations]
+                max_passes = 5
+                while pending and max_passes > 0:
+                    max_passes -= 1
+                    still_failed = []
+                    progressed = False
+                    for migration_file in pending:
                         # TODO: Convert f-string to %s formatting for performance
-                        logger.debug(f"⏭️  Пропущена (уже применена): {migration_name}")
-                        continue
-
-                    # TODO: Convert f-string to %s formatting for performance
-                    logger.info(f"🔄 Применение миграции: {migration_name}")
-                    if await self.apply_migration(conn, migration_file):
-                        applied_count += 1
-                    else:
-                        failed_count += 1
-                        # TODO: Convert f-string to %s formatting for performance
-                        logger.error(f"❌ Не удалось применить миграцию: {migration_name}")
+                        logger.info(f"🔄 Применение миграции: {migration_file.name}")
+                        if await self.apply_migration(conn, migration_file):
+                            applied_count += 1
+                            progressed = True
+                        else:
+                            still_failed.append(migration_file)
+                            # TODO: Convert f-string to %s formatting for performance
+                            logger.error(f"❌ Не удалось применить миграцию: {migration_file.name}")
+                    pending = still_failed
+                    if not progressed:
+                        break
 
                 # TODO: Convert f-string to %s formatting for performance
                 logger.info(f"✅ Применено новых миграций: {applied_count}")

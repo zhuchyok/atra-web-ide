@@ -46,7 +46,11 @@ def test_log_scanner_ignores_watchdog_postgres_type_noise():
     assert r"Error de respuesta" in text
     assert r"FATAL:" in text
     assert r'terminating background worker "parallel worker"' in text
-    assert r"Ollama embed failed after" in text
+    # Паттерн шума embed-ошибок: старый ("failed after") или обобщённый v150.89 ("failed(?::| after)")
+    assert (
+        r"Ollama embed failed(?::| after)" in text
+        or r"Ollama embed failed after" in text
+    )
     assert r"(?:^|[\s\"'])ERROR[:\s]|- ERROR -|\bCRITICAL\b|FATAL:" in text
     assert r"Exception:|Error:|RuntimeError:" not in text
     assert r"\[INFERENCE\] Ошибка прогрева модели" in text
