@@ -73,6 +73,9 @@ async def test_failover_uses_mirrored_context(mock_context_mirror):
     # Выбор модели зависит от модульного кэша сканера (загрязняется другими тестами) —
     # фиксируем детерминированно: тест про failover и зеркалирование, не про селекцию.
     router._select_model = MagicMock(return_value="phi3.5:3.8b-stable")
+    # [v150.x] Прогрев — asyncio.create_task POST-ит на 11434 параллельно основному
+    # вызову: в CI может стать «первым» 11434-запросом и сломать ассерт зеркалирования.
+    router._trigger_predictive_warmup = AsyncMock()
     router.check_health = AsyncMock(
         return_value=[
             {
