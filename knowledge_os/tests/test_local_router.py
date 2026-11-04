@@ -122,8 +122,14 @@ async def test_failover_uses_mirrored_context(mock_context_mirror):
 
         # Failover дошёл до Ollama (11434) и вернул его ответ.
         assert mock_post.call_count >= 1
+        # [v150.x] MEMORY GUARD при низком RAM постит на /api/generate выгрузки моделей
+        # (keep_alive=0, без messages) — на CI-раннере с малой памятью они первые.
+        # Смотрим именно диалоговый /api/chat-вызов на 11434.
         ollama_calls = [
-            c for c in mock_post.call_args_list if "11434" in str(c.args[0] if c.args else c.kwargs.get("url", ""))
+            c
+            for c in mock_post.call_args_list
+            if "11434" in str(c.args[0] if c.args else c.kwargs.get("url", ""))
+            and "/api/chat" in str(c.args[0] if c.args else c.kwargs.get("url", ""))
         ]
         assert ollama_calls, "failover must POST to the Ollama node"
         assert "Ollama response" in str(result)
