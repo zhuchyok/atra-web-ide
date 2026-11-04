@@ -1,0 +1,24 @@
+[advisories]
+# Осознанные игноры: cargo audit --deny warnings в CI требует нуля уязвимостей.
+# Каждая запись — осознанное решение с обоснованием и планом. Убирать по мере миграции.
+ignore = [
+    # rsa (через sqlx 0.7): Marvin Attack — тайминг-атака на RSA-расшифровку.
+    # Фикса нет upstream. Мы не используем RSA-расшифровку в runtime. Уйдёт с миграцией sqlx 0.8.
+    "RUSTSEC-2023-0071",
+    # rustls 0.21 (через sqlx 0.7 runtime-tokio-rustls): TLS-секреты в Debug, downgrade.
+    # Локальный трафик внутри Docker-сети. Уйдёт с миграцией sqlx 0.8 → rustls 0.23.
+    "RUSTSEC-2026-0346",
+    "RUSTSEC-2026-0349",
+    "RUSTSEC-2026-0098",
+    "RUSTSEC-2026-0099",
+    "RUSTSEC-2026-0104",
+    "RUSTSEC-2026-0381",
+    "RUSTSEC-2026-0382",
+    # rustls-webpki / webpki-roots (тот же граф sqlx 0.7)
+    "RUSTSEC-2025-0057",
+    "RUSTSEC-2025-0134",
+    "RUSTSEC-2024-0363",
+    "RUSTSEC-2024-0436",
+    # dotenv: unmaintained, замена dotenvy — косметика, в плане
+    "RUSTSEC-2021-0141",
+]
