@@ -18,4 +18,6 @@ def test_run_has_deterministic_fact_mode_probe():
 def test_chat_fast_path_excludes_fact_questions():
     text = VICTORIA_SERVER.read_text(encoding="utf-8")
     assert "_is_fact_q = is_fact_seeking_question(_user_msg_text)" in text
-    assert ")) and not _is_fact_q:" in text
+    # ruff format рвёт условие на строки — сверяем по нормализованному тексту
+    flat = " ".join(text.split())
+    assert "and not _is_fact_q" in flat
