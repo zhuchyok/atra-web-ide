@@ -1,6 +1,6 @@
-async def dialogue_scheduler(dialogue_id, schedule_time):
-    # Логика для расписания диалогов
-    # Следует: учет времени и запланированных диалогов
+"""Псевдокод-заглушка расписания диалогов (никем не импортируется, оставлена как черновик)."""
 
-# Пример использования
-await dialogue_scheduler(dialogue_id="123", schedule_time="2023-04-10T15:00:00")
+
+def dialogue_scheduler(dialogue_id: str, schedule_time: str) -> dict:
+    # Черновик: учёт времени и запланированных диалогов
+    return {"dialogue_id": dialogue_id, "schedule_time": schedule_time}
