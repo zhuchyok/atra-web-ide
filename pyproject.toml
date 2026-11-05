@@ -66,6 +66,11 @@ line-length = 100
 target-version = "py39"
 exclude = ["knowledge_os/cache_normalizer_rs", "knowledge_os/knowledge_base", "target", "*.egg-info"]
 
+[tool.ruff.format]
+# .md: ruff форматирует Python-блоки в Markdown (SKILL.md) — это документация,
+# не код: не переформатировать
+exclude = ["*.md"]
+
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
 ignore = [
