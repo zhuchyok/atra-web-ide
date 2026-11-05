@@ -18,6 +18,11 @@ MIN_TESTS = int(os.getenv("PROMOTION_MIN_TESTS", "10"))
 MIN_WIN_COUNT = int(os.getenv("PROMOTION_MIN_WIN_COUNT", "6"))
 WIN_RATE_THRESHOLD = float(os.getenv("PROMOTION_WIN_RATE_THRESHOLD", "0.65"))
 MIN_LOWER_BOUND = float(os.getenv("PROMOTION_MIN_LOWER_BOUND", "0.50"))
+# Сколько shadow-мутаций сканировать за прогон и через сколько дней без прогресса архивировать.
+# [2026-11-05] 203 shadow в бэклоге > LIMIT 200 по created_at ASC — свежие мутации
+# голодали вечно: сканируем свежие первыми, лежалые (без шанса порога) архивируем.
+SCAN_LIMIT = int(os.getenv("PROMOTION_SCAN_LIMIT", "500"))
+STALE_SHADOW_DAYS = int(os.getenv("PROMOTION_STALE_SHADOW_DAYS", "30"))
 WILSON_Z = float(os.getenv("PROMOTION_WILSON_Z", "1.96"))
 
 # QA-gate: minimum tests and win rate required for ANY direct promotion path
@@ -121,10 +126,27 @@ async def check_and_promote_mutations(conn: Optional[asyncpg.Connection] = None)
             SELECT id, expert_id, mutated_prompt, win_count, total_tests, base_version
             FROM expert_mutations
             WHERE status = 'shadow'
-            ORDER BY created_at ASC
-            LIMIT 200
+            ORDER BY created_at DESC
+            LIMIT """
+            + str(SCAN_LIMIT)
+            + """
         """
         )
+        # Лежалые shadow без прогресса (не трогаем свежие — им ещё расти до порогов)
+        stale_archived = await conn.fetch(
+            """
+            UPDATE expert_mutations
+            SET status = 'archived', updated_at = CURRENT_TIMESTAMP
+            WHERE status = 'shadow'
+              AND created_at < NOW() - make_interval(days => $1::int)
+              AND (win_count::float / GREATEST(total_tests, 1)) < $2
+            RETURNING id
+        """,
+            STALE_SHADOW_DAYS,
+            WIN_RATE_THRESHOLD,
+        )
+        summary["stale_archived"] = len(stale_archived)
+
         summary["scanned"] = len(mutations)
         summary["shadow_backlog"] = len(mutations)
 
