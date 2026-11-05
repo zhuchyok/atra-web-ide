@@ -151,5 +151,15 @@ echo "=== 7. Daily Summary Report → ntfy ==="
 $PYTHON_CMD scripts/daily_summary_report.py || true
 echo ""
 
+# [v150.x] Ежедневный самоаудит Виктории с консилиумом (интенсивный режим доводки;
+# SELF_AUDIT=0 — выключить, когда система станет стабильной)
+SELF_AUDIT_FILE="$ROOT/scripts/curator_self_audit_tasks.txt"
+if [ -z "$ROOT" ]; then SELF_AUDIT_FILE="$(cd "$(dirname "$0")/.." && pwd)/scripts/curator_self_audit_tasks.txt"; fi
+if [ "${SELF_AUDIT:-1}" != "0" ] && [ -f "$SELF_AUDIT_FILE" ]; then
+  echo "=== 8. Самоаудит Виктории с консилиумом ==="
+  $PYTHON_CMD scripts/curator_send_tasks_to_victoria.py --file "$SELF_AUDIT_FILE" --async --max-wait 3600 || true
+  echo ""
+fi
+
 echo "=== ЦИКЛ ЗАВЕРШЁН ==="
 echo "Следующий прогон получит расширенный список задач."
