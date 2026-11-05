@@ -91,6 +91,7 @@ class ReActAgent:
             os.path.exists("/.dockerenv")
             or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
         )
+
         # [v150.27] phi-утечка на 11434: дефолтный исполнитель phi3.5 — модель
         # РУК и должна идти на 11437 (OLLAMA_HANDS_URL), а не грузить мозгевой
         # порт. Явный OLLAMA_API_URL по-прежнему побеждает.
@@ -99,10 +100,7 @@ class ReActAgent:
                 return os.getenv("OLLAMA_API_URL")
             if str(model).startswith("phi3.5"):
                 if is_docker:
-                    return (
-                        os.getenv("OLLAMA_HANDS_URL")
-                        or "http://host.docker.internal:11437"
-                    )
+                    return os.getenv("OLLAMA_HANDS_URL") or "http://host.docker.internal:11437"
                 return os.getenv("OLLAMA_HANDS_URL") or docker_host
             return docker_host
 
@@ -178,7 +176,9 @@ class ReActAgent:
         think_max_tokens = int(os.getenv("REACT_THINK_MAX_TOKENS", "4096"))
         thought = await self._generate_response(prompt, max_tokens=think_max_tokens)
         # TODO: Convert f-string to %s formatting for performance
-        logger.info(f"DEBUG_PRINT: think response received, length: {len(thought) if thought else 0}")
+        logger.info(
+            f"DEBUG_PRINT: think response received, length: {len(thought) if thought else 0}"
+        )
 
         # TODO: Convert f-string to %s formatting for performance
         logger.info(f"🤔 [{self.agent_name}] Think: {thought[:100] if thought else 'None'}...")
@@ -1095,7 +1095,7 @@ class ReActAgent:
         try:
             _cm = re.search(r'"content"\s*:\s*"((?:[^"\\]|\\.)*)"', response_clean, re.DOTALL)
             _tm = re.search(r'"text"\s*:\s*"((?:[^"\\]|\\.)*)"', response_clean, re.DOTALL)
-            _human = ((_cm.group(1) if _cm else "") or (_tm.group(1) if _tm else ""))
+            _human = (_cm.group(1) if _cm else "") or (_tm.group(1) if _tm else "")
             _human = _human.encode("utf-8").decode("unicode_escape").strip()
             if len(_human) >= 20:
                 logger.info("✅ [PARSE-FALLBACK-REGEX] Извлечён content из action-JSON")
@@ -1113,7 +1113,7 @@ class ReActAgent:
             )
             if _loose:
                 _candidate = _loose.group(1)
-                _candidate = re.split(r'(?:\}\s*$|\]\s*$|```)', _candidate, maxsplit=1)[0]
+                _candidate = re.split(r"(?:\}\s*$|\]\s*$|```)", _candidate, maxsplit=1)[0]
                 _candidate = _candidate.replace("\\n", "\n").replace('\\"', '"').strip()
                 if len(_candidate) >= 20:
                     logger.info("✅ [PARSE-FALLBACK-LOOSE] Извлечён текст из усечённого JSON")
@@ -1519,9 +1519,14 @@ class ReActAgent:
                         continue
                     try:
                         url_l = (llm_url or "").lower()
-                        is_ollama_hands = any(
-                            x in url_l for x in ("11434", "localhost", "127.0.0.1", "host.docker.internal")
-                        ) and "11435" not in url_l and "11436" not in url_l
+                        is_ollama_hands = (
+                            any(
+                                x in url_l
+                                for x in ("11434", "localhost", "127.0.0.1", "host.docker.internal")
+                            )
+                            and "11435" not in url_l
+                            and "11436" not in url_l
+                        )
                         if is_ollama_hands:
                             try:
                                 from available_models_scanner import _skip_as_ollama_hands
@@ -1531,7 +1536,9 @@ class ReActAgent:
                                 continue
                         default_predict = int(os.getenv("REACT_NUM_PREDICT", "12288"))
                         predict_cap = int(os.getenv("REACT_NUM_PREDICT_MAX", "24576"))
-                        requested_predict = int(max_tokens) if max_tokens is not None else default_predict
+                        requested_predict = (
+                            int(max_tokens) if max_tokens is not None else default_predict
+                        )
                         if requested_predict <= 0:
                             requested_predict = default_predict
                         num_predict = min(requested_predict, predict_cap)

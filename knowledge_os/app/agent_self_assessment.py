@@ -149,7 +149,7 @@ class AgentSelfAssessment:
             import hashlib
 
             assessment_key = f"{agent_id}:{task_id}:{datetime.now(timezone.utc).isoformat()}"
-            assessment_id = hashlib.md5(assessment_key.encode('utf-8')).hexdigest()[:16]
+            assessment_id = hashlib.md5(assessment_key.encode("utf-8")).hexdigest()[:16]
 
             assessment = SelfAssessment(
                 assessment_id=assessment_id,
@@ -227,7 +227,7 @@ class AgentSelfAssessment:
             plan_key = (
                 f"{agent_id}:{':'.join(improvements)}:{datetime.now(timezone.utc).isoformat()}"
             )
-            plan_id = hashlib.md5(plan_key.encode('utf-8')).hexdigest()[:16]
+            plan_id = hashlib.md5(plan_key.encode("utf-8")).hexdigest()[:16]
 
             plan = ImprovementPlan(
                 plan_id=plan_id,

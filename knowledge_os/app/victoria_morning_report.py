@@ -20,7 +20,6 @@ except ImportError:
 try:
     from ai_core import run_smart_agent_async, run_smart_agent_sync
 except ImportError:  # pragma: no cover
-
     logging.getLogger(__name__).error(
         "❌ ai_core import failed — AI-генерация доклада будет пустой "
         "(заглушки вместо агентов). Причина:",
@@ -101,7 +100,10 @@ async def _direct_llm(prompt: str, timeout: int = 150) -> str:
     payload = {
         "model": os.getenv("VICTORIA_BRAIN_MODEL", "victoria-qwen38:latest"),
         "messages": [
-            {"role": "system", "content": "Ты — Виктория, Team Lead корпорации ATRA. Пиши кратко, по-русски, без служебных пометок."},
+            {
+                "role": "system",
+                "content": "Ты — Виктория, Team Lead корпорации ATRA. Пиши кратко, по-русски, без служебных пометок.",
+            },
             {"role": "user", "content": prompt[-6000:]},
         ],
         "stream": False,
@@ -112,6 +114,7 @@ async def _direct_llm(prompt: str, timeout: int = 150) -> str:
         r.raise_for_status()
         text = (r.json().get("message") or {}).get("content", "") or ""
     import re as _re2
+
     if "</think>" in text:
         text = text.rsplit("</think>", 1)[-1]
     return text.strip()
@@ -404,14 +407,18 @@ async def generate_morning_plan():
         async def _gen_block(block_prompt: str, label: str) -> str:
             # Сначала прямой вызов (быстро, без RAG); ядро — запасной путь
             try:
-                out = str(await asyncio.wait_for(_direct_llm(block_prompt), timeout=170) or "").strip()
+                out = str(
+                    await asyncio.wait_for(_direct_llm(block_prompt), timeout=170) or ""
+                ).strip()
                 if len(out) > 40:
                     return out
                 logger.warning("Блок %s: прямой LLM пуст — пробуем ядро", label)
             except Exception as dllm_err:  # pylint: disable=broad-exception-caught
                 logger.warning("Блок %s: прямой LLM упал (%s) — ядро", label, str(dllm_err)[:80])
             try:
-                out = str(await asyncio.wait_for(run_cursor_agent(block_prompt), timeout=300) or "").strip()
+                out = str(
+                    await asyncio.wait_for(run_cursor_agent(block_prompt), timeout=300) or ""
+                ).strip()
                 if len(out) > 40:
                     return out
                 logger.warning("Блок %s пуст — пропуск", label)
@@ -539,6 +546,7 @@ if __name__ == "__main__":
         # [v149.35] Лок снимается ПОСЛЕ завершения: иначе он блокирует завтрашний
         # штатный запуск (случалось 08.10: 'Дубль запуска — выходим' в 08:30)
         import os as _os2
+
         try:
             _os2.remove("/tmp/victoria_morning_report.lock")
         except OSError:

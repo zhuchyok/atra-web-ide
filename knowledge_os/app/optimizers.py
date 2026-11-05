@@ -522,7 +522,7 @@ class EmbeddingCache:
     async def get_or_compute_embedding(self, text: str) -> List[float]:
         """Получает эмбеддинг из кэша или вычисляет"""
         # Хэш текста для ключа
-        text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+        text_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
 
         # Проверяем memory cache
         if text_hash in self.memory_cache:

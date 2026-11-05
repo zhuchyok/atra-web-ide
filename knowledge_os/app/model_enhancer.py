@@ -354,7 +354,9 @@ class EnhancedRAGEngine:
                 if not rows:
                     keywords = query.lower().split()[:10]
                     keyword_pattern = "|".join(keywords)
-                    await conn.execute("SET statement_timeout = '8s'")  # [v149.43] редкие слова в ILIKE = минуты; лучше пусто, чем зависание
+                    await conn.execute(
+                        "SET statement_timeout = '8s'"
+                    )  # [v149.43] редкие слова в ILIKE = минуты; лучше пусто, чем зависание
                     rows = await conn.fetch(
                         """
                         SELECT id, content, confidence_score, usage_count,
@@ -370,7 +372,11 @@ class EnhancedRAGEngine:
                     """,
                         min_confidence,
                         # to_tsquery: слова через | (OR), только буквы/цифры
-                        " | ".join(re.sub(r"[^a-zA-Zа-яА-ЯёЁ0-9]", "", k) for k in keywords if re.sub(r"[^a-zA-Zа-яА-ЯёЁ0-9]", "", k)),
+                        " | ".join(
+                            re.sub(r"[^a-zA-Zа-яА-ЯёЁ0-9]", "", k)
+                            for k in keywords
+                            if re.sub(r"[^a-zA-Zа-яА-ЯёЁ0-9]", "", k)
+                        ),
                         limit * 2,
                     )
                     try:

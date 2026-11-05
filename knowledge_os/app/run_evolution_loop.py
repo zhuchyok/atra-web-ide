@@ -31,7 +31,9 @@ async def main():
                 remaining,
             )
         else:
-            logger.info("🚀 [EVOLUTION] Запуск цикла эволюции... (бюджет: %s неудач осталось)", remaining)
+            logger.info(
+                "🚀 [EVOLUTION] Запуск цикла эволюции... (бюджет: %s неудач осталось)", remaining
+            )
             try:
                 result = await engine.run_one_cycle()
                 logger.info("✅ [EVOLUTION] Цикл завершён, результат: %s", result)

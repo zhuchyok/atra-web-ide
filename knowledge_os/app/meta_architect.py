@@ -52,6 +52,7 @@ except ImportError:  # pragma: no cover - fallback for package-style imports
                 return False, f"insufficient_win_rate:{win_rate:.2f}<0.55"
             return True, ""
 
+
 # Local project imports with fallback
 try:
     from ai_core import run_smart_agent_async
@@ -737,7 +738,10 @@ class MetaArchitect:
                                 if not mutation_text:
                                     # Fall back to the on-disk mutated module, if present
                                     mutation_file = os.path.join(
-                                        WORKSPACE_ROOT, "knowledge_os", "app", f"{original_module}_v2.py"
+                                        WORKSPACE_ROOT,
+                                        "knowledge_os",
+                                        "app",
+                                        f"{original_module}_v2.py",
                                     )
                                     if os.path.exists(mutation_file):
                                         with open(mutation_file, "r", encoding="utf-8") as _f:
@@ -802,7 +806,9 @@ class MetaArchitect:
                             logger.warning(f"⚠️ [HOT-SWAP] Promotion failed for {original_module}")
                     except Exception as e:
                         # TODO: Convert f-string to %s formatting for performance
-                        logger.error(f"🔥 [HOT-SWAP FAILED] Could not trigger hot-swap for {original_module}: {e}")
+                        logger.error(
+                            f"🔥 [HOT-SWAP FAILED] Could not trigger hot-swap for {original_module}: {e}"
+                        )
         if not ASYNCPG_AVAILABLE:
             logger.error("❌ asyncpg is not installed. Repair cycle aborted.")
             return "Error: asyncpg missing"

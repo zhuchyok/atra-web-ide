@@ -10,7 +10,9 @@ import aiohttp
 import asyncpg
 import redis
 
-POSTGRES_URL = os.getenv("POSTGRES_DIRECT_URL", "postgresql://admin:secret@knowledge_postgres:5432/knowledge_os")
+POSTGRES_URL = os.getenv(
+    "POSTGRES_DIRECT_URL", "postgresql://admin:secret@knowledge_postgres:5432/knowledge_os"
+)
 REDIS_URL = os.getenv("REDIS_URL", "redis://knowledge_os_redis:6379/0")
 
 r = redis.from_url(REDIS_URL, decode_responses=False)
@@ -53,7 +55,7 @@ async def process_task(conn, goal: str, task_id: str):
                     await conn.execute(
                         "UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(), completed_at = NOW() WHERE id = $1",
                         task_id,
-                        output
+                        output,
                     )
                     print(f"Done {task_id} (DB updated)", flush=True)
                     return
@@ -74,7 +76,7 @@ async def process_task(conn, goal: str, task_id: str):
                     await conn.execute(
                         "UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(), completed_at = NOW() WHERE id = $1",
                         task_id,
-                        output
+                        output,
                     )
                     print(f"Done {task_id} (fallback, DB updated)", flush=True)
                     return
@@ -85,7 +87,7 @@ async def process_task(conn, goal: str, task_id: str):
     await conn.execute(
         "UPDATE tasks SET status = 'failed', result = $2, updated_at = NOW() WHERE id = $1",
         task_id,
-        error_msg
+        error_msg,
     )
 
 
@@ -131,8 +133,8 @@ async def worker_loop():
                     """)
 
                     if task:
-                        task_id = str(task['id'])
-                        goal = task['description'] or task['title'] or ''
+                        task_id = str(task["id"])
+                        goal = task["description"] or task["title"] or ""
 
                         print(f"Processing task {task_id}: {goal[:50]}...", flush=True)
 

@@ -10,7 +10,9 @@ from docker_services import is_autonomous_service, summarize_container
 
 
 def test_filters_workers_and_agents():
-    assert is_autonomous_service("knowledge_os-expert-worker-dynamic-1-1", "expert-worker-dynamic-1")
+    assert is_autonomous_service(
+        "knowledge_os-expert-worker-dynamic-1-1", "expert-worker-dynamic-1"
+    )
     assert is_autonomous_service("victoria-agent", "victoria-agent")
     assert is_autonomous_service("knowledge_os_orchestrator", "")
     assert not is_autonomous_service("knowledge_postgres", "knowledge_postgres")

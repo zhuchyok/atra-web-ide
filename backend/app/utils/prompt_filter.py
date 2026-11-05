@@ -12,6 +12,7 @@
 Использование в чат-роутах: content = harden(message.content); если detect()
 сработал — писать warning в лог (инциденты уже собирает anomaly-детектор).
 """
+
 import re
 
 # Классические маркеры попыток перехвата инструкции (для детекта/логов)
@@ -20,12 +21,12 @@ INJECTION_PATTERNS = [
     r"ignore\s+(all\s+)?(previous|prior|above)\s+(instructions|prompts|rules)",
     r"disregard\s+(all\s+)?(previous|prior|your)\s+(instructions|rules)",
     r"(system|системн\w+)\s+(prompt|промпт)\s*[=:：]",
-    r"you\s+are\s+now\s+(a|an)\s+",           # role hijack
+    r"you\s+are\s+now\s+(a|an)\s+",  # role hijack
     r"ты\s+теперь\s+(не\s+)?(виктория|эксперт|робот|модель|DAN)",
     r"\bDAN\b|\bjailbreak\b|developer\s+mode",
     r"выведи\s+(свои\s+)?(системные|начальные)\s+(инструкции|промпты)",
     r"reveal\s+(your\s+)?(system|initial)\s+(prompt|instructions)",
-    r"</?(system|assistant|instructions)>",   # подделка служебных тегов
+    r"</?(system|assistant|instructions)>",  # подделка служебных тегов
 ]
 
 _DETECT_RE = re.compile("|".join(f"(?:{p})" for p in INJECTION_PATTERNS), re.IGNORECASE)

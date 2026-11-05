@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """One-shot priority re-distill smoke (default limit=2)."""
 

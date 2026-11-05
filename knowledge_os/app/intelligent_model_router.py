@@ -508,6 +508,7 @@ class IntelligentModelRouter:
             # с 11434 в v149.8 — хардкод давал 404 на каждый вызов, 2864× «все бэкенды
             # недоступны» за 2 часа). Env переопределяет.
             import os as _os
+
             _brain = _os.getenv("VICTORIA_MODEL", "victoria-qwen38:latest")
             return _brain, TaskCategory(cat_str or "general"), 1.0
 

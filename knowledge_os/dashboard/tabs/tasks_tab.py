@@ -319,7 +319,9 @@ def _render_tasks_list(time_range):
     # Пагинация: 25 карточек на страницу (100 карточек = 200+ кнопок = тяжело для браузера)
     tasks_page_size = 25
     tasks_page = st.session_state.get("tasks_page", 0)
-    query_parts.append(f"ORDER BY {order_col} DESC LIMIT {tasks_page_size} OFFSET {tasks_page * tasks_page_size}")
+    query_parts.append(
+        f"ORDER BY {order_col} DESC LIMIT {tasks_page_size} OFFSET {tasks_page * tasks_page_size}"
+    )
 
     tasks = fetch_data_tasks(" ".join(query_parts), tuple(query_params) if query_params else None)
 
@@ -442,7 +444,9 @@ def _render_tasks_list(time_range):
             with col_info:
                 st.caption(f"Страница {tasks_page + 1} (по {tasks_page_size} задач)")
             with col_next:
-                if st.button("Вперёд ➡️", key="tasks_page_next", disabled=total_rows < tasks_page_size):
+                if st.button(
+                    "Вперёд ➡️", key="tasks_page_next", disabled=total_rows < tasks_page_size
+                ):
                     st.session_state["tasks_page"] = tasks_page + 1
                     st.rerun()
     else:
@@ -674,6 +678,8 @@ def _render_tasks_analytics(time_range):
                 )
                 st.plotly_chart(fig, width="stretch")
             else:
-                st.info("Нет задач за выбранный период — график нагрузки по экспертам появится, когда появятся задачи.")
+                st.info(
+                    "Нет задач за выбранный период — график нагрузки по экспертам появится, когда появятся задачи."
+                )
         except Exception as e:
             st.error(f"Ошибка аналитики: {e}")

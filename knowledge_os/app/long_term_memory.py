@@ -65,7 +65,9 @@ class LongTermMemory:
         return None
 
     @staticmethod
-    def _normalize_memory_metadata(source: str, metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _normalize_memory_metadata(
+        source: str, metadata: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Normalize semantic memory metadata to stable trust-lane schema."""
         raw = dict(metadata or {})
         memory_type = str(raw.get("memory_type", "semantic")).strip().lower()

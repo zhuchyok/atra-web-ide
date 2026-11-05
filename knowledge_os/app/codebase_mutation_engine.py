@@ -682,7 +682,9 @@ class CodebaseMutationEngine:
             logger.warning("⚠️ [GIT] Failed to switch to branch %s: %s", branch_name, e)
             return False
 
-    async def create_pull_request(self, branch_name: str, title: str, description: str = "") -> Optional[str]:
+    async def create_pull_request(
+        self, branch_name: str, title: str, description: str = ""
+    ) -> Optional[str]:
         """Создать Pull Request через GitHub CLI (gh)."""
         try:
             # Проверяем наличие gh CLI
@@ -734,7 +736,9 @@ class CodebaseMutationEngine:
                 text=True,
                 check=True,
             )
-            changed_files = len(status_result.stdout.strip().split('\n')) if status_result.stdout.strip() else 0
+            changed_files = (
+                len(status_result.stdout.strip().split("\n")) if status_result.stdout.strip() else 0
+            )
 
             # Последний коммит
             log_result = subprocess.run(

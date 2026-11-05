@@ -72,7 +72,9 @@ NIGHTLY_ROUTING_GUARD_APPLY = os.getenv("NIGHTLY_ROUTING_GUARD_APPLY", "false").
 NIGHTLY_ROUTING_GUARD_COUNT = int(os.getenv("NIGHTLY_ROUTING_GUARD_COUNT", "1000"))
 NIGHTLY_ROUTING_GUARD_WINDOW_HOURS = float(os.getenv("NIGHTLY_ROUTING_GUARD_WINDOW_HOURS", "24"))
 NIGHTLY_ROUTING_GUARD_MIN_EVENTS = int(os.getenv("NIGHTLY_ROUTING_GUARD_MIN_EVENTS", "20"))
-NIGHTLY_ROUTING_GUARD_TARGET_WIN_RATE = float(os.getenv("NIGHTLY_ROUTING_GUARD_TARGET_WIN_RATE", "0.90"))
+NIGHTLY_ROUTING_GUARD_TARGET_WIN_RATE = float(
+    os.getenv("NIGHTLY_ROUTING_GUARD_TARGET_WIN_RATE", "0.90")
+)
 NIGHTLY_ROUTING_GUARD_MIN_WIN_RATE_ROLLBACK = float(
     os.getenv("NIGHTLY_ROUTING_GUARD_MIN_WIN_RATE_ROLLBACK", "0.80")
 )
@@ -281,13 +283,18 @@ async def create_debate_for_hypothesis(
     # 21/34 Rejection-фейлов — Debate из сырых discovery-логов без контекста.
     _h = (hypothesis_text or "").strip()
     _garbage_markers = (
-        "Discovery фаза", "❓ Вопрос", "📋", "❌", "🔄",
+        "Discovery фаза",
+        "❓ Вопрос",
+        "📋",
+        "❌",
+        "🔄",
     )
     _too_short = len(_h) < 50
     if _too_short or sum(1 for m in _garbage_markers if m in _h) >= 2:
         logger.info(
             "[v150.26] Debate skipped: гипотеза — лог-мусор/короткая (%d симв, маркеров: %d)",
-            len(_h), sum(1 for m in _garbage_markers if m in _h),
+            len(_h),
+            sum(1 for m in _garbage_markers if m in _h),
         )
         return council_node_id
     # [v150.67] Anti-noise: risky/secret-like hypotheses systematically fail adversarial gate
@@ -332,16 +339,13 @@ async def create_debate_for_hypothesis(
     # Простые гипотезы можно вернуть на HANDS только env override'ом.
     # Простой = <500 символов, без SQL/архитектуры.
     _h_low = _h.lower()
-    _is_simple = (
-        complexity == "simple"
-        or (
-            complexity is None
-            and len(_h) < 500
-            and "select " not in _h_low
-            and "sql" not in _h_low
-            and "архитектур" not in _h_low
-            and _h.count("?") <= 1
-        )
+    _is_simple = complexity == "simple" or (
+        complexity is None
+        and len(_h) < 500
+        and "select " not in _h_low
+        and "sql" not in _h_low
+        and "архитектур" not in _h_low
+        and _h.count("?") <= 1
     )
     if complexity is None:
         complexity = "simple" if _is_simple else "complex"
@@ -354,7 +358,9 @@ async def create_debate_for_hypothesis(
     preferred_source_complex = os.getenv("NIGHTLY_DEBATE_COMPLEX_SOURCE", "mlx").strip().lower()
     if preferred_source_complex not in ("mlx", "ollama"):
         preferred_source_complex = "mlx"
-    preferred_source = preferred_source_simple if complexity == "simple" else preferred_source_complex
+    preferred_source = (
+        preferred_source_simple if complexity == "simple" else preferred_source_complex
+    )
     preferred_model = (
         os.getenv("NIGHTLY_DEBATE_SIMPLE_MODEL", "victoria-wisdom-24k:latest")
         if complexity == "simple"

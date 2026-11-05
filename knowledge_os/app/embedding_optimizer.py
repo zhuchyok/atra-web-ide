@@ -68,7 +68,7 @@ class EmbeddingOptimizer:
         if _USE_RUST_NORMALIZER:
             return _rust_normalize_and_hash(text)
         normalized = self._normalize_text(text)
-        return hashlib.md5(normalized.encode('utf-8')).hexdigest()
+        return hashlib.md5(normalized.encode("utf-8")).hexdigest()
 
     def _get_text_hashes_batch(self, texts: List[str]) -> List[str]:
         """Батч хэшей: один вызов Rust при наличии, иначе N вызовов Python (меньше переходов Python↔Rust)."""

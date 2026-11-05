@@ -11,7 +11,7 @@ def test_log_scanner_hash_normalizes_dynamic_noise_before_dedup():
     assert r"\b\d{4}-\d{2}-\d{2}[ t]\d{2}:\d{2}:\d{2}" in text
     assert r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b" in text
     assert r"\[\d+\]" in text
-    assert "msg = re.sub(r\"\\s+\", \" \", msg).strip()" in text
+    assert 'msg = re.sub(r"\\s+", " ", msg).strip()' in text
 
 
 def test_log_scanner_ignores_victoria_warmup_busy_noise():
@@ -46,14 +46,11 @@ def test_log_scanner_ignores_watchdog_postgres_type_noise():
     assert r"FATAL:" in text
     assert r'terminating background worker "parallel worker"' in text
     # Паттерн шума embed-ошибок: старый ("failed after") или обобщённый v150.89 ("failed(?::| after)")
-    assert (
-        r"Ollama embed failed(?::| after)" in text
-        or r"Ollama embed failed after" in text
-    )
+    assert r"Ollama embed failed(?::| after)" in text or r"Ollama embed failed after" in text
     assert r"(?:^|[\s\"'])ERROR[:\s]|- ERROR -|\bCRITICAL\b|FATAL:" in text
     assert r"Exception:|Error:|RuntimeError:" not in text
     assert r"\[INFERENCE\] Ошибка прогрева модели" in text
     assert r"ai_core audit failed/timeout" in text
     assert r"TimeoutError\(\)" in text
     assert r"\b(TimeoutError|ReadTimeout|ConnectTimeout)\b" not in text
-    assert "re.compile(r\"timeout|TimeoutError|ReadTimeout\")" not in text
+    assert 're.compile(r"timeout|TimeoutError|ReadTimeout")' not in text

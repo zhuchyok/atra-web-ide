@@ -285,10 +285,15 @@ class VictoriaEnhanced:
                     loop.create_task(sentinel.start())
                     scheduled = True
                 except RuntimeError:
-                    logger.warning("⚠️ [AUTO-START] No running event loop; defer Event Bus/Sentinel startup")
+                    logger.warning(
+                        "⚠️ [AUTO-START] No running event loop; defer Event Bus/Sentinel startup"
+                    )
                 except Exception:
                     # Keep startup robust in mixed runtime/test contexts.
-                    logger.warning("⚠️ [AUTO-START] Failed to schedule Event Bus/Sentinel startup", exc_info=True)
+                    logger.warning(
+                        "⚠️ [AUTO-START] Failed to schedule Event Bus/Sentinel startup",
+                        exc_info=True,
+                    )
 
                 self.monitoring_started = scheduled
                 if scheduled:
@@ -329,6 +334,7 @@ class VictoriaEnhanced:
         if self.use_react:
             try:
                 from agents.react_agent import ReActAgent
+
                 self.react_agent = ReActAgent(agent_name="Виктория", model_name=self.model_name)
                 logger.info("✅ ReActAgent инициализирован")
             except ImportError:
@@ -340,6 +346,7 @@ class VictoriaEnhanced:
         if self.use_extended_thinking:
             try:
                 from extended_thinking import ExtendedThinkingEngine
+
                 self.extended_thinking = ExtendedThinkingEngine(
                     model_name=self.model_name,
                     thinking_budget=15000,
@@ -357,6 +364,7 @@ class VictoriaEnhanced:
         if self.use_swarm:
             try:
                 from swarm_intelligence import SwarmIntelligence
+
                 self.swarm = SwarmIntelligence(swarm_size=16, model_name=self.model_name)
                 logger.info("✅ SwarmIntelligence инициализирован")
             except ImportError:
@@ -368,6 +376,7 @@ class VictoriaEnhanced:
         if self.use_consensus:
             try:
                 from consensus_agent import ConsensusAgent
+
                 self.consensus = ConsensusAgent(model_name=self.model_name)
                 logger.info("✅ ConsensusAgent инициализирован")
             except ImportError:
@@ -379,6 +388,7 @@ class VictoriaEnhanced:
         if self.use_collective_memory:
             try:
                 from collective_memory import CollectiveMemorySystem
+
                 self.collective_memory = CollectiveMemorySystem()
                 logger.info("✅ CollectiveMemorySystem инициализирован")
             except ImportError:
@@ -553,9 +563,7 @@ class VictoriaEnhanced:
             _operational_llm_timeout = float(
                 os.getenv("VICTORIA_ENHANCED_LLM_TIMEOUT_OPERATIONAL_SEC", "240")
             )
-            llm_timeout = (
-                _operational_llm_timeout if skip_dept_heads else _default_llm_timeout
-            )
+            llm_timeout = _operational_llm_timeout if skip_dept_heads else _default_llm_timeout
             try:
                 llm_task = asyncio.create_task(
                     VictoriaEnhanced._run_smart_agent_async(
@@ -584,9 +592,7 @@ class VictoriaEnhanced:
                 # TODO: Convert f-string to %s formatting for performance
                 import traceback as _tb
 
-                logger.error(
-                    f"❌ [VICTORIA] LLM call failed: {e}\n{_tb.format_exc()[-1500:]}"
-                )
+                logger.error(f"❌ [VICTORIA] LLM call failed: {e}\n{_tb.format_exc()[-1500:]}")
                 return {"result": f"Ошибка вызова LLM: {e}"}
 
         return {"result": f"Solved: {goal}"}

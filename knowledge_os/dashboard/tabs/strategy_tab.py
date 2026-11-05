@@ -191,7 +191,9 @@ def render_finance_and_roi():
         )
         st.plotly_chart(fig_roi, width="stretch")
     else:
-        st.info("Нет данных по ROI за выбранный период — увеличьте период или наполняйте базу знаний.")
+        st.info(
+            "Нет данных по ROI за выбранный период — увеличьте период или наполняйте базу знаний."
+        )
 
 
 def render_structure():
@@ -362,6 +364,7 @@ def render_structure():
         if isinstance(_meta_raw, str):
             try:
                 import json as _json
+
                 _meta_raw = _json.loads(_meta_raw)
             except Exception:
                 _meta_raw = {}

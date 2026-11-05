@@ -211,11 +211,14 @@ class CollectiveMemorySystem:
             async with pool.acquire() as conn:
                 # 1. Применяем экспоненциальный распад: strength = strength * exp(-decay_rate * hours)
                 # Для простоты в SQL: strength = strength * (1 - decay_rate) ^ (hours_passed)
-                await conn.execute("""
+                await conn.execute(
+                    """
                     UPDATE environmental_traces
                     SET strength = strength * power(1.0 - $1, EXTRACT(EPOCH FROM (NOW() - timestamp)) / 3600)
                     WHERE strength > 0;
-                """, self.decay_rate)
+                """,
+                    self.decay_rate,
+                )
 
                 # 2. Удаляем следы, которые стали слишком слабыми (< 0.1)
                 deleted = await conn.execute("""

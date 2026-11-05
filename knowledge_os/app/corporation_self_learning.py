@@ -233,7 +233,9 @@ class CorporationSelfLearning:
                     """)
                     if res != "UPDATE 0":
                         # TODO: Convert f-string to %s formatting for performance
-                        logger.info(f"🛡️ [SELF-HEALING] Автоматически сброшено зависших задач: {res}")
+                        logger.info(
+                            f"🛡️ [SELF-HEALING] Автоматически сброшено зависших задач: {res}"
+                        )
         except Exception as e:
             # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ [SELF-HEALING] Ошибка при автоочистке: {e}")

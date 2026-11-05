@@ -540,7 +540,9 @@ def main():
         # TODO: Convert f-string to %s formatting for performance
         logger.info(f"\n{symbol}:")
         # TODO: Convert f-string to %s formatting for performance
-        logger.info(f"  💰 Баланс: ${initial:.2f} → ${final:.2f} (доходность: {result['return']:+.2f}%)")
+        logger.info(
+            f"  💰 Баланс: ${initial:.2f} → ${final:.2f} (доходность: {result['return']:+.2f}%)"
+        )
         # TODO: Convert f-string to %s formatting for performance
         logger.info(f"  📊 Сделок: {result['trades']}")
         # TODO: Convert f-string to %s formatting for performance

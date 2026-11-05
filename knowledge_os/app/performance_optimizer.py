@@ -48,7 +48,7 @@ class QueryCache:
     def _make_cache_key(self, query: str, params: tuple = ()) -> str:
         """Создание ключа кэша из запроса и параметров"""
         key_data = f"{query}:{json.dumps(params, sort_keys=True)}"
-        key_hash = hashlib.md5(key_data.encode('utf-8')).hexdigest()
+        key_hash = hashlib.md5(key_data.encode("utf-8")).hexdigest()
         return f"{CACHE_PREFIX}{key_hash}"
 
     async def get(self, query: str, params: tuple = ()) -> Optional[Any]:

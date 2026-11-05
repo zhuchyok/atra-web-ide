@@ -421,7 +421,15 @@ class ServiceMonitor:
                 node
                 for node in tree.body
                 if isinstance(
-                    node, (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Assign)
+                    node,
+                    (
+                        ast.Import,
+                        ast.ImportFrom,
+                        ast.FunctionDef,
+                        ast.AsyncFunctionDef,
+                        ast.ClassDef,
+                        ast.Assign,
+                    ),
                 )
             ]
             if not substantive:
@@ -469,9 +477,7 @@ class ServiceMonitor:
                 return False
             return True
         except Exception as e:
-            logger.error(
-                f"❌ [HOT-SWAP] Import verification error for {module_name}: {e}"
-            )
+            logger.error(f"❌ [HOT-SWAP] Import verification error for {module_name}: {e}")
             return False
 
     async def promote_mutation(self, module_name: str, mutation_path: str):
@@ -510,9 +516,7 @@ class ServiceMonitor:
 
             # 3. [P0 SAFETY] Verify the promoted module actually imports in a fresh interpreter
             if not self._verify_import_in_subprocess(module_name):
-                raise RuntimeError(
-                    f"Post-swap import verification failed for {module_name}"
-                )
+                raise RuntimeError(f"Post-swap import verification failed for {module_name}")
 
             # 3. Restart relevant services
             # For ai_core, we might need to restart the main agent process

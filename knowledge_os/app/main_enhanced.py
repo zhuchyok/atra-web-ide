@@ -1,4 +1,3 @@
-
 """
 Enhanced MCP Server with Multimodal Search
 Улучшенный MCP сервер с мультимодальным поиском

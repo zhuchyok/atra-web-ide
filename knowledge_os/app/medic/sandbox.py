@@ -102,10 +102,7 @@ class Sandbox:
         with open(manifest_path, "w") as f:
             json.dump(snapshot_manifest, f, indent=2)
 
-        logger.info(
-            f"📸 [SANDBOX] Snapshot создан: {self.sandbox_id} | "
-            f"Файлов: {len(files)}"
-        )
+        logger.info(f"📸 [SANDBOX] Snapshot создан: {self.sandbox_id} | Файлов: {len(files)}")
         return self.sandbox_id
 
     async def apply_fix(self, file_path: str, new_content: str) -> bool:
@@ -167,24 +164,30 @@ class Sandbox:
                     results["tests_passed"] += 1
                 else:
                     results["tests_failed"] += 1
-                    results["errors"].append({
-                        "file": str(py_file),
-                        "error": result.stderr[:500],
-                    })
+                    results["errors"].append(
+                        {
+                            "file": str(py_file),
+                            "error": result.stderr[:500],
+                        }
+                    )
                     results["success"] = False
             except subprocess.TimeoutExpired:
                 results["tests_failed"] += 1
-                results["errors"].append({
-                    "file": str(py_file),
-                    "error": "Compilation timeout",
-                })
+                results["errors"].append(
+                    {
+                        "file": str(py_file),
+                        "error": "Compilation timeout",
+                    }
+                )
                 results["success"] = False
             except Exception as e:
                 results["tests_failed"] += 1
-                results["errors"].append({
-                    "file": str(py_file),
-                    "error": str(e)[:500],
-                })
+                results["errors"].append(
+                    {
+                        "file": str(py_file),
+                        "error": str(e)[:500],
+                    }
+                )
                 results["success"] = False
 
         # 2. Запускаем кастомные тесты если указаны
@@ -203,24 +206,30 @@ class Sandbox:
                     results["tests_passed"] += 1
                 else:
                     results["tests_failed"] += 1
-                    results["errors"].append({
-                        "test": test_command,
-                        "error": result.stderr[:500],
-                    })
+                    results["errors"].append(
+                        {
+                            "test": test_command,
+                            "error": result.stderr[:500],
+                        }
+                    )
                     results["success"] = False
             except subprocess.TimeoutExpired:
                 results["tests_failed"] += 1
-                results["errors"].append({
-                    "test": test_command,
-                    "error": "Test timeout",
-                })
+                results["errors"].append(
+                    {
+                        "test": test_command,
+                        "error": "Test timeout",
+                    }
+                )
                 results["success"] = False
             except Exception as e:
                 results["tests_failed"] += 1
-                results["errors"].append({
-                    "test": test_command,
-                    "error": str(e)[:500],
-                })
+                results["errors"].append(
+                    {
+                        "test": test_command,
+                        "error": str(e)[:500],
+                    }
+                )
                 results["success"] = False
 
         logger.info(
@@ -244,9 +253,7 @@ class Sandbox:
 
             deployed_count = 0
             for file_path in manifest["files"]:
-                src = self.snapshot_path / Path(file_path).relative_to(
-                    Path(file_path).anchor
-                )
+                src = self.snapshot_path / Path(file_path).relative_to(Path(file_path).anchor)
                 dst = Path(file_path)
 
                 if src.exists():
@@ -256,9 +263,7 @@ class Sandbox:
                     deployed_count += 1
                     logger.info(f"🚀 [SANDBOX] Deployed: {file_path}")
 
-            logger.info(
-                f"✅ [SANDBOX] Deploy завершен: {deployed_count} файлов"
-            )
+            logger.info(f"✅ [SANDBOX] Deploy завершен: {deployed_count} файлов")
             return True
 
         except Exception as e:
@@ -284,17 +289,13 @@ class Sandbox:
                 dst = Path(file_path)
                 if dst.exists():
                     # Восстанавливаем из snapshot
-                    src = self.snapshot_path / Path(file_path).relative_to(
-                        Path(file_path).anchor
-                    )
+                    src = self.snapshot_path / Path(file_path).relative_to(Path(file_path).anchor)
                     if src.exists():
                         shutil.copy2(src, dst)
                         restored_count += 1
                         logger.info(f"↩️ [SANDBOX] Restored: {file_path}")
 
-            logger.info(
-                f"✅ [SANDBOX] Rollback завершен: {restored_count} файлов"
-            )
+            logger.info(f"✅ [SANDBOX] Rollback завершен: {restored_count} файлов")
             return True
 
         except Exception as e:

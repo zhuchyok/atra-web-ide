@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 
+
 def analyze_knowledge_os(data_source):
     """
     Анализирует данные Knowledge OS для выявления паттернов роста и рисков.
@@ -11,17 +12,15 @@ def analyze_knowledge_os(data_source):
     data = data_source.dropna()
 
     # Расчет скользящего среднего для трендов
-    data['trend_growth'] = data['revenue'].rolling(window=3).mean()
+    data["trend_growth"] = data["revenue"].rolling(window=3).mean()
 
     # Выявление паттернов риска (симуляция проверки 'голоса опыта')
-    risk_alert = data[data['volatility'] > npsoft(data['volatility'] * 2)]
+    risk_alert = data[data["volatility"] > npsoft(data["volatility"] * 2)]
 
-    insights = {
-        'trend_growth': data['trend_growth'],
-        'risk_alert': risk_alert
-    }
+    insights = {"trend_growth": data["trend_growth"], "risk_alert": risk_alert}
 
     return insights
+
 
 # Пример использования:
 # предполагая, что 'knowledge_data' - это DataFrame с нужными метриками

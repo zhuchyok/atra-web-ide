@@ -60,7 +60,9 @@ def summarize_container(raw: dict) -> dict:
     }
 
 
-def fetch_autonomous_services(base_url: str | None = None, timeout: float = 5.0) -> tuple[list[dict], str | None]:
+def fetch_autonomous_services(
+    base_url: str | None = None, timeout: float = 5.0
+) -> tuple[list[dict], str | None]:
     """Вернуть (сервисы, ошибка). Ошибка не None — список пустой."""
     url = f"{(base_url or proxy_url()).rstrip('/')}/containers/json"
     try:

@@ -90,7 +90,9 @@ async def main():
     # TODO: Convert f-string to %s formatting for performance
     logger.info(f"  Начальный баланс: {backtest.initial_balance:.2f} USDT")
     # TODO: Convert f-string to %s formatting for performance
-    logger.info(f"  Финальный баланс: {results.get('final_balance', backtest.current_balance):.2f} USDT")
+    logger.info(
+        f"  Финальный баланс: {results.get('final_balance', backtest.current_balance):.2f} USDT"
+    )
     logger.info(
         f"  Общий PnL: {results.get('total_pnl', 0):.2f} USDT ({results.get('total_return', 0):.2f}%)"
     )
@@ -105,7 +107,9 @@ async def main():
     # TODO: Convert f-string to %s formatting for performance
     logger.info(f"  Всего сделок: {results.get('total_trades', 0)}")
     # TODO: Convert f-string to %s formatting for performance
-    logger.info(f"  Прибыльных: {results.get('winning_trades', 0)} ({results.get('win_rate', 0):.2f}%)")
+    logger.info(
+        f"  Прибыльных: {results.get('winning_trades', 0)} ({results.get('win_rate', 0):.2f}%)"
+    )
     # TODO: Convert f-string to %s formatting for performance
     logger.info(f"  Убыточных: {results.get('losing_trades', 0)}")
     # TODO: Convert f-string to %s formatting for performance
@@ -123,7 +127,9 @@ async def main():
 
     logger.info("\n🤖 ИСПОЛЬЗОВАНИЕ ИИ:")
     # TODO: Convert f-string to %s formatting for performance
-    logger.info(f"  Сделок с индивидуальными параметрами: {results.get('trades_with_symbol_params', 0)}")
+    logger.info(
+        f"  Сделок с индивидуальными параметрами: {results.get('trades_with_symbol_params', 0)}"
+    )
     # TODO: Convert f-string to %s formatting for performance
     logger.info(f"  Сделок с анализом паттернов: {results.get('trades_with_patterns_analysis', 0)}")
     # TODO: Convert f-string to %s formatting for performance

@@ -69,7 +69,9 @@ class ExtendedThinkingEngine:
 
     def __init__(
         self,
-        model_name: str = os.getenv("EXTENDED_THINKING_MODEL", "victoria-qwen38:latest"),  # [v149.8] мозг-контракт
+        model_name: str = os.getenv(
+            "EXTENDED_THINKING_MODEL", "victoria-qwen38:latest"
+        ),  # [v149.8] мозг-контракт
         thinking_budget: int = 15000,  # [SINGULARITY 14.1] Увеличен бюджет до 15к
         # [v150.20] 12→8: аудит-3.0 — каждый solve × до (шагов+1) вызовов мозга
         # по 3-4 мин; 8 шагов = −33% нагрузки при сохранении качества (ранний
@@ -611,7 +613,7 @@ class ExtendedThinkingEngine:
                 )
 
         # Список URL для попыток (сначала MLX, затем Ollama)
-                # [v150.24] Аудит-4: intelligent_router выбирал phi для простых шагов,
+        # [v150.24] Аудит-4: intelligent_router выбирал phi для простых шагов,
         # а запрос шёл на OLLAMA_BASE_URL (11434 = мозг!) — карусель с гардом.
         # Модели рук всегда на 11437.
         _m = (model_to_use or "").lower()

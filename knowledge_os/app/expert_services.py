@@ -142,8 +142,10 @@ def _compose_expert_prompt(base_prompt: str, metadata: Any, dynamic_context: str
     # (пишет expert_dna_wisdom_injection.py в metadata.wisdom_dna).
     wisdom_block = ""
     try:
-        md = metadata if isinstance(metadata, dict) else (
-            json.loads(metadata) if isinstance(metadata, str) and metadata else {}
+        md = (
+            metadata
+            if isinstance(metadata, dict)
+            else (json.loads(metadata) if isinstance(metadata, str) and metadata else {})
         )
         wisdom = str(md.get("wisdom_dna") or "").strip()
         if wisdom:
@@ -170,7 +172,9 @@ def _load_experts_from_db() -> List[Dict[str, Any]]:
 
             async def _run():
                 conn = await asyncpg.connect(DB_URL)
-                rows = await conn.fetch("SELECT name, role, department FROM experts WHERE is_active = true")
+                rows = await conn.fetch(
+                    "SELECT name, role, department FROM experts WHERE is_active = true"
+                )
                 await conn.close()
                 return [
                     {"name": r["name"], "role": r["role"], "department": r["department"]}

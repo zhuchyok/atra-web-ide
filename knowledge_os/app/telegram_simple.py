@@ -302,7 +302,7 @@ async def handle_message(target_name, user_text, chat_id, user_id):
     import time
 
     feedback_id = hashlib.md5(
-        f"{user_id}_{expert['name']}_{user_text}_{int(time.time())}".encode('utf-8')
+        f"{user_id}_{expert['name']}_{user_text}_{int(time.time())}".encode("utf-8")
     ).hexdigest()[:16]
 
     reply_markup = {

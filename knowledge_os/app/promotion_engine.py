@@ -59,6 +59,8 @@ def mutation_passes_qa_gate(
     if win_rate < QA_GATE_MIN_WIN_RATE:
         return False, f"insufficient_win_rate:{win_rate:.2f}<{QA_GATE_MIN_WIN_RATE}"
     return True, ""
+
+
 PROMOTION_REPORT_INTERVAL_HOURS = int(os.getenv("PROMOTION_REPORT_INTERVAL_HOURS", "6"))
 PROMOTION_REPORT_WINDOW_HOURS = int(os.getenv("PROMOTION_REPORT_WINDOW_HOURS", "24"))
 

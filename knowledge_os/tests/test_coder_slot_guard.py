@@ -66,7 +66,9 @@ def test_brain_runner_alive_detects_blob(monkeypatch):
     monkeypatch.setattr(
         g.subprocess,
         "check_output",
-        lambda *a, **k: "bikos 1 llama-server --model /Users/x/.ollama-hands-local/blobs/sha256-bb\n",
+        lambda *a, **k: (
+            "bikos 1 llama-server --model /Users/x/.ollama-hands-local/blobs/sha256-bb\n"
+        ),
     )
     assert g._brain_runner_alive() is False
 
@@ -74,9 +76,9 @@ def test_brain_runner_alive_detects_blob(monkeypatch):
 def test_pin_brain_ghost_does_not_generate():
     import pathlib
 
-    src = (pathlib.Path(__file__).resolve().parents[2] / "scripts" / "ollama_wisdom_guard.py").read_text(
-        encoding="utf-8"
-    )
+    src = (
+        pathlib.Path(__file__).resolve().parents[2] / "scripts" / "ollama_wisdom_guard.py"
+    ).read_text(encoding="utf-8")
     brain_fn = src.split("def pin_brain():", 1)[1].split("def _should_unload(", 1)[0]
     assert "GHOST" in brain_fn
     assert "_brain_runner_alive" in brain_fn
@@ -87,9 +89,9 @@ def test_pin_brain_ghost_does_not_generate():
 def test_pin_brain_keep_alive_is_duration_not_minus_one():
     import pathlib
 
-    src = (pathlib.Path(__file__).resolve().parents[2] / "scripts" / "ollama_wisdom_guard.py").read_text(
-        encoding="utf-8"
-    )
+    src = (
+        pathlib.Path(__file__).resolve().parents[2] / "scripts" / "ollama_wisdom_guard.py"
+    ).read_text(encoding="utf-8")
     brain_fn = src.split("def pin_brain():", 1)[1].split("def _should_unload(", 1)[0]
     assert '"keep_alive": "24h"' in brain_fn
     assert '"keep_alive": -1' not in brain_fn
@@ -147,9 +149,9 @@ def test_launchd_canaries_use_contract_ctx():
 def test_worker_ops_are_info_not_error():
     import pathlib
 
-    src = (
-        pathlib.Path(__file__).resolve().parents[1] / "app" / "expert_worker.py"
-    ).read_text(encoding="utf-8")
+    src = (pathlib.Path(__file__).resolve().parents[1] / "app" / "expert_worker.py").read_text(
+        encoding="utf-8"
+    )
     assert 'logger.info("🏆 [AUCTION]' in src
     assert 'logger.error(f"🏆 [AUCTION]' not in src
     assert 'logger.info("🔄 [RESURRECTION] Found my task' in src

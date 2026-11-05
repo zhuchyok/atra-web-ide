@@ -20,8 +20,14 @@ from typing import Optional
 
 # [v148.3] Sanity-гейт мутаций (см. expert_evolver.py): запрещаем метакомментарии.
 _MUTATION_META_MARKERS = (
-    "улучшенн", "revamped", "обновленный промпт", "как gemini", "как ai,",
-    "системный при", "improved prompt", "предлагаю оптимизировать",
+    "улучшенн",
+    "revamped",
+    "обновленный промпт",
+    "как gemini",
+    "как ai,",
+    "системный при",
+    "improved prompt",
+    "предлагаю оптимизировать",
 )
 
 
@@ -32,6 +38,7 @@ def _is_sane_mutation(new_prompt: str) -> bool:
     if any(m in low for m in _MUTATION_META_MARKERS):
         return False
     return any(h in low for h in ("ты ", "you are", "твоя роль", "your role"))
+
 
 import asyncpg
 
@@ -446,7 +453,10 @@ class ExpertEvolver:
                         }
                     )
                     if not _is_sane_mutation(new_prompt):
-                        logger.error("🚨 [EEVOL] sanity gate rejected (metrics evolution): %s", str(new_prompt)[:80])
+                        logger.error(
+                            "🚨 [EEVOL] sanity gate rejected (metrics evolution): %s",
+                            str(new_prompt)[:80],
+                        )
                         return False
 
                     # QA-GATE: a fresh direct-promotion mutation has no test stats yet,
@@ -624,7 +634,9 @@ class ExpertEvolver:
                 }
             )
             if not _is_sane_mutation(new_prompt):
-                logger.error("🚨 [EEVOL] sanity gate rejected (shadow promote): %s", str(new_prompt)[:80])
+                logger.error(
+                    "🚨 [EEVOL] sanity gate rejected (shadow promote): %s", str(new_prompt)[:80]
+                )
                 return False
             await conn.execute(
                 """
@@ -804,7 +816,10 @@ class ExpertEvolver:
                         }
                     )
                     if not _is_sane_mutation(new_prompt):
-                        logger.error("🚨 [EEVOL] sanity gate rejected (specialization): %s", str(new_prompt)[:80])
+                        logger.error(
+                            "🚨 [EEVOL] sanity gate rejected (specialization): %s",
+                            str(new_prompt)[:80],
+                        )
                         return False
 
                     await conn.execute(

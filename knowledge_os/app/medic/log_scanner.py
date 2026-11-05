@@ -249,9 +249,7 @@ def build_scanner_goal(container: str, error: Dict, klass: str, code_path: str =
             f"{head} file={code_path}. Propose a patch only via write_file with SOURCE_GUARD. "
             f"Do not call autonomous-code. Do not git_push. Do not touch src/agents. Msg: {msg}"
         )
-    return (
-        f"{head} Do not write files. Short: what broke and whether a human is needed. Msg: {msg}"
-    )
+    return f"{head} Do not write files. Short: what broke and whether a human is needed. Msg: {msg}"
 
 
 # Containers to never scan (avoid self-referential loops)
@@ -288,9 +286,7 @@ class ErrorDeduplicator:
         now = time.time()
 
         # Очистить старые записи
-        self.history[key] = [
-            t for t in self.history[key] if now - t < self.window
-        ]
+        self.history[key] = [t for t in self.history[key] if now - t < self.window]
 
         if self.history[key]:
             return True
@@ -449,8 +445,7 @@ class LogScanner:
         now = time.time()
         # Remove timestamps older than window
         self._task_timestamps = [
-            ts for ts in self._task_timestamps
-            if now - ts < self.RATE_LIMIT_WINDOW
+            ts for ts in self._task_timestamps if now - ts < self.RATE_LIMIT_WINDOW
         ]
         if len(self._task_timestamps) >= self.MAX_TASKS_PER_HOUR:
             logger.warning(
@@ -555,9 +550,7 @@ class LogScanner:
                 f"🔍 [LOG_SCANNER] class={klass} {container}: {error['type']}: {error['message'][:100]}"
             )
 
-            await self.send_to_victoria(
-                container, error, klass=klass, code_path=code_path
-            )
+            await self.send_to_victoria(container, error, klass=klass, code_path=code_path)
 
         return errors_found
 

@@ -499,16 +499,14 @@ class DataTools:
             cols = list(rows[0].keys()) if rows else []
             head = " | ".join(cols)
             lines = [head, "-" * min(len(head), 120)]
-            for r in rows[
-                : int(os.getenv("DB_QUERY_MAX_ROWS", "25"))
-            ]:
+            for r in rows[: int(os.getenv("DB_QUERY_MAX_ROWS", "25"))]:
                 lines.append(
-                    " | ".join(
-                        (str(r[c])[:60]).replace("\n", " ")[:MAX_CELL_CHARS] for c in cols
-                    )
+                    " | ".join((str(r[c])[:60]).replace("\n", " ")[:MAX_CELL_CHARS] for c in cols)
                 )
             text = "\n".join(lines)
-            suffix = "" if len(rows) <= int(os.getenv("DB_QUERY_MAX_ROWS", "25")) else "\n… (обрезано)"
+            suffix = (
+                "" if len(rows) <= int(os.getenv("DB_QUERY_MAX_ROWS", "25")) else "\n… (обрезано)"
+            )
             return text[:MAX_DB_CHARS] + suffix
         except Exception as e:
             return f"db_query error: {str(e)[:200]}"
@@ -556,7 +554,14 @@ class GitTools:
     # ── [v3 Гит-агент, write] безопасные мутации через subprocess ──
     GIT_MAX_CHARS = int(os.getenv("GIT_TOOL_MAX_CHARS", "4000"))
 
-    _GIT_BLOCK_TOKENS = ("rm -rf", "--force", "reset --hard", "clean -fd", "> /dev/sda?", "push --force")
+    _GIT_BLOCK_TOKENS = (
+        "rm -rf",
+        "--force",
+        "reset --hard",
+        "clean -fd",
+        "> /dev/sda?",
+        "push --force",
+    )
     _GIT_ALLOWED_SUBCOMMANDS = {"status", "diff", "log", "checkout", "add", "commit", "push"}
 
     @staticmethod
@@ -581,7 +586,9 @@ class GitTools:
         if validation_error:
             return 2, validation_error
         repo = GitTools._resolve_repo()
-        proc = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, timeout=timeout)
+        proc = subprocess.run(
+            ["git", "-C", repo, *args], capture_output=True, text=True, timeout=timeout
+        )
         out = (proc.stdout or proc.stderr or "").strip()
         return proc.returncode, out
 
@@ -589,7 +596,11 @@ class GitTools:
     def _gh_run(args: list, timeout: int = 30):
         env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
         proc = subprocess.run(
-            ["gh", *args], capture_output=True, text=True, timeout=timeout, env=env,
+            ["gh", *args],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env=env,
             cwd=GitTools._resolve_repo() or os.getcwd(),
         )
         out = (proc.stdout or proc.stderr or "").strip()
@@ -635,6 +646,7 @@ class GitTools:
     @staticmethod
     async def git_pr_create(title: str = "", body: str = "") -> str:
         import shutil
+
         if shutil.which("gh") is None:
             return (
                 "Note: gh CLI доступен только на хосте. Команда прерывания.\n"
@@ -642,7 +654,9 @@ class GitTools:
             )
         if not GitTools._safe_token(title + body):
             return "Error: запрещённые токены"
-        code, out = GitTools._gh_run(["pr", "create", "--fill", "--title", title[:200], "--body", body[:3000]], timeout=60)
+        code, out = GitTools._gh_run(
+            ["pr", "create", "--fill", "--title", title[:200], "--body", body[:3000]], timeout=60
+        )
         return ("ok: " + out if code == 0 else f"Error: {out}")[:MAX_DB_CHARS]
 
     @staticmethod
@@ -653,7 +667,9 @@ class GitTools:
     @staticmethod
     async def git_test_run(path: str = "") -> str:
         cmd = ["python3", "-m", "pytest", "-q"] if not path else ["python3", path]
-        proc = subprocess.run(cmd, cwd=GitTools._resolve_repo(), capture_output=True, text=True, timeout=120)
+        proc = subprocess.run(
+            cmd, cwd=GitTools._resolve_repo(), capture_output=True, text=True, timeout=120
+        )
         return ((proc.stdout or "") + (proc.stderr or ""))[:MAX_DB_CHARS]
 
 

@@ -177,7 +177,7 @@ class TaskPrioritizer:
             import hashlib
 
             task_key = f"{task_type}:{description}:{datetime.now(timezone.utc).isoformat()}"
-            task_id = hashlib.md5(task_key.encode('utf-8')).hexdigest()[:16]
+            task_id = hashlib.md5(task_key.encode("utf-8")).hexdigest()[:16]
 
             # Рассчитываем приоритет
             priority, priority_score = self.calculate_priority_score(

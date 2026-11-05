@@ -464,7 +464,9 @@ def main():
         progress_bar = "█" * int(percentage / 5) + "░" * (20 - int(percentage / 5))
 
         # TODO: Convert f-string to %s formatting for performance
-        logger.info(f"{i:<4} {name:<15} {role:<30} {percentage:>5.1f}% {progress_bar:<12} {status:<10}")
+        logger.info(
+            f"{i:<4} {name:<15} {role:<30} {percentage:>5.1f}% {progress_bar:<12} {status:<10}"
+        )
 
     logger.info("-" * 100)
 

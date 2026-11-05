@@ -35,11 +35,14 @@ def test_expert_worker_release_uses_model_specific_channel():
 
 def test_local_router_has_dedicated_executor_node():
     text = LOCAL_ROUTER.read_text(encoding="utf-8")
-    assert "OLLAMA_EXECUTOR_API_URL = os.getenv(\"OLLAMA_EXECUTOR_BASE_URL\")" in text
-    assert "\"routing_key\": \"ollama_executor\"" in text
+    assert 'OLLAMA_EXECUTOR_API_URL = os.getenv("OLLAMA_EXECUTOR_BASE_URL")' in text
+    assert '"routing_key": "ollama_executor"' in text
     assert "Heavy coder model pinned to dedicated Ollama node" in text
 
 
 def test_compose_propagates_executor_base_url():
     text = AGENTS_COMPOSE.read_text(encoding="utf-8")
-    assert "OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}" in text
+    assert (
+        "OLLAMA_EXECUTOR_BASE_URL: ${OLLAMA_EXECUTOR_BASE_URL:-http://host.docker.internal:11434}"
+        in text
+    )

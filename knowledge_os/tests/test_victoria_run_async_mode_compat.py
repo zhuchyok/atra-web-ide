@@ -14,6 +14,6 @@ def test_task_request_supports_async_mode_field():
 
 def test_run_task_uses_body_async_mode_compatibility():
     text = VICTORIA_SERVER.read_text(encoding="utf-8")
-    assert "if not async_mode and bool(getattr(body, \"async_mode\", False)):" in text
+    assert 'if not async_mode and bool(getattr(body, "async_mode", False)):' in text
     assert "async_mode = True" in text
     assert "enabled from request body for compatibility" in text

@@ -19,4 +19,7 @@ def test_sandbox_manager_can_infer_host_project_root_from_mounts():
     assert 'destination == "/workspace/atra-web-ide"' in text
     assert 'destination == "/app/knowledge_os"' in text
     assert "self.host_shared_dir = _resolve_host_sandbox_shared_dir(self.docker_client)" in text
-    assert "mount_path = self.host_shared_dir or _resolve_host_sandbox_shared_dir(self.docker_client)" in text
+    assert (
+        "mount_path = self.host_shared_dir or _resolve_host_sandbox_shared_dir(self.docker_client)"
+        in text
+    )

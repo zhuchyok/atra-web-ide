@@ -26,7 +26,7 @@ def test_normalizer_trims_short_latin_artifact_before_code_block():
     text = VICTORIA_SERVER.read_text(encoding="utf-8")
     assert 'first_fence = s.find("```")' in text
     assert 're.fullmatch(r"[-A-Za-z0-9_,.!?\\"\'` ]+", prefix)' in text
-    assert "and prefix.endswith(\".\")" in text
-    assert "and \":\" not in prefix" in text
+    assert 'and prefix.endswith(".")' in text
+    assert 'and ":" not in prefix' in text
     assert "and len(prefix.split()) <= 3" in text
-    assert 's = s[first_fence:].lstrip()' in text
+    assert "s = s[first_fence:].lstrip()" in text

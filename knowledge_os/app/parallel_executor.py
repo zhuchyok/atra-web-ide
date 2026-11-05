@@ -77,7 +77,9 @@ class ParallelExecutor:
                         results.append(None)
                 else:
                     results.append(None)
-            logger.warning(f"⏱️ Timeout при параллельном выполнении {len(tasks)} задач" if pending else "")
+            logger.warning(
+                f"⏱️ Timeout при параллельном выполнении {len(tasks)} задач" if pending else ""
+            )
         else:
             results = await asyncio.gather(*coroutines, return_exceptions=True)
 
@@ -124,9 +126,11 @@ class ParallelExecutor:
             # Выполняем батч параллельно
             batch_results = await self.execute_parallel(
                 tasks,
-                lambda item: process_func(item)
-                if not inspect.iscoroutinefunction(process_func)
-                else process_func(item),
+                lambda item: (
+                    process_func(item)
+                    if not inspect.iscoroutinefunction(process_func)
+                    else process_func(item)
+                ),
                 timeout=timeout,
             )
 

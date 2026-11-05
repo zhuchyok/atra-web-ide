@@ -16,13 +16,16 @@ from medic.watchdog import Incident, Watchdog
 
 def test_medic_signatures_classification():
     """Verify that Watchdog classifies all failure signatures correctly."""
+
     async def noop(i):
         pass
 
     w = Watchdog(on_incident=noop)
 
     # 1. Broken import signature
-    inc = w.classify_line("2026-09-01 ERROR ❌ [VICTORIA] LLM call failed: No module named 'ai_pipeline'")
+    inc = w.classify_line(
+        "2026-09-01 ERROR ❌ [VICTORIA] LLM call failed: No module named 'ai_pipeline'"
+    )
     assert inc is not None
     assert inc.kind == "BROKEN_IMPORT"
 

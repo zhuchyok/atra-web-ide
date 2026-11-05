@@ -112,7 +112,7 @@ class CollaborationForum:
         try:
             # Генерируем post_id
             post_key = f"{agent_id}:{title}:{datetime.now(timezone.utc).isoformat()}"
-            post_id = hashlib.md5(post_key.encode('utf-8')).hexdigest()[:16]
+            post_id = hashlib.md5(post_key.encode("utf-8")).hexdigest()[:16]
 
             post = ForumPost(
                 post_id=post_id,

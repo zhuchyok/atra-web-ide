@@ -56,9 +56,7 @@ def test_extra_cannot_override_num_ctx():
 def test_router_adaptive_uses_pin_not_16k_for_phi():
     from local_router import LocalAIRouter
 
-    opts = LocalAIRouter._get_adaptive_options(
-        LocalAIRouter.__new__(LocalAIRouter), "phi3.5:3.8b"
-    )
+    opts = LocalAIRouter._get_adaptive_options(LocalAIRouter.__new__(LocalAIRouter), "phi3.5:3.8b")
     assert opts["num_ctx"] == 8192
     assert opts["num_predict"] == 1200
 

@@ -24,7 +24,10 @@ def test_pick_best_ollama_skips_wisdom():
 
 
 def test_pick_best_ollama_wisdom_only_returns_none():
-    assert pick_best_ollama(["victoria-wisdom-v3.5:latest", "victoria-wisdom-24k", "deepseek-r1:32b"]) is None
+    assert (
+        pick_best_ollama(["victoria-wisdom-v3.5:latest", "victoria-wisdom-24k", "deepseek-r1:32b"])
+        is None
+    )
 
 
 def test_pick_ollama_for_category_skips_wisdom():

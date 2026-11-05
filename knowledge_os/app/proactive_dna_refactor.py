@@ -203,9 +203,7 @@ class DNARefactorEngine:
                 except:
                     meta = {}
             error_val = meta.get("error") if isinstance(meta, dict) else "None"
-            summary += (
-                f"Q: {log['user_query'][:50]} | Score: {log['feedback_score']} | Error: {error_val}\n"
-            )
+            summary += f"Q: {log['user_query'][:50]} | Score: {log['feedback_score']} | Error: {error_val}\n"
 
         return summary
 

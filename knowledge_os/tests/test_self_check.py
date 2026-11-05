@@ -11,6 +11,7 @@ class TestSelfCheckConfig:
     def test_ollama_url_from_env(self):
         """Ollama URL should use OLLAMA_BASE_URL from env, not hardcoded localhost."""
         import os
+
         url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         assert url.startswith("http")
         assert "11434" in url
@@ -51,5 +52,6 @@ class TestSelfCheckConfig:
     def test_check_interval_default(self):
         """Check interval should default to 300s."""
         import os
+
         interval = int(os.getenv("SELF_CHECK_INTERVAL_SEC", "300"))
         assert interval == 300

@@ -166,49 +166,59 @@ class ProactiveMonitor:
             prev_percent = previous["ram"].get("used_percent", 0)
 
             if curr_percent > RAM_CRITICAL_PERCENT:
-                alerts.append({
-                    "type": "ram_critical",
-                    "severity": "critical",
-                    "message": f"RAM usage critical: {curr_percent}%",
-                    "value": curr_percent,
-                    "threshold": RAM_CRITICAL_PERCENT,
-                })
+                alerts.append(
+                    {
+                        "type": "ram_critical",
+                        "severity": "critical",
+                        "message": f"RAM usage critical: {curr_percent}%",
+                        "value": curr_percent,
+                        "threshold": RAM_CRITICAL_PERCENT,
+                    }
+                )
             elif curr_percent > RAM_WARNING_PERCENT:
-                alerts.append({
-                    "type": "ram_warning",
-                    "severity": "warning",
-                    "message": f"RAM usage high: {curr_percent}%",
-                    "value": curr_percent,
-                    "threshold": RAM_WARNING_PERCENT,
-                })
+                alerts.append(
+                    {
+                        "type": "ram_warning",
+                        "severity": "warning",
+                        "message": f"RAM usage high: {curr_percent}%",
+                        "value": curr_percent,
+                        "threshold": RAM_WARNING_PERCENT,
+                    }
+                )
 
             # Rapid increase
             if curr_percent - prev_percent > 10:
-                alerts.append({
-                    "type": "ram_rapid_increase",
-                    "severity": "warning",
-                    "message": f"RAM usage increased rapidly: {prev_percent}% → {curr_percent}%",
-                })
+                alerts.append(
+                    {
+                        "type": "ram_rapid_increase",
+                        "severity": "warning",
+                        "message": f"RAM usage increased rapidly: {prev_percent}% → {curr_percent}%",
+                    }
+                )
 
         # Disk trend
         if "disk" in current:
             disk_percent = current["disk"].get("used_percent", 0)
             if disk_percent > DISK_CRITICAL_PERCENT:
-                alerts.append({
-                    "type": "disk_critical",
-                    "severity": "critical",
-                    "message": f"Disk usage critical: {disk_percent}%",
-                    "value": disk_percent,
-                    "threshold": DISK_CRITICAL_PERCENT,
-                })
+                alerts.append(
+                    {
+                        "type": "disk_critical",
+                        "severity": "critical",
+                        "message": f"Disk usage critical: {disk_percent}%",
+                        "value": disk_percent,
+                        "threshold": DISK_CRITICAL_PERCENT,
+                    }
+                )
             elif disk_percent > DISK_WARNING_PERCENT:
-                alerts.append({
-                    "type": "disk_warning",
-                    "severity": "warning",
-                    "message": f"Disk usage high: {disk_percent}%",
-                    "value": disk_percent,
-                    "threshold": DISK_WARNING_PERCENT,
-                })
+                alerts.append(
+                    {
+                        "type": "disk_warning",
+                        "severity": "warning",
+                        "message": f"Disk usage high: {disk_percent}%",
+                        "value": disk_percent,
+                        "threshold": DISK_WARNING_PERCENT,
+                    }
+                )
 
         # Container health
         if "containers" in current:
@@ -219,12 +229,14 @@ class ProactiveMonitor:
                 if info.get("healthy") is False and info.get("running", True)
             ]
             if unhealthy:
-                alerts.append({
-                    "type": "unhealthy_containers",
-                    "severity": "warning",
-                    "message": f"Unhealthy containers: {', '.join(unhealthy)}",
-                    "containers": unhealthy,
-                })
+                alerts.append(
+                    {
+                        "type": "unhealthy_containers",
+                        "severity": "warning",
+                        "message": f"Unhealthy containers: {', '.join(unhealthy)}",
+                        "containers": unhealthy,
+                    }
+                )
 
         return alerts
 
@@ -294,10 +306,12 @@ class ProactiveMonitor:
         actions_taken = []
         for alert in alerts:
             success = await self.take_action(alert)
-            actions_taken.append({
-                "alert": alert,
-                "action_taken": success,
-            })
+            actions_taken.append(
+                {
+                    "alert": alert,
+                    "action_taken": success,
+                }
+            )
 
         self._last_check = time.time()
 
@@ -310,9 +324,7 @@ class ProactiveMonitor:
                 "disk_percent": metrics.get("disk", {}).get("used_percent"),
                 "containers_total": len(metrics.get("containers", {})),
                 "containers_healthy": sum(
-                    1
-                    for c in metrics.get("containers", {}).values()
-                    if c.get("healthy", True)
+                    1 for c in metrics.get("containers", {}).values() if c.get("healthy", True)
                 ),
             },
         }

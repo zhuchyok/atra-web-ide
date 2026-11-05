@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 Отправляет оперативный risk-отчёт в Telegram.

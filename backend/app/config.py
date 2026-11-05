@@ -105,7 +105,12 @@ class Settings(BaseSettings):
 
     cors_allow_credentials: bool = True
     cors_allow_methods: list[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    cors_allow_headers: list[str] = ["Authorization", "Content-Type", "X-Requested-With", "X-Correlation-ID"]
+    cors_allow_headers: list[str] = [
+        "Authorization",
+        "Content-Type",
+        "X-Requested-With",
+        "X-Correlation-ID",
+    ]
 
     # Rate Limiting
     rate_limit_enabled: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"

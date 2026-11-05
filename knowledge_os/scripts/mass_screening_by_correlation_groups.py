@@ -333,7 +333,7 @@ async def screen_by_correlation_groups(days: int = 365, min_trades: int = 5) -> 
         # Сортируем по комбинированному скору (Win Rate * Profit Factor * PnL)
         # Используем total_pnl вместо total_pnl_pct (так как pct = 0.0)
         results.sort(
-            key=lambda x: (x["win_rate"] * x["profit_factor"] * max(0, x["total_pnl"])),
+            key=lambda x: x["win_rate"] * x["profit_factor"] * max(0, x["total_pnl"]),
             reverse=True,
         )
 

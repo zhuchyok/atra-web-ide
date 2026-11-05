@@ -19,19 +19,24 @@ def extract_source_attribution(metadata: dict) -> List[Dict[str, str]]:
     def _push(source_type: str, source_ref: str, note: str = ""):
         if not source_ref:
             return
-        candidates.append({
-            "source_type": source_type,
-            "source_ref": str(source_ref)[:256],
-            "note": str(note)[:256] if note else "",
-        })
+        candidates.append(
+            {
+                "source_type": source_type,
+                "source_ref": str(source_ref)[:256],
+                "note": str(note)[:256] if note else "",
+            }
+        )
 
     for key in ("source_refs", "sources", "citations", "knowledge_node_ids", "knowledge_ids"):
         val = md.get(key, md.get(f"metadata_{key}", []))
         if isinstance(val, list):
             for item in val:
                 if isinstance(item, dict):
-                    _push(item.get("type", "unknown"), item.get("ref", item.get("id", "")),
-                          item.get("note", item.get("snippet", "")))
+                    _push(
+                        item.get("type", "unknown"),
+                        item.get("ref", item.get("id", "")),
+                        item.get("note", item.get("snippet", "")),
+                    )
                 elif isinstance(item, str):
                     _push("knowledge_node" if "node" in key else "source", item)
         elif isinstance(val, str):
@@ -52,6 +57,7 @@ async def run_monster_audits(description: str, metadata: dict) -> Optional[str]:
     """Run monster-specific security audits."""
     try:
         from expert_worker import _run_monster_pip_runtime_audit, _run_monster_secret_header_audit
+
         pip_report = await _run_monster_pip_runtime_audit(description, metadata)
         if pip_report:
             return pip_report

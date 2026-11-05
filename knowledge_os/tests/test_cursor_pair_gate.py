@@ -12,7 +12,9 @@ def test_live_health_ok_is_fact():
 
 def test_live_queue_is_fact():
     assert (
-        classify("# Pair\n\n## Goal\n\nq\n\n## Victoria\n\npending=1 in_progress=0\n\n## Lesson\n\nx\n")
+        classify(
+            "# Pair\n\n## Goal\n\nq\n\n## Victoria\n\npending=1 in_progress=0\n\n## Lesson\n\nx\n"
+        )
         == "fact"
     )
 

@@ -694,9 +694,7 @@ def _resolve_auto_mode(request: "DialogueRequest") -> "DialogueRequest":
 
     engine, category = resolve_engine(request.topic)
     resolved = DialogueMode(engine)
-    logger.info(
-        "Auto-routing: category=%s engine=%s topic=%.80s", category, engine, request.topic
-    )
+    logger.info("Auto-routing: category=%s engine=%s topic=%.80s", category, engine, request.topic)
     return request.model_copy(update={"mode": resolved})
 
 

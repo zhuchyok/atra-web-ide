@@ -113,7 +113,12 @@ OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
     ],
     "vision": ["moondream:latest", "minicpm-v:latest"],
     "thinking": ["lfm2.5-thinking:1.2b", "tinyllama:1.1b-chat", "phi3.5:3.8b"],
-    "vip": ["victoria-qwen38:latest", "victoria-wisdom-24k:latest", "victoria-wisdom-24k", *_OLLAMA_LIGHT_HANDS],
+    "vip": [
+        "victoria-qwen38:latest",
+        "victoria-wisdom-24k:latest",
+        "victoria-wisdom-24k",
+        *_OLLAMA_LIGHT_HANDS,
+    ],
     "fallback": ["deepseek-r1:32b", "qwq:32b", "glm-4.7-flash:latest", *_OLLAMA_LIGHT_HANDS],
 }
 

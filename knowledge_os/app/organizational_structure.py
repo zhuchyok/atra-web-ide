@@ -520,7 +520,11 @@ class OrganizationalStructure:
                 {
                     "id": "Legal",
                     "name": "Legal & Compliance",
-                    "manager": {"id": 20, "name": "Алексей", "role": "Security & Compliance Engineer"},
+                    "manager": {
+                        "id": 20,
+                        "name": "Алексей",
+                        "role": "Security & Compliance Engineer",
+                    },
                     "employees": [
                         {
                             "id": 20,

@@ -482,7 +482,9 @@ def main():
                 st.stop()
 
     # Шапка: логотип, раздел, время UTC, статус, метрики, обновить (всё на своих местах)
-    _section = st.session_state.get("nav_section") or st.session_state.get("dashboard_section", "Обзор")  # [fix] widget state актуален на rerun
+    _section = st.session_state.get("nav_section") or st.session_state.get(
+        "dashboard_section", "Обзор"
+    )  # [fix] widget state актуален на rerun
     col_header1, col_header2, col_header3, col_header4, col_header5 = st.columns([2, 1, 1, 1, 1])
 
     # ПАРАЛЛЕЛЬНЫЙ СБОР ДАННЫХ ДЛЯ ШАПКИ И МЕТРИК
@@ -902,6 +904,7 @@ def main():
                 label_visibility="collapsed",
             )
         with col_task:
+
             def _go_to_tasks():
                 """Callback: выполняется до создания виджетов, поэтому session_state
                 можно менять безопасно (иначе Streamlit бросает исключение)."""
@@ -909,7 +912,12 @@ def main():
                 st.session_state["nav_section"] = "🛠️ Задачи и SLA"
                 st.cache_data.clear()
 
-            if st.button("📋 Поставить задачу", key="overview_put_task", width="stretch", on_click=_go_to_tasks):
+            if st.button(
+                "📋 Поставить задачу",
+                key="overview_put_task",
+                width="stretch",
+                on_click=_go_to_tasks,
+            ):
                 st.rerun()
 
         if search_query and len(search_query.strip()) >= 2:

@@ -67,8 +67,16 @@ def _event_ts_ms(event: Dict[str, Any]) -> int:
 
 
 def aggregate_routing_metrics(events: List[Dict[str, Any]], window_hours: float) -> Dict[str, Any]:
-    include_synthetic = os.getenv("ROUTING_GUARD_INCLUDE_SYNTHETIC", "0").lower() in ("1", "true", "yes")
-    prefixes = [] if include_synthetic else _parse_prefixes(os.getenv("ROUTING_EXCLUDE_REASON_PREFIXES", "quality_seed_"))
+    include_synthetic = os.getenv("ROUTING_GUARD_INCLUDE_SYNTHETIC", "0").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    prefixes = (
+        []
+        if include_synthetic
+        else _parse_prefixes(os.getenv("ROUTING_EXCLUDE_REASON_PREFIXES", "quality_seed_"))
+    )
     excluded_routes = _parse_values(os.getenv("ROUTING_EXCLUDE_ROUTES", "cloud"))
     now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
     cutoff = now_ms - int(max(1.0, window_hours) * 3600 * 1000)
@@ -187,12 +195,18 @@ def _to_markdown(report: Dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-async def _maybe_notify_guard_decision(redis_client: Any, decision: Dict[str, Any], metrics: Dict[str, Any]) -> None:
+async def _maybe_notify_guard_decision(
+    redis_client: Any, decision: Dict[str, Any], metrics: Dict[str, Any]
+) -> None:
     """Send Telegram/ntfy escalation for non-rollout actions with cooldown."""
     if str(decision.get("action")) == "rollout":
         logger.info("routing_guard_notify_skip: action=rollout")
         return
-    enabled = os.getenv("NIGHTLY_ROUTING_GUARD_NOTIFY_ENABLED", "true").lower() in ("1", "true", "yes")
+    enabled = os.getenv("NIGHTLY_ROUTING_GUARD_NOTIFY_ENABLED", "true").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     if not enabled:
         logger.info("routing_guard_notify_skip: notifications disabled")
         return
@@ -228,7 +242,11 @@ async def _maybe_notify_guard_decision(redis_client: Any, decision: Dict[str, An
             ok = await send_ntfy(text, title="ATRA Routing Guard")
         if ok:
             await redis_client.set(key, str(now_ts))
-            logger.warning("routing_guard_notify_sent: action=%s reason=%s", decision.get("action"), decision.get("reason"))
+            logger.warning(
+                "routing_guard_notify_sent: action=%s reason=%s",
+                decision.get("action"),
+                decision.get("reason"),
+            )
         else:
             logger.warning("routing_guard_notify_failed: action=%s", decision.get("action"))
     except Exception:

@@ -238,8 +238,6 @@ async def test_empty_mlx_does_not_fallback_wisdom_to_ollama(mock_context_mirror)
         await router.run_local_llm("Analyze this deeply", category="reasoning")
 
     ollama_wisdom = [
-        (u, m)
-        for u, m in posted
-        if "11434" in u and m and "victoria-wisdom" in str(m).lower()
+        (u, m) for u, m in posted if "11434" in u and m and "victoria-wisdom" in str(m).lower()
     ]
     assert ollama_wisdom == []

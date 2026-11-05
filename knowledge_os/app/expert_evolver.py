@@ -10,8 +10,14 @@ from typing import Optional
 # иначе эволювер перезаписывает персону эксперта мусором (инцидент 24.09:
 # у 8 экспертов system_prompt был заменён текстом вида "Улучшенный промпт:").
 _MUTATION_META_MARKERS = (
-    "улучшенн", "revamped", "обновленный промпт", "как gemini", "как ai,",
-    "системный при", "improved prompt", "предлагаю оптимизировать",
+    "улучшенн",
+    "revamped",
+    "обновленный промпт",
+    "как gemini",
+    "как ai,",
+    "системный при",
+    "improved prompt",
+    "предлагаю оптимизировать",
 )
 
 
@@ -23,6 +29,7 @@ def _is_sane_mutation(new_prompt: str) -> bool:
         return False
     # персона должна обращаться к самому эксперту
     return any(h in low for h in ("ты ", "you are", "твоя роль", "your role"))
+
 
 import asyncpg
 
@@ -193,7 +200,10 @@ async def evolve_experts(expert_name: Optional[str] = None):
 
                 if new_prompt and len(new_prompt) > 100:
                     if not _is_sane_mutation(new_prompt):
-                        logger.error("🚨 [EVOLVER] Mutation rejected by sanity gate (meta-garbage): %s", new_prompt[:80])
+                        logger.error(
+                            "🚨 [EVOLVER] Mutation rejected by sanity gate (meta-garbage): %s",
+                            new_prompt[:80],
+                        )
                         await conn.close()
                         return
                     await conn.execute(

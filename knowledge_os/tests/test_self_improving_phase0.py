@@ -35,7 +35,9 @@ async def test_routing_journal_publish_calls_redis_xadd():
     router = LocalAIRouter()
     mock_client = AsyncMock()
 
-    with patch("app.redis_manager.redis_manager.get_client", new=AsyncMock(return_value=mock_client)):
+    with patch(
+        "app.redis_manager.redis_manager.get_client", new=AsyncMock(return_value=mock_client)
+    ):
         await router._publish_routing_journal(
             task_type="smoke",
             category="chat",

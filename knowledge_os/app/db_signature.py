@@ -12,6 +12,7 @@ app_name (детектив сбросчика задач слеп на этих 
 
 Использование: install() один раз в точке входа процесса (idempotent).
 """
+
 from __future__ import annotations
 
 import functools
@@ -56,9 +57,7 @@ def install() -> bool:
 
     sig = _signature()
     if not sig:
-        logger.info(
-            "[DB-SIGNATURE] CONTAINER_NAME не задан — соединения идут как есть"
-        )
+        logger.info("[DB-SIGNATURE] CONTAINER_NAME не задан — соединения идут как есть")
         _INSTALLED = True
         return False
 

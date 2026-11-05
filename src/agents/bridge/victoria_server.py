@@ -328,7 +328,28 @@ def _force_deep_analysis_reason(goal: str) -> Optional[str]:
 
     # Объяснительные вопросы (knowledge-type): уточнение здесь бесполезно —
     # нужен содержательный ответ (Enhanced + RAG), а не «уточните, что именно».
-    if any(g.startswith(v) for v in ("объясни", "что такое", "расскажи", "сравни", "почему", "зачем", "чем отличается", "разбери", "проанализируй", "исследуй", "опиши", "перечисли", "составь", "напиши план", "какая", "какие", "как")):
+    if any(
+        g.startswith(v)
+        for v in (
+            "объясни",
+            "что такое",
+            "расскажи",
+            "сравни",
+            "почему",
+            "зачем",
+            "чем отличается",
+            "разбери",
+            "проанализируй",
+            "исследуй",
+            "опиши",
+            "перечисли",
+            "составь",
+            "напиши план",
+            "какая",
+            "какие",
+            "как",
+        )
+    ):
         return "knowledge_explanation_no_clarify"
 
     return None
@@ -351,7 +372,10 @@ def _has_no_clarification_instruction(goal: str) -> bool:
 def _select_model_for_chat(content: str, expert_name: Optional[str] = None) -> str:
     """Автоматический выбор модели на основе содержания сообщения и эксперта"""
     content_lower = content.lower()
-    short_chat_model = os.getenv("VICTORIA_CHAT_SHORT_MODEL", "phi3.5:3.8b-stable")
+    short_chat_model = os.getenv(
+        "VICTORIA_CHAT_SHORT_MODEL",
+        os.getenv("VICTORIA_MODEL", "victoria-qwen38:latest"),
+    )
 
     # [VIP ROUTE] Если в чате Иван (CEO) или запрос стратегический
     if any(
@@ -447,7 +471,7 @@ except ImportError:
 # Хранилище фоновых задач (202 + polling): task_id -> { status, output, knowledge, error, created_at }
 _run_task_store: Dict[str, Dict[str, Any]] = {}
 _RUN_TASK_STORE_TTL = 86400  # 24 часа для God Mode
-_RUN_TASK_STORE_MAX = 1000   # Лимит записей в памяти
+_RUN_TASK_STORE_MAX = 1000  # Лимит записей в памяти
 
 # Реестр сильных ссылок на фоновые задачи (защита от GC в Python 3.11+)
 _active_background_tasks: set[asyncio.Task] = set()
@@ -833,7 +857,23 @@ VICTORIA_ASYNC_TTC = _create_metric(
     Histogram,
     "Async /run time from 202 accept to terminal status",
     ["status", "handoff_reason"],
-    buckets=(1.0, 2.5, 5.0, 8.0, 10.0, 15.0, 20.0, 30.0, 45.0, 60.0, 90.0, 120.0, 180.0, 300.0, 600.0),
+    buckets=(
+        1.0,
+        2.5,
+        5.0,
+        8.0,
+        10.0,
+        15.0,
+        20.0,
+        30.0,
+        45.0,
+        60.0,
+        90.0,
+        120.0,
+        180.0,
+        300.0,
+        600.0,
+    ),
 )
 VICTORIA_ACTIVE_REQUESTS = _create_metric(
     "victoria_active_requests", Gauge, "Number of active Victoria requests"
@@ -1131,7 +1171,11 @@ async def _async_sla_snapshot() -> dict:
                 tagged = parsed
             raw_inflight = await client.hgetall(_ASYNC_INFLIGHT_REDIS_KEY)
             for raw_task_id, item in (raw_inflight or {}).items():
-                task_id = raw_task_id.decode("utf-8") if isinstance(raw_task_id, bytes) else str(raw_task_id)
+                task_id = (
+                    raw_task_id.decode("utf-8")
+                    if isinstance(raw_task_id, bytes)
+                    else str(raw_task_id)
+                )
                 created_raw = item.decode("utf-8") if isinstance(item, bytes) else item
                 elapsed = _elapsed_seconds_from_store({"created_at": created_raw})
                 if elapsed is None:
@@ -1143,7 +1187,9 @@ async def _async_sla_snapshot() -> dict:
                     rec = await redis_manager.get_task_status(task_id)
                     if rec:
                         redis_status = str(rec.get("status") or "").lower()
-                        redis_result = str(rec.get("result") or rec.get("output") or rec.get("error") or "")
+                        redis_result = str(
+                            rec.get("result") or rec.get("output") or rec.get("error") or ""
+                        )
                 except Exception:
                     rec = None
                 local_status = str(local.get("status") or "").lower()
@@ -1180,6 +1226,7 @@ async def _async_sla_snapshot() -> dict:
         "ttc_samples": ttc_samples,
         "by_reason": ttc_by_reason(tagged),
     }
+
 
 # Лимит шагов агента. Для чата/Telegram клиенты передают max_steps=50 (VICTORIA_MAX_STEPS_CHAT / VICTORIA_MAX_STEPS)
 DEFAULT_MAX_STEPS = int(os.getenv("VICTORIA_MAX_STEPS", "500"))
@@ -1538,22 +1585,15 @@ def _ollama_url_for_model(model: str, default_url: Optional[str] = None) -> str:
     """Route coder to dedicated Ollama. Wisdom never goes to 11434/11436."""
     if model and "wisdom" in str(model).lower():
         return (
-            os.getenv("MLX_API_URL")
-            or os.getenv("MLX_BASE_URL")
-            or "http://localhost:11435"
+            os.getenv("MLX_API_URL") or os.getenv("MLX_BASE_URL") or "http://localhost:11435"
         ).rstrip("/")
-    base_default = (
-        default_url
-        or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    )
+    base_default = default_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k:latest")
     if "wisdom" not in str(executor_model).lower() and _same_model_alias(model, executor_model):
         return os.getenv("OLLAMA_EXECUTOR_BASE_URL", base_default).rstrip("/")
     if model and "coder" in str(model).lower():
         return os.getenv("OLLAMA_EXECUTOR_BASE_URL", base_default).rstrip("/")
     return base_default.rstrip("/")
-
-
 
 
 async def _deferred_warmup_retry(model: str, ollama_url: str, timeout_per_model: float) -> None:
@@ -1583,11 +1623,20 @@ async def _deferred_warmup_retry(model: str, ollama_url: str, timeout_per_model:
                         return
                 r = await client.post(
                     f"{ollama_url}/api/generate",
-                    json={"model": model, "prompt": "ping", "stream": False, "keep_alive": keep_alive},
+                    json={
+                        "model": model,
+                        "prompt": "ping",
+                        "stream": False,
+                        "keep_alive": keep_alive,
+                    },
                 )
                 body = (r.text or "")[:200].lower()
                 if r.status_code == 200:
-                    logger.info("✅ [VICTORIA] Deferred warmup succeeded for %s (attempt %s)", model, attempt)
+                    logger.info(
+                        "✅ [VICTORIA] Deferred warmup succeeded for %s (attempt %s)",
+                        model,
+                        attempt,
+                    )
                     return
                 is_busy = r.status_code in (429, 503) or "server busy" in body
                 if is_busy and attempt < max_attempts:
@@ -1654,7 +1703,9 @@ async def warmup_victoria():
         try:
             fcntl.flock(lock_fp.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            logger.info("[VICTORIA] Warmup already running in another worker, skipping duplicate run")
+            logger.info(
+                "[VICTORIA] Warmup already running in another worker, skipping duplicate run"
+            )
             return
     except Exception as e:
         logger.debug("[VICTORIA] Warmup lock unavailable, continuing without lock: %s", e)
@@ -1699,14 +1750,19 @@ async def warmup_victoria():
             for model in models_list:
                 if not model:
                     continue
-                if os.getenv("VICTORIA_MLX_BRAIN", "true").lower() in ("true", "1", "yes", "on") and "victoria-wisdom" in model.lower():
+                if (
+                    os.getenv("VICTORIA_MLX_BRAIN", "true").lower() in ("true", "1", "yes", "on")
+                    and "victoria-wisdom" in model.lower()
+                ):
                     logger.info(
                         "⚡ [VICTORIA] %s — мозг в MLX, Ollama прогрев пропускаем",
                         model,
                     )
                     continue
                 if model in mlx_cached or model.rstrip(":latest") in mlx_cached:
-                    logger.info("⚡ [VICTORIA] Модель %s уже в MLX — пропускаем Ollama прогрев", model)
+                    logger.info(
+                        "⚡ [VICTORIA] Модель %s уже в MLX — пропускаем Ollama прогрев", model
+                    )
                     continue
                 model_ollama_url = _ollama_url_for_model(model, default_url=ollama_url)
                 attempt = 0
@@ -1722,7 +1778,9 @@ async def warmup_victoria():
                                 if isinstance(m, dict)
                             }
                             if model in loaded or model.rstrip(":latest") in loaded:
-                                logger.info("✅ [VICTORIA] Модель %s уже загружена в Ollama (api/ps)", model)
+                                logger.info(
+                                    "✅ [VICTORIA] Модель %s уже загружена в Ollama (api/ps)", model
+                                )
                                 break
                         r = await client.post(
                             f"{model_ollama_url}/api/generate",
@@ -1776,7 +1834,9 @@ async def warmup_victoria():
                             )
                             await asyncio.sleep(retry_sleep_sec)
                             continue
-                        logger.warning("[VICTORIA] Ошибка прогрева модели %s (продолжаем): %s", model, e)
+                        logger.warning(
+                            "[VICTORIA] Ошибка прогрева модели %s (продолжаем): %s", model, e
+                        )
                         break
     finally:
         if lock_fp is not None:
@@ -1939,7 +1999,9 @@ async def lifespan(app: FastAPI):
 
     # Initialize concurrency limiter
     _victoria_semaphore = asyncio.Semaphore(VICTORIA_MAX_CONCURRENT_TASKS)
-    logger.info(f"[CONCURRENCY] Semaphore initialized: max {VICTORIA_MAX_CONCURRENT_TASKS} concurrent tasks")
+    logger.info(
+        f"[CONCURRENCY] Semaphore initialized: max {VICTORIA_MAX_CONCURRENT_TASKS} concurrent tasks"
+    )
 
     def _env_bool(key: str, default: bool = False) -> bool:
         v = (os.getenv(key) or "").strip().strip("\"'")
@@ -2112,6 +2174,7 @@ async def lifespan(app: FastAPI):
     # [MEDIC] Feedback Loop — обучение на ошибках
     try:
         from app.medic.feedback_loop import FeedbackLoop
+
         feedback_loop_instance = FeedbackLoop()
         await feedback_loop_instance.initialize()
         logger.info("✅ [FEEDBACK] Feedback Loop инициализирован")
@@ -2122,6 +2185,7 @@ async def lifespan(app: FastAPI):
     # [MEDIC] Rollback Manager — откат изменений
     try:
         from app.medic.rollback_manager import RollbackManager
+
         rollback_manager_instance = RollbackManager()
         logger.info("✅ [ROLLBACK] Rollback Manager инициализирован")
     except Exception as e:
@@ -2131,6 +2195,7 @@ async def lifespan(app: FastAPI):
     # [MEDIC] Metrics Dashboard — метрики
     try:
         from app.medic.metrics_dashboard import MetricsDashboard
+
         metrics_dashboard_instance = MetricsDashboard()
         await metrics_dashboard_instance.initialize()
         logger.info("✅ [METRICS] Metrics Dashboard инициализирован")
@@ -2141,6 +2206,7 @@ async def lifespan(app: FastAPI):
     # [MEDIC] Proactive Monitor — мониторинг ресурсов
     try:
         from app.medic.proactive_monitor import ProactiveMonitor
+
         proactive_monitor_instance = ProactiveMonitor()
         _create_tracked_task(proactive_monitor_instance.run())
         logger.info("✅ [PROACTIVE] Proactive Monitor запущен")
@@ -2151,6 +2217,7 @@ async def lifespan(app: FastAPI):
     # [MULTI-AGENT] PlanDecomposer — разбиение сложных задач
     try:
         from app.plan_decomposer import PlanDecomposer
+
         plan_decomposer_instance = PlanDecomposer()
         logger.info("✅ [PLAN_DECOMPOSER] Инициализирован")
     except Exception as e:
@@ -2160,6 +2227,7 @@ async def lifespan(app: FastAPI):
     # [MULTI-AGENT] ConsensusAgent — голосование экспертов
     try:
         from app.consensus_agent import ConsensusAgent
+
         consensus_agent_instance = ConsensusAgent()
         logger.info("✅ [CONSENSUS] ConsensusAgent инициализирован")
     except Exception as e:
@@ -2169,6 +2237,7 @@ async def lifespan(app: FastAPI):
     # [MULTI-AGENT] AgentLifecycleManager — жизненный цикл агентов
     try:
         from app.agent_lifecycle_manager import AgentLifecycleManager
+
         agent_lifecycle_instance = AgentLifecycleManager()
         logger.info("✅ [LIFECYCLE] AgentLifecycleManager инициализирован")
     except Exception as e:
@@ -2178,6 +2247,7 @@ async def lifespan(app: FastAPI):
     # [MULTI-AGENT] CollectiveMemory — общая память
     try:
         from app.collective_memory import CollectiveMemory
+
         collective_memory_instance = CollectiveMemory(agent_name="Виктория")
         logger.info("✅ [MEMORY] CollectiveMemory инициализирован")
     except Exception as e:
@@ -2187,6 +2257,7 @@ async def lifespan(app: FastAPI):
     # [MULTI-AGENT] HumanApproval — одобрение критических действий
     try:
         from app.human_approval import HumanApprovalSystem
+
         human_approval_instance = HumanApprovalSystem()
         logger.info("✅ [HUMAN] HumanApproval инициализирован")
     except Exception as e:
@@ -2196,6 +2267,7 @@ async def lifespan(app: FastAPI):
     # [MULTI-AGENT] LoadBalancer — балансировка нагрузки
     try:
         from app.load_balancer import LoadBalancer
+
         load_balancer_instance = LoadBalancer()
         logger.info("✅ [LOAD_BALANCER] LoadBalancer инициализирован")
     except Exception as e:
@@ -2205,6 +2277,7 @@ async def lifespan(app: FastAPI):
     # [MULTI-AGENT] GitEngine — интеграция с Git
     try:
         from app.codebase_mutation_engine import get_mutation_engine
+
         git_engine_instance = get_mutation_engine()
         logger.info("✅ [GIT] GitEngine инициализирован")
     except Exception as e:
@@ -2622,7 +2695,9 @@ class VictoriaAgent(BaseAgent):
                         await _rag_cache_set(rag_cache_key, context, ttl_sec)
                     return context
         except Exception as e:
-            logger.warning("Ошибка поиска знаний: %s: %r", type(e).__name__, e)  # [v149.16] пустые ошибки замалчивали причину
+            logger.warning(
+                "Ошибка поиска знаний: %s: %r", type(e).__name__, e
+            )  # [v149.16] пустые ошибки замалчивали причину
         return ""
 
     def _categorize_task(self, goal: str) -> str:
@@ -2693,7 +2768,9 @@ class VictoriaAgent(BaseAgent):
                     task_type=self._categorize_task(goal)
                 )
                 if least_loaded and least_loaded in self.expert_team:
-                    logger.info("[LOAD_BALANCER] Выбран наименее загруженный эксперт: %s", least_loaded)
+                    logger.info(
+                        "[LOAD_BALANCER] Выбран наименее загруженный эксперт: %s", least_loaded
+                    )
                     expert_data = self.expert_team[least_loaded]
                     return least_loaded, expert_data, []
             except Exception as e:
@@ -3357,9 +3434,7 @@ class VictoriaAgent(BaseAgent):
             and _is_explicit_concrete_goal(raw_goal)
             and not any(m in goal_lower for m in ambiguous_markers)
         ):
-            logger.info(
-                "🟢 [UNDERSTAND_GOAL] concrete task fast path (no LLM): %s", raw_goal[:50]
-            )
+            logger.info("🟢 [UNDERSTAND_GOAL] concrete task fast path (no LLM): %s", raw_goal[:50])
             return {"restated": raw_goal.strip(), "category": "multi_step", "first_step": ""}
 
         context_block = ""
@@ -4329,11 +4404,7 @@ def _strip_internal_monologue(text: str) -> str:
         "**Задача:**",
         "### Отвечай строго по фактам",
     )
-    _kept = [
-        ln
-        for ln in s.splitlines()
-        if not any(m in ln for m in _scaffold_markers)
-    ]
+    _kept = [ln for ln in s.splitlines() if not any(m in ln for m in _scaffold_markers)]
     _cleaned = "\n".join(_kept).strip()
     if len(_cleaned) >= 60:
         s = _cleaned
@@ -4408,9 +4479,15 @@ async def _run_quick_tools_for_goal(goal: str) -> list:
     directive_map = {
         "db_query": (DataTools.db_query, r"db_query"),
         "git_log": (GitTools.git_log, r"git_log|git log|лог git|истори[яи]\s+git"),
-        "git_status": (GitTools.git_status, r"git_status|git status|статус\s+git|статус\s+гита|состояни[ея]\s+git|состояни[ея]\s+гита"),
+        "git_status": (
+            GitTools.git_status,
+            r"git_status|git status|статус\s+git|статус\s+гита|состояни[ея]\s+git|состояни[ея]\s+гита",
+        ),
         "git_diff": (GitTools.git_diff, r"git_diff|git diff|дифф\s+git|разниц[ау]\s+git"),
-        "web_search": (WebTools.web_search, r"web_search|найди в интернете|поищи в интернете|последние новости"),
+        "web_search": (
+            WebTools.web_search,
+            r"web_search|найди в интернете|поищи в интернете|последние новости",
+        ),
     }
     g_lower = (goal or "").lower()
     if not _has_explicit_tool_directive(goal):
@@ -4437,9 +4514,7 @@ async def _run_quick_tools_for_goal(goal: str) -> list:
             m = re.search(r"([\w/.\-]+\.\w+)", goal)
             arg = m.group(1) if m else ""
         elif tool_name == "web_search":
-            m = re.search(
-                r"(?:web_search|интернет[ау]?|news)[:\s]+(.{5,200})", goal, re.IGNORECASE
-            )
+            m = re.search(r"(?:web_search|интернет[ау]?|news)[:\s]+(.{5,200})", goal, re.IGNORECASE)
             arg = (m.group(1) if m else goal)[:200]
         try:
             if tool_name == "git_status":
@@ -4466,7 +4541,8 @@ def _is_direct_tool_reply_candidate(goal: str) -> bool:
         "объясни",
         "сделай вывод",
         "подробно",
-        "составь план", "план:",
+        "составь план",
+        "план:",
         "deep",
     )
     if any(m in g for m in analysis_markers):
@@ -4532,7 +4608,9 @@ def _file_check_scan(path: str, task_text: str) -> Optional[str]:
         return f"ПРОБЛЕМА: найдено «{what}» (строка {hits[0] + 1}): {_quote(hits[0])}"
 
     # Вариант 2: «найди потенциальные проблемы: a, b, c».
-    m2 = re.search(r"найди\s+потенциальные\s+проблемы\s*:\s*(?P<list>[^.?]+)", task_text, re.IGNORECASE)
+    m2 = re.search(
+        r"найди\s+потенциальные\s+проблемы\s*:\s*(?P<list>[^.?]+)", task_text, re.IGNORECASE
+    )
     if m2:
         items = [x.strip().lower() for x in m2.group("list").split(",") if x.strip()]
         if not items:
@@ -4565,7 +4643,7 @@ async def _try_file_check_reply(goal: str) -> Optional[Dict[str, Any]]:
     if not m:
         return None
     # Позиции матча в prefix совпадают с позициями в g (prefix — начало g).
-    task_text = g[m.end("path"):][:400]
+    task_text = g[m.end("path") :][:400]
     answer = _file_check_scan(m.group("path"), task_text)
     if answer is None:
         return None
@@ -4849,15 +4927,18 @@ def _normalize_output_for_user(raw: Any) -> str:
         # [v149.2] ReAct-цепочка мысли: несколько {"thought": ..., "tool": "finish", "tool_input": {...}}
         # подряд — вытаскиваем output последней finish-мысли (частая утечка reasoning в ответ).
         import re as _re
+
         finish_outputs = _re.findall(
             r'"tool"\s*:\s*"finish"\s*,?\s*"tool_input"\s*:\s*\{[^}]*?"output"\s*:\s*"((?:[^"\\]|\\.)*)"',
             s,
         )
+
         def _unescape(t: str) -> str:
             try:
                 return json.loads('"' + t + '"')
             except Exception:  # noqa: BLE001
                 return t
+
         if finish_outputs and len(finish_outputs) <= 6:
             best = _unescape(finish_outputs[-1])
             best = best.strip()
@@ -4877,9 +4958,7 @@ def _normalize_output_for_user(raw: Any) -> str:
 
         # [v149.2] одиночный JSON-дикт {thought, action:{...}}: достать полезный контент
         # (content/file_content/output внутри action) — это реальный результат работы.
-        if s.lstrip().startswith("{") and (
-            '"action"' in s or '"tool_input"' in s or '"plan"' in s
-        ):
+        if s.lstrip().startswith("{") and ('"action"' in s or '"tool_input"' in s or '"plan"' in s):
             data = None
             try:
                 data = json.loads(s)
@@ -4905,9 +4984,7 @@ def _normalize_output_for_user(raw: Any) -> str:
                 action = data.get("action")
                 if isinstance(action, dict):
                     content = (
-                        action.get("content")
-                        or action.get("file_content")
-                        or action.get("output")
+                        action.get("content") or action.get("file_content") or action.get("output")
                     )
                 ti = data.get("tool_input")
                 if not content and isinstance(ti, dict):
@@ -4976,7 +5053,7 @@ def _normalize_output_for_user(raw: Any) -> str:
                     or data.get("output")
                 )
                 return (out if isinstance(out, str) else str(out)) if out else raw
-        return s
+        return _rewrite_bible_access_denial(s)
     if isinstance(raw, dict):
         ti = raw.get("tool_input") if isinstance(raw.get("tool_input"), dict) else {}
         out = (
@@ -4986,12 +5063,299 @@ def _normalize_output_for_user(raw: Any) -> str:
             or raw.get("message")
             or raw.get("output")
         )
-        return (
-            (out if isinstance(out, str) else str(out))
-            if out
-            else json.dumps(raw, ensure_ascii=False)
-        )
+        if out:
+            _out_s = out if isinstance(out, str) else str(out)
+            return _rewrite_bible_access_denial(_out_s)
+        return json.dumps(raw, ensure_ascii=False)
     return str(raw)
+
+
+def _rewrite_bible_access_denial(text: str) -> str:
+    """Replace incorrect 'no access to Bible/docs' replies with deterministic project paths."""
+    if not text:
+        return text
+    s = text.strip()
+    s_low = s.lower()
+    has_denial = any(
+        m in s_low
+        for m in (
+            "не вижу их содержимое",
+            "не вижу содержимое",
+            "приложишь файлы",
+            "укажешь путь",
+            "нет доступа к файлам",
+            "нет прямого доступа",
+        )
+    )
+    has_bible_context = any(
+        m in s_low
+        for m in (
+            "библия",
+            "master_reference",
+            "changes_from_other_chats",
+            "cognitive_code",
+            "team.md",
+            ".cursorrules",
+        )
+    )
+    if not (has_denial and has_bible_context):
+        return text
+    return (
+        "Да, в контексте ATRA библия доступна. Основные источники:\n"
+        "- `docs/MASTER_REFERENCE.md`\n"
+        "- `docs/CHANGES_FROM_OTHER_CHATS.md`\n"
+        "- `docs/COGNITIVE_CODE.md`\n"
+        "- `configs/experts/team.md`\n"
+        "- `.cursor/rules/`\n"
+        "Готова отвечать по ним как по source of truth."
+    )
+
+
+def _needs_full_pipeline_for_docs(goal_text: str) -> bool:
+    """Bypass quick knowledge fast-path for explicit docs/Bible requests.
+
+    Fast-path can return generic KB snippets and miss live project docs context.
+    For these queries we force full run_task pipeline.
+    """
+    g = (goal_text or "").lower()
+    markers = (
+        "docs/master_reference.md",
+        "docs/changes_from_other_chats.md",
+        "docs/cognitive_code.md",
+        "master_reference",
+        "changes_from_other_chats",
+        "cognitive_code",
+        "изучи библию",
+        "прочитай библию",
+        "дай бриф",
+    )
+    return any(m in g for m in markers)
+
+
+def _build_bible_brief_from_docs(goal_text: str) -> Optional[str]:
+    """Deterministic brief from mounted Bible docs for explicit onboarding requests."""
+    g = (goal_text or "").lower()
+    triggers = (
+        "master_reference",
+        "changes_from_other_chats",
+        "cognitive_code",
+        "изучи библию",
+        "библия корпорации",
+        "что описано в библии",
+        "что в библии",
+        "прочитай библию",
+        "дай бриф",
+        "войди в контекст",
+    )
+    if not any(t in g for t in triggers):
+        return None
+
+    candidates = {
+        "master": [
+            "/workspace/global_docs/MASTER_REFERENCE.md",
+            "/workspace/atra-web-ide/docs/MASTER_REFERENCE.md",
+        ],
+        "changes": [
+            "/workspace/global_docs/CHANGES_FROM_OTHER_CHATS.md",
+            "/workspace/atra-web-ide/docs/CHANGES_FROM_OTHER_CHATS.md",
+        ],
+        "cognitive": [
+            "/workspace/global_docs/COGNITIVE_CODE.md",
+            "/workspace/atra-web-ide/docs/COGNITIVE_CODE.md",
+        ],
+        "team": [
+            "/workspace/global_docs/team.md",
+            "/workspace/atra-web-ide/configs/experts/team.md",
+        ],
+    }
+
+    def _read_first_existing(paths: List[str], max_chars: int = 22000) -> str:
+        for p in paths:
+            try:
+                if os.path.exists(p):
+                    with open(p, encoding="utf-8", errors="replace") as f:
+                        return f.read(max_chars)
+            except Exception:
+                continue
+        return ""
+
+    master = _read_first_existing(candidates["master"], max_chars=45000)
+    changes = _read_first_existing(candidates["changes"], max_chars=30000)
+    cognitive = _read_first_existing(candidates["cognitive"], max_chars=20000)
+    team = _read_first_existing(candidates["team"], max_chars=20000)
+    if not (master or changes or cognitive):
+        return None
+
+    def _rx(pattern: str, text: str) -> str:
+        m = re.search(pattern, text or "", flags=re.IGNORECASE | re.MULTILINE)
+        return m.group(1).strip() if m else ""
+
+    version = _rx(r"(Singularity\s+\d+\.\d+\+)", master)
+    if not version:
+        version = _rx(r"(Singularity\s+\d+\.\d+)", master)
+
+    status = ""
+    if re.search(r"P0\s+Stabilization\s+Closure", master, flags=re.IGNORECASE):
+        status = "P0 Stabilization Closure"
+    elif re.search(r"восстановлен[ао]?\s+и\s+работает", master, flags=re.IGNORECASE):
+        status = "модель восстановлена и работает"
+
+    # Prefer explicit incident date, then latest version section date.
+    updated = _rx(r"ИНЦИДЕНТ\s*\((\d{4}-\d{2}-\d{2})\)", master)
+    if not updated:
+        dates = re.findall(
+            r"##\s*§\s*v[\d.]+\s*\((\d{4}-\d{2}-\d{2})\)", master or "", flags=re.IGNORECASE
+        )
+        if dates:
+            updated = sorted(dates)[-1]
+
+    master_change = _rx(r"##\s*§\s*[^(\n]*\(([^)]+)\)", master)
+    if not master_change:
+        master_change = _rx(r"##\s*\d+\.\s*[^(\n]*\(([^)]+)\)", master)
+    changes_change = _rx(r"##\s*§\s*[^(\n]*\(([^)]+)\)", changes)
+
+    cognitive_principles = re.findall(
+        r"##\s*\d+\.\s*([^\n]+)", cognitive or "", flags=re.IGNORECASE
+    )[:5]
+    if not cognitive_principles:
+        cognitive_principles = [
+            "First Principles",
+            "Five Whys",
+            "Pre-mortem",
+            "KISS / Occam",
+            "Strong Opinions, Weakly Held",
+        ]
+
+    role_pairs = re.findall(r"\|\s*\*\*([^*]+)\*\*\s*\|\s*([^|]+)\|", team or "")
+    # Keep compact but source-backed list from team.md main table.
+    role_pairs = role_pairs[:10]
+    if role_pairs:
+        roles = ", ".join(f"{name.strip()} ({role.strip()})" for name, role in role_pairs)
+    else:
+        roles = (
+            "Виктория (Team Lead), Игорь (Backend), Роман (DB), Сергей (DevOps), "
+            "Анна (QA), Ольга (Performance), Алексей (Security)"
+        )
+
+    return (
+        "Бриф по Библии ATRA:\n"
+        f"- Текущая версия/состояние: {version or 'н/д'}; статус: {status or 'н/д'}; обновлено: {updated or 'н/д'}.\n"
+        f"- Ключевые роли команды: {roles}.\n"
+        f"- Последние изменения: MASTER_REFERENCE={master_change or 'н/д'}, CHANGES_FROM_OTHER_CHATS={changes_change or 'н/д'}.\n"
+        f"- 5 guardrails: {', '.join(cognitive_principles)}.\n"
+        "- Режим ответа: опираюсь на MASTER_REFERENCE/CHANGES/COGNITIVE_CODE; если данных не хватает — укажу это явно."
+    )
+
+
+def _build_auto_brief_for_new_chat() -> Optional[str]:
+    """Deterministic auto-brief for the first turn in a new chat."""
+    return _build_bible_brief_from_docs("изучи библию и дай бриф")
+
+
+def _extract_repo_relative_paths(goal_text: str) -> List[str]:
+    text = (goal_text or "").strip()
+    # Typical project-relative paths user may reference in natural language.
+    pattern = r"(?:(?:docs|src|configs|knowledge_os|scripts|\.cursor)/[A-Za-z0-9_./\-]+(?:\.[A-Za-z0-9]+)?)"
+    found = re.findall(pattern, text)
+    uniq: List[str] = []
+    for p in found:
+        p_norm = p.strip().strip("`'\"")
+        if p_norm and ".." not in p_norm and p_norm not in uniq:
+            uniq.append(p_norm)
+    return uniq
+
+
+def _build_project_file_study_response(goal_text: str) -> Optional[str]:
+    """Read project files directly from disk for explicit 'study/read files' requests."""
+    g = (goal_text or "").lower()
+    study_markers = (
+        "изучи",
+        "прочитай",
+        "найди библи",
+        "покажи первые строки",
+        "открой файл",
+        "посмотри файл",
+        "изучи файлы",
+        "изучи проект",
+    )
+    if not any(m in g for m in study_markers):
+        return None
+
+    rel_paths = _extract_repo_relative_paths(goal_text)
+    if not rel_paths and ("библи" in g or g in ("изучи", "так изучи", "изучи проект")):
+        rel_paths = [
+            "docs/MASTER_REFERENCE.md",
+            "docs/CHANGES_FROM_OTHER_CHATS.md",
+            "docs/COGNITIVE_CODE.md",
+            "configs/experts/team.md",
+        ]
+    if not rel_paths:
+        return None
+
+    roots = ["/workspace/atra-web-ide", "/Users/bikos/Documents/atra-web-ide", os.getcwd()]
+    chunks: List[str] = []
+    for rel in rel_paths[:6]:
+        abs_path = ""
+        for root in roots:
+            candidate = os.path.join(root, rel)
+            if os.path.exists(candidate) and os.path.isfile(candidate):
+                abs_path = candidate
+                break
+        if not abs_path:
+            chunks.append(f"- `{rel}`: файл не найден в проекте.")
+            continue
+        try:
+            with open(abs_path, encoding="utf-8", errors="replace") as f:
+                data = f.read(1800)
+            # Show first non-empty lines as proof of direct read.
+            lines = [ln.strip() for ln in data.splitlines() if ln.strip()][:3]
+            preview = " | ".join(lines) if lines else "(файл пуст)"
+            chunks.append(f"- `{rel}`: {preview[:260]}")
+        except Exception as e:
+            chunks.append(f"- `{rel}`: ошибка чтения ({type(e).__name__}).")
+
+    if not chunks:
+        return None
+    return "Прочитала файлы проекта напрямую с диска:\n" + "\n".join(chunks)
+
+
+def _build_team_facts_response(goal_text: str) -> Optional[str]:
+    """Deterministic team facts from configs/experts/team.md for headcount-style questions."""
+    g = (goal_text or "").lower()
+    if not any(
+        m in g for m in ("сколько сотруд", "сколько эксперт", "сколько человек", "headcount")
+    ):
+        return None
+
+    candidates = [
+        "/workspace/atra-web-ide/configs/experts/team.md",
+        "/Users/bikos/Documents/atra-web-ide/configs/experts/team.md",
+        os.path.join(os.getcwd(), "configs/experts/team.md"),
+    ]
+    content = ""
+    for p in candidates:
+        try:
+            if os.path.exists(p):
+                with open(p, encoding="utf-8", errors="replace") as f:
+                    content = f.read(30000)
+                break
+        except Exception:
+            continue
+    if not content:
+        return "Не могу прочитать `configs/experts/team.md` прямо сейчас."
+
+    role_rows = re.findall(r"^\|\s*\*\*[^*]+\*\*\s*\|", content, flags=re.MULTILINE)
+    main_roles = len(role_rows)
+    db_total = ""
+    db_match = re.search(r"В БД.*?:\s*(\d+)\s+эксперт", content, flags=re.IGNORECASE)
+    if db_match:
+        db_total = db_match.group(1)
+    if db_total:
+        return (
+            f"По `configs/experts/team.md`: в основной таблице {main_roles} ключевых ролей, "
+            f"а в БД указано {db_total} экспертов (источник истины для оркестратора)."
+        )
+    return f"По `configs/experts/team.md`: в основной таблице {main_roles} ключевых ролей."
 
 
 def _build_orchestration_context(bridge_result: Optional[Dict[str, Any]]) -> str:
@@ -5269,9 +5633,7 @@ async def _select_strategy(
     goal_lower_check = goal.lower()
     is_concrete_task = _is_explicit_concrete_goal(goal)
     if is_concrete_task:
-        logger.info(
-            "🟢 [STRATEGY] Concrete task detected, skipping LLM classifier: %s", goal[:50]
-        )
+        logger.info("🟢 [STRATEGY] Concrete task detected, skipping LLM classifier: %s", goal[:50])
         return {
             "strategy": "deep_analysis",
             "reason": "явная задача с файлом/инструментом",
@@ -5524,18 +5886,46 @@ async def _generate_clarification_questions(
         import re as _re
 
         stop_words = {
-            "как", "что", "где", "когда", "какой", "какая", "какие", "нужно", "можете",
-            "уточнить", "имеете", "виду", "это", "для", "или", "и", "по", "на", "в", "с",
-            "ли", "нужен", "нужна", "нужны", "только", "чтобы", "есть",
+            "как",
+            "что",
+            "где",
+            "когда",
+            "какой",
+            "какая",
+            "какие",
+            "нужно",
+            "можете",
+            "уточнить",
+            "имеете",
+            "виду",
+            "это",
+            "для",
+            "или",
+            "и",
+            "по",
+            "на",
+            "в",
+            "с",
+            "ли",
+            "нужен",
+            "нужна",
+            "нужны",
+            "только",
+            "чтобы",
+            "есть",
         }
         goal_tokens = {
-            t for t in _re.findall(r"[a-zA-Zа-яА-Я0-9_]{3,}", (goal or "").lower()) if t not in stop_words
+            t
+            for t in _re.findall(r"[a-zA-Zа-яА-Я0-9_]{3,}", (goal or "").lower())
+            if t not in stop_words
         }
         bad_markers = ("столиц", "франц", "париж")
         filtered: List[str] = []
         for q in questions:
             q_low = q.lower()
-            if any(m in q_low for m in bad_markers) and not any(m in (goal or "").lower() for m in bad_markers):
+            if any(m in q_low for m in bad_markers) and not any(
+                m in (goal or "").lower() for m in bad_markers
+            ):
                 continue
             q_tokens = {
                 t for t in _re.findall(r"[a-zA-Zа-яА-Я0-9_]{3,}", q_low) if t not in stop_words
@@ -6323,20 +6713,29 @@ async def _run_task_background(
     # [MULTI-AGENT] Проверка Human-in-the-Loop для критических действий
     if human_approval_instance:
         try:
-            is_critical = any(marker in goal.lower() for marker in [
-                "деплой", "deploy", "удал", "delete", "rm ", "api ключ", "secret", "пароль"
-            ])
+            is_critical = any(
+                marker in goal.lower()
+                for marker in [
+                    "деплой",
+                    "deploy",
+                    "удал",
+                    "delete",
+                    "rm ",
+                    "api ключ",
+                    "secret",
+                    "пароль",
+                ]
+            )
             if is_critical:
                 approval_id = await human_approval_instance.request_approval(
                     action_type="task_execution",
-                    action_data={"goal": goal[:200], "task_id": task_id}
+                    action_data={"goal": goal[:200], "task_id": task_id},
                 )
                 if approval_id:
                     logger.info("[HUMAN] Запрошено одобрение: %s", approval_id)
                     # Ждём одобрения с таймаутом 60 секунд
                     approved = await asyncio.wait_for(
-                        human_approval_instance.check_approval(approval_id),
-                        timeout=60
+                        human_approval_instance.check_approval(approval_id), timeout=60
                     )
                     if not approved:
                         store["status"] = "failed"
@@ -6532,7 +6931,9 @@ async def _run_task_background(
         # Guardrail (v144): уточнения не перебивают кураторские эталоны.
         # «Какой статус проекта?» и т.п. всегда идут в Enhanced + RAG,
         # а не в LLM-стратегию, которая локально просит «уточните».
-        if strategy_result.get("strategy") == "need_clarification" and is_curator_standard_goal(goal):
+        if strategy_result.get("strategy") == "need_clarification" and is_curator_standard_goal(
+            goal
+        ):
             strategy_result = {
                 "strategy": "deep_analysis",
                 "reason": "curator_standard_goal_no_clarify",
@@ -6573,13 +6974,9 @@ async def _run_task_background(
                         or ""
                     )
                     _engine = str(_data.get("engine_used") or "debate")
-                    _degraded = bool(
-                        _data.get("fallback_used") or _data.get("lightweight_used")
-                    )
+                    _degraded = bool(_data.get("fallback_used") or _data.get("lightweight_used"))
             except Exception as cons_err:  # noqa: BLE001 — fallback в соло
-                logger.warning(
-                    "[CONSILIUM_ROUTER] debate failed: %s — fallback to solo", cons_err
-                )
+                logger.warning("[CONSILIUM_ROUTER] debate failed: %s — fallback to solo", cons_err)
             # [v149.4] INCOMPLETE/пустой дебат — fallback на соло
             if _synth and ("[INCOMPLETE]" not in _synth and len(_synth) > 100) and not _degraded:
                 _knowledge = {
@@ -6613,9 +7010,9 @@ async def _run_task_background(
                     store["knowledge"] = _knowledge
                     store["updated_at"] = datetime.now(timezone.utc).isoformat()
                 try:
-                    VICTORIA_CONSILIUM_TTC.labels(
-                        category=consilium_category
-                    ).observe(time.monotonic() - _cons_started)
+                    VICTORIA_CONSILIUM_TTC.labels(category=consilium_category).observe(
+                        time.monotonic() - _cons_started
+                    )
                 except Exception:  # noqa: BLE001
                     pass
                 logger.info(
@@ -6841,9 +7238,7 @@ async def _run_task_background(
                 analysis_text, analysis_source = await _bg_try_generate(
                     analysis_prompt,
                     quick_model,
-                    timeout_sec=float(
-                        os.getenv("VICTORIA_TOOL_ANALYSIS_TIMEOUT_SEC", "75")
-                    ),
+                    timeout_sec=float(os.getenv("VICTORIA_TOOL_ANALYSIS_TIMEOUT_SEC", "75")),
                 )
                 if analysis_text:
                     store["status"] = "completed"
@@ -7085,7 +7480,9 @@ async def _run_task_background(
                         collective_memory_instance.query_knowledge(goal_for_exec),
                         timeout=_bg_optional_timeout,
                     )
-                    logger.info("[MEMORY] Найдено релевантных записей (veronica): %d", len(relevant_memory))
+                    logger.info(
+                        "[MEMORY] Найдено релевантных записей (veronica): %d", len(relevant_memory)
+                    )
                 except asyncio.TimeoutError:
                     logger.warning(
                         "[MEMORY] query_knowledge(veronica) timeout task_id=%s after %.1fs",
@@ -7158,7 +7555,9 @@ async def _run_task_background(
                             if exec_result.get("execution_log"):
                                 store["execution_log"] = exec_result["execution_log"]
                             if exec_result.get("append_output"):
-                                store["output"] = store["output"] + "\n\n---\n" + exec_result["append_output"]
+                                store["output"] = (
+                                    store["output"] + "\n\n---\n" + exec_result["append_output"]
+                                )
                     except ImportError:
                         logger.debug("[EXECUTION] execution_phase module not available")
                     except Exception as exec_err:
@@ -7178,7 +7577,7 @@ async def _run_task_background(
                                 "timestamp": datetime.now(timezone.utc).isoformat(),
                                 "route": "veronica",
                             },
-                            metadata={"task_id": task_id, "project": project_context}
+                            metadata={"task_id": task_id, "project": project_context},
                         )
                         logger.info("[MEMORY] Результат сохранён в Collective Memory (veronica)")
                     except Exception as e:
@@ -7188,12 +7587,24 @@ async def _run_task_background(
                 if git_engine_instance:
                     try:
                         result_text = store.get("output") or ""
-                        if any(marker in result_text.lower() for marker in [
-                            "```python", "```javascript", "```typescript", "def ", "class ", "import ", "создан файл", "записан в"
-                        ]):
+                        if any(
+                            marker in result_text.lower()
+                            for marker in [
+                                "```python",
+                                "```javascript",
+                                "```typescript",
+                                "def ",
+                                "class ",
+                                "import ",
+                                "создан файл",
+                                "записан в",
+                            ]
+                        ):
                             git_status = await git_engine_instance.get_status()
                             if git_status.get("is_clean") is False:
-                                logger.info("[GIT] Есть несохраненные изменения (veronica), пропускаем коммит")
+                                logger.info(
+                                    "[GIT] Есть несохраненные изменения (veronica), пропускаем коммит"
+                                )
                             else:
                                 logger.info("[GIT] Задача с кодом от Veronica, готов к коммиту")
                     except Exception as e:
@@ -7282,12 +7693,21 @@ async def _run_task_background(
                         logger.info("[PLAN_DECOMPOSER] Сложная задача, попытка декомпозиции")
                         subtasks = await plan_decomposer_instance.decompose(goal_for_exec)
                         if subtasks and len(subtasks) > 1:
-                            logger.info("[PLAN_DECOMPOSER] Задача разбита на %d подзадач", len(subtasks))
+                            logger.info(
+                                "[PLAN_DECOMPOSER] Задача разбита на %d подзадач", len(subtasks)
+                            )
                             # Выполняем подзадачи последовательно
                             all_results = []
                             for i, subtask in enumerate(subtasks):
-                                logger.info("[PLAN_DECOMPOSER] Подзадача %d/%d: %s", i+1, len(subtasks), subtask[:100])
-                                subtask_result, _ = await _bg_try_generate(subtask, ideal_model, timeout_sec=60)
+                                logger.info(
+                                    "[PLAN_DECOMPOSER] Подзадача %d/%d: %s",
+                                    i + 1,
+                                    len(subtasks),
+                                    subtask[:100],
+                                )
+                                subtask_result, _ = await _bg_try_generate(
+                                    subtask, ideal_model, timeout_sec=60
+                                )
                                 if subtask_result:
                                     all_results.append(subtask_result)
                             # Объединяем результаты
@@ -7461,7 +7881,9 @@ async def _run_task_background(
                         if exec_result.get("execution_log"):
                             store["execution_log"] = exec_result["execution_log"]
                         if exec_result.get("append_output"):
-                            store["output"] = store["output"] + "\n\n---\n" + exec_result["append_output"]
+                            store["output"] = (
+                                store["output"] + "\n\n---\n" + exec_result["append_output"]
+                            )
                 except ImportError:
                     logger.debug("[EXECUTION] execution_phase module not available")
                 except Exception as exec_err:
@@ -7471,21 +7893,37 @@ async def _run_task_background(
             if consensus_agent_instance and store.get("output"):
                 try:
                     # Проверяем нужен ли консенсус (низкая уверенность или спорный вопрос)
-                    needs_consensus = any(marker in goal_for_exec.lower() for marker in [
-                        "что лучше", "что эффективнее", "сравни", "плюсы", "минусы",
-                        "аргументы за", "аргументы против", "мнение экспертов"
-                    ])
+                    needs_consensus = any(
+                        marker in goal_for_exec.lower()
+                        for marker in [
+                            "что лучше",
+                            "что эффективнее",
+                            "сравни",
+                            "плюсы",
+                            "минусы",
+                            "аргументы за",
+                            "аргументы против",
+                            "мнение экспертов",
+                        ]
+                    )
                     if needs_consensus:
                         logger.info("[CONSENSUS] Спорный вопрос, запускаю голосование экспертов")
                         # Получаем 3 эксперта для голосования
-                        experts = ["Виктория", "Даниил", "Макс"] if len(available_experts) < 3 else available_experts[:3]
+                        experts = (
+                            ["Виктория", "Даниил", "Макс"]
+                            if len(available_experts) < 3
+                            else available_experts[:3]
+                        )
                         consensus_result = await consensus_agent_instance.reach_consensus(
                             question=goal_for_exec,
                             agents=experts,
-                            initial_context={"responses": {"Виктория": store["output"]}}
+                            initial_context={"responses": {"Виктория": store["output"]}},
                         )
                         if consensus_result and consensus_result.consensus_answer:
-                            logger.info("[CONSENSUS] Консенсус достигнут (confidence: %.2f)", consensus_result.consensus_score)
+                            logger.info(
+                                "[CONSENSUS] Консенсус достигнут (confidence: %.2f)",
+                                consensus_result.consensus_score,
+                            )
                             store["output"] = consensus_result.consensus_answer
                             store["knowledge"]["consensus"] = {
                                 "score": consensus_result.consensus_score,
@@ -7506,7 +7944,7 @@ async def _run_task_background(
                             "task_type": task_type,
                             "timestamp": datetime.now(timezone.utc).isoformat(),
                         },
-                        metadata={"task_id": task_id, "project": project_context}
+                        metadata={"task_id": task_id, "project": project_context},
                     )
                     logger.info("[MEMORY] Результат сохранён в Collective Memory")
                 except Exception as e:
@@ -7517,9 +7955,17 @@ async def _run_task_background(
                 try:
                     # Проверяем содержит ли результат код
                     result_text = store.get("output") or ""
-                    if any(marker in result_text.lower() for marker in [
-                        "```python", "```javascript", "```typescript", "def ", "class ", "import "
-                    ]):
+                    if any(
+                        marker in result_text.lower()
+                        for marker in [
+                            "```python",
+                            "```javascript",
+                            "```typescript",
+                            "def ",
+                            "class ",
+                            "import ",
+                        ]
+                    ):
                         # Сохраняем результат в файл и коммитим
                         git_status = await git_engine_instance.get_status()
                         if git_status.get("is_clean") is False:
@@ -7627,7 +8073,9 @@ async def _run_task_background(
                         if exec_result.get("execution_log"):
                             store["execution_log"] = exec_result["execution_log"]
                         if exec_result.get("append_output"):
-                            store["output"] = store["output"] + "\n\n---\n" + exec_result["append_output"]
+                            store["output"] = (
+                                store["output"] + "\n\n---\n" + exec_result["append_output"]
+                            )
                 except ImportError:
                     logger.debug("[EXECUTION] execution_phase module not available")
                 except Exception as exec_err:
@@ -7837,15 +8285,23 @@ async def _generate_via_mlx_or_ollama(
     # он молча подменяет дефолтом (victoria-wisdom-24k) — мозг qwen38 через это
     # тихо деградировал до старой wisdom. Неподдерживаемые модели — сразу в Ollama.
     _mlx_served_markers = (
-        "phi3.5", "phi3:mini", "qwen2.5:3b", "qwen_3b", "tinyllama",
-        "wisdom-v3.5", "wisdom-24k", "fast", "tiny", "default",
-        "reasoning", "coding", "code",
+        "phi3.5",
+        "phi3:mini",
+        "qwen2.5:3b",
+        "qwen_3b",
+        "tinyllama",
+        "wisdom-v3.5",
+        "wisdom-24k",
+        "fast",
+        "tiny",
+        "default",
+        "reasoning",
+        "coding",
+        "code",
     )
     _mlx_serves = any(m in ideal_model.lower() for m in _mlx_served_markers)
     if not _mlx_serves:
-        logger.info(
-            "[MLX_DEBUG] %s не обслуживается MLX-прокси — сразу Ollama", ideal_model
-        )
+        logger.info("[MLX_DEBUG] %s не обслуживается MLX-прокси — сразу Ollama", ideal_model)
 
     if _mlx_serves:  # MLX первым только для реально обслуживаемых моделей
         for attempt in range(max_retries):
@@ -8154,7 +8610,9 @@ async def run_task_stream(body: TaskRequest, request: Request):
                 words = content.split()
                 for i in range(0, len(words), 5):
                     if await request.is_disconnected():
-                        logger.info(f"[STREAM] Client disconnected during chunk delivery ({correlation_id[:8]})")
+                        logger.info(
+                            f"[STREAM] Client disconnected during chunk delivery ({correlation_id[:8]})"
+                        )
                         return
                     chunk = " ".join(words[i : i + 5]) + " "
                     yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
@@ -8177,7 +8635,9 @@ async def run_task_stream(body: TaskRequest, request: Request):
                 task = asyncio.create_task(run_task(body, request, async_mode=False))
                 while not task.done():
                     if await request.is_disconnected():
-                        logger.warning(f"[STREAM] Client disconnected, cancelling task ({correlation_id[:8]})")
+                        logger.warning(
+                            f"[STREAM] Client disconnected, cancelling task ({correlation_id[:8]})"
+                        )
                         task.cancel()
                         return
                     done, _ = await asyncio.wait([task], timeout=heartbeat_sec)
@@ -8250,21 +8710,65 @@ async def _try_fact_fast_track(goal: str) -> Optional[str]:
         return None
     ql = q.lower()
     _heavy = (
-        "анализ", "объясни", "почему", "код", "создай", "напиши", "сравн", "план",
-        "проверь", "исправ", "найди", "сделай", "рассчит", "файл", "http", ".py",
-        ".md", ".json", "доклад", "отчёт", "отчет", "debug", "лог", "sql", "git",
-        "docker", "миграц", "стратег",
+        "анализ",
+        "объясни",
+        "почему",
+        "код",
+        "создай",
+        "напиши",
+        "сравн",
+        "план",
+        "проверь",
+        "исправ",
+        "найди",
+        "сделай",
+        "рассчит",
+        "файл",
+        "http",
+        ".py",
+        ".md",
+        ".json",
+        "доклад",
+        "отчёт",
+        "отчет",
+        "debug",
+        "лог",
+        "sql",
+        "git",
+        "docker",
+        "миграц",
+        "стратег",
         # [волна-14] перечислительно-аналитические глаголы — это к мозгу
-        "назови", "перечисли", "преимуществ", "недостатк", "плюсы", "минусы",
-        "обоснуй", "риски", "идеи", "способы",
+        "назови",
+        "перечисли",
+        "преимуществ",
+        "недостатк",
+        "плюсы",
+        "минусы",
+        "обоснуй",
+        "риски",
+        "идеи",
+        "способы",
     )
     if any(h in ql for h in _heavy):
         return None
     # [волна-14] Позитивный гейт: хотя бы один факт-паттерн (расширять кортеж).
     _fact_patterns = (
-        "столиц", "сколько", "кто ", "что такое", "какого цвета", "когда ",
-        "год ", "переведи", "столица", "2+2", "число пи", "синоним",
-        "как зовут", "как называется", "как по-",
+        "столиц",
+        "сколько",
+        "кто ",
+        "что такое",
+        "какого цвета",
+        "когда ",
+        "год ",
+        "переведи",
+        "столица",
+        "2+2",
+        "число пи",
+        "синоним",
+        "как зовут",
+        "как называется",
+        "как по-",
     )
     if not any(p in ql for p in _fact_patterns):
         return None
@@ -8341,10 +8845,12 @@ async def _try_fact_fast_track(goal: str) -> Optional[str]:
                 text = text.split(_cut)[0].strip()
         for _pref in ("Ответ:", "Response:", "Виктория:"):
             if text.lower().startswith(_pref.lower()):
-                text = text[len(_pref):].strip()
+                text = text[len(_pref) :].strip()
         if not text or len(text) < 1:
             return None
-        logger.info("[FACT-FAST-TRACK] %s@11437 ctx=%s (%d симв): %s", model, num_ctx, len(text), q[:60])
+        logger.info(
+            "[FACT-FAST-TRACK] %s@11437 ctx=%s (%d симв): %s", model, num_ctx, len(text), q[:60]
+        )
         return text
     except Exception as e:
         logger.info("[FACT-FAST-TRACK] промах (%s) — обычный пайплайн", type(e).__name__)
@@ -8892,13 +9398,8 @@ async def run_task(
         goal = await _enhance_goal_with_vision(goal, body.images_base64) or goal
         logger.info("[REQUEST] Goal enhanced with %d image(s) via vision", len(body.images_base64))
 
-    # [SINGULARITY 21.8] Уточнение «библия проекта» — чтобы модель не путала с религиозной Библией
-    if "библи" in (goal or "").lower():
-        goal = (
-            "Пояснение: «библия» здесь — документация проекта (MASTER_REFERENCE, .cursorrules), не религиозный текст.\n\n"
-            + goal
-        )
-        logger.info("[REQUEST] Goal prefixed with project-bible clarification")
+    # Не переписываем пользовательскую формулировку "библия" — это ухудшает стиль ответа
+    # и может вызывать излишне шаблонный тон.
 
     # [AUTONOMOUS] Анализ логов и проактивные предложения
     if "статус" in (goal or "").lower() or "ошибк" in (goal or "").lower():
@@ -9328,9 +9829,7 @@ async def run_task(
                             except Exception:
                                 pass
                         await _clear_async_inflight(task_id)
-                        await _push_ttc_sample(
-                            duration, store.get("handoff_reason"), store
-                        )
+                        await _push_ttc_sample(duration, store.get("handoff_reason"), store)
 
         _create_tracked_task(_bounded_background_run()).add_done_callback(_done_callback)
         logger.info(
@@ -9491,6 +9990,7 @@ async def run_task(
                 exec_output = safe_text
                 try:
                     from app.execution_phase import execute_plan_commands
+
                     exec_result = await execute_plan_commands(
                         goal=goal,
                         llm_output=safe_text,
@@ -9874,9 +10374,7 @@ async def run_task(
                 correlation_id=correlation_id,
             )
         try:
-            VICTORIA_CONSILIUM_ROUTED.labels(
-                category=f"{_sync_cat}_sync", outcome="fallback"
-            ).inc()
+            VICTORIA_CONSILIUM_ROUTED.labels(category=f"{_sync_cat}_sync", outcome="fallback").inc()
         except Exception:  # noqa: BLE001
             pass
     # === /CONSILIUM ROUTER (sync) ===
@@ -9910,13 +10408,24 @@ async def run_task(
                 try:
                     is_complex = len(goal_for_decomp) > 500 or any(
                         marker in goal_for_decomp.lower()
-                        for marker in ["напиши", "создай", "разработай", "реализуй", "сделай api", "напиши код", "создай файл"]
+                        for marker in [
+                            "напиши",
+                            "создай",
+                            "разработай",
+                            "реализуй",
+                            "сделай api",
+                            "напиши код",
+                            "создай файл",
+                        ]
                     )
                     if is_complex:
                         logger.info("[PLAN_DECOMPOSER] Сложная задача, попытка декомпозиции (sync)")
                         subtasks = await plan_decomposer_instance.decompose(goal_for_decomp)
                         if subtasks and len(subtasks) > 1:
-                            logger.info("[PLAN_DECOMPOSER] Задача разбита на %d подзадач (sync)", len(subtasks))
+                            logger.info(
+                                "[PLAN_DECOMPOSER] Задача разбита на %d подзадач (sync)",
+                                len(subtasks),
+                            )
                             knowledge = {"decomposed": True, "subtasks": len(subtasks)}
                             # NOT returning early - continue with other components
                 except Exception as e:
@@ -9925,33 +10434,59 @@ async def run_task(
             # [MULTI-AGENT] ConsensusAgent — голосование для спорных задач
             if consensus_agent_instance:
                 try:
-                    needs_consensus = any(marker in (restated_goal or goal).lower() for marker in [
-                        "что лучше", "что эффективнее", "сравни", "плюсы", "минусы",
-                        "аргументы за", "аргументы против", "мнение экспертов"
-                    ])
+                    needs_consensus = any(
+                        marker in (restated_goal or goal).lower()
+                        for marker in [
+                            "что лучше",
+                            "что эффективнее",
+                            "сравни",
+                            "плюсы",
+                            "минусы",
+                            "аргументы за",
+                            "аргументы против",
+                            "мнение экспертов",
+                        ]
+                    )
                     if needs_consensus:
-                        logger.info("[CONSENSUS] Спорный вопрос, запускаю голосование экспертов (sync)")
+                        logger.info(
+                            "[CONSENSUS] Спорный вопрос, запускаю голосование экспертов (sync)"
+                        )
                         experts = ["Виктория", "Даниил", "Макс"]
                         consensus_result = await consensus_agent_instance.reach_consensus(
                             question=restated_goal or goal,
                             experts=experts,
                         )
                         if consensus_result:
-                            logger.info("[CONSENSUS] Консенсус достигнут: %s", str(consensus_result)[:100])
+                            logger.info(
+                                "[CONSENSUS] Консенсус достигнут: %s", str(consensus_result)[:100]
+                            )
                 except Exception as e:
                     logger.debug("[CONSENSUS] reach_consensus failed (sync): %s", e)
 
             # [MULTI-AGENT] HumanApproval — одобрение критических действий
             if human_approval_instance:
                 try:
-                    is_critical = any(marker in (restated_goal or goal).lower() for marker in [
-                        "деплой", "deploy", "удал", "delete", "rm ", "api ключ", "secret", "пароль"
-                    ])
+                    is_critical = any(
+                        marker in (restated_goal or goal).lower()
+                        for marker in [
+                            "деплой",
+                            "deploy",
+                            "удал",
+                            "delete",
+                            "rm ",
+                            "api ключ",
+                            "secret",
+                            "пароль",
+                        ]
+                    )
                     if is_critical:
                         logger.info("[HUMAN] Критическое действие, запрос одобрения (sync)")
                         approval_id = await human_approval_instance.request_approval(
                             action_type="task_execution",
-                            action_data={"goal": (restated_goal or goal)[:200], "correlation_id": correlation_id}
+                            action_data={
+                                "goal": (restated_goal or goal)[:200],
+                                "correlation_id": correlation_id,
+                            },
                         )
                         if approval_id:
                             logger.info("[HUMAN] Запрошено одобрение: %s (sync)", approval_id)
@@ -9962,8 +10497,13 @@ async def run_task(
             relevant_memory = []
             if collective_memory_instance:
                 try:
-                    relevant_memory = await collective_memory_instance.query_knowledge(restated_goal or goal)
-                    logger.info("[MEMORY] Найдено релевантных записей (veronica sync): %d", len(relevant_memory))
+                    relevant_memory = await collective_memory_instance.query_knowledge(
+                        restated_goal or goal
+                    )
+                    logger.info(
+                        "[MEMORY] Найдено релевантных записей (veronica sync): %d",
+                        len(relevant_memory),
+                    )
                 except Exception as e:
                     logger.debug("[MEMORY] query_knowledge failed (veronica sync): %s", e)
 
@@ -10030,9 +10570,11 @@ async def run_task(
                                 "timestamp": datetime.now(timezone.utc).isoformat(),
                                 "route": "veronica_sync",
                             },
-                            metadata={"correlation_id": correlation_id, "project": project_context}
+                            metadata={"correlation_id": correlation_id, "project": project_context},
                         )
-                        logger.info("[MEMORY] Результат сохранён в Collective Memory (veronica sync)")
+                        logger.info(
+                            "[MEMORY] Результат сохранён в Collective Memory (veronica sync)"
+                        )
                     except Exception as e:
                         logger.debug("[MEMORY] store_knowledge failed (veronica sync): %s", e)
 
@@ -10040,20 +10582,35 @@ async def run_task(
                 if git_engine_instance:
                     try:
                         result_text = veronica_result.get("output") or ""
-                        if any(marker in result_text.lower() for marker in [
-                            "```python", "```javascript", "```typescript", "def ", "class ", "import ", "создан файл", "записан в"
-                        ]):
+                        if any(
+                            marker in result_text.lower()
+                            for marker in [
+                                "```python",
+                                "```javascript",
+                                "```typescript",
+                                "def ",
+                                "class ",
+                                "import ",
+                                "создан файл",
+                                "записан в",
+                            ]
+                        ):
                             git_status = await git_engine_instance.get_status()
                             if git_status.get("is_clean") is False:
-                                logger.info("[GIT] Есть несохраненные изменения (veronica sync), пропускаем коммит")
+                                logger.info(
+                                    "[GIT] Есть несохраненные изменения (veronica sync), пропускаем коммит"
+                                )
                             else:
-                                logger.info("[GIT] Задача с кодом от Veronica (sync), готов к коммиту")
+                                logger.info(
+                                    "[GIT] Задача с кодом от Veronica (sync), готов к коммиту"
+                                )
                     except Exception as e:
                         logger.debug("[GIT] Git check failed (veronica sync): %s", e)
 
                 # [MULTI-AGENT] EventBus — событие завершения задачи
                 try:
                     from app.event_bus import get_event_bus, Event, EventType
+
                     event_bus = get_event_bus()
                     event = Event(
                         event_id=str(uuid.uuid4()),
@@ -10075,6 +10632,7 @@ async def run_task(
                 # [MULTI-AGENT] Agent Messaging — уведомление других агентов о завершении
                 try:
                     from app.agent_messaging import send_message
+
                     await send_message(
                         from_agent="Виктория",
                         to_agent="*",
@@ -10347,7 +10905,9 @@ async def run_task(
                 result = await asyncio.wait_for(
                     agent.run(
                         goal_for_run,
-                        max_steps=body.max_steps if body.max_steps is not None else DEFAULT_MAX_STEPS,
+                        max_steps=body.max_steps
+                        if body.max_steps is not None
+                        else DEFAULT_MAX_STEPS,
                     ),
                     timeout=VICTORIA_SYNC_EXEC_TIMEOUT_SEC,
                 )
@@ -10651,12 +11211,177 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     user_messages = [m for m in request.messages if m.role == "user"]
     if not user_messages:
         raise HTTPException(status_code=400, detail="No user messages found")
+    assistant_messages = [m for m in request.messages if m.role == "assistant"]
 
     goal = user_messages[-1].content
     if not isinstance(goal, str):
         goal = str(goal)
+    is_victoria_model = "victoria" in str(request.model).lower()
+    is_first_turn = len(user_messages) == 1 and len(assistant_messages) == 0
+    auto_brief_enabled = os.getenv("VICTORIA_AUTO_BRIEF_ON_NEW_CHAT", "true").lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    deterministic_chat_enabled = os.getenv("VICTORIA_DETERMINISTIC_CHAT", "false").lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    goal_lower = goal.lower().strip()
+    is_identity_prompt = any(
+        token in goal_lower
+        for token in (
+            "кто ты",
+            "ты кто",
+            "who are you",
+            "what are you",
+            "ты виктория",
+        )
+    )
+    is_bible_access_prompt = any(
+        token in goal_lower
+        for token in (
+            "доступ к библии",
+            "есть доступ к библии",
+            "найди библию",
+            "найди библи",
+            "нашла библию",
+            "знаешь где библия",
+            "где библия",
+        )
+    )
+    if is_victoria_model and is_identity_prompt:
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": "Да, я Виктория, Team Lead корпорации ATRA.",
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    if deterministic_chat_enabled and is_victoria_model and is_bible_access_prompt:
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": (
+                                "Да, доступ к Библии ATRA есть. Основные источники: "
+                                "`docs/MASTER_REFERENCE.md`, `docs/CHANGES_FROM_OTHER_CHATS.md`, "
+                                "`docs/COGNITIVE_CODE.md`, `configs/experts/team.md`, `.cursor/rules/`."
+                            ),
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    if (
+        deterministic_chat_enabled
+        and is_victoria_model
+        and is_first_turn
+        and auto_brief_enabled
+        and not is_identity_prompt
+    ):
+        auto_brief = _build_auto_brief_for_new_chat()
+        if auto_brief:
+            logger.info("[OPENAI-API] Auto-brief emitted for first turn model=%s", request.model)
+            return JSONResponse(
+                content={
+                    "id": f"chatcmpl-{correlation_id}",
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": request.model,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {"role": "assistant", "content": auto_brief},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                }
+            )
+    project_study = _build_project_file_study_response(goal)
+    if deterministic_chat_enabled and project_study:
+        logger.info("[OPENAI-API] Direct project-file read for goal: %s", goal[:80])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": project_study},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    team_facts = _build_team_facts_response(goal)
+    if deterministic_chat_enabled and team_facts:
+        logger.info("[OPENAI-API] Deterministic team facts for goal: %s", goal[:80])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": team_facts},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    bible_brief = _build_bible_brief_from_docs(goal)
+    if deterministic_chat_enabled and bible_brief:
+        logger.info("[OPENAI-API] Deterministic Bible brief for goal: %s", goal[:80])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": bible_brief},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
     live_fact = await _build_live_fact_answer_for_run(goal)
-    if live_fact:
+    if deterministic_chat_enabled and live_fact:
         logger.info("[VICTORIA_FACT] chat completions live fact preview=%s", live_fact[:120])
         return JSONResponse(
             content={
@@ -10674,6 +11399,70 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
             }
         )
+    direct_qwen_chat_enabled = (
+        os.getenv("VICTORIA_DIRECT_QWEN_CHAT", "false").lower() in ("1", "true", "yes", "on")
+        and deterministic_chat_enabled
+    )
+    execution_markers = (
+        "выполни",
+        "сделай",
+        "исправ",
+        "аудит",
+        "run",
+        "deploy",
+        "миграц",
+        "sql",
+        "контейнер",
+        "код",
+    )
+    if (
+        is_victoria_model
+        and direct_qwen_chat_enabled
+        and not request.stream
+        and len(goal_lower) <= 280
+        and not any(m in goal_lower for m in execution_markers)
+    ):
+        direct_model = os.getenv("VICTORIA_MODEL", "victoria-qwen38:latest")
+        try:
+            direct_goal = goal
+            if "библи" in goal_lower:
+                direct_goal = (
+                    'Контекст ATRA: "библия" = проектная документация.\n'
+                    "Ключевые источники: docs/MASTER_REFERENCE.md, docs/CHANGES_FROM_OTHER_CHATS.md, "
+                    "docs/COGNITIVE_CODE.md, configs/experts/team.md, .cursor/rules/.\n\n"
+                    f"Вопрос пользователя: {goal}"
+                )
+            content, _source = await _generate_via_mlx_or_ollama(
+                direct_goal,
+                direct_model,
+                system=(
+                    "Ты — Виктория, Team Lead корпорации ATRA. "
+                    "Отвечай естественно и по существу. "
+                    "Если вопрос короткий и понятный, отвечай без уточняющих вопросов."
+                ),
+            )
+            normalized = _normalize_output_for_user(content) if content else ""
+            normalized = _rewrite_bible_access_denial(normalized)
+            if normalized:
+                logger.info("[OPENAI-API] Direct chat via %s", direct_model)
+                return JSONResponse(
+                    content={
+                        "id": f"chatcmpl-{correlation_id}",
+                        "object": "chat.completion",
+                        "created": int(time.time()),
+                        "model": request.model,
+                        "choices": [
+                            {
+                                "index": 0,
+                                "message": {"role": "assistant", "content": normalized},
+                                "finish_reason": "stop",
+                            }
+                        ],
+                        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                    }
+                )
+        except Exception as e:
+            logger.warning("[OPENAI-API] Direct chat path failed: %s", e)
 
     # [SINGULARITY 31.3] Обработка изображений из сообщения
     _images_to_process = []
@@ -10966,16 +11755,44 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     _is_simple_q = is_simple_message(_user_msg_text) or is_fast_track_message(_user_msg_text)
     _is_fact_q = is_fact_seeking_question(_user_msg_text)
 
-    if (_is_simple_q or (
-        not _is_execution_task
-        and len(task_req.goal) < 2000
-        and "victoria" in str(request.model).lower()
-    )) and not _is_fact_q:
+    _force_full_for_docs = _needs_full_pipeline_for_docs(_user_msg_text)
+    shortcuts_enabled = os.getenv("VICTORIA_SIMPLE_SHORTCUTS", "false").lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    allow_simple_shortcut_path = shortcuts_enabled or ("victoria" not in str(request.model).lower())
+    if (
+        allow_simple_shortcut_path
+        and not _force_full_for_docs
+        and (
+            _is_simple_q
+            or (
+                not _is_execution_task
+                and len(task_req.goal) < 2000
+                and "victoria" in str(request.model).lower()
+            )
+        )
+        and not _is_fact_q
+    ):
         # Для простых/быстрых сообщений — статический fallback без LLM
         if _is_simple_q:
             goal_lower = _user_msg_text.lower().strip()
             if any(p in goal_lower for p in ["привет", "здравствуй", "hello", "hi"]):
                 output_text = "Привет! Чем могу помочь?"
+            elif any(
+                p in goal_lower
+                for p in [
+                    "кто ты",
+                    "ты кто",
+                    "who are you",
+                    "what are you",
+                    "какая ты",
+                    "ты виктория",
+                ]
+            ):
+                output_text = "Да, я Виктория, Team Lead корпорации ATRA."
             elif "что ты умеешь" in goal_lower:
                 output_text = "Я — Виктория, Assistant ATRA. Могу отвечать на вопросы по проекту, анализировать код, управлять задачами."
             elif len(goal_lower.split()) <= 2:
@@ -11024,6 +11841,11 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 logger.warning(f"[OPENAI-API] run_task timed out for goal: {_user_msg_text[:50]}")
                 output_text = "⏳ Задача требует больше времени для анализа. Пожалуйста, отправьте запрос через /run с async_mode=true для фонового выполнения."
     else:
+        if _force_full_for_docs:
+            logger.info(
+                "📚 [OPENAI-API] Full pipeline forced for docs/bible request: %s",
+                _user_msg_text[:80],
+            )
         try:
             result = await asyncio.wait_for(
                 run_task(task_req, req, async_mode=False),
@@ -11056,7 +11878,11 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
         elif hasattr(result, "output"):
             output_text = result.output
         else:
-            output_text = str(result)
+            output_text = _normalize_output_for_user(result)
+
+    # Final guard: hide raw internal payloads (task_id/status_url/handoff_reason)
+    # and other orchestration artifacts from end-user chat replies.
+    output_text = _normalize_output_for_user(output_text)
 
     # [SINGULARITY 15.0] Сохранение в LongTermMemory после успешного ответа
     try:
@@ -11505,6 +12331,7 @@ async def commit_experience(request: dict):
     if not goal or not lesson:
         raise HTTPException(status_code=400, detail="goal and lesson required")
     import hashlib
+
     dedup_key = hashlib.sha1(f"{goal[:200]}|{outcome}".encode()).hexdigest()
     dsn = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
     try:
@@ -11542,6 +12369,27 @@ async def commit_experience(request: dict):
         logging.warning("commit_experience failed: %s", e)
         return {"status": "error", "detail": str(e)[:200]}
 
+
+def _autonomous_guard_write(
+    workspace: str, file_path: str, content: str, *, overwrite_check: bool = True
+):
+    """Fail-closed: нет source_guard — нет записи на диск."""
+    try:
+        from source_guard import guard_workspace_write
+    except ImportError:
+        import sys as _sys
+        from pathlib import Path as _Path
+
+        _ko_app = _Path(__file__).resolve().parents[3] / "knowledge_os" / "app"
+        if _ko_app.is_dir() and str(_ko_app) not in _sys.path:
+            _sys.path.insert(0, str(_ko_app))
+        try:
+            from source_guard import guard_workspace_write
+        except ImportError:
+            return False, "source_guard unavailable", ""
+    return guard_workspace_write(workspace, file_path, content, overwrite_check=overwrite_check)
+
+
 @app.post("/api/autonomous-code")
 async def autonomous_code(request: dict):
     """
@@ -11555,6 +12403,34 @@ async def autonomous_code(request: dict):
     if not goal:
         raise HTTPException(status_code=400, detail="goal required")
     workspace = os.getenv("WORKSPACE_ROOT") or os.getenv("PROJECT_ROOT") or "/app"
+    test_path = (request.get("test_path") or "").strip()
+
+    def _guard_refuse(path: str, reason: str) -> dict:
+        return {
+            "compile_status": "skipped",
+            "runtime_status": "skipped",
+            "final_status": "failed",
+            "fix_iterations": 0,
+            "attempts": [
+                {"stage": "source_guard", "status": "failed", "output": f"SOURCE_GUARD: {reason}"}
+            ],
+            "file_path": path,
+            "code_preview": "",
+            "source": "error",
+            "phase_ms": {},
+            "llm_ms": 0,
+            "guard_reason": reason,
+        }
+
+    # Preflight: ядро/escape — отказ до LLM, без записи.
+    for _probe in (file_path, test_path):
+        if not _probe:
+            continue
+        _ok, _reason, _ = _autonomous_guard_write(
+            workspace, _probe, "pass\n", overwrite_check=False
+        )
+        if not _ok:
+            return _guard_refuse(_probe, _reason)
 
     # ── [SUPER-AGENT v2] Self-fix loop: генерация → py_compile → runtime smoke
     #    → (ошибка? → трейсбек Veronica → пере-генерация, до max_fix_iters) ──
@@ -11564,7 +12440,9 @@ async def autonomous_code(request: dict):
     code = ""
     file_written = None
     fix_iterations = 0
-    prompt = f"Верни КАК ОТВЕТ только python-код (def/class, без markdown-фенсов) для задачи: {goal}"
+    prompt = (
+        f"Верни КАК ОТВЕТ только python-код (def/class, без markdown-фенсов) для задачи: {goal}"
+    )
 
     coder_url = os.getenv("OLLAMA_CODER_URL", "").strip()
     coder_model = os.getenv("VERONICA_MODEL", "qwen3-coder:30b")
@@ -11572,6 +12450,7 @@ async def autonomous_code(request: dict):
     async def _direct_generate(ask_prompt: str) -> str:
         """Прямой вызов coder-модели на выделенном Ollama-инстансе [SUPER-AGENT v2]."""
         import aiohttp
+
         payload = {
             "model": coder_model,
             "prompt": ask_prompt,
@@ -11608,10 +12487,15 @@ async def autonomous_code(request: dict):
     async def _ask_via_veronica_api(ask_prompt: str) -> str:
         try:
             import aiohttp
+
             async with aiohttp.ClientSession() as sess:
                 async with sess.post(
                     f"{veronica_url}/run",
-                    json={"goal": f"{ask_prompt} [cat:{uuid.uuid4().hex[:8]} — служебный ярлык, не включай его в код], ""Не используй инструменты чтения/поиска — просто напиши и верни python-код.", "async_mode": False},
+                    json={
+                        "goal": f"{ask_prompt} [cat:{uuid.uuid4().hex[:8]} — служебный ярлык, не включай его в код], "
+                        "Не используй инструменты чтения/поиска — просто напиши и верни python-код.",
+                        "async_mode": False,
+                    },
                     timeout=aiohttp.ClientTimeout(total=180),
                 ) as resp:
                     data = await resp.json(content_type=None)
@@ -11640,8 +12524,10 @@ async def autonomous_code(request: dict):
             block = max(
                 candidates,
                 key=lambda b: (
-                    b.count("def ") + b.count("class ")
-                    + b.count("import ") + b.count("if __name__") * 2,
+                    b.count("def ")
+                    + b.count("class ")
+                    + b.count("import ")
+                    + b.count("if __name__") * 2,
                     len(b),
                 ),
             )
@@ -11656,17 +12542,27 @@ async def autonomous_code(request: dict):
                 body = body.lstrip("\n")
         body = body.lstrip()
         lines = [
-            ln.rstrip() for ln in body.splitlines()
-            if not ln.strip().startswith("@@") and not ln.strip().startswith("//") and not ln.strip().startswith("```")
+            ln.rstrip()
+            for ln in body.splitlines()
+            if not ln.strip().startswith("@@")
+            and not ln.strip().startswith("//")
+            and not ln.strip().startswith("```")
         ]
         while lines and not lines[-1].strip():
             lines.pop()
+
         def _safe_unquote(ln: str) -> str:
             # [SAFE] только whole-line обрамление "..." → снять пару; НЕ трогаем f-строки/частичные кавычки
-            if ln.strip().startswith('"') and ln.strip().endswith('"') and '" ' not in ln and 'f"' not in ln:
+            if (
+                ln.strip().startswith('"')
+                and ln.strip().endswith('"')
+                and '" ' not in ln
+                and 'f"' not in ln
+            ):
                 body = ln.strip()[1:-1]
                 return body if '"' not in body else ln
             return ln
+
         code_text = "\n".join(_safe_unquote(ln) for ln in lines).strip()
         # оборачивающие кавычки от лишнего escaping ("...") с ключом начала def/import
         if len(code_text) > 10 and code_text[0] == code_text[-1] and code_text[0] in ('"', "'"):
@@ -11684,7 +12580,9 @@ async def autonomous_code(request: dict):
         t_start = _time.monotonic()
         try:
             proc = await asyncio.create_subprocess_exec(
-                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
                 cwd=cwd_ or workspace,
             )
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)
@@ -11692,13 +12590,16 @@ async def autonomous_code(request: dict):
             status = "passed" if proc.returncode == 0 else "failed"
         except asyncio.TimeoutError:
             status, out = "timeout", ""
-        phase_key = stage.split(str(max_iters))[-1] if str(max_iters) in stage else stage.rstrip("0123456789")
+        phase_key = (
+            stage.split(str(max_iters))[-1]
+            if str(max_iters) in stage
+            else stage.rstrip("0123456789")
+        )
         phase_ms[stage.rstrip("0123456789") + "_ms"] = round((_time.monotonic() - t_start) * 1000)
         attempts.append({"stage": stage, "status": status, "output": out})
         return status, out
 
     # [v3 TDD] Если test_first — сначала генерируем тест-файл, цикл заканчивается его прогоном
-    test_path = (request.get("test_path") or "").strip()
     if test_path:
         test_goal = (
             f"Напиши python-скрипт {test_path}, который VALIDATES задачу '«{goal}»' — импортирует "
@@ -11708,11 +12609,18 @@ async def autonomous_code(request: dict):
         test_code_res = await _ask_veronica(test_path)
         test_code = _extract_code(test_code_res)
         if test_code and test_path:
-            tp = os.path.join(workspace, test_path)
-            os.makedirs(os.path.dirname(tp) or tp, exist_ok=True)
-            with open(tp, "w") as f:
-                f.write(test_code + "\n")
-            attempts.append({"stage": "test_gen", "status": "passed", "output": f"{test_path} written"})
+            allowed, reason, tp = _autonomous_guard_write(workspace, test_path, test_code + "\n")
+            if not allowed:
+                attempts.append(
+                    {"stage": "test_gen", "status": "failed", "output": f"SOURCE_GUARD: {reason}"}
+                )
+            else:
+                os.makedirs(os.path.dirname(tp) or tp, exist_ok=True)
+                with open(tp, "w") as f:
+                    f.write(test_code + "\n")
+                attempts.append(
+                    {"stage": "test_gen", "status": "passed", "output": f"{test_path} written"}
+                )
 
     # === Цикл: gen → compile → runtime → test_run → fix ===
     for it in range(1 + max_iters):
@@ -11727,34 +12635,52 @@ async def autonomous_code(request: dict):
             )
             code = _extract_code(retry_res)
             if not code:
-                attempts.append({"stage": f"gen{it}", "status": "failed", "output": code_result[:400]})
+                attempts.append(
+                    {"stage": f"gen{it}", "status": "failed", "output": code_result[:400]}
+                )
                 break
-        if file_path and not file_written:
-            target = os.path.join(workspace, file_path)
-            os.makedirs(os.path.dirname(target) or target, exist_ok=True)
-            file_written = target
-        if file_written:
-            with open(file_written, "w") as f:
-                f.write(code + "\n")
 
         # Stage 0.5: авто-нормализация indent (qwen mixes 4/8/12 → re-rank to 4n)
         def _normalize_indent(code_text: str) -> str:
             lines = code_text.split("\n")
             levels = sorted({len(ln) - len(ln.lstrip(" 	")) for ln in lines if ln.strip()})
             rank = {lvl: i * 4 for i, lvl in enumerate(levels)}
+
             def _map_indent(ln: str) -> str:
                 if not ln.strip():
                     return ""
                 ind = len(ln) - len(ln.lstrip(" 	"))
                 return " " * rank.get(ind, ind) + ln.lstrip(" 	")
+
             return "\n".join(_map_indent(ln) for ln in lines)
 
-        if file_written:
-            with open(file_written, "w") as f:
-                f.write(_normalize_indent(code) + "\n")
+        if file_path and not file_written:
+            to_write = _normalize_indent(code) + "\n"
+            allowed, reason, target = _autonomous_guard_write(workspace, file_path, to_write)
+            if not allowed:
+                attempts.append(
+                    {"stage": f"gen{it}", "status": "failed", "output": f"SOURCE_GUARD: {reason}"}
+                )
+                break
+            os.makedirs(os.path.dirname(target) or target, exist_ok=True)
+            with open(target, "w") as f:
+                f.write(to_write)
+            file_written = target
+        elif file_written:
+            to_write = _normalize_indent(code) + "\n"
+            allowed, reason, target = _autonomous_guard_write(workspace, file_written, to_write)
+            if not allowed:
+                attempts.append(
+                    {"stage": f"gen{it}", "status": "failed", "output": f"SOURCE_GUARD: {reason}"}
+                )
+                break
+            with open(target, "w") as f:
+                f.write(to_write)
 
         # Stage 1: py_compile
-        c_status, c_out = await _run_stage(f"compile{it}", ["python3", "-m", "py_compile", file_written], 30)
+        c_status, c_out = await _run_stage(
+            f"compile{it}", ["python3", "-m", "py_compile", file_written], 30
+        )
         if c_status != "passed":
             prompt = (
                 f"Задача: {goal}\nТекущий код:\n{code}\n"
@@ -11766,7 +12692,9 @@ async def autonomous_code(request: dict):
 
         # Stage 2: runtime smoke (exec top-level)
         if not request.get("skip_runtime_smoke"):
-            r_status, r_out = await _run_stage(f"runtime{it}", ["python3", file_written], 30, cwd_=workspace)
+            r_status, r_out = await _run_stage(
+                f"runtime{it}", ["python3", file_written], 30, cwd_=workspace
+            )
             if r_status != "passed":
                 prompt = (
                     f"Задача: {goal}\nТекущий код:\n{code}\n"
@@ -11781,7 +12709,9 @@ async def autonomous_code(request: dict):
         if test_path:
             tp_abs = os.path.join(workspace, test_path)
             if os.path.isfile(tp_abs):
-                t_status, t_out = await _run_stage(f"test{it}", ["python3", tp_abs], 60, cwd_=workspace)
+                t_status, t_out = await _run_stage(
+                    f"test{it}", ["python3", tp_abs], 60, cwd_=workspace
+                )
                 if t_status != "passed":
                     prompt = (
                         f"Задача: {goal}\nТекущий код:\n{code}\n"
@@ -11793,18 +12723,36 @@ async def autonomous_code(request: dict):
         break
 
     final_stage = attempts[-1]["status"] if attempts else "no_attempts"
-    compile_status = "passed" if any(a["stage"].startswith("compile") and a["status"] == "passed" for a in attempts) else ("failed" if attempts else "skipped")
-    runtime_status = next((a["status"] for a in reversed(attempts) if a["stage"].startswith("runtime")), ("skipped" if request.get("skip_runtime_smoke") else "not_reached"))
+    compile_status = (
+        "passed"
+        if any(a["stage"].startswith("compile") and a["status"] == "passed" for a in attempts)
+        else ("failed" if attempts else "skipped")
+    )
+    runtime_status = next(
+        (a["status"] for a in reversed(attempts) if a["stage"].startswith("runtime")),
+        ("skipped" if request.get("skip_runtime_smoke") else "not_reached"),
+    )
 
     # [SUPER-AGENT] auto-experience: репортим исход урока в knowledge_nodes
     try:
         if file_written and attempts:
-            outcome = "passed" if final_stage == "passed" else ("failed" if fix_iterations >= max_iters else "partial")
+            outcome = (
+                "passed"
+                if final_stage == "passed"
+                else ("failed" if fix_iterations >= max_iters else "partial")
+            )
             lesson = (
                 f"{len(attempts)} попыток, {fix_iterations} автофиксов, финал={final_stage}. "
                 f"Стадии: " + "; ".join(f"{a['stage']}:{a['status']}" for a in attempts)
             )
-            await commit_experience({"goal": goal, "outcome": outcome, "lesson": lesson, "source": "/api/autonomous-code"})
+            await commit_experience(
+                {
+                    "goal": goal,
+                    "outcome": outcome,
+                    "lesson": lesson,
+                    "source": "/api/autonomous-code",
+                }
+            )
     except Exception as e:  # noqa: BLE001
         logging.debug("experience skip: %s", e)
 
@@ -11816,7 +12764,9 @@ async def autonomous_code(request: dict):
         "attempts": attempts,
         "file_path": file_written or file_path,
         "code_preview": code[:1000],
-        "source": "veronica" if code and not code_result.startswith("Delegation error") else "error",
+        "source": "veronica"
+        if code and not code_result.startswith("Delegation error")
+        else "error",
         "phase_ms": phase_ms,
         "llm_ms": llm_ms,
     }
@@ -11834,7 +12784,8 @@ async def _fetch_experience_lessons(goal_text: str, limit: int = 3) -> list:
                      AND content_tsvector @@ plainto_tsquery('simple', $1)
                    ORDER BY ts_rank(content_tsvector, plainto_tsquery('simple', $1)) DESC, created_at DESC
                    LIMIT $2""",
-                goal_text[:400], limit,
+                goal_text[:400],
+                limit,
             )
             if not rows:
                 rows = await conn.fetch(
@@ -11849,8 +12800,6 @@ async def _fetch_experience_lessons(goal_text: str, limit: int = 3) -> list:
     except Exception as e:  # noqa: BLE001
         logging.debug("experience fetch failed: %s", e)
         return []
-
-
 
 
 def _fix_mojibake(text: str) -> str:
@@ -11878,6 +12827,7 @@ async def _dispatch_plan_step_to_stream(step: dict, fp: str, session_id: str) ->
     if redis_manager is None:
         return {"task_id": None, "dispatch_mode": "redis", "error": "redis_manager недоступен"}
     import uuid as _uuid
+
     task_id = str(_uuid.uuid4())
     expert = next(_plan_step_dispatch_cycle)
     description = (
@@ -11908,9 +12858,7 @@ async def _dispatch_plan_step_to_stream(step: dict, fp: str, session_id: str) ->
     try:
         conn = await asyncpg.connect(dsn=dsn)
         try:
-            assignee = await conn.fetchval(
-                "SELECT id FROM experts WHERE name = $1 LIMIT 1", expert
-            )
+            assignee = await conn.fetchval("SELECT id FROM experts WHERE name = $1 LIMIT 1", expert)
             await conn.execute(
                 """INSERT INTO tasks (id, title, description, status, priority, assignee_expert_id, metadata)
                    VALUES ($1::uuid, $2, $3, 'pending', 'high', $4, $5::jsonb)
@@ -11924,15 +12872,26 @@ async def _dispatch_plan_step_to_stream(step: dict, fp: str, session_id: str) ->
         finally:
             await conn.close()
     except Exception as e:  # noqa: BLE001
-        return {"task_id": task_id, "expert": expert, "dispatch_mode": "redis", "error": f"task-row: {e}"}
+        return {
+            "task_id": task_id,
+            "expert": expert,
+            "dispatch_mode": "redis",
+            "error": f"task-row: {e}",
+        }
     ok = await redis_manager.push_to_stream(_PLAN_STEP_STREAM, payload)
     if ok is False:
-        return {"task_id": task_id, "expert": expert, "dispatch_mode": "redis", "error": "dup/blocked"}
+        return {
+            "task_id": task_id,
+            "expert": expert,
+            "dispatch_mode": "redis",
+            "error": "dup/blocked",
+        }
     return {"task_id": task_id, "expert": expert, "dispatch_mode": "redis"}
 
 
 _PLAN_STEP_STREAM = os.getenv("PLAN_STEP_STREAM", "expert_tasks:overflow")
 import itertools as _itertools
+
 _plan_step_dispatch_cycle = _itertools.cycle(os.getenv("PLAN_STEP_EXPERTS", "Инна,Юлия").split(","))
 
 
@@ -12003,6 +12962,7 @@ async def orchestrate_plan(request: dict):
 
     async def _llm_plan(prompt: str) -> list:
         from dialogue_llm import generate_dialogue
+
         plan_res = await generate_dialogue(
             prompt,
             expert_name="Виктория",
@@ -12020,7 +12980,8 @@ async def orchestrate_plan(request: dict):
     lessons = await _fetch_experience_lessons(goal, 3)
     lessons_block = (
         ("Ранее полученный опыт (используй в плане):\n" + "\n".join(f"- {l}" for l in lessons))
-        if lessons else ""
+        if lessons
+        else ""
     )
     try:
         steps = await _llm_plan(base_prompt_tail + ("\n" + lessons_block if lessons_block else ""))
@@ -12055,6 +13016,7 @@ async def orchestrate_plan(request: dict):
                 head = _f.read(1600)
             from dialogue_llm import generate_dialogue
             import uuid as _uu
+
             sp = (
                 f"Подзадача: «{step_goal}». Файл: {fp}.\n"
                 f"Начало кода:\n{head}\n\n"
@@ -12070,7 +13032,12 @@ async def orchestrate_plan(request: dict):
     async def generate_dialogue_safe(prompt: str) -> str:
         try:
             from dialogue_llm import generate_dialogue
-            res = await generate_dialogue(prompt, expert_name="Виктория", model_hint=os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k"))
+
+            res = await generate_dialogue(
+                prompt,
+                expert_name="Виктория",
+                model_hint=os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k"),
+            )
             return (res.text if hasattr(res, "text") else str(res)) or ""
         except Exception:  # noqa: BLE001
             return ""
@@ -12080,22 +13047,38 @@ async def orchestrate_plan(request: dict):
     replan_iters: list[dict] = []
     try:
         import aiohttp
+
         async with aiohttp.ClientSession() as sess:
             # — v3.2: топологический порядок по depends → параллель по уровням —
             sem = asyncio.Semaphore(2)  # не злить coder-инстанс очередями
 
             async def _one(i: int, st: dict):
-                slug = _re.sub(r"[^a-zA-Z0-9]", "_", str(st.get("title", f"step{i}")))[:24].lower() or f"step{i}"
+                slug = (
+                    _re.sub(r"[^a-zA-Z0-9]", "_", str(st.get("title", f"step{i}")))[:24].lower()
+                    or f"step{i}"
+                )
                 fp = f"src/op{i}_{slug}.py"
                 dispatch_mode = os.getenv("PLAN_EXECUTOR_MODE", "direct").lower()
                 dispatched: dict = {}
                 if dispatch_mode == "redis" and redis_manager is not None:
                     async with sem:
-                        dispatched = await _dispatch_plan_step_to_stream(st, fp, f"sess{int(asyncio.get_event_loop().time())}")
+                        dispatched = await _dispatch_plan_step_to_stream(
+                            st, fp, f"sess{int(asyncio.get_event_loop().time())}"
+                        )
                     if dispatched.get("task_id"):
                         poll_res = await _poll_plan_step_result(dispatched["task_id"])
                         status = poll_res.get("status", "failed")
-                        res = {"final_status": status, "fix_iterations": 0, "attempts": [{"stage": "redis_dispatch", "status": status, "output": (poll_res.get("result") or "")[:600]}]}
+                        res = {
+                            "final_status": status,
+                            "fix_iterations": 0,
+                            "attempts": [
+                                {
+                                    "stage": "redis_dispatch",
+                                    "status": status,
+                                    "output": (poll_res.get("result") or "")[:600],
+                                }
+                            ],
+                        }
                     else:
                         # воркер-режим недоступен → деградируем в direct
                         async with sem:
@@ -12110,14 +13093,18 @@ async def orchestrate_plan(request: dict):
                     sanity_ok = await _sanity_check(st.get("goal", ""), fp)
                     if not sanity_ok:
                         status = "sanity_failed"
-                results.append({
-                    "step": i, "title": st.get("title", ""), "file": fp,
-                    "depends": st.get("depends", []),
-                    "status": status,
-                    "sanity_ok": sanity_ok,
-                    "fix_iterations": res.get("fix_iterations"),
-                    "attempts": res.get("attempts", []),
-                })
+                results.append(
+                    {
+                        "step": i,
+                        "title": st.get("title", ""),
+                        "file": fp,
+                        "depends": st.get("depends", []),
+                        "status": status,
+                        "sanity_ok": sanity_ok,
+                        "fix_iterations": res.get("fix_iterations"),
+                        "attempts": res.get("attempts", []),
+                    }
+                )
 
             pending = list(range(1, len(steps) + 1))
             done_steps: set[int] = set()
@@ -12142,7 +13129,9 @@ async def orchestrate_plan(request: dict):
                 if res.get("final_status") == "passed":
                     results[k]["status"] = "passed"
                     # v3.3: sanity-check и на retry-пути (иначе sanity_ok остаётся None после dispatch-таймаута)
-                    results[k]["sanity_ok"] = await _sanity_check(st.get("goal", ""), results[k]["file"])
+                    results[k]["sanity_ok"] = await _sanity_check(
+                        st.get("goal", ""), results[k]["file"]
+                    )
                     if not results[k]["sanity_ok"]:
                         results[k]["status"] = "sanity_failed"
                     results[k]["fix_iterations"] = res.get("fix_iterations")
@@ -12156,7 +13145,7 @@ async def orchestrate_plan(request: dict):
                 failed = [r for r in results if r["status"] != "passed"]
                 last_fail = failed[-1]
                 err_ctx = ""
-                for a in (last_fail.get("attempts") or [-1, -1][-1:]):
+                for a in last_fail.get("attempts") or [-1, -1][-1:]:
                     pass
                 fs = last_fail
                 for a in reversed(fs.get("attempts") or []):
@@ -12165,7 +13154,9 @@ async def orchestrate_plan(request: dict):
                         break
                 context = (
                     f"Изначальная цель: {goal}. "
-                    f"Некоторый план из {len(steps)} шагов: " + "; ".join(s.get("goal", "")[:120] for s in steps) + ". "
+                    f"Некоторый план из {len(steps)} шагов: "
+                    + "; ".join(s.get("goal", "")[:120] for s in steps)
+                    + ". "
                     f"Шаг {last_fail.get('step')} ({last_fail.get('title')}) упал после ретрай-цикла. "
                     f"Успешно_codegen код в файлах op*.py для успешных шагов уже написан и работает. "
                     f"Последняя ошибка: {err_ctx or '(нет вывода)'}\n"
@@ -12180,10 +13171,18 @@ async def orchestrate_plan(request: dict):
                 if not new_steps:
                     break
                 replans_used += 1
-                replan_iters.append({"replan": replans_used, "for_steps": [r.get("step") for r in failed], "new_goals": [s.get("goal", "")[:100] for s in new_steps]})
+                replan_iters.append(
+                    {
+                        "replan": replans_used,
+                        "for_steps": [r.get("step") for r in failed],
+                        "new_goals": [s.get("goal", "")[:100] for s in new_steps],
+                    }
+                )
                 for st in new_steps:
                     idx = len(results) + 1
-                    slug = _re.sub(r"[^a-zA-Z0-9]", "_", str(st.get("title", f"r{idx}")))[:24].lower()
+                    slug = _re.sub(r"[^a-zA-Z0-9]", "_", str(st.get("title", f"r{idx}")))[
+                        :24
+                    ].lower()
                     fp = f"src/op{idx}_{slug}.py"
                     res = await _run_step(sess, fp, st["goal"])
                     rstatus = res.get("final_status", res.get("compile_status"))
@@ -12192,13 +13191,17 @@ async def orchestrate_plan(request: dict):
                         rsanity_ok = await _sanity_check(st["goal"], fp)
                         if not rsanity_ok:
                             rstatus = "sanity_failed"
-                    results.append({
-                        "step": idx, "title": f"[replan] {st.get('title', '')}", "file": fp,
-                        "status": rstatus,
-                        "sanity_ok": rsanity_ok,
-                        "fix_iterations": res.get("fix_iterations"),
-                        "attempts": res.get("attempts", []),
-                    })
+                    results.append(
+                        {
+                            "step": idx,
+                            "title": f"[replan] {st.get('title', '')}",
+                            "file": fp,
+                            "status": rstatus,
+                            "sanity_ok": rsanity_ok,
+                            "fix_iterations": res.get("fix_iterations"),
+                            "attempts": res.get("attempts", []),
+                        }
+                    )
                     if rstatus == "passed":
                         # помечаем замещённые шаги как superseded
                         for r in results[:-1]:
@@ -12212,14 +13215,16 @@ async def orchestrate_plan(request: dict):
     passed_n = sum(1 for r in results if r["status"] == "passed")
     summary = "Все шаги пройдены" if core_ok else f"Пройдено {passed_n} из {len(results)}"
     try:
-        await commit_experience({
-            "goal": f"[plan] {goal[:200]}",
-            "outcome": "passed" if summary.startswith("Все") else "partial",
-            "lesson": f"{len(steps)}+{sum(1 for r in replan_iters and [True])} replans.x{n}: "
-                      + "; ".join(f"{r['step']}:{r['status']}" for r in results)
-                      + f" | replans_used={replans_used}",
-            "source": "/api/orchestrate-plan",
-        })
+        await commit_experience(
+            {
+                "goal": f"[plan] {goal[:200]}",
+                "outcome": "passed" if summary.startswith("Все") else "partial",
+                "lesson": f"{len(steps)}+{sum(1 for r in replan_iters and [True])} replans.x{n}: "
+                + "; ".join(f"{r['step']}:{r['status']}" for r in results)
+                + f" | replans_used={replans_used}",
+                "source": "/api/orchestrate-plan",
+            }
+        )
     except Exception:  # noqa: BLE001
         pass
 
@@ -12243,6 +13248,7 @@ async def experience_cull(request: dict):
     Тело: {"min_age_days": 7, "dry_run": false}
     """
     import hashlib
+
     dsn = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
     dry = bool(request.get("dry_run", False))
     age = max(1, int(request.get("min_age_days", 7)))
@@ -12317,7 +13323,12 @@ async def self_review(request: dict):
         "5) Готов ли файл к отправке в PR (green/amber/red)?"
     )
     from dialogue_llm import generate_dialogue
-    res = await generate_dialogue(q, expert_name="Виктория", model_hint=os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k"))
+
+    res = await generate_dialogue(
+        q,
+        expert_name="Виктория",
+        model_hint=os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k"),
+    )
     text = (res.text if hasattr(res, "text") else str(res)) or ""
     return {"status": "ok", "review": text[:2000]}
 
@@ -12346,6 +13357,7 @@ async def saga(request: dict):
     async def run_one(g: str) -> dict:
         try:
             import aiohttp
+
             async with aiohttp.ClientSession() as sess:
                 async with sess.post(
                     f"{base_url}/api/orchestrate-plan",
@@ -12355,10 +13367,14 @@ async def saga(request: dict):
                     d = await resp.json(content_type=None)
                 return {
                     "goal": g[:200],
-                    "status": ("passed" if str(d.get("summary", "")).startswith("Все") else "partial"),
+                    "status": (
+                        "passed" if str(d.get("summary", "")).startswith("Все") else "partial"
+                    ),
                     "summary": d.get("summary", ""),
                     "steps": len(d.get("plan_steps") or []),
-                    "steps_passed": sum(1 for r in (d.get("results") or []) if r.get("status") == "passed"),
+                    "steps_passed": sum(
+                        1 for r in (d.get("results") or []) if r.get("status") == "passed"
+                    ),
                     "replans_used": d.get("replans_used", 0),
                 }
         except Exception as e:  # noqa: BLE001
@@ -12366,8 +13382,10 @@ async def saga(request: dict):
 
     try:
         import aiohttp  # noqa: F401 — проверка наличия до исполнения
+
         if parallel:
             import asyncio
+
             out = await asyncio.gather(*(run_one(g) for g in goals), return_exceptions=True)
             results = []
             for r in out:
@@ -12389,7 +13407,7 @@ async def saga(request: dict):
             {
                 "goal": f"[saga] {len(goals)} целей: {'; '.join(g[:60] for g in goals[:5])}",
                 "outcome": "passed" if passed == len(results) else "partial",
-                "lesson": "; ".join(f"{i+1}:{r.get('status')}" for i, r in enumerate(results)),
+                "lesson": "; ".join(f"{i + 1}:{r.get('status')}" for i, r in enumerate(results)),
                 "source": "/api/saga",
             }
         )

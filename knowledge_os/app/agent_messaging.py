@@ -82,6 +82,7 @@ class AgentMessage:
 async def _get_redis():
     try:
         import redis.asyncio as aioredis
+
         return aioredis.from_url(REDIS_URL, decode_responses=True)
     except ImportError:
         logger.warning("[AGENT_MSG] redis.asyncio not available")
@@ -221,12 +222,14 @@ async def publish_presence(agent_name: str, capabilities: Optional[List[str]] = 
     if not r:
         return
     try:
-        payload = json.dumps({
-            "agent": agent_name,
-            "capabilities": capabilities or [],
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "pid": os.getpid(),
-        })
+        payload = json.dumps(
+            {
+                "agent": agent_name,
+                "capabilities": capabilities or [],
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "pid": os.getpid(),
+            }
+        )
         await r.publish("agent:presence", payload)
         # Also set a key with TTL for discovery
         await r.setex(f"agent:alive:{agent_name}", AGENT_PRESENCE_TTL, payload)

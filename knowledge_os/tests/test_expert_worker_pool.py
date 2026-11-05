@@ -15,6 +15,7 @@ class TestExpertWorkerConfig:
 
     def test_expert_pool_mode_parse(self):
         """Pool mode parsing logic as used in expert_worker.py."""
+
         def _is_pool_mode():
             return os.getenv("EXPERT_POOL_MODE", "false").lower() in ("true", "1", "yes")
 

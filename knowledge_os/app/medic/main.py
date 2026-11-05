@@ -59,6 +59,7 @@ class Medic:
         self.metrics_dashboard = None
         try:
             from app.medic.metrics_dashboard import MetricsDashboard
+
             self.metrics_dashboard = MetricsDashboard()
         except Exception as e:
             logger.debug("MetricsDashboard not available: %s", e)
@@ -148,7 +149,9 @@ class Medic:
     async def _heal(self, incident: Incident):
         ladder = LADDER.get(incident.kind, ["L3"])
         if not ladder:
-            logger.info("heal %s: no repair needed (benign/known pattern), logging only", incident.kind)
+            logger.info(
+                "heal %s: no repair needed (benign/known pattern), logging only", incident.kind
+            )
             self.journal(incident, "LOGGED", "benign pattern, no action")
             return
         for attempt, level in enumerate(ladder[:MAX_ATTEMPTS], start=1):

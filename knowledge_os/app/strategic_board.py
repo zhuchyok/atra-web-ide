@@ -757,7 +757,9 @@ async def consult_board(
         )
         mlx_model_hint = os.getenv("BOARD_CONSULT_MLX_MODEL", "victoria-wisdom-24k")
         consult_model = os.getenv("BOARD_CONSULT_MODEL", "victoria-qwen38:latest")  # [v149.8]
-        quality_model = os.getenv("BOARD_CONSULT_QUALITY_MODEL", "victoria-qwen38:latest")  # [v149.8]
+        quality_model = os.getenv(
+            "BOARD_CONSULT_QUALITY_MODEL", "victoria-qwen38:latest"
+        )  # [v149.8]
         fallback_model = os.getenv("BOARD_CONSULT_FALLBACK_MODEL", "phi3.5:3.8b")
         # No-colon hint → dialogue_llm prefers MLX (Victoria brain, usually warm).
         if use_mlx and consult_model.replace(":latest", "").startswith("victoria-wisdom"):

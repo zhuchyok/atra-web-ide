@@ -11,7 +11,7 @@ APP = ROOT / "knowledge_os" / "app"
 def test_evolution_does_not_pass_model_kwarg():
     text = (APP / "recursive_evolution.py").read_text(encoding="utf-8")
     assert 'model="smollm2:360m"' not in text
-    assert "run_smart_agent_async(prompt, expert_name=\"Даниил\")" in text
+    assert 'run_smart_agent_async(prompt, expert_name="Даниил")' in text
 
 
 def test_asyncpg_interval_uses_bound_days():
@@ -56,14 +56,14 @@ def test_react_and_worker_default_to_phi_hands():
     assert "_skip_as_ollama_hands(model)" in react
     worker = (APP / "expert_worker.py").read_text(encoding="utf-8")
     assert 'model_hint or "victoria-wisdom-24k:latest"' not in worker
-    assert "if \"wisdom\" in str(react_model).lower():" in worker
+    assert 'if "wisdom" in str(react_model).lower():' in worker
     assert 'logger.error(f"🆔 [WORKER] I am identified as:' not in worker
     assert "Blackboard monitor started for %s" in worker
 
 
 def test_inference_warmup_is_phi_not_lfm():
     text = (APP / "inference_optimizer.py").read_text(encoding="utf-8")
-    assert 'lfm2.5-thinking:1.2b' not in text
+    assert "lfm2.5-thinking:1.2b" not in text
     assert 'models_to_preload = ["phi3.5:3.8b"]' in text
     assert "logger.error" not in text
 

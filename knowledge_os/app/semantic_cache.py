@@ -175,6 +175,8 @@ def _valid_embedding(vec: Any) -> bool:
         return True
     except Exception:
         return False
+
+
 CACHE_THRESHOLD = 0.92  # Similarity threshold to return cached result
 STRATEGIC_CACHE_THRESHOLD = 0.95  # Более строгий threshold для стратегических вопросов
 
@@ -458,7 +460,8 @@ async def _execute_embedding_request(text: str) -> Optional[list]:
                             return _emb
                         logger.warning(
                             "[CACHE-STORE-GUARD] Ollama encode вернул невалидный эмбеддинг "
-                            "(len=%s) — пропускаем источник", len(_emb) if _emb else 0
+                            "(len=%s) — пропускаем источник",
+                            len(_emb) if _emb else 0,
                         )
                     elif resp.status_code in (429, 500, 503):
                         _embed_cooldown_until_ts = max(
@@ -490,7 +493,8 @@ async def _execute_embedding_request(text: str) -> Optional[list]:
                     return _emb
                 logger.warning(
                     "[CACHE-STORE-GUARD] VectorCore encode вернул невалидный "
-                    "эмбеддинг (len=%s) — пропускаем источник", len(_emb) if _emb else 0
+                    "эмбеддинг (len=%s) — пропускаем источник",
+                    len(_emb) if _emb else 0,
                 )
     except Exception:
         pass

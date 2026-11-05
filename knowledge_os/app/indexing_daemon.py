@@ -124,7 +124,7 @@ class IndexingDaemon:
             if not content.strip():
                 return
 
-            content_hash = hashlib.md5(content.encode('utf-8')).hexdigest()
+            content_hash = hashlib.md5(content.encode("utf-8")).hexdigest()
             if self.processed_hashes.get(path) == content_hash:
                 return  # Файл не изменился содержательно
 

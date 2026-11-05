@@ -47,7 +47,7 @@ class EnhancedCache:
         """Генерация ключа кэша"""
         cache_data = {"method": method, "goal": goal, "context": context or {}}
         cache_str = json.dumps(cache_data, sort_keys=True)
-        return hashlib.sha256(cache_str.encode('utf-8')).hexdigest()
+        return hashlib.sha256(cache_str.encode("utf-8")).hexdigest()
 
     async def get(
         self, method: str, goal: str, context: Optional[Dict] = None

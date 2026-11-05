@@ -106,7 +106,7 @@ class PromptABTesting:
         try:
             # Генерируем ID на основе текста и версии
             variant_key = f"{prompt_text}:{version}"
-            variant_id = hashlib.md5(variant_key.encode('utf-8')).hexdigest()[:16]
+            variant_id = hashlib.md5(variant_key.encode("utf-8")).hexdigest()[:16]
 
             variant = PromptVariant(
                 variant_id=variant_id,
@@ -186,7 +186,7 @@ class PromptABTesting:
         try:
             # Генерируем test_id
             test_key = f"{test_name}:{variant_a_id}:{variant_b_id}"
-            test_id = hashlib.md5(test_key.encode('utf-8')).hexdigest()[:16]
+            test_id = hashlib.md5(test_key.encode("utf-8")).hexdigest()[:16]
 
             test_config = {
                 "test_id": test_id,

@@ -30,17 +30,20 @@ class TestHealthAll:
             "services": {
                 "victoria": {"status": "ok"},
                 "veronica": {"status": "ok"},
-            }
+            },
         }
         assert mock_response["overall"] == "healthy"
         assert len(mock_response["services"]) == 2
 
     def test_degraded_detection(self):
         """If any service is error, overall should be degraded."""
-        mock = {"overall": "degraded", "services": {
-            "victoria": {"status": "ok"},
-            "redis": {"status": "error", "error": "timeout"}
-        }}
+        mock = {
+            "overall": "degraded",
+            "services": {
+                "victoria": {"status": "ok"},
+                "redis": {"status": "error", "error": "timeout"},
+            },
+        }
         assert mock["overall"] == "degraded"
         assert mock["services"]["redis"]["status"] == "error"
 
@@ -49,6 +52,7 @@ class TestHealthAll:
         import asyncio
 
         from app.rest_api import _check_redis
+
         result = asyncio.run(_check_redis())
         assert isinstance(result, dict)
         assert "status" in result
@@ -58,6 +62,7 @@ class TestHealthAll:
         import asyncio
 
         from app.rest_api import _check_postgres
+
         result = asyncio.run(_check_postgres())
         assert isinstance(result, dict)
         assert "status" in result

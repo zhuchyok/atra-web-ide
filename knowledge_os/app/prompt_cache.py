@@ -31,7 +31,7 @@ class PromptCache:
     def _get_prompt_hash(self, prompt: str, model_name: str) -> str:
         """Создать хеш промпта"""
         content = f"{model_name}:{prompt}"
-        return hashlib.sha256(content.encode('utf-8')).hexdigest()
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
     async def get_cached_response(self, prompt: str, model_name: str) -> Optional[str]:
         """

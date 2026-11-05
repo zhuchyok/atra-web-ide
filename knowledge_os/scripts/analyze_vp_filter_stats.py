@@ -70,7 +70,9 @@ def analyze_vp_filter_stats(period_days: int = 7):
     # TODO: Convert f-string to %s formatting for performance
     logger.info(f"📈 Всего проверок: {vp_stats['total_checked']}")
     # TODO: Convert f-string to %s formatting for performance
-    logger.info(f"✅ Пропущено сигналов: {vp_stats['passed_count']} ({vp_stats['pass_rate_pct']:.1f}%)")
+    logger.info(
+        f"✅ Пропущено сигналов: {vp_stats['passed_count']} ({vp_stats['pass_rate_pct']:.1f}%)"
+    )
     logger.info(
         f"❌ Заблокировано сигналов: {vp_stats['blocked_count']} ({vp_stats['block_rate_pct']:.1f}%)"
     )

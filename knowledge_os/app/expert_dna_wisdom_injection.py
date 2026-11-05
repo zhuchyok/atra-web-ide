@@ -90,7 +90,9 @@ VICTORIA_URL = os.getenv("VICTORIA_URL", "http://host.docker.internal:8010")
 
 
 def _dsn() -> str:
-    return os.getenv("DATABASE_URL", "postgresql://admin:secret@knowledge_postgres:5432/knowledge_os")
+    return os.getenv(
+        "DATABASE_URL", "postgresql://admin:secret@knowledge_postgres:5432/knowledge_os"
+    )
 
 
 def map_category_to_expert(category: str) -> Optional[str]:
@@ -201,9 +203,7 @@ async def eval_expert(expert: str, questions: List[str]) -> List[str]:
         for q in questions:
             goal = f"объясни: {q}"
             try:
-                answers.append(
-                    await asyncio.wait_for(run_answer(goal), timeout=RUN_TIMEOUT + 120)
-                )
+                answers.append(await asyncio.wait_for(run_answer(goal), timeout=RUN_TIMEOUT + 120))
             except Exception as e:  # noqa: BLE001
                 answers.append(f"[ERROR] {e}"[:200])
         return answers
@@ -268,7 +268,11 @@ async def eval_expert(expert: str, questions: List[str]) -> List[str]:
 
 
 async def judge_pair(goal: str, answer_before: str, answer_after: str) -> Dict[str, Any]:
-    mlx = os.getenv("MLX_BASE_URL", "").rstrip("/") or os.getenv("MLX_API_URL", "").rstrip("/") or "http://host.docker.internal:11435"
+    mlx = (
+        os.getenv("MLX_BASE_URL", "").rstrip("/")
+        or os.getenv("MLX_API_URL", "").rstrip("/")
+        or "http://host.docker.internal:11435"
+    )
     model = os.getenv("VICTORIA_WISDOM_MODEL", "victoria-wisdom-24k")
     prompt = (
         "Ты — строгий судья. Эксперт-ассистент получил новый урок в инструкции (после). "
@@ -281,7 +285,11 @@ async def judge_pair(goal: str, answer_before: str, answer_after: str) -> Dict[s
         async with httpx.AsyncClient(timeout=120) as client:
             r = await client.post(
                 f"{mlx}/api/chat",
-                json={"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False},
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "stream": False,
+                },
             )
         import re as _re
 

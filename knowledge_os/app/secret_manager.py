@@ -72,14 +72,14 @@ class SecretManager:
         if not CRYPTOGRAPHY_AVAILABLE:
             return b""
 
-        salt = os.getenv("SECRET_SALT", "default_salt_change_me").encode('utf-8')
+        salt = os.getenv("SECRET_SALT", "default_salt_change_me").encode("utf-8")
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
             salt=salt,
             iterations=100000,
         )
-        key = base64.urlsafe_b64encode(kdf.derive(password.encode('utf-8')))
+        key = base64.urlsafe_b64encode(kdf.derive(password.encode("utf-8")))
         return key
 
     def encrypt(self, plaintext: str) -> Optional[str]:
@@ -97,7 +97,7 @@ class SecretManager:
             return None
 
         try:
-            encrypted = self._fernet.encrypt(plaintext.encode('utf-8'))
+            encrypted = self._fernet.encrypt(plaintext.encode("utf-8"))
             return base64.b64encode(encrypted).decode()
         except Exception as e:
             # TODO: Convert f-string to %s formatting for performance
@@ -119,7 +119,7 @@ class SecretManager:
             return None
 
         try:
-            encrypted = base64.b64decode(ciphertext.encode('utf-8'))
+            encrypted = base64.b64decode(ciphertext.encode("utf-8"))
             decrypted = self._fernet.decrypt(encrypted)
             return decrypted.decode()
         except Exception as e:

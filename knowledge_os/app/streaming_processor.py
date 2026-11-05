@@ -17,15 +17,9 @@ logger = logging.getLogger(__name__)
 # Config
 # [v150.27] phi-утечка на 11434: стриминговые лёгкие модели (phi/qwen-coder)
 # идут на инстанс РУК (11437), а не на мозгевой порт.
-MAC_LLM_URL = (
-    os.getenv("MAC_LLM_URL")
-    or os.getenv("OLLAMA_HANDS_URL")
-    or "http://localhost:11434"
-)
+MAC_LLM_URL = os.getenv("MAC_LLM_URL") or os.getenv("OLLAMA_HANDS_URL") or "http://localhost:11434"
 SERVER_LLM_URL = (
-    os.getenv("SERVER_LLM_URL")
-    or os.getenv("OLLAMA_HANDS_URL")
-    or "http://localhost:11434"
+    os.getenv("SERVER_LLM_URL") or os.getenv("OLLAMA_HANDS_URL") or "http://localhost:11434"
 )
 
 

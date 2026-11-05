@@ -56,7 +56,9 @@ def _notify_refuse(reason: str, path: str, content_head: str) -> None:
         pass
 
 
-def guard_file_write(file_path: str, content: str, *, overwrite_check: bool = True) -> tuple[bool, str]:
+def guard_file_write(
+    file_path: str, content: str, *, overwrite_check: bool = True
+) -> tuple[bool, str]:
     """Проверка перед записей файла. Возвращает (allowed, reason).
 
     file_path — РЕЗОЛВНУТЫЙ абсолютный или относительный путь (уже без ..).
@@ -100,3 +102,47 @@ def guard_file_write(file_path: str, content: str, *, overwrite_check: bool = Tr
             pass
 
     return True, "ok"
+
+
+def resolve_workspace_write_path(workspace: str, file_path: str) -> tuple[bool, str, str]:
+    """Резолв пути записи внутрь workspace. Fail-closed на escape.
+
+    Возвращает (ok, reason, resolved_abs). При отказе resolved_abs пустой.
+    """
+    ws_raw = (workspace or "").strip()
+    rel = (file_path or "").strip()
+    if not ws_raw:
+        return False, "empty workspace", ""
+    if not rel:
+        return False, "empty path", ""
+
+    ws = os.path.realpath(os.path.abspath(ws_raw))
+    if os.path.isabs(rel):
+        target = os.path.realpath(rel)
+    else:
+        target = os.path.realpath(os.path.join(ws, rel))
+
+    try:
+        common = os.path.commonpath([ws, target])
+    except ValueError:
+        _notify_refuse("path escapes workspace", target, "")
+        return False, "path escapes workspace", ""
+    if common != ws or target == ws:
+        _notify_refuse("path escapes workspace", target, "")
+        return False, "path escapes workspace", ""
+    return True, "ok", target
+
+
+def guard_workspace_write(
+    workspace: str,
+    file_path: str,
+    content: str,
+    *,
+    overwrite_check: bool = True,
+) -> tuple[bool, str, str]:
+    """Резолв + SOURCE_GUARD. Возвращает (allowed, reason, resolved_abs)."""
+    ok, reason, resolved = resolve_workspace_write_path(workspace, file_path)
+    if not ok:
+        return False, reason, resolved
+    allowed, g_reason = guard_file_write(resolved, content, overwrite_check=overwrite_check)
+    return allowed, g_reason, resolved

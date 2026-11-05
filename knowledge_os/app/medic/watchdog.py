@@ -133,9 +133,7 @@ class Watchdog:
                 try:
                     client = docker.from_env()
                     container = client.containers.get("victoria-agent")
-                    for chunk in container.logs(
-                        stream=True, follow=True, timestamps=False, tail=0
-                    ):
+                    for chunk in container.logs(stream=True, follow=True, timestamps=False, tail=0):
                         if self._stop:
                             return
                         try:

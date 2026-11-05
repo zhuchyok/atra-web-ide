@@ -23,7 +23,7 @@ TOOL_PATH = REPO_ROOT / "configs" / "openwebui_ask_victoria_tool.py"
 
 DESIRED_VALVES = {
     "VICTORIA_URL": "http://victoria-agent:8000",
-    "USE_BACKEND_PROXY": True,
+    "USE_BACKEND_PROXY": False,
     "ASK_VICTORIA_TIMEOUT": 1200,
     "BACKEND_FALLBACK_URL": "http://atra-web-ide-backend:8000",
     "HOST_WORKSPACE_PATH": "/Users/bikos/Documents/atra-web-ide",
@@ -62,7 +62,7 @@ SPECS = [
                 "response_format": {
                     "type": "string",
                     "description": "text or json",
-                    "default": "text",
+                    "default": "json",
                 },
             },
             "required": ["goal"],

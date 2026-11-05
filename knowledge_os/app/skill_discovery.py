@@ -220,8 +220,10 @@ metadata: {metadata_json}
         # Инжект вызова библиотеки при наличии api_info.function (реализация логики skill)
         injected_logic = ""
         if api_info and api_info.get("function"):
-            func_name = re.sub(r'[^a-zA-Z0-9_]', '', str(api_info.get("function", "")))
-            lib_mod = re.sub(r'[^a-zA-Z0-9_]', '', (api_info.get("library") or library_name).replace("-", "_"))
+            func_name = re.sub(r"[^a-zA-Z0-9_]", "", str(api_info.get("function", "")))
+            lib_mod = re.sub(
+                r"[^a-zA-Z0-9_]", "", (api_info.get("library") or library_name).replace("-", "_")
+            )
             injected_logic = f'''
         import importlib
         import asyncio
@@ -235,7 +237,7 @@ import inspect
 '''
         # Страховка: при отсутствии api_info.function — ищем стандартные точки входа (run/execute/skill_handler)
         lib_mod = (api_info.get("library") if api_info else None) or library_name
-        lib_mod = re.sub(r'[^a-zA-Z0-9_]', '', lib_mod.replace("-", "_"))
+        lib_mod = re.sub(r"[^a-zA-Z0-9_]", "", lib_mod.replace("-", "_"))
         fallback_logic = f'''
         import importlib
         import asyncio

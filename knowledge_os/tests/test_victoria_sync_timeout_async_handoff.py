@@ -34,8 +34,8 @@ def test_startup_fails_orphaned_inflight():
     assert "async def _fail_orphaned_inflight_on_startup()" in text
     assert "_create_tracked_task(_fail_orphaned_inflight_on_startup())" in text
     assert "orphaned after Victoria restart" in text
-    assert 'VICTORIA_RESUME_ORPHANED_ON_STARTUP' in text
-    assert 'resumed_after_restart' in text
+    assert "VICTORIA_RESUME_ORPHANED_ON_STARTUP" in text
+    assert "resumed_after_restart" in text
 
 
 def test_async_handoff_persists_replay_payload():

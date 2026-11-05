@@ -387,12 +387,12 @@ def format_live_fact_answer(
             if extra:
                 line += " by_reason=" + extra
         bits.append(line)
-    is_status_overview = "статус" in g and any(
-        x in g for x in ("проект", "систем", "роя", "swarm")
-    )
+    is_status_overview = "статус" in g and any(x in g for x in ("проект", "систем", "роя", "swarm"))
     if is_status_overview and not bits:
         # Сводный статус: компактный срез живых метрик (эталон status_project).
-        healthy = (health or "ok") == "ok" and queue is not None and int(queue.get("pending") or 0) == 0
+        healthy = (
+            (health or "ok") == "ok" and queue is not None and int(queue.get("pending") or 0) == 0
+        )
         bits.append(
             "Статус проекта: активная разработка идёт стабильно, сбоев нет."
             if healthy
@@ -402,14 +402,19 @@ def format_live_fact_answer(
             bits.append(f"health={health}")
         if queue is not None:
             bits.append(
-                "pending=" + str(int(queue.get("pending") or 0))
-                + " in_progress=" + str(int(queue.get("in_progress") or 0))
+                "pending="
+                + str(int(queue.get("pending") or 0))
+                + " in_progress="
+                + str(int(queue.get("in_progress") or 0))
             )
         if ops is not None:
             bits.append(
-                "failed_1h=" + str(int(ops.get("failed_1h") or 0))
-                + " completed_24h=" + str(int(ops.get("completed_24h") or 0))
-                + " error_rate_1h=" + str(float(ops.get("error_rate_1h") or 0.0))
+                "failed_1h="
+                + str(int(ops.get("failed_1h") or 0))
+                + " completed_24h="
+                + str(int(ops.get("completed_24h") or 0))
+                + " error_rate_1h="
+                + str(float(ops.get("error_rate_1h") or 0.0))
             )
         if nodes is not None:
             bits.append("knowledge_nodes=" + str(int(nodes)))
@@ -428,7 +433,19 @@ def is_fact_seeking_question(goal: str) -> bool:
 
     # Объяснительные/творческие цели — не fact-probe, даже если внутри есть
     # слово-маркер («объясни backpressure в очередях задач» ≠ «сколько в очереди»).
-    if any(g.startswith(v) for v in ("объясни", "что такое", "напиши", "найди", "расскажи", "сравни", "проанализируй", "разбери")):
+    if any(
+        g.startswith(v)
+        for v in (
+            "объясни",
+            "что такое",
+            "напиши",
+            "найди",
+            "расскажи",
+            "сравни",
+            "проанализируй",
+            "разбери",
+        )
+    ):
         return False
 
     # Исключаем автоматические задачи (лог сканер, медицинские задачи и т.д.)
@@ -545,7 +562,9 @@ def is_consilium_winnable_goal(goal: str) -> Optional[str]:
             return "testing"
     if "analysis" in enabled:
         analysis_starters = _CONSILIUM_CATEGORY_PATTERNS["analysis"]
-        if any(g.startswith(v) for v in analysis_starters) or any(v in g for v in analysis_starters):
+        if any(g.startswith(v) for v in analysis_starters) or any(
+            v in g for v in analysis_starters
+        ):
             return "analysis"
     if "security" in enabled:
         security_markers = _CONSILIUM_CATEGORY_PATTERNS["security"]

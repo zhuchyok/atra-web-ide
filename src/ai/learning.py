@@ -513,9 +513,9 @@ class AILearningSystem:
                 # Сортируем редкие по времени (новые первыми)
                 rare_sorted = sorted(
                     rare_symbols_from_neutral,
-                    key=lambda x: x.timestamp
-                    if hasattr(x, "timestamp") and x.timestamp
-                    else datetime.min,
+                    key=lambda x: (
+                        x.timestamp if hasattr(x, "timestamp") and x.timestamp else datetime.min
+                    ),
                     reverse=True,
                 )
                 rare_symbols = rare_sorted[: min(len(rare_sorted), space_available)]
@@ -568,9 +568,9 @@ class AILearningSystem:
                 # Сортируем нейтральные по времени (новые первыми)
                 neutral_sorted = sorted(
                     neutral_old,
-                    key=lambda x: x.timestamp
-                    if hasattr(x, "timestamp") and x.timestamp
-                    else datetime.min,
+                    key=lambda x: (
+                        x.timestamp if hasattr(x, "timestamp") and x.timestamp else datetime.min
+                    ),
                     reverse=True,
                 )
                 neutral_old = neutral_sorted[:space_for_neutral]

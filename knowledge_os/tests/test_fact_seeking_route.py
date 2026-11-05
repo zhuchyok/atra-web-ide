@@ -47,11 +47,7 @@ def test_greeting_is_not_fact_seeking():
 
 def test_public_task_title_strips_method_prefix():
     raw = "проверь health Victoria"
-    enriched = (
-        "📋 МЕТОД CURSOR (обязателен):\n"
-        "1. Факты до вывода: прочитай файлы\n"
-        "ЗАДАЧА:\n" + raw
-    )
+    enriched = "📋 МЕТОД CURSOR (обязателен):\n1. Факты до вывода: прочитай файлы\nЗАДАЧА:\n" + raw
     assert public_task_title(enriched) == raw
     assert "МЕТОД CURSOR" not in public_task_title(enriched)
 

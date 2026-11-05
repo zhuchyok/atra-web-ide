@@ -3,6 +3,7 @@
 Показывает: очередь dev_loop-задач, последние выполненные (с отчётами),
 патчи на диске и форму постановки задачи агенту-патчеру.
 """
+
 import json
 from pathlib import Path
 
@@ -34,7 +35,9 @@ def render_selfdev_tab():
         f"на ветке `{BRANCH}` → проверки → коммит. Merge в main — только по человеческому ревью."
     )
 
-    tabs = st.tabs(["📋 Очередь и результаты", "🌿 Ветка auto/dev-loop", "➕ Поставить задачу агенту"])
+    tabs = st.tabs(
+        ["📋 Очередь и результаты", "🌿 Ветка auto/dev-loop", "➕ Поставить задачу агенту"]
+    )
 
     with tabs[0]:
         stats = fetch_data(
@@ -72,7 +75,9 @@ def render_selfdev_tab():
         for d in done or []:
             icon = "✅" if d["status"] == "completed" else "❌"
             result = (d.get("result") or "")[:300]
-            with st.expander(f"{icon} {d['title'][:80]} — {d['updated_at'].strftime('%d.%m %H:%M')}"):
+            with st.expander(
+                f"{icon} {d['title'][:80]} — {d['updated_at'].strftime('%d.%m %H:%M')}"
+            ):
                 st.caption(result or "без отчёта")
         if not done:
             st.info("Выполненных dev_loop-задач пока нет.")
@@ -93,12 +98,16 @@ def render_selfdev_tab():
             "и положит его в ветку на ревью. Запрещено: секреты, .env, CI, launchd, миграции БД."
         )
         with st.form("selfdev_task_form"):
-            title = st.text_input("Название", placeholder="Например: добавить docstring в tabs/plan_cache.py")
+            title = st.text_input(
+                "Название", placeholder="Например: добавить docstring в tabs/plan_cache.py"
+            )
             description = st.text_area(
                 "Что сделать", placeholder="Подробно: какой файл, что изменить, как проверить..."
             )
             valid = bool(title.strip()) and bool(description.strip())
-            submitted = st.form_submit_button("🧪 В очередь self-dev", type="primary", disabled=not valid)
+            submitted = st.form_submit_button(
+                "🧪 В очередь self-dev", type="primary", disabled=not valid
+            )
             if submitted:
                 if not valid:
                     st.error("Заполните название и описание")
@@ -111,7 +120,9 @@ def render_selfdev_tab():
                         (title.strip(), description.strip()),
                     )
                     if ok:
-                        st.success("✅ Задача поставлена в очередь self-dev — патчер заберёт её в течение 2 часов.")
+                        st.success(
+                            "✅ Задача поставлена в очередь self-dev — патчер заберёт её в течение 2 часов."
+                        )
                         st.cache_data.clear()
                     else:
                         st.error("Не удалось создать задачу")
@@ -119,11 +130,15 @@ def render_selfdev_tab():
 
 def _render_patches():
     st.subheader("📦 Патчи на ревью (logs/self_dev_patches)")
-    st.caption("Файлы — первоисточник (ветку могут трогать синхронизаторы). Применить: git am <файл.patch>")
+    st.caption(
+        "Файлы — первоисточник (ветку могут трогать синхронизаторы). Применить: git am <файл.patch>"
+    )
     metas = _load_patch_metas()
     if metas:
         for meta in metas:
-            with st.expander(f"🧪 {str(meta.get('title', '?'))[:80]} — {str(meta.get('created', ''))[:16]}"):
+            with st.expander(
+                f"🧪 {str(meta.get('title', '?'))[:80]} — {str(meta.get('created', ''))[:16]}"
+            ):
                 st.caption(meta.get("report", ""))
                 st.code(meta.get("_stem", "") + ".patch", language=None)
     else:

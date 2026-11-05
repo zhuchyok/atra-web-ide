@@ -42,7 +42,7 @@ class SessionContextManager:
         import hashlib
 
         session_key = f"{user_id}_{expert_name}"
-        return hashlib.md5(session_key.encode('utf-8')).hexdigest()
+        return hashlib.md5(session_key.encode("utf-8")).hexdigest()
 
     async def get_session_context(self, user_id: str, expert_name: str, current_query: str) -> str:
         """

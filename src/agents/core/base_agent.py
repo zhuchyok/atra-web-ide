@@ -124,7 +124,9 @@ class AtraBaseAgent(ABC):
         return False
 
     @staticmethod
-    def _make_tool_audit(tool_name: str, tool_input: Dict[str, Any], latency_ms: int, status: str) -> Dict[str, Any]:
+    def _make_tool_audit(
+        tool_name: str, tool_input: Dict[str, Any], latency_ms: int, status: str
+    ) -> Dict[str, Any]:
         args_raw = json.dumps(tool_input or {}, sort_keys=True, ensure_ascii=False)
         return {
             "tool": tool_name,
@@ -134,7 +136,9 @@ class AtraBaseAgent(ABC):
             "ts_ms": int(time.time() * 1000),
         }
 
-    async def _call_tool_with_policy(self, tool_name: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    async def _call_tool_with_policy(
+        self, tool_name: str, tool_input: Dict[str, Any]
+    ) -> Dict[str, Any]:
         timeout_sec = self._tool_timeout_for(tool_name)
         attempts_total = TOOL_RETRY_ATTEMPTS
         last_error = ""
@@ -148,12 +152,19 @@ class AtraBaseAgent(ABC):
                     timeout=timeout_sec,
                 )
                 result_text = str(raw_result)
-                if self._is_retryable_tool_error(tool_name, result_text) and attempt < attempts_total:
+                if (
+                    self._is_retryable_tool_error(tool_name, result_text)
+                    and attempt < attempts_total
+                ):
                     last_error = result_text
                     await asyncio.sleep(TOOL_RETRY_DELAY_SEC)
                     continue
                 latency_ms = int((time.monotonic() - call_started) * 1000)
-                status = "error" if result_text.lower().startswith(("error", "ошибка", "exception")) else "ok"
+                status = (
+                    "error"
+                    if result_text.lower().startswith(("error", "ошибка", "exception"))
+                    else "ok"
+                )
                 payload: Dict[str, Any] = {
                     "tool": tool_name,
                     "status": status,
@@ -174,7 +185,10 @@ class AtraBaseAgent(ABC):
                     continue
             except Exception as e:
                 last_error = str(e)
-                if self._is_retryable_tool_error(tool_name, last_error) and attempt < attempts_total:
+                if (
+                    self._is_retryable_tool_error(tool_name, last_error)
+                    and attempt < attempts_total
+                ):
                     await asyncio.sleep(TOOL_RETRY_DELAY_SEC)
                     continue
                 break
@@ -316,10 +330,14 @@ class AtraBaseAgent(ABC):
                 if result.tool in agent.tools:
                     observation = await agent._call_tool_with_policy(result.tool, tool_input)
                     obs_payload = json.dumps(observation, ensure_ascii=False)
-                    obs_preview = obs_payload if len(obs_payload) <= 300 else obs_payload[:300] + "..."
+                    obs_preview = (
+                        obs_payload if len(obs_payload) <= 300 else obs_payload[:300] + "..."
+                    )
                     print(f"👀 Результат: {obs_preview}")
                     obs_for_memory = (
-                        obs_payload if len(obs_payload) <= 3000 else obs_payload[:3000] + "...[truncated]"
+                        obs_payload
+                        if len(obs_payload) <= 3000
+                        else obs_payload[:3000] + "...[truncated]"
                     )
                     agent.memory.append(
                         {
@@ -330,9 +348,7 @@ class AtraBaseAgent(ABC):
                     if observation.get("status") == "ok":
                         current_input = "Результат получен. Продолжай выполнение задачи."
                     else:
-                        current_input = (
-                            "Инструмент вернул ошибку. Проанализируй tool_error и выбери другой ход или исправь аргументы."
-                        )
+                        current_input = "Инструмент вернул ошибку. Проанализируй tool_error и выбери другой ход или исправь аргументы."
                 else:
                     error_msg = f"Инструмент {result.tool} не найден."
                     logger.error(f"❌ {error_msg}")

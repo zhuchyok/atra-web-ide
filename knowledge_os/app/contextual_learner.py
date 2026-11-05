@@ -47,7 +47,7 @@ class ContextualMemory:
     ) -> str:
         """Создание хеша контекста"""
         context_str = f"{query}|{domain or ''}|{expert or ''}"
-        return hashlib.sha256(context_str.encode('utf-8')).hexdigest()
+        return hashlib.sha256(context_str.encode("utf-8")).hexdigest()
 
     async def save_pattern(
         self,

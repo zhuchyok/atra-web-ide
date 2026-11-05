@@ -138,7 +138,9 @@ async def run_adversarial_cycle(limit: int = 5):
 
                 status = "SURVIVED" if result["survived"] else "DESTROYED"
                 # TODO: Convert f-string to %s formatting for performance
-                logger.info(f"🛡️ Node {node['id']} {status}. New Score: {result['new_confidence_score']}")
+                logger.info(
+                    f"🛡️ Node {node['id']} {status}. New Score: {result['new_confidence_score']}"
+                )
 
                 # Если знание уничтожено - уведомляем через радар
                 if not result["survived"]:

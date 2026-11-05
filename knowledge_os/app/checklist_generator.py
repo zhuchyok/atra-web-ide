@@ -148,7 +148,7 @@ class ChecklistGenerator:
             import hashlib
 
             checklist_key = f"{task_type}:{':'.join(items)}"
-            checklist_id = hashlib.md5(checklist_key.encode('utf-8')).hexdigest()[:16]
+            checklist_id = hashlib.md5(checklist_key.encode("utf-8")).hexdigest()[:16]
 
             checklist = Checklist(
                 checklist_id=checklist_id,

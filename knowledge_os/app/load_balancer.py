@@ -191,7 +191,9 @@ class LoadBalancer:
                     continue
 
                 # Вычисляем score (меньше = лучше)
-                score = load.active_requests * 2 + load.avg_latency * 0.1 + (1 - load.success_rate) * 10
+                score = (
+                    load.active_requests * 2 + load.avg_latency * 0.1 + (1 - load.success_rate) * 10
+                )
 
                 if score < best_score:
                     best_score = score

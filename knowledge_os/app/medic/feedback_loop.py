@@ -135,6 +135,7 @@ class FeedbackLoop:
     def _make_error_hash(self, container: str, error_type: str, message: str) -> str:
         """Создать хеш ошибки для дедупликации и поиска паттернов."""
         import hashlib
+
         key = f"{container}:{error_type}:{message[:200]}"
         return hashlib.sha256(key.encode()).hexdigest()[:16]
 

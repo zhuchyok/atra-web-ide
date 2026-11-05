@@ -19,7 +19,9 @@ except ImportError:
 logger = logging.getLogger("BlackboardService")
 
 # [v150.74] Stale bidding_open (months) must not enter the autonomy scan.
-_OPEN_GOAL_MAX_AGE_SEC = int(os.getenv("BLACKBOARD_OPEN_GOAL_MAX_AGE_SEC", str(OPEN_GOAL_MAX_AGE_SEC)))
+_OPEN_GOAL_MAX_AGE_SEC = int(
+    os.getenv("BLACKBOARD_OPEN_GOAL_MAX_AGE_SEC", str(OPEN_GOAL_MAX_AGE_SEC))
+)
 
 
 class BlackboardService:
@@ -510,7 +512,9 @@ class BlackboardService:
                             goal_data["assignee"] = expert_name
                             goal_data["claimed_at"] = datetime.now(timezone.utc).isoformat()
                             await client.hset(key, task_id, json.dumps(goal_data))
-                            await client.sadd(f"{self.key_prefix}active_tasks:{expert_name}", task_id)
+                            await client.sadd(
+                                f"{self.key_prefix}active_tasks:{expert_name}", task_id
+                            )
                             logger.info(f"🤝 [BLACKBOARD] Task {task_id} claimed by {expert_name}")
                             return True
                         logger.info(

@@ -1,4 +1,3 @@
-
 """
 Отправляет последний отчёт daily_quality_report в Telegram.
 

@@ -77,7 +77,9 @@ async def _get_redis():
 
             url = os.getenv("REDIS_URL", "")
             if url and url.startswith("unix://"):
-                _redis_client = redis.Redis(unix_socket_path=url.replace("unix://", ""), socket_timeout=2)
+                _redis_client = redis.Redis(
+                    unix_socket_path=url.replace("unix://", ""), socket_timeout=2
+                )
             elif url:
                 _redis_client = redis.Redis.from_url(url, socket_timeout=2)
             else:

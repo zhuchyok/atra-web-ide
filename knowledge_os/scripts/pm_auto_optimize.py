@@ -357,21 +357,27 @@ class AutoOptimizer:
                 logger.info("🎯 СИГНАЛЫ:")
                 for o in opt["signals"]:
                     # TODO: Convert f-string to %s formatting for performance
-                    logger.info(f"  • {o['parameter']}: {o['current_value']} → {o['recommended_value']}")
+                    logger.info(
+                        f"  • {o['parameter']}: {o['current_value']} → {o['recommended_value']}"
+                    )
                 logger.info()
 
             if opt.get("execution"):
                 logger.info("⚙️ ИСПОЛНЕНИЕ:")
                 for o in opt["execution"]:
                     # TODO: Convert f-string to %s formatting for performance
-                    logger.info(f"  • {o['parameter']}: {o['current_value']} → {o['recommended_value']}")
+                    logger.info(
+                        f"  • {o['parameter']}: {o['current_value']} → {o['recommended_value']}"
+                    )
                 logger.info()
 
             if opt.get("risk"):
                 logger.info("🛡️ РИСК-МЕНЕДЖМЕНТ:")
                 for o in opt["risk"]:
                     # TODO: Convert f-string to %s formatting for performance
-                    logger.info(f"  • {o['parameter']}: {o['current_value']} → {o['recommended_value']}")
+                    logger.info(
+                        f"  • {o['parameter']}: {o['current_value']} → {o['recommended_value']}"
+                    )
                 logger.info()
 
         logger.info("=" * 60 + "\n")

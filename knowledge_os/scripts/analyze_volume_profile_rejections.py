@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 🔍 АНАЛИЗ ОТКЛОНЕНИЙ VOLUME PROFILE ФИЛЬТРА
@@ -311,7 +310,9 @@ if __name__ == "__main__":
     logger.info("\n💡 ВЫВОДЫ:")
     if AVG_REJECTION_RATE > 90:
         logger.info("   ❌ Фильтр слишком строгий - блокирует >90% сигналов")
-        logger.info("   💡 Рекомендация: увеличить tolerance_pct или уменьшить требования к Value Area")
+        logger.info(
+            "   💡 Рекомендация: увеличить tolerance_pct или уменьшить требования к Value Area"
+        )
     elif AVG_REJECTION_RATE > 50:
         logger.info("   ⚠️ Фильтр строгий - блокирует >50% сигналов")
         logger.info("   💡 Рекомендация: ослабить параметры фильтра")

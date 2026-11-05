@@ -28,7 +28,9 @@ try:
     import asyncpg
     from app.semantic_cache import get_embedding
 except ImportError:
-    logger.info("Ошибка: Необходимы asyncpg и app.semantic_cache. Проверьте установку зависимостей.")
+    logger.info(
+        "Ошибка: Необходимы asyncpg и app.semantic_cache. Проверьте установку зависимостей."
+    )
     sys.exit(1)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -73,7 +75,7 @@ async def index_file(conn, file_path: str, domain_id: int):
         return
 
     file_rel_path = os.path.relpath(file_path, TARGET_DIR)
-    file_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
+    file_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
     # Проверка на дубликаты
     exists = await conn.fetchval(

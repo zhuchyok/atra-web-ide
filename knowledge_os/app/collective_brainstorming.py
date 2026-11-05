@@ -70,7 +70,11 @@ class CollectiveBrainstorming:
         # [v149.29] Авто-fast для простых задач: BRAINSTORM_AUTO_FAST=true включает
         # fast-режим (1 фаза вместо 4) для категорий fast/general — половина цикла.
         self.fast_mode = os.getenv("BRAINSTORM_FAST", "false").lower() in ("1", "true", "yes")
-        if not self.fast_mode and os.getenv("BRAINSTORM_AUTO_FAST", "false").lower() in ("1", "true", "yes"):
+        if not self.fast_mode and os.getenv("BRAINSTORM_AUTO_FAST", "false").lower() in (
+            "1",
+            "true",
+            "yes",
+        ):
             self.fast_mode = True
             logger.info("⚡ [BRAINSTORMING] AUTO_FAST: простая задача — 1 фаза")
 

@@ -83,7 +83,9 @@ async def test_meta_architect_graphrag_integration():
         patch("knowledge_os.app.meta_architect.get_profiler", return_value=mock_profiler),
         patch("knowledge_os.app.meta_architect.get_graphrag_service", return_value=mock_graphrag),
         patch("knowledge_os.app.meta_architect.run_smart_agent_async", new=_mock_agent),
-        patch("knowledge_os.app.meta_architect.run_optimization_cycle", new=_noop_optimization_cycle),
+        patch(
+            "knowledge_os.app.meta_architect.run_optimization_cycle", new=_noop_optimization_cycle
+        ),
         patch("asyncpg.connect", return_value=mock_conn),
         patch("os.path.exists", return_value=True),
         patch("builtins.open", new=MagicMock()),
@@ -119,7 +121,9 @@ async def test_meta_architect_graphrag_integration():
             # Verify DB logging
             assert len(mock_conn.execute_calls) >= 1
             insert_calls = [
-                call for call in mock_conn.execute_calls if "INSERT INTO knowledge_nodes" in str(call[0][0])
+                call
+                for call in mock_conn.execute_calls
+                if "INSERT INTO knowledge_nodes" in str(call[0][0])
             ]
             assert insert_calls, "Expected INSERT INTO knowledge_nodes to be executed"
             first_insert_args = insert_calls[0][0]

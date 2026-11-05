@@ -37,9 +37,7 @@ class _FakeConn:
 async def test_create_debate_skipped_when_flag_disabled(monkeypatch):
     conn = _FakeConn()
     monkeypatch.setenv("HYPOTHESIS_DEBATES_ENABLED", "false")
-    monkeypatch.setattr(
-        nightly_learner, "run_expert_council", AsyncMock(return_value="council-x")
-    )
+    monkeypatch.setattr(nightly_learner, "run_expert_council", AsyncMock(return_value="council-x"))
     task_id = await nightly_learner.create_debate_for_hypothesis(
         conn=conn,
         knowledge_node_id="kn-off",
@@ -55,9 +53,7 @@ async def test_simple_debate_forces_hands_routing(monkeypatch):
     conn = _FakeConn()
     monkeypatch.setenv("HYPOTHESIS_DEBATES_ENABLED", "true")
     monkeypatch.setenv("NIGHTLY_DEBATE_SIMPLE_MODEL", "phi3.5:3.8b-stable")
-    monkeypatch.setattr(
-        nightly_learner, "run_expert_council", AsyncMock(return_value="council-1")
-    )
+    monkeypatch.setattr(nightly_learner, "run_expert_council", AsyncMock(return_value="council-1"))
 
     task_id = await nightly_learner.create_debate_for_hypothesis(
         conn=conn,
@@ -79,9 +75,7 @@ async def test_simple_debate_forces_hands_routing(monkeypatch):
 async def test_complex_debate_forces_brain_routing(monkeypatch):
     conn = _FakeConn()
     monkeypatch.setenv("HYPOTHESIS_DEBATES_ENABLED", "true")
-    monkeypatch.setattr(
-        nightly_learner, "run_expert_council", AsyncMock(return_value="council-2")
-    )
+    monkeypatch.setattr(nightly_learner, "run_expert_council", AsyncMock(return_value="council-2"))
 
     task_id = await nightly_learner.create_debate_for_hypothesis(
         conn=conn,

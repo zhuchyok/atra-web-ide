@@ -181,7 +181,7 @@ class TeamFormationSystem:
         try:
             # Генерируем team_id
             team_key = f"{task_id}:{task_type}:{datetime.now(timezone.utc).isoformat()}"
-            team_id = hashlib.md5(team_key.encode('utf-8')).hexdigest()[:16]
+            team_id = hashlib.md5(team_key.encode("utf-8")).hexdigest()[:16]
 
             # Находим агентов с подходящей экспертизой
             conn = await self._get_conn()

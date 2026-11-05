@@ -35,6 +35,7 @@ _LOCAL_ROUTER_FACTORY_CACHE = None
 _last_success_ts = 0
 
 if _PROMETHEUS_AVAILABLE:
+
     def _get_or_create_gauge(name: str, description: str, labelnames: list[str]):
         try:
             return Gauge(name, description, labelnames)
@@ -335,7 +336,9 @@ async def process_batch_tasks(pool, tasks: list):
                         result,
                     )
                 # TODO: Convert f-string to %s formatting for performance
-                logger.info(f"[{datetime.now()}] ✅ Batch completed: {len(tasks)} tasks (batch_group)")
+                logger.info(
+                    f"[{datetime.now()}] ✅ Batch completed: {len(tasks)} tasks (batch_group)"
+                )
                 return True
     except Exception as e:
         logger.debug("Batch LLM failed, falling back to individual: %s", e)
@@ -2522,7 +2525,9 @@ async def main():
         )
     else:
         # TODO: Convert f-string to %s formatting for performance
-        logger.info(f"[{datetime.now()}] 🛡️ Watchdog background loop disabled; using inline watchdog path")
+        logger.info(
+            f"[{datetime.now()}] 🛡️ Watchdog background loop disabled; using inline watchdog path"
+        )
 
     while True:
         try:
@@ -3291,9 +3296,9 @@ if __name__ == "__main__":
                     _gname = _g.get("name")
                     if isinstance(_gname, bytes):
                         _gname = _gname.decode("utf-8", errors="ignore")
-                    _smart_worker_group_lag.labels(
-                        stream_name=_stream, group_name=str(_gname)
-                    ).set(int(_g.get("lag") or 0))
+                    _smart_worker_group_lag.labels(stream_name=_stream, group_name=str(_gname)).set(
+                        int(_g.get("lag") or 0)
+                    )
                     _smart_worker_group_pending.labels(
                         stream_name=_stream, group_name=str(_gname)
                     ).set(int(_g.get("pending") or 0))
@@ -3379,9 +3384,9 @@ if __name__ == "__main__":
                     _gname = _g.get("name")
                     if isinstance(_gname, bytes):
                         _gname = _gname.decode("utf-8", errors="ignore")
-                    _smart_worker_group_lag.labels(
-                        stream_name=_stream, group_name=str(_gname)
-                    ).set(int(_g.get("lag") or 0))
+                    _smart_worker_group_lag.labels(stream_name=_stream, group_name=str(_gname)).set(
+                        int(_g.get("lag") or 0)
+                    )
                     _smart_worker_group_pending.labels(
                         stream_name=_stream, group_name=str(_gname)
                     ).set(int(_g.get("pending") or 0))

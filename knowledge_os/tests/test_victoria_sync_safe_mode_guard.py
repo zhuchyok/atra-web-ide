@@ -13,7 +13,10 @@ def test_sync_safe_mode_default_is_enabled():
 
 def test_sync_safe_mode_has_short_timeout_guard():
     text = VICTORIA_SERVER.read_text(encoding="utf-8")
-    assert 'VICTORIA_SYNC_SAFE_TIMEOUT_SEC = float(os.getenv("VICTORIA_SYNC_SAFE_TIMEOUT_SEC", "12"))' in text
+    assert (
+        'VICTORIA_SYNC_SAFE_TIMEOUT_SEC = float(os.getenv("VICTORIA_SYNC_SAFE_TIMEOUT_SEC", "12"))'
+        in text
+    )
     assert "timeout=VICTORIA_SYNC_SAFE_TIMEOUT_SEC" in text
     assert "VICTORIA_TIMEOUT_FALLBACK_TIMEOUT_SEC" in text
     assert "timeout=VICTORIA_TIMEOUT_FALLBACK_TIMEOUT_SEC" in text

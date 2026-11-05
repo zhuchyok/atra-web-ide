@@ -173,7 +173,9 @@ async def main():
         if trades > 0:
             unlocked_count += 1
             # TODO: Convert f-string to %s formatting for performance
-            logger.info(f"\n✅ {symbol}: {trades} сделок, PnL: {result.get('total_pnl', 0):.2f} USDT")
+            logger.info(
+                f"\n✅ {symbol}: {trades} сделок, PnL: {result.get('total_pnl', 0):.2f} USDT"
+            )
         else:
             still_blocked.append(symbol)
             # TODO: Convert f-string to %s formatting for performance

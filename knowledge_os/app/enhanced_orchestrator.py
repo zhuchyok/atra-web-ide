@@ -1441,7 +1441,9 @@ async def assign_task_to_best_expert(
                 execution_profile = ""
                 if isinstance(task_meta, str):
                     task_meta = json.loads(task_meta) if task_meta else {}
-                is_curiosity_task = str(task_meta.get("reason", "")) == "curiosity_engine_starvation"
+                is_curiosity_task = (
+                    str(task_meta.get("reason", "")) == "curiosity_engine_starvation"
+                )
                 execution_profile = str(task_meta.get("execution_profile", "") or "").strip()
                 if is_curiosity_task and not execution_profile:
                     execution_profile = "rescue_fast"

@@ -94,8 +94,10 @@ class MCTSPlanner:
             log_total_visits = math.log(node.visits)
             node = max(
                 node.children,
-                key=lambda c: (c.value / c.visits)
-                + self.exploration_weight * math.sqrt(log_total_visits / c.visits),
+                key=lambda c: (
+                    (c.value / c.visits)
+                    + self.exploration_weight * math.sqrt(log_total_visits / c.visits)
+                ),
             )
         return node
 

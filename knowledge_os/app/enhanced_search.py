@@ -392,7 +392,7 @@ async def enhanced_search_knowledge(
             import hashlib
 
             query_hash = hashlib.md5(
-                f"{mode.value}:{query}:{domain or 'global'}".encode('utf-8')
+                f"{mode.value}:{query}:{domain or 'global'}".encode("utf-8")
             ).hexdigest()
 
             # 1. In-memory cache (самый быстрый)

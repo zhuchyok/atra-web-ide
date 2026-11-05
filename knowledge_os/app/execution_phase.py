@@ -32,8 +32,15 @@ def _snake_to_title(name: str) -> str:
 
 
 def _gen_python(
-    goal: str, func_name: str, class_name: str, description: str,
-    func_title: str, is_test: bool, is_api: bool, is_class: bool, is_cli: bool,
+    goal: str,
+    func_name: str,
+    class_name: str,
+    description: str,
+    func_title: str,
+    is_test: bool,
+    is_api: bool,
+    is_class: bool,
+    is_cli: bool,
 ) -> str:
     """Generate Python code based on intent detection."""
     if is_test:
@@ -68,7 +75,11 @@ def _gen_python(
             f"    return {endpoint.title()}Response()\n"
         )
     if class_name:
-        docstring = f'    """{_snake_to_title(class_name)} class."""\n\n' if not description else f'    """{description}."""\n\n'
+        docstring = (
+            f'    """{_snake_to_title(class_name)} class."""\n\n'
+            if not description
+            else f'    """{description}."""\n\n'
+        )
         return (
             f"class {class_name}:\n"
             f"{docstring}"
@@ -103,7 +114,9 @@ def _gen_python(
         goal_lower = goal.lower()
 
         # Fibonacci
-        if any(w in func_lower for w in ["fibonacci", "fib"]) or any(w in goal_lower for w in ["фибоначчи", "fibonacci"]):
+        if any(w in func_lower for w in ["fibonacci", "fib"]) or any(
+            w in goal_lower for w in ["фибоначчи", "fibonacci"]
+        ):
             return (
                 f"def {func_name}(n: int) -> int:\n"
                 f'    """Calculate the nth Fibonacci number."""\n'
@@ -122,7 +135,9 @@ def _gen_python(
             )
 
         # Factorial
-        if any(w in func_lower for w in ["factorial", "факториал"]) or any(w in goal_lower for w in ["факториал", "factorial"]):
+        if any(w in func_lower for w in ["factorial", "факториал"]) or any(
+            w in goal_lower for w in ["факториал", "factorial"]
+        ):
             return (
                 f"def {func_name}(n: int) -> int:\n"
                 f'    """Calculate factorial of n."""\n'
@@ -141,7 +156,9 @@ def _gen_python(
             )
 
         # Sort
-        if any(w in func_lower for w in ["sort", "сортир"]) or any(w in goal_lower for w in ["сортир", "sort"]):
+        if any(w in func_lower for w in ["sort", "сортир"]) or any(
+            w in goal_lower for w in ["сортир", "sort"]
+        ):
             return (
                 f"def {func_name}(arr: list) -> list:\n"
                 f'    """Sort array using quicksort algorithm."""\n'
@@ -161,7 +178,9 @@ def _gen_python(
             )
 
         # Search
-        if any(w in func_lower for w in ["search", "поиск"]) or any(w in goal_lower for w in ["поиск", "search"]):
+        if any(w in func_lower for w in ["search", "поиск"]) or any(
+            w in goal_lower for w in ["поиск", "search"]
+        ):
             return (
                 f"def {func_name}(arr: list, target) -> int:\n"
                 f'    """Binary search for target in sorted array."""\n'
@@ -183,7 +202,9 @@ def _gen_python(
             )
 
         # Validate
-        if any(w in func_lower for w in ["valid", "провер"]) or any(w in goal_lower for w in ["провер", "valid"]):
+        if any(w in func_lower for w in ["valid", "провер"]) or any(
+            w in goal_lower for w in ["провер", "valid"]
+        ):
             return (
                 f"def {func_name}(data) -> bool:\n"
                 f'    """Validate input data."""\n'
@@ -216,8 +237,12 @@ def _gen_python(
 
 
 def _gen_javascript(
-    goal: str, func_name: str, description: str,
-    func_title: str, is_test: bool, is_api: bool,
+    goal: str,
+    func_name: str,
+    description: str,
+    func_title: str,
+    is_test: bool,
+    is_api: bool,
 ) -> str:
     """Generate JavaScript code based on intent detection."""
     if is_test:
@@ -269,8 +294,12 @@ def _gen_javascript(
 
 
 def _gen_typescript(
-    goal: str, func_name: str, description: str,
-    func_title: str, is_test: bool, is_api: bool,
+    goal: str,
+    func_name: str,
+    description: str,
+    func_title: str,
+    is_test: bool,
+    is_api: bool,
 ) -> str:
     """Generate TypeScript code based on intent detection."""
     if is_test:
@@ -325,12 +354,12 @@ def _gen_bash(goal: str, func_name: str, description: str) -> str:
         f"set -euo pipefail\n\n"
         f"# {description or script_name}\n\n"
         f"{script_name}() {{\n"
-        f"    echo \"{script_name}\"\n"
+        f'    echo "{script_name}"\n'
         f"}}\n\n"
         f"main() {{\n"
-        f"    {script_name} \"$@\"\n"
+        f'    {script_name} "$@"\n'
         f"}}\n\n"
-        f"main \"$@\"\n"
+        f'main "$@"\n'
     )
 
 
@@ -505,9 +534,15 @@ async def _generate_code_from_plan(
     ext = os.path.splitext(file_path)[1].lower()
 
     lang_map = {
-        ".py": "python", ".js": "javascript", ".ts": "typescript",
-        ".json": "json", ".yaml": "yaml", ".yml": "yaml",
-        ".css": "css", ".html": "html", ".sh": "bash",
+        ".py": "python",
+        ".js": "javascript",
+        ".ts": "typescript",
+        ".json": "json",
+        ".yaml": "yaml",
+        ".yml": "yaml",
+        ".css": "css",
+        ".html": "html",
+        ".sh": "bash",
     }
     language = lang_map.get(ext, "python")
 
@@ -520,7 +555,9 @@ async def _generate_code_from_plan(
 
     # Deterministic code generation
     logger.info("[EXECUTION] Deterministic code generation for %s", file_path)
-    func_match = re.search(r"(?:функци[яюей]\s+|функцией\s+|function\s+|def\s+)(\w+)", goal, re.IGNORECASE)
+    func_match = re.search(
+        r"(?:функци[яюей]\s+|функцией\s+|function\s+|def\s+)(\w+)", goal, re.IGNORECASE
+    )
     func_name = func_match.group(1) if func_match else None
 
     class_match = re.search(r"(?:класс[а]?\s+|class\s+)(\w+)", goal, re.IGNORECASE)
@@ -529,7 +566,8 @@ async def _generate_code_from_plan(
     # Extract description from goal
     desc_match = re.search(
         r"(?:с функцией|с функцией|функция|функцией|named|function)\s+\w+[\s:—–-]+(.+?)(?:\s*$|\s*\.)",
-        goal, re.IGNORECASE,
+        goal,
+        re.IGNORECASE,
     )
     description = desc_match.group(1).strip() if desc_match else ""
 
@@ -542,17 +580,28 @@ async def _generate_code_from_plan(
     # Detect what the goal is asking for
     goal_lower = goal.lower()
     # Test detection: only if explicitly asking for a test (not just file named "test_")
-    is_test = any(w in goal_lower for w in [
-        "напиши тест", "создай тест", "write test", "create test",
-        "юнит-тест", "unit test", "тест для", "test for",
-    ])
+    is_test = any(
+        w in goal_lower
+        for w in [
+            "напиши тест",
+            "создай тест",
+            "write test",
+            "create test",
+            "юнит-тест",
+            "unit test",
+            "тест для",
+            "test for",
+        ]
+    )
     is_api = any(w in goal_lower for w in ["api", "endpoint", "маршрут", "route", "handler"])
     is_class = any(w in goal_lower for w in ["класс", "class", "модуль", "module"])
     is_cli = any(w in goal_lower for w in ["cli", "командная строка", "command line", "script"])
 
     # Generate code based on language and intent
     if language == "python":
-        code = _gen_python(goal, func_name, class_name, description, func_title, is_test, is_api, is_class, is_cli)
+        code = _gen_python(
+            goal, func_name, class_name, description, func_title, is_test, is_api, is_class, is_cli
+        )
     elif language == "javascript":
         code = _gen_javascript(goal, func_name, description, func_title, is_test, is_api)
     elif language == "typescript":
@@ -591,9 +640,7 @@ async def _execute_file_write(
         from source_guard import guard_file_write
 
         full_check_path = (
-            file_path
-            if os.path.isabs(file_path)
-            else os.path.join(project_root, file_path)
+            file_path if os.path.isabs(file_path) else os.path.join(project_root, file_path)
         )
         allowed, reason = guard_file_write(full_check_path, content)
         if not allowed:
@@ -700,13 +747,16 @@ async def execute_plan_commands(
             if action == "edit" and path:
                 # Find the code block that corresponds to this path
                 code_blocks_for_path = [
-                    b for b in _detect_code_blocks(llm_output)
+                    b
+                    for b in _detect_code_blocks(llm_output)
                     if b["language"] not in ("text", "markdown")
                 ]
                 if code_blocks_for_path:
                     # Use the first relevant code block
                     block = code_blocks_for_path[0]
-                    write_result = await _execute_file_write(path, block["code"], project_root, git_engine)
+                    write_result = await _execute_file_write(
+                        path, block["code"], project_root, git_engine
+                    )
                     execution_log.append(write_result)
                     if write_result["success"]:
                         commands_executed += 1
@@ -720,7 +770,11 @@ async def execute_plan_commands(
     code_blocks = _detect_code_blocks(llm_output)
     file_paths = _detect_file_paths(llm_output)
 
-    logger.info("[EXECUTION] Phase 1: Found %d code blocks, %d file paths", len(code_blocks), len(file_paths))
+    logger.info(
+        "[EXECUTION] Phase 1: Found %d code blocks, %d file paths",
+        len(code_blocks),
+        len(file_paths),
+    )
 
     for i, block in enumerate(code_blocks):
         if block["language"] in ("text", "markdown"):
@@ -735,15 +789,24 @@ async def execute_plan_commands(
                 target_path = f"{base}_{i}{ext}"
         if not target_path:
             ext_map = {
-                "python": ".py", "javascript": ".js", "typescript": ".ts",
-                "json": ".json", "yaml": ".yaml", "yml": ".yml",
-                "css": ".css", "html": ".html",
+                "python": ".py",
+                "javascript": ".js",
+                "typescript": ".ts",
+                "json": ".json",
+                "yaml": ".yaml",
+                "yml": ".yml",
+                "css": ".css",
+                "html": ".html",
             }
             ext = ext_map.get(block["language"], ".txt")
             name_match = re.search(r"(?:def|class|function|const|let|var)\s+(\w+)", block["code"])
-            target_path = f"src/{name_match.group(1)}{ext}" if name_match else f"src/generated_{i}{ext}"
+            target_path = (
+                f"src/{name_match.group(1)}{ext}" if name_match else f"src/generated_{i}{ext}"
+            )
 
-        write_result = await _execute_file_write(target_path, block["code"], project_root, git_engine)
+        write_result = await _execute_file_write(
+            target_path, block["code"], project_root, git_engine
+        )
         execution_log.append(write_result)
         if write_result["success"]:
             commands_executed += 1
@@ -770,7 +833,9 @@ async def execute_plan_commands(
     if commands_executed == 0:
         code_blocks = _detect_code_blocks(llm_output)
         if code_blocks:
-            logger.info("[EXECUTION] Phase 3.5: Found %d code blocks in mixed output", len(code_blocks))
+            logger.info(
+                "[EXECUTION] Phase 3.5: Found %d code blocks in mixed output", len(code_blocks)
+            )
             target_path = _derive_file_path_from_goal(goal)
             if not target_path:
                 target_path = f"src/auto_{int(__import__('time').time())}.py"
@@ -781,7 +846,9 @@ async def execute_plan_commands(
                 if len(code_blocks) > 1:
                     base, ext = os.path.splitext(target_path)
                     path = f"{base}_{i}{ext}"
-                write_result = await _execute_file_write(path, block["code"], project_root, git_engine)
+                write_result = await _execute_file_write(
+                    path, block["code"], project_root, git_engine
+                )
                 execution_log.append(write_result)
                 if write_result["success"]:
                     commands_executed += 1
@@ -814,8 +881,19 @@ async def execute_plan_commands(
             if plan_steps:
                 # Check if we know the pattern
                 goal_lower = goal.lower()
-                known_patterns = ["fibonacci", "fib", "фибоначчи", "factorial", "факториал",
-                                  "sort", "сортир", "search", "поиск", "valid", "провер"]
+                known_patterns = [
+                    "fibonacci",
+                    "fib",
+                    "фибоначчи",
+                    "factorial",
+                    "факториал",
+                    "sort",
+                    "сортир",
+                    "search",
+                    "поиск",
+                    "valid",
+                    "провер",
+                ]
                 is_known = any(p in goal_lower for p in known_patterns)
                 if not is_known:
                     return {

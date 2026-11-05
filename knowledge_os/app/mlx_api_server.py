@@ -175,9 +175,7 @@ _metal_global_lock = threading.Lock()
 # воркер default-executor'а → «There is no Stream(gpu, 1) in current thread» на каждом
 # запросе (17k+ ошибок с 05.10). Вся MLX-работа (load + generate) — в ОДНОМ выделенном
 # потоке. Пропускная способность не меняется: GPU и так сериализован _metal_global_lock.
-_GPU_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
-    max_workers=1, thread_name_prefix="mlx-gpu"
-)
+_GPU_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="mlx-gpu")
 # Таймаут ожидания слота: из env или макс по оценкам моделей (загрузка + инференс + запас)
 _queue_wait_timeout = (
     None  # задаётся через _max_queue_wait_timeout() после определения MODEL_TIME_ESTIMATES
@@ -1116,8 +1114,7 @@ async def generate_text(request: GenerateRequest, http_request: Request):
             # qwen38 тихо обслуживался wisdom-24k. Теперь видно в логах.
             _substituted = CATEGORY_TO_MODEL.get(request.model, "default")
             logger.warning(
-                "⚠️ [MODEL_SUBSTITUTION] модель '%s' не обслуживается MLX — "
-                "запрос уходит на '%s'",
+                "⚠️ [MODEL_SUBSTITUTION] модель '%s' не обслуживается MLX — запрос уходит на '%s'",
                 request.model,
                 _substituted,
             )
@@ -1515,15 +1512,17 @@ async def list_models_v1():
     models = []
     for name, path in MODEL_PATHS.items():
         exists = os.path.exists(path)
-        models.append({
-            "id": name,
-            "object": "model",
-            "created": 1686935002,
-            "owned_by": "local",
-            "permission": [],
-            "root": name,
-            "parent": None,
-        })
+        models.append(
+            {
+                "id": name,
+                "object": "model",
+                "created": 1686935002,
+                "owned_by": "local",
+                "permission": [],
+                "root": name,
+                "parent": None,
+            }
+        )
     return {
         "object": "list",
         "data": models,

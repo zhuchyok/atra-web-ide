@@ -69,7 +69,9 @@ def test_inflight_is_keep_not_drop_or_reclaim():
 
 def test_worker_uses_classify_and_acks_after_process():
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    src = open(os.path.join(root, "knowledge_os", "app", "expert_worker.py"), encoding="utf-8").read()
+    src = open(
+        os.path.join(root, "knowledge_os", "app", "expert_worker.py"), encoding="utf-8"
+    ).read()
     assert "classify_pending(" in src
     assert "live_consumers_from_hash(" in src
     assert "_inflight_msg_ids" in src
@@ -85,7 +87,9 @@ def test_worker_uses_classify_and_acks_after_process():
 def test_live_consumers_from_hash_ttl():
     now = 1_000_000.0
     mapping = {
-        "Анна".encode("utf-8"): json.dumps({"consumer": "worker_anna_1", "ts": int(now) - 10}).encode(),
+        "Анна".encode("utf-8"): json.dumps(
+            {"consumer": "worker_anna_1", "ts": int(now) - 10}
+        ).encode(),
         "Инна": json.dumps({"consumer": "worker_dead", "ts": int(now) - 200}),
     }
     live = live_consumers_from_hash(mapping, now=now, ttl_sec=90)

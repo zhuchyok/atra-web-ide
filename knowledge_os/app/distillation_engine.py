@@ -41,9 +41,7 @@ PRIORITY_REDISTILL_TYPES = (
 class KnowledgeDistiller:
     def __init__(self):
         self.teacher_model = os.getenv("DISTILL_TEACHER_MODEL", "phi3.5:3.8b")
-        self.teacher_fallback_model = os.getenv(
-            "DISTILL_TEACHER_FALLBACK_MODEL", "phi3.5:3.8b"
-        )
+        self.teacher_fallback_model = os.getenv("DISTILL_TEACHER_FALLBACK_MODEL", "phi3.5:3.8b")
         self.strict_json_schema = os.getenv("DISTILL_STRICT_JSON_SCHEMA", "true").lower() in (
             "1",
             "true",

@@ -121,13 +121,15 @@ class MetricsDashboard:
             )
             action_id = result["id"]
 
-            self._actions_log.append({
-                "id": action_id,
-                "type": action_type,
-                "description": description,
-                "status": status,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            })
+            self._actions_log.append(
+                {
+                    "id": action_id,
+                    "type": action_type,
+                    "description": description,
+                    "status": status,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
 
             # Keep only last 1000 actions in memory
             if len(self._actions_log) > 1000:
@@ -214,6 +216,7 @@ class MetricsDashboard:
 
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=5.0) as client:
                 for name, url in components.items():
                     try:
@@ -320,11 +323,13 @@ class MetricsDashboard:
             )
 
             if previous_errors > 0 and recent_errors > previous_errors * 1.5:
-                predictions["predictions"].append({
-                    "type": "error_rate_increase",
-                    "severity": "warning",
-                    "message": f"Rate of errors increased: {recent_errors} vs {previous_errors} (previous hour)",
-                })
+                predictions["predictions"].append(
+                    {
+                        "type": "error_rate_increase",
+                        "severity": "warning",
+                        "message": f"Rate of errors increased: {recent_errors} vs {previous_errors} (previous hour)",
+                    }
+                )
 
             # Проверяем повторяющиеся паттерны
             frequent_patterns = await self.conn.fetch(
@@ -337,11 +342,13 @@ class MetricsDashboard:
                 """
             )
             for p in frequent_patterns:
-                predictions["predictions"].append({
-                    "type": "recurring_pattern",
-                    "severity": "info",
-                    "message": f"Recurring pattern in {p['container']}: {p['error_type']} (x{p['count']})",
-                })
+                predictions["predictions"].append(
+                    {
+                        "type": "recurring_pattern",
+                        "severity": "info",
+                        "message": f"Recurring pattern in {p['container']}: {p['error_type']} (x{p['count']})",
+                    }
+                )
 
         except Exception as e:
             logger.error(f"❌ [METRICS] Ошибка прогнозов: {e}")

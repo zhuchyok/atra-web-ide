@@ -307,7 +307,9 @@ def render_expert_sandbox():
     if docker_err:
         st.warning("Не удалось загрузить список сервисов.")
         st.caption(f"Причина: {docker_err}")
-        st.caption("Список читается с docker-proxy (GET /containers/json), без docker.sock в dashboard.")
+        st.caption(
+            "Список читается с docker-proxy (GET /containers/json), без docker.sock в dashboard."
+        )
     elif services:
         st.success(f"Найдено автономных сервисов: {len(services)}")
         for svc in services:
@@ -780,7 +782,9 @@ def render_consilium_winrate_block():
         else:
             for r in data.get("results", []):
                 w = (r.get("verdict") or {}).get("winner", "error")
-                c = by_cat.setdefault(r.get("category", "?"), {"A": 0, "B": 0, "tie": 0, "error": 0})
+                c = by_cat.setdefault(
+                    r.get("category", "?"), {"A": 0, "B": 0, "tie": 0, "error": 0}
+                )
                 c[w] = c.get(w, 0) + 1
                 totals[w] = totals.get(w, 0) + 1
         for k in totals:
@@ -808,6 +812,8 @@ def render_consilium_winrate_block():
                 "ничьи": w.get("tie", 0),
                 "рекомендация": "дебат" if w.get("B", 0) > w.get("A", 0) else "соло",
             }
-            for cat, w in sorted(by_cat.items(), key=lambda x: -(x[1].get("A", 0) + x[1].get("B", 0)))
+            for cat, w in sorted(
+                by_cat.items(), key=lambda x: -(x[1].get("A", 0) + x[1].get("B", 0))
+            )
         ]
         st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")

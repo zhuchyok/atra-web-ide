@@ -123,7 +123,9 @@ async def run_diagnostic_test():
     # TODO: Convert f-string to %s formatting for performance
     logger.info(f"  Начальный баланс: {INITIAL_BALANCE:.2f} USDT")
     # TODO: Convert f-string to %s formatting for performance
-    logger.info(f"  Финальный баланс: {overall_metrics.get('final_balance', INITIAL_BALANCE):.2f} USDT")
+    logger.info(
+        f"  Финальный баланс: {overall_metrics.get('final_balance', INITIAL_BALANCE):.2f} USDT"
+    )
     # TODO: Convert f-string to %s formatting for performance
     logger.info(f"  Общий PnL: {overall_metrics.get('total_pnl', 0):.2f} USDT")
     # TODO: Convert f-string to %s formatting for performance

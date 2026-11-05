@@ -332,9 +332,7 @@ class TaskDistributionSystem:
                         _r.status_code,
                     )
                     victoria = _get_victoria_enhanced_singleton()
-                    result = await victoria.solve(
-                        parse_prompt, method="extended_thinking"
-                    )
+                    result = await victoria.solve(parse_prompt, method="extended_thinking")
             except Exception as _e:
                 logger.warning("TaskDistribution: hands-парсер err %s — фолбэк", _e)
                 victoria = _get_victoria_enhanced_singleton()

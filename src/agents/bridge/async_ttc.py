@@ -98,8 +98,7 @@ def render_reason_metrics(by_reason: dict[str, dict[str, float]]) -> str:
     for key in sorted(by_reason):
         row = by_reason[key]
         lines.append(
-            '%s{handoff_reason="%s"} %.6f\n'
-            % (_METRIC_P95, key, float(row.get("p95") or 0.0))
+            '%s{handoff_reason="%s"} %.6f\n' % (_METRIC_P95, key, float(row.get("p95") or 0.0))
         )
     lines.append("# HELP %s Rolling TTC sample count by handoff_reason\n" % _METRIC_SAMPLES)
     lines.append("# TYPE %s gauge\n" % _METRIC_SAMPLES)

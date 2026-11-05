@@ -67,7 +67,9 @@ def test_render_reason_metrics_labels():
         {"quick": {"p95": 12.0, "samples": 3}, "timeout_watchdog": {"p95": 480.0, "samples": 2}}
     )
     metric_lines = [
-        line for line in body.splitlines() if line.startswith("victoria_async_ttc_p95_by_reason_seconds")
+        line
+        for line in body.splitlines()
+        if line.startswith("victoria_async_ttc_p95_by_reason_seconds")
     ]
     assert metric_lines, body
     assert metric_lines[0][:8] == "victoria"

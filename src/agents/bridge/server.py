@@ -302,9 +302,21 @@ class VeronicaAgent(BaseAgent):
             return deterministic
 
         # Простые задачи не требуют планирования
-        simple_tasks = ["скажи", "привет", "покажи файлы", "выведи список", "список файлов",
-                        "создай файл", "напиши файл", "создай модуль", "напиши модуль",
-                        "создай класс", "напиши класс", "создай функцию", "напиши функцию"]
+        simple_tasks = [
+            "скажи",
+            "привет",
+            "покажи файлы",
+            "выведи список",
+            "список файлов",
+            "создай файл",
+            "напиши файл",
+            "создай модуль",
+            "напиши модуль",
+            "создай класс",
+            "напиши класс",
+            "создай функцию",
+            "напиши функцию",
+        ]
 
         if any(task in goal_lower for task in simple_tasks):
             # Для простых задач пропускаем planner
@@ -328,6 +340,7 @@ class VeronicaAgent(BaseAgent):
         Обходит LLM для надёжности.
         """
         import re
+
         goal_lower = goal.lower()
 
         # Паттерн: создай файл X с функцией Y(args) которая возвращает/делает Z
@@ -367,7 +380,9 @@ class VeronicaAgent(BaseAgent):
 
         return None
 
-    def _generate_func_code(self, func_name: str, args: str, desc: str, full_goal: str) -> Optional[str]:
+    def _generate_func_code(
+        self, func_name: str, args: str, desc: str, full_goal: str
+    ) -> Optional[str]:
         """Генерирует код простой функции на основе описания."""
         desc_lower = desc.lower()
 
@@ -459,6 +474,7 @@ class VeronicaAgent(BaseAgent):
         """Записывает файл относительно корня проекта."""
         try:
             import os
+
             # Используем /app/src (монтированный volume) или WORKSPACE_PATH
             workspace = os.getenv("WORKSPACE_PATH", "/app/src")
             # Убираем "src/" из начала пути если workspace уже указывает на src
@@ -483,7 +499,9 @@ try:
     from app.agent_messaging import start_presence_broadcast, listen
 
     asyncio.create_task(listen("Вероника"))
-    asyncio.create_task(start_presence_broadcast("Вероника", ["execution", "file_ops", "web_search"]))
+    asyncio.create_task(
+        start_presence_broadcast("Вероника", ["execution", "file_ops", "web_search"])
+    )
     logger.info("🔗 [AGENT_MSG] Veronica subscribed to agent messaging")
 except Exception as e:
     logger.warning(f"⚠️ [AGENT_MSG] Init failed: {e}")
@@ -632,6 +650,7 @@ async def health():
 async def metrics():
     """Prometheus metrics for Veronica (plaintext without prometheus_client dependency)."""
     from datetime import datetime
+
     ts = int(datetime.now().timestamp())
     return Response(
         content=(
@@ -643,7 +662,7 @@ async def metrics():
             f"veronica_up 1\n"
             f"# HELP veronica_tasks_total Total tasks processed\n"
             f"# TYPE veronica_tasks_total counter\n"
-            f"veronica_tasks_total{{status=\"ok\"}} 0\n"
+            f'veronica_tasks_total{{status="ok"}} 0\n'
         ),
         media_type="text/plain",
     )

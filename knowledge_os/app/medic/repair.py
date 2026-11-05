@@ -38,6 +38,7 @@ class RepairToolkit:
         # Try to import and initialize rollback manager
         try:
             from app.medic.rollback_manager import RollbackManager
+
             self.rollback_manager = RollbackManager()
         except Exception as e:
             logger.debug("RollbackManager not available: %s", e)
@@ -45,6 +46,7 @@ class RepairToolkit:
         # Try to import and initialize feedback loop
         try:
             from app.medic.feedback_loop import FeedbackLoop
+
             self.feedback_loop = FeedbackLoop()
         except Exception as e:
             logger.debug("FeedbackLoop not available: %s", e)
@@ -56,7 +58,7 @@ class RepairToolkit:
                 self.rollback_manager.before_change(
                     file_path=str(APP_DIR),
                     change_type="snapshot",
-                    description=f"Creating snapshot: {tag}"
+                    description=f"Creating snapshot: {tag}",
                 )
             except Exception as e:
                 logger.debug("Rollback before_change failed: %s", e)
@@ -75,9 +77,7 @@ class RepairToolkit:
         if self.rollback_manager:
             try:
                 self.rollback_manager.after_change(
-                    file_path=str(APP_DIR),
-                    change_type="snapshot",
-                    snapshot_path=str(dest)
+                    file_path=str(APP_DIR), change_type="snapshot", snapshot_path=str(dest)
                 )
             except Exception as e:
                 logger.debug("Rollback after_change failed: %s", e)
@@ -114,7 +114,7 @@ class RepairToolkit:
                 self.rollback_manager.before_change(
                     file_path=str(APP_DIR),
                     change_type="rollback",
-                    description="Rolling back to last_good state"
+                    description="Rolling back to last_good state",
                 )
             except Exception as e:
                 logger.debug("Rollback before_change failed: %s", e)

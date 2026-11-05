@@ -42,6 +42,7 @@ async def _exec_backoff_gate() -> None:
         )
         await asyncio.sleep(pause)
 
+
 from .base_agent import AgentAction, AgentFinish
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,28 @@ logger = logging.getLogger(__name__)
 VICTORIA_DEBUG = os.getenv("VICTORIA_DEBUG", "false").lower() in ("true", "1", "yes")
 
 # Мировая практика: только эти инструменты существуют. Любой другой = отклоняем и просим повторить.
-ALLOWED_TOOLS = {"finish", "read_file", "list_directory", "run_terminal_cmd", "ssh_run", "write_file", "apply_patch", "grep_search", "web_search", "db_query", "git_status", "git_diff", "git_log", "git_branch_create", "git_add", "git_commit", "git_push", "git_pr_create", "git_pr_list", "git_test_run"}
+ALLOWED_TOOLS = {
+    "finish",
+    "read_file",
+    "list_directory",
+    "run_terminal_cmd",
+    "ssh_run",
+    "write_file",
+    "apply_patch",
+    "grep_search",
+    "web_search",
+    "db_query",
+    "git_status",
+    "git_diff",
+    "git_log",
+    "git_branch_create",
+    "git_add",
+    "git_commit",
+    "git_push",
+    "git_pr_create",
+    "git_pr_list",
+    "git_test_run",
+}
 ALLOWED_TOOLS_HINT = ", ".join(sorted(ALLOWED_TOOLS))
 
 # === MODEL FALLBACK CONFIGURATION ===
@@ -432,9 +454,20 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
         system: переопределить системный промпт.
         expert_name: имя эксперта для семантического кэша.
         """
+        req_model = model or self.model
+        disable_victoria_qwen_semantic_cache = (
+            os.getenv("VICTORIA_DISABLE_SEMANTIC_CACHE_FOR_QWEN", "true").lower()
+            in ("1", "true", "yes", "on")
+            and "victoria-qwen38" in str(req_model).lower()
+        )
+
         # === HYBRID CACHE CHECK [SINGULARITY 21.13] ===
         cache_key = f"{expert_name}:{model or self.model}:{system or ''}:{prompt}"
-        if self.use_semantic_cache and self._is_cacheable(prompt):
+        if (
+            self.use_semantic_cache
+            and self._is_cacheable(prompt)
+            and not disable_victoria_qwen_semantic_cache
+        ):
             # L1: Exact Match (Hash)
             hash_key = hashlib.md5(cache_key.encode()).hexdigest()
             if hash_key in self._local_hash_cache:
@@ -467,7 +500,6 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
         # Ensure monitor is running
         self._start_monitor()
 
-        req_model = model or self.model
         req_base = self.base_url
         # Wisdom живёт в MLX. Не ждать health-probe, чтобы не упасть на 11434.
         if _is_victoria_wisdom(req_model) and (
@@ -507,6 +539,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
             self.use_semantic_cache
             and self._is_cacheable(prompt)
             and isinstance(response, (str, AgentAction, AgentFinish))
+            and not disable_victoria_qwen_semantic_cache
         ):
             # Extract raw content for caching
             content_to_cache = None
@@ -698,6 +731,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
         def get_smart_keep_alive(m_name: str) -> Any:
             try:
                 from ollama_keep_alive_policy import get_keep_alive as _policy_keep_alive
+
                 return _policy_keep_alive(m_name)
             except Exception:
                 pass
@@ -973,17 +1007,18 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
 
         # Стратегия 1: Ищем с конца — последний { +匹配ный }
         import re
+
         # Находим все позиции { в тексте
-        positions = [m.start() for m in re.finditer(r'\{', text)]
+        positions = [m.start() for m in re.finditer(r"\{", text)]
 
         for start_pos in reversed(positions):
             # Пытаемся найти匹配ный } после этого {
             depth = 0
             end_pos = -1
             for i in range(start_pos, len(text)):
-                if text[i] == '{':
+                if text[i] == "{":
                     depth += 1
-                elif text[i] == '}':
+                elif text[i] == "}":
                     depth -= 1
                     if depth == 0:
                         end_pos = i
@@ -992,7 +1027,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
             if end_pos == -1:
                 continue
 
-            candidate = text[start_pos:end_pos + 1]
+            candidate = text[start_pos : end_pos + 1]
             if len(candidate) < 5 or len(candidate) > 10000:
                 continue
 
@@ -1007,7 +1042,9 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                     continue
             try:
                 if isinstance(data, dict) and ("tool" in data or "output" in data):
-                    logger.info(f"[LLM_PARSE] Extracted valid JSON from pos {start_pos}:{end_pos+1}, keys: {list(data.keys())}")
+                    logger.info(
+                        f"[LLM_PARSE] Extracted valid JSON from pos {start_pos}:{end_pos + 1}, keys: {list(data.keys())}"
+                    )
                     return data
             except json.JSONDecodeError:
                 continue
@@ -1016,7 +1053,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
         start_idx = text.find("{")
         end_idx = text.rfind("}")
         if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-            candidate = text[start_idx:end_idx + 1]
+            candidate = text[start_idx : end_idx + 1]
             try:
                 data = json.loads(candidate)
             except json.JSONDecodeError:
@@ -1026,7 +1063,9 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                     logger.warning("[LLM_PARSE] No valid JSON found in text")
                     return None
             if isinstance(data, dict):
-                logger.info(f"[LLM_PARSE] Fallback JSON at [{start_idx}:{end_idx+1}], keys: {list(data.keys())}")
+                logger.info(
+                    f"[LLM_PARSE] Fallback JSON at [{start_idx}:{end_idx + 1}], keys: {list(data.keys())}"
+                )
                 return data
 
         logger.warning("[LLM_PARSE] No valid JSON found in text")
@@ -1044,10 +1083,12 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
         # Также убираем незакрытые <think> блоки (модель иногда забывает закрыть)
         if "<think>" in clean_content and "</think>" not in clean_content:
             think_start = clean_content.rfind("<think>")
-            after_think = clean_content[think_start + len("<think>"):].strip()
+            after_think = clean_content[think_start + len("<think>") :].strip()
             if after_think:
                 clean_content = after_think
-                logger.info(f"[LLM_PARSE] Removed unclosed <think> block, now {len(clean_content)} chars")
+                logger.info(
+                    f"[LLM_PARSE] Removed unclosed <think> block, now {len(clean_content)} chars"
+                )
 
         # Интеллектуальное обновление знаний (если Агент написал это в тексте)
         # Формат: KNOWLEDGE: {"key": "value"}
@@ -1065,15 +1106,11 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
         if json_data is not None:
             data = json_data
             thought = data.get("thought", "Рассуждаю...")
-            tool_input = (
-                data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
-            )
+            tool_input = data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
 
             # Чужой формат (tool_execution, final_output) — не наш API, завершаем с подсказкой
             if "tool_execution" in data or "final_output" in data:
-                logger.warning(
-                    "[LLM_PARSE] Invalid format detected: tool_execution/final_output"
-                )
+                logger.warning("[LLM_PARSE] Invalid format detected: tool_execution/final_output")
                 return AgentFinish(
                     output=f'Используй только формат: {{"thought": "...", "tool": "один из: {ALLOWED_TOOLS_HINT}", "tool_input": {{...}}}}. Других полей нет.',
                     thought=thought,
@@ -1110,9 +1147,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                     bad = (
                         raw_tool
                         if isinstance(raw_tool, str)
-                        else (
-                            raw_tool[0] if isinstance(raw_tool, list) and raw_tool else raw_tool
-                        )
+                        else (raw_tool[0] if isinstance(raw_tool, list) and raw_tool else raw_tool)
                     )
                     logger.warning(f"[LLM_PARSE] Unknown tool '{bad}' rejected")
                     return AgentFinish(
@@ -1120,11 +1155,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                         thought=thought,
                     )
                 if data["tool"] == "finish" or (data.get("tool") == "" and not tool_input):
-                    out = (
-                        (tool_input.get("output") if tool_input else None)
-                        or thought
-                        or "Готово"
-                    )
+                    out = (tool_input.get("output") if tool_input else None) or thought or "Готово"
                     logger.info(f"[LLM_PARSE] Returning AgentFinish: {str(out)[:100]}...")
                     return AgentFinish(
                         output=out if isinstance(out, str) else str(out), thought=thought

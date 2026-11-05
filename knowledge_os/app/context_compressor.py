@@ -21,7 +21,9 @@ class ContextCompressor:
         critical_lines = [
             line
             for line in lines
-            if any(keyword in line.upper() for keyword in ["ERROR", "CRITICAL", "EXCEPTION", "FAIL"])
+            if any(
+                keyword in line.upper() for keyword in ["ERROR", "CRITICAL", "EXCEPTION", "FAIL"]
+            )
         ]
 
         # Keep recent lines

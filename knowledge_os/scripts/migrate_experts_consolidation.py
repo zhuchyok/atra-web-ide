@@ -13,7 +13,9 @@ import asyncio
 import os
 import sys
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os")
+DB_URL = os.getenv(
+    "DATABASE_URL", "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os"
+)
 
 # 32 target experts: name -> (new_role, new_department)
 TARGET_EXPERTS = {
@@ -113,7 +115,9 @@ async def run_migration(dry_run: bool = False):
         for name, (role, dept) in TARGET_EXPERTS.items():
             result = await conn.execute(
                 "UPDATE experts SET role=$1, department=$2, is_active=true WHERE name=$3",
-                role, dept, name,
+                role,
+                dept,
+                name,
             )
             count = int(result.split()[-1])
             status = "UPDATED" if count > 0 else "NOT FOUND"

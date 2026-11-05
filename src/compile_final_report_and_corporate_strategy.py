@@ -1,5 +1,6 @@
 # Python pseudocode for compiling backtesting results and finalizing the corporate strategy report
 
+
 def compile_final_report_and_corporate_strategy():
     # Step 1: Compile backtesting results from individual services/modules
     backtest_results = collect_backtest_results()
@@ -14,6 +15,7 @@ def compile_final_report_and_corporate_strategy():
     document_final_report(corporate_strategy)
 
     print("DONE")
+
 
 # Execute the final steps
 compile_final_report_and_corporate_strategy()

@@ -121,9 +121,7 @@ JUDGE_GATE_MAX_REGEN = int(os.getenv("JUDGE_GATE_MAX_REGEN", "1"))
 # [v150.26] SELF-HEAL: при Adversarial Rejection задача не fail'ится сразу,
 # а перегенерируется с УЧЁТОМ причины отказа (текст из attack_report критика).
 SELF_HEAL_MAX_REGEN = int(os.getenv("SELF_HEAL_MAX_REGEN", "2"))
-JUDGE_GATE_URL = os.getenv(
-    "JUDGE_GATE_URL", "http://host.docker.internal:11437/api/chat"
-)
+JUDGE_GATE_URL = os.getenv("JUDGE_GATE_URL", "http://host.docker.internal:11437/api/chat")
 JUDGE_GATE_MODEL = os.getenv("JUDGE_GATE_MODEL", "phi3.5:3.8b")
 # [v149.58] Фолбэк-полоса судьи: если руки (11437) перегружены — судим на
 # coder-инстансе (11436), он отдельный планировщик и редко забит.
@@ -159,10 +157,7 @@ def _ollama_url_for_model(model: Optional[str]) -> str:
     # [v150.27] phi-утечка на 11434: phi3.5 — модель РУК, гонять её на мозгевой
     # порт запрещено контрактом v150.8 (guard выгружает, воркеры снова грузят).
     if m.startswith("phi3.5"):
-        return (
-            os.getenv("OLLAMA_HANDS_URL")
-            or "http://host.docker.internal:11437"
-        ).rstrip("/")
+        return (os.getenv("OLLAMA_HANDS_URL") or "http://host.docker.internal:11437").rstrip("/")
     return base_default
 
 
@@ -629,7 +624,7 @@ class VictoriaExpertActor(AgentBase):
             # [v149.65] изоляция per-call: хэш промпта вместо task_id (в этом
             # методе его нет) — сессии разных вызовов не смешиваются
             session_id="agent:" + _hashlib.md5(full_prompt.encode()).hexdigest()[:12],
-            )
+        )
         text = str(result.get("result") if isinstance(result, dict) else result)
         await self.record_event("task_finished", {"result_len": len(text)})
         return text
@@ -1576,8 +1571,7 @@ async def process_task(task_data: dict):
                         # [v150.8] FAST PATH рук — на выделенный инстанс 11437:
                         # свой планировщик, не морится потоком мозга
                         _hands_base = (
-                            os.getenv("OLLAMA_HANDS_URL")
-                            or "http://host.docker.internal:11437"
+                            os.getenv("OLLAMA_HANDS_URL") or "http://host.docker.internal:11437"
                         )
                         _mlx_base = "http://host.docker.internal:11435"
                         # Prefer explicit DIALOGUE_MODEL, but default to a fast local model
@@ -1749,7 +1743,7 @@ async def process_task(task_data: dict):
                             category=_retry_category,
                             is_vip=True,
                             session_id=f"task:{task_id}",
-                            )
+                        )
                         report_text = str(
                             report.get("result") if isinstance(report, dict) else report
                         )
@@ -1771,7 +1765,7 @@ async def process_task(task_data: dict):
                             category="general",
                             is_vip=False,
                             session_id=f"task:{task_id}",
-                            )
+                        )
                         report_text = str(
                             report.get("result") if isinstance(report, dict) else report
                         )
@@ -1843,7 +1837,12 @@ async def process_task(task_data: dict):
                             "ai_core_started", {"category": task_data.get("category", "general")}
                         )
 
-                    logger.info("🔍 [DESC-TRACE] len=%s head=%r TAIL=%r", len(description or ""), (description or "")[:80], (description or "")[-150:])
+                    logger.info(
+                        "🔍 [DESC-TRACE] len=%s head=%r TAIL=%r",
+                        len(description or ""),
+                        (description or "")[:80],
+                        (description or "")[-150:],
+                    )
                     report = await run_smart_agent_async(
                         description,
                         expert_name=expert_name,
@@ -2070,7 +2069,9 @@ async def process_task(task_data: dict):
                         try:
                             from adversarial_critic import verify_high_priority_task
 
-                            verification = await verify_high_priority_task(str(task_id), report_text)
+                            verification = await verify_high_priority_task(
+                                str(task_id), report_text
+                            )
                             verification_reason = str(
                                 verification.get("verification_reason") or ""
                             ).strip()
@@ -2091,9 +2092,7 @@ async def process_task(task_data: dict):
                                     verification_reason or "unspecified",
                                 )
                                 break
-                            _rejection_reason = str(
-                                verification.get("attack_report") or ""
-                            ).strip()
+                            _rejection_reason = str(verification.get("attack_report") or "").strip()
                             if _self_heal_attempt >= SELF_HEAL_MAX_REGEN:
                                 logger.error(
                                     "💀 [TRUST GATE] Task %s REJECTED after %d self-heal попыток: %s",
@@ -2101,9 +2100,7 @@ async def process_task(task_data: dict):
                                     _self_heal_attempt,
                                     _rejection_reason,
                                 )
-                                raise ValueError(
-                                    f"Adversarial Rejection: {_rejection_reason}"
-                                )
+                                raise ValueError(f"Adversarial Rejection: {_rejection_reason}")
                             # [v150.26] Регенерация с УЧЁТОМ причины отказа:
                             # причина идёт в промпт (run_smart_agent_async не
                             # имеет system-параметра — доп. контекст через prompt).
@@ -2338,9 +2335,7 @@ async def process_task(task_data: dict):
                                 {
                                     "llm_stub_retries": stub_retries + 1,
                                     "last_error": "llm_no_text_stub_requeued",
-                                    "last_progress_at": datetime.now(
-                                        timezone.utc
-                                    ).isoformat(),
+                                    "last_progress_at": datetime.now(timezone.utc).isoformat(),
                                     "llm_stub_source": _stub_source,
                                     "next_retry_after": (
                                         datetime.now(timezone.utc)
@@ -2393,9 +2388,7 @@ async def process_task(task_data: dict):
                                     "llm_stub_source": _stub_source,
                                     "llm_stub_deferred": True,
                                     "llm_stub_deferred_reason": "background_source_exhausted",
-                                    "last_progress_at": datetime.now(
-                                        timezone.utc
-                                    ).isoformat(),
+                                    "last_progress_at": datetime.now(timezone.utc).isoformat(),
                                     "next_retry_after": (
                                         datetime.now(timezone.utc)
                                         + timedelta(minutes=_stub_background_retry_minutes)
@@ -2441,9 +2434,7 @@ async def process_task(task_data: dict):
                                 {
                                     "last_error": "llm_no_text_stub_exhausted",
                                     "llm_stub_retries": stub_retries,
-                                    "last_progress_at": datetime.now(
-                                        timezone.utc
-                                    ).isoformat(),
+                                    "last_progress_at": datetime.now(timezone.utc).isoformat(),
                                 },
                                 ensure_ascii=False,
                             ),
@@ -2477,7 +2468,9 @@ async def process_task(task_data: dict):
                     and description
                 ):
                     try:
-                        _gate_question = description if isinstance(description, str) else str(description or "")
+                        _gate_question = (
+                            description if isinstance(description, str) else str(description or "")
+                        )
                         if judge_should_skip(
                             question=_gate_question,
                             answer=report_text,
@@ -3176,6 +3169,7 @@ async def _handle_task_error(
 
 async def worker_loop():
     """Основной цикл воркера: слушает Redis Stream."""
+
     def _log_worker_exit(reason: str) -> None:
         logger.warning(
             "🛑 [WORKER] exit reason=%s expert=%s",
@@ -3544,9 +3538,9 @@ async def worker_loop():
                             if db_task_id:
                                 async with pool.acquire() as state_conn:
                                     state = await state_conn.fetchrow(
-                                    "SELECT status, updated_at, last_llm_call_at FROM tasks WHERE id = $1",
-                                    db_task_id,
-                                )
+                                        "SELECT status, updated_at, last_llm_call_at FROM tasks WHERE id = $1",
+                                        db_task_id,
+                                    )
                                 if not state:
                                     # Ghost Redis goal: task row gone → infinite resume storm.
                                     await client.hdel(goals_key, tid)
@@ -3869,9 +3863,7 @@ async def worker_loop():
                         min_idle_ms=300000,
                     )
                     # Phase 1: Zombies → DLQ + PostgreSQL sync
-                    zombie_msg_ids = [
-                        pending_id(p) for p in classified["zombies"] if pending_id(p)
-                    ]
+                    zombie_msg_ids = [pending_id(p) for p in classified["zombies"] if pending_id(p)]
                     if zombie_msg_ids:
                         zombie_task_ids = []
                         for zmid in zombie_msg_ids:
@@ -3927,9 +3919,7 @@ async def worker_loop():
                                 )
 
                     # Phase 2: Xclaim dead-consumer idle (not live heartbeat, not inflight)
-                    claimable = [
-                        pending_id(p) for p in classified["reclaim"] if pending_id(p)
-                    ]
+                    claimable = [pending_id(p) for p in classified["reclaim"] if pending_id(p)]
                     if claimable:
                         logger.info(
                             f"🛠️ [WORKER] Claiming {len(claimable)} stale tasks for {CONSUMER_NAME}"
@@ -4225,13 +4215,9 @@ async def worker_loop():
                             finally:
                                 _inflight_msg_ids.discard(_mid)
                                 try:
-                                    await client.xack(
-                                        f"stream:{STREAM_NAME}", GROUP_NAME, _id
-                                    )
+                                    await client.xack(f"stream:{STREAM_NAME}", GROUP_NAME, _id)
                                 except Exception as _xack_err:
-                                    logger.warning(
-                                        f"⚠️ [WORKER] Failed to xack {_id}: {_xack_err}"
-                                    )
+                                    logger.warning(f"⚠️ [WORKER] Failed to xack {_id}: {_xack_err}")
 
                         asyncio.create_task(_run_task())
                     except Exception as e:
