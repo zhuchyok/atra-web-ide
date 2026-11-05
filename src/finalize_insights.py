@@ -1,12 +1,11 @@
 def finalize_insights(processed_data):
     # Предполагаемое выявление ключевых паттернов и формирование стратегического резюме
     insights = {
-        'key_factors': extracted_factors,
-        'strategy_recommendations': formulated_strategies
+        "key_factors": processed_data.get("extracted_factors", []),
+        "strategy_recommendations": processed_data.get("formulated_strategies", []),
     }
     return insights
 
-insights = finalize_insights(processed_data)
 
 latex_document = """
 \\documentclass{article}
@@ -25,3 +24,4 @@ latex_document = """
 % и стратегия insights['strategy_recommendations']
 
 \\end{document}
+"""

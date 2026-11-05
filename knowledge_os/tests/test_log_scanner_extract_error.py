@@ -20,81 +20,118 @@ def test_ignore_cancelled_traceback_header():
 
 def test_ignore_sandbox_qa_noise():
     scanner = LogScanner()
-    assert scanner.extract_error(
-        "WARNING:quality_assurance:🧪 [SANDBOX GROUNDING] Code failed verification: Runtime/Assertion Error"
-    ) is None
+    assert (
+        scanner.extract_error(
+            "WARNING:quality_assurance:🧪 [SANDBOX GROUNDING] Code failed verification: Runtime/Assertion Error"
+        )
+        is None
+    )
     assert scanner.extract_error("ModuleNotFoundError: No module named 'pytest'") is None
 
 
 def test_ignore_visual_search_retry_and_router_readtimeout():
     scanner = LogScanner()
     assert scanner.extract_error("WARNING:__main__:Ollama timeout, retry 2/5 in 3s") is None
-    assert scanner.extract_error(
-        "ERROR:local_router:[ROUTER] Exception calling Node Mac Studio (Ollama): ReadTimeout:"
-    ) is None
+    assert (
+        scanner.extract_error(
+            "ERROR:local_router:[ROUTER] Exception calling Node Mac Studio (Ollama): ReadTimeout:"
+        )
+        is None
+    )
 
 
 def test_ignore_pg_parallel_fatal_and_busy_retries():
     scanner = LogScanner()
-    assert scanner.extract_error(
-        '2026-09-21 FATAL:  terminating background worker "parallel worker" due to a'
-    ) is None
-    assert scanner.extract_error(
-        "Признание опасности FATAL сообщения, но отсутствие инструментов"
-    ) is None
-    assert scanner.extract_error(
-        "ERROR:__main__:Search error: Ollama embed failed after 5 retries"
-    ) is None
-    assert scanner.extract_error(
-        'ERROR:src.agents.core.executor:[LLM_ERROR] HTTP 503: {"error":"server busy, please try again.'
-    ) is None
+    assert (
+        scanner.extract_error(
+            '2026-09-21 FATAL:  terminating background worker "parallel worker" due to a'
+        )
+        is None
+    )
+    assert (
+        scanner.extract_error("Признание опасности FATAL сообщения, но отсутствие инструментов")
+        is None
+    )
+    assert (
+        scanner.extract_error("ERROR:__main__:Search error: Ollama embed failed after 5 retries")
+        is None
+    )
+    assert (
+        scanner.extract_error(
+            'ERROR:src.agents.core.executor:[LLM_ERROR] HTTP 503: {"error":"server busy, please try again.'
+        )
+        is None
+    )
 
 
 def test_ignore_llm_prose_error_and_rag_timeout():
     scanner = LogScanner()
-    assert scanner.extract_error(
-        "2. Error de respuesta: Para identificar problemas de fiabilidad."
-    ) is None
-    assert scanner.extract_error(
-        "2026-09-20 23:44:47,223 - ERROR - ⏰ RAG retrieval превысил таймаут 30.0с — продолжаем без контекста"
-    ) is None
+    assert (
+        scanner.extract_error("2. Error de respuesta: Para identificar problemas de fiabilidad.")
+        is None
+    )
+    assert (
+        scanner.extract_error(
+            "2026-09-20 23:44:47,223 - ERROR - ⏰ RAG retrieval превысил таймаут 30.0с — продолжаем без контекста"
+        )
+        is None
+    )
 
 
 def test_ignore_nightly_ai_core_audit_timeout():
     scanner = LogScanner()
-    assert scanner.extract_error(
-        "2026-09-21 10:03:43,797 WARNING ai_core audit failed/timeout: TimeoutError()"
-    ) is None
+    assert (
+        scanner.extract_error(
+            "2026-09-21 10:03:43,797 WARNING ai_core audit failed/timeout: TimeoutError()"
+        )
+        is None
+    )
 
 
 def test_ignore_worker_ops_logged_as_error():
     scanner = LogScanner()
-    assert scanner.extract_error(
-        "ERROR:ExpertWorker:🔄 [RESURRECTION] Found my task 4730fb20-7e73-459d-a970-20615b4b24f5. Resuming..."
-    ) is None
-    assert scanner.extract_error(
-        "ERROR:ExpertWorker:✅ [RESURRECTION] Successfully resumed 1 tasks for Инна"
-    ) is None
-    assert scanner.extract_error(
-        "ERROR:ExpertWorker:🏆 [AUCTION] Юлия WON task 09cbc470-24f3-4072-90dd-153e53727261"
-    ) is None
-    assert scanner.extract_error(
-        "ERROR:ExpertWorker:❌ [HEARTBEAT] Loop failed for 4730fb20-7e73-459d-a970-20615b4b24f5: Lost task own"
-    ) is None
-    assert scanner.extract_error(
-        "ERROR:app.ai_core:⛔ [LOOP-BREAKER] Виктория: промпт(Проанализируй текст"
-    ) is None
+    assert (
+        scanner.extract_error(
+            "ERROR:ExpertWorker:🔄 [RESURRECTION] Found my task 4730fb20-7e73-459d-a970-20615b4b24f5. Resuming..."
+        )
+        is None
+    )
+    assert (
+        scanner.extract_error(
+            "ERROR:ExpertWorker:✅ [RESURRECTION] Successfully resumed 1 tasks for Инна"
+        )
+        is None
+    )
+    assert (
+        scanner.extract_error(
+            "ERROR:ExpertWorker:🏆 [AUCTION] Юлия WON task 09cbc470-24f3-4072-90dd-153e53727261"
+        )
+        is None
+    )
+    assert (
+        scanner.extract_error(
+            "ERROR:ExpertWorker:❌ [HEARTBEAT] Loop failed for 4730fb20-7e73-459d-a970-20615b4b24f5: Lost task own"
+        )
+        is None
+    )
+    assert (
+        scanner.extract_error(
+            "ERROR:app.ai_core:⛔ [LOOP-BREAKER] Виктория: промпт(Проанализируй текст"
+        )
+        is None
+    )
     assert scanner.extract_error('FATAL: role "postgres" does not exist') is None
-    assert scanner.extract_error(
-        "ERROR ❌ [DISTILLATION] Failed to parse wisdom for node 8ab34478-9dd8-4623-86"
-    ) is None
+    assert (
+        scanner.extract_error(
+            "ERROR ❌ [DISTILLATION] Failed to parse wisdom for node 8ab34478-9dd8-4623-86"
+        )
+        is None
+    )
 
 
 def test_still_catches_resurrection_recovery_failed():
     scanner = LogScanner()
-    hit = scanner.extract_error(
-        "ERROR:ExpertWorker:❌ [RESURRECTION] Recovery failed: boom"
-    )
+    hit = scanner.extract_error("ERROR:ExpertWorker:❌ [RESURRECTION] Recovery failed: boom")
     assert hit is not None
 
 
@@ -106,8 +143,6 @@ def test_still_catches_real_type_and_sql_errors():
     assert typo is not None
     assert typo["type"] == "TypeError"
 
-    sql = scanner.extract_error(
-        'ERROR:  invalid input syntax for type interval: "%s days"'
-    )
+    sql = scanner.extract_error('ERROR:  invalid input syntax for type interval: "%s days"')
     assert sql is not None
     assert sql["type"] in ("LOG_ERROR", "EXCEPTION")
