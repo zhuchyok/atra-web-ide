@@ -30,7 +30,7 @@ logger = logging.getLogger("dna_injection")
 MAX_WISDOM_DNA_CHARS = 800
 MAX_EXPERTS_PER_CYCLE = int(os.getenv("DNA_INJECTION_MAX_EXPERTS", "1"))
 EVAL_QUESTIONS = int(os.getenv("DNA_INJECTION_EVAL_QUESTIONS", "2"))
-RUN_TIMEOUT = int(os.getenv("DNA_INJECTION_RUN_TIMEOUT", "180"))
+RUN_TIMEOUT = int(os.getenv("DNA_INJECTION_RUN_TIMEOUT", "420"))
 
 CATEGORY_TO_EXPERT: List[tuple[str, str]] = [
     ("тест", "Анна"),
@@ -424,7 +424,9 @@ async def run_injection_cycle(dry_run: bool = False) -> Dict[str, Any]:
                         "verdict": {"reason": "before-ответы с ошибками (инфраструктура)"},
                     }
                 )
-                logger.error("🚨 [DNA-INJ] %s: before-ошибки — цикл прерван без инъекции", expert)
+                logger.warning(
+                    "[DNA-INJ] %s: before-ошибки — цикл прерван без инъекции", expert
+                )
                 report["injections"].append(entry)
                 continue
             ok = await inject_wisdom_dna(conn, expert, w["node_id"], w["override_text"])

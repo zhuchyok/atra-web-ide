@@ -94,6 +94,9 @@ def test_blocked_tools_for_scanner_class():
     assert "write_file" in human and "apply_patch" in human and "git_push" in human
     assert human == runbook
     assert "git_push" in patch
+    assert "git_status" in patch
+    assert "git_diff" in patch
+    assert "git_log" in patch
     assert "write_file" not in patch
     assert _mod.blocked_tools_for_scanner_class("") == []
     assert _mod.blocked_tools_for_scanner_class("noise") == []
@@ -110,6 +113,7 @@ def test_human_runbook_block_shell_and_git_write():
     for name in _SHELL_GIT_WRITE:
         assert name not in patch
     assert "git_push" in patch
+    assert "git_status" in patch
     assert "write_file" not in patch
 
 
@@ -142,6 +146,7 @@ def test_goals_never_say_fix_or_analyze():
     assert "write_file" in patch
     assert "autonomous-code" in patch
     assert "git_push" in patch
+    assert "git_status" in patch
     assert "HANDOFF" in patch
 
 
@@ -170,6 +175,13 @@ def test_runbook_goal_skips_evidence_schema():
     goal = _mod.build_scanner_goal("c1", _err("connection refused"), "runbook")
     assert "untested" not in goal
     assert "PASS" not in goal
+
+
+def test_patch_class_forces_direct_not_enhanced():
+    assert _mod.scanner_class_forces_direct("patch") is True
+    assert _mod.scanner_class_forces_direct("human") is False
+    assert _mod.scanner_class_forces_direct("runbook") is False
+    assert _mod.scanner_class_forces_direct("") is False
 
 
 def test_patch_handoff_is_rejected_human_is_not():
@@ -201,3 +213,80 @@ def test_scanner_goals_do_not_trip_consilium():
             "src/auto_guard_probe.py" if klass == "patch" else "",
         )
         assert is_consilium_winnable_goal(goal) is None, klass
+
+
+def test_write_file_missing_tool_is_ignored_and_noise():
+    scanner = _mod.LogScanner()
+    line = "ERROR src.agents.core.base_agent: ❌ Инструмент write_file не найден."
+    assert scanner.extract_error(line) is None
+    assert (
+        _mod.classify_scanner_incident("victoria-agent", _err(line, "LOG_ERROR"))
+        == "noise"
+    )
+
+
+def test_norm_in_typeerror_echo_is_ignored():
+    scanner = _mod.LogScanner()
+    line = (
+        "WARNING norm_dbg: NORM_IN len=412 "
+        "head='TypeError: unsupported operand type(s) for +: \"int\" and \"NoneType\"' "
+        "from=['executor.py:836']"
+    )
+    assert scanner.extract_error(line) is None
+    assert (
+        _mod.classify_scanner_incident("victoria-agent", _err(line, "TypeError"))
+        == "noise"
+    )
+
+
+def test_typeerror_msg_and_thought_echo_ignored_bare_typeerror_still_hits():
+    scanner = _mod.LogScanner()
+    assert scanner.extract_error(
+        "Msg: TypeError: unsupported operand type(s) for +: 'int' and 'NoneType'"
+    ) is None
+    assert scanner.extract_error("🤔 Мысль: fix TypeError: bad") is None
+    live = scanner.extract_error(
+        "TypeError: unsupported operand type(s) for +: 'int' and 'NoneType'"
+    )
+    assert live is not None
+    assert live["type"] == "TypeError"
+    assert (
+        _mod.classify_scanner_incident("knowledge_os_orchestrator", live) == "human"
+    )
+
+
+def test_filenotfounderror_prose_noise_colon_form_still_extracted():
+    scanner = _mod.LogScanner()
+    prose = (
+        "🤔 Мысль: The reason is FileNotFoundError because the probe path does not exist"
+    )
+    assert scanner.extract_error(prose) is None
+    assert (
+        _mod.classify_scanner_incident("victoria-agent", _err(prose, "UNKNOWN"))
+        == "noise"
+    )
+    real = "FileNotFoundError: [Errno 2] No such file or directory: '/tmp/missing.py'"
+    hit = scanner.extract_error(real)
+    assert hit is not None
+    assert hit["type"] == "FileNotFoundError"
+    assert _mod.classify_scanner_incident("victoria-agent", hit) == "human"
+
+
+def test_unprotected_typeerror_with_file_stays_patch():
+    msg = (
+        'File "/workspace/atra-web-ide/src/auto_guard_probe.py", line 4, in add\n'
+        "TypeError: bad"
+    )
+    assert _mod.classify_scanner_incident("dynamic-1", _err(msg, "TypeError")) == "patch"
+    assert _mod.LogScanner().extract_error("TypeError: bad") is not None
+
+
+def test_patch_blocks_git_read_keeps_write_and_pytest_shell():
+    patch = _mod.blocked_tools_for_scanner_class("patch")
+    for name in ("git_push", "git_status", "git_diff", "git_log"):
+        assert name in patch, name
+    assert "write_file" not in patch
+    assert "apply_patch" not in patch
+    assert "run_terminal_cmd" not in patch
+    human = _mod.blocked_tools_for_scanner_class("human")
+    assert "git_status" not in human

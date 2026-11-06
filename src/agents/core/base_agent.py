@@ -265,8 +265,15 @@ class AtraBaseAgent(ABC):
 
             # Финал
             if isinstance(result, AgentFinish):
+                out = str(result.output)
+                if out.startswith("FORMAT_RETRY") and steps_taken < max_steps:
+                    logger.warning("[TRACE] FORMAT_RETRY step %s", steps_taken)
+                    retry_msg = f"{out}\nOriginal goal:\n{goal}"
+                    agent.memory.append({"role": "user", "content": retry_msg})
+                    current_input = retry_msg
+                    continue
                 logger.info("✅ Готово!")
-                return str(result.output)
+                return out
 
             # Действие
             if isinstance(result, AgentAction):

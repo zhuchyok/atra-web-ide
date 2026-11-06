@@ -1208,6 +1208,17 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
         else:
             logger.warning("[LLM_PARSE] No JSON block found in content")
 
+        if "PATCH_JSON_ONLY" in (self.system_prompt or ""):
+            logger.warning("[LLM_PARSE] patch raw text → FORMAT_RETRY")
+            return AgentFinish(
+                output=(
+                    "FORMAT_RETRY: ответь ОДНИМ JSON "
+                    '{"thought":"...","tool":"write_file",'
+                    '"tool_input":{"file_path":"...","content":"..."}}'
+                ),
+                thought="format retry",
+            )
+
         # Если не JSON или парсинг не удался - возвращаем как есть
         logger.info("[LLM_PARSE] Returning raw text response")
         return AgentFinish(output=clean_content, thought="Текстовый ответ")

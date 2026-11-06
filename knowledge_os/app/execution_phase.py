@@ -730,6 +730,9 @@ async def execute_plan_commands(
     """
     if not llm_output:
         return {"executed": False, "command_count": 0}
+    if "class=patch" in (goal or "") or "Do not HANDOFF" in (goal or ""):
+        logger.info("[EXECUTION] skip template/git for scanner patch")
+        return {"executed": False, "command_count": 0, "skipped": "patch"}
 
     execution_log = []
     commands_executed = 0

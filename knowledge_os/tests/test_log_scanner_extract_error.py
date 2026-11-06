@@ -176,6 +176,12 @@ def test_ignore_redis_flap_and_tokens_used_sql():
     ) is None
 
 
+def test_ignore_write_file_missing_and_norm_in_echo():
+    scanner = LogScanner()
+    assert scanner.extract_error("ERROR - ❌ Инструмент write_file не найден.") is None
+    assert scanner.extract_error("WARNING - NORM_IN len=12 head='TypeError: x'") is None
+
+
 def test_ignore_git_push_rejected():
     scanner = LogScanner()
     assert (

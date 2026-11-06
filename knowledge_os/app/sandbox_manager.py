@@ -106,9 +106,14 @@ class SandboxManager:
         try:
             self.docker_client.networks.get(self.network_name)
         except docker.errors.NotFound:
-            self.docker_client.networks.create(self.network_name, driver="bridge")
-            # TODO: Convert f-string to %s formatting for performance
-            logger.info(f"🌐 Created Docker network {self.network_name}")
+            try:
+                self.docker_client.networks.create(self.network_name, driver="bridge")
+                logger.info("Created Docker network %s", self.network_name)
+            except Exception as create_err:
+                logger.warning("sandbox network create skipped: %s", create_err)
+        except Exception as inspect_err:
+            # docker-proxy 403 → docker-py KeyError('message'); evolution continues without net.
+            logger.warning("sandbox network inspect skipped: %s", inspect_err)
 
     def get_container_name(self, expert_name: str) -> str:
         return f"sandbox-{expert_name.lower().replace(' ', '-')}"

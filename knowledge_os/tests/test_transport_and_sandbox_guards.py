@@ -23,3 +23,10 @@ def test_sandbox_manager_can_infer_host_project_root_from_mounts():
         "mount_path = self.host_shared_dir or _resolve_host_sandbox_shared_dir(self.docker_client)"
         in text
     )
+
+
+def test_sandbox_network_inspect_does_not_crash_on_proxy_403():
+    text = SANDBOX_MANAGER.read_text(encoding="utf-8")
+    fn = text.split("def _ensure_docker_network", 1)[1].split("def get_container_name", 1)[0]
+    assert "except Exception as inspect_err" in fn
+    assert "sandbox network inspect skipped" in fn

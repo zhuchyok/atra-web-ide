@@ -2004,6 +2004,7 @@ Use HANDOFF only if delegation genuinely improves the result.
         not is_discussion_mode
         and expert_name in ("Виктория", "Victoria", "виктория")
         and not _lightweight
+        and "Do not HANDOFF" not in (prompt or "")
     ):
         prompt = swarm_instruction + "\n" + prompt
 

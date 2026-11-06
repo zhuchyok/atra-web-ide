@@ -20,6 +20,22 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-07 v155) — хвосты сканера/DNA/sandbox ✅
+
+- Patch `blocked_tools`: + `git_status`/`git_diff`/`git_log` (после write не крутить git×3). write/pytest shell живы.
+- Сканер IGNORE узко: `write_file не найден`, `NORM_IN`, `Мысль|Msg: TypeError`, `FileNotFoundError` без двоеточия. Bare `TypeError:` и `File "...py"`+TypeError = patch как было.
+- DNA: poll timeout 180→420 (TTC не трогали). Skip before-ошибок — WARNING, не ERROR.
+- Sandbox: inspect `atra-sandbox-net` через docker-proxy 403 больше не `KeyError: message` — WARNING и skip.
+- Не трогали: TTC 420, 11434, pool, 11437 ctx.
+
+## § Последние изменения (2026-11-07 v154) — live patch пишет файл ✅
+
+- Корень 1: `_assess_complexity` default=complex → `orchestrate_task` (Дмитрий/Максим), не JSON tools.
+- Корень 2: у VictoriaAgent не было `write_file` в `self.tools` (модель JSON дала, «инструмент не найден»).
+- Фикс: patch → прямой tool loop + `PATCH_JSON_ONLY`; `write_file`/`apply_patch` зарегистрированы; не-JSON → FORMAT_RETRY; execution_phase не топчет patch шаблоном; после write — `_scanner_patch_verify` (command/output/PASS).
+- Бой `401d8885`: `write_file src/auto_guard_probe.py`, `add(1,2)=3`, PASS, без HANDOFF, без git_push. Probe с диска снят.
+- Не трогали: TTC 420, 11434, pool, 11437 ctx.
+
 ## § Последние изменения (2026-11-07 v153) — patch не HANDOFF ✅
 
 - Бой `/run` scanner_class=patch завершился `HANDOFF: @Igor`, файл не тронут.

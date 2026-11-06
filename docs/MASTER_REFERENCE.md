@@ -225,6 +225,22 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v155 (2026-11-07) — DNA timeout, sandbox 403, git_status не в patch
+
+**Корень:** DNA poll 180с при TTC 234с; docker-py KeyError на 403 proxy; patch после write крутил git_status.
+
+**Фикс:** DNA timeout=420; sandbox inspect fail-open; patch blocks git_status/diff/log; scanner IGNORE только эхо, не TypeError:.
+
+**Не трогали:** TTC 420, 11434, pool.
+
+## § v154 (2026-11-07) — patch пишет через write_file
+
+**Корень:** complex→orchestrate (проза экспертов); `write_file` не был в tools Victoria.
+
+**Фикс:** patch skip swarm/plan; JSON tool loop; register write_file; verify PASS после записи. Бой: add(1,2)=3.
+
+**Не трогали:** TTC 420, 11434, pool.
+
 ## § v153 (2026-11-07) — patch-класс не делегирует
 
 **Корень:** enhanced_solve на `scanner_class=patch` ответил `HANDOFF: @Igor` и статус completed.

@@ -152,6 +152,11 @@ IGNORE_PATTERNS = [
     re.compile(r"\[HEARTBEAT\] Loop failed.*Lost task own"),
     re.compile(r"\[LOOP-BREAKER\]"),
     re.compile(r'role "postgres" does not exist'),
+    # Agent-loop / echo, not a crash in unprotected src/*.py.
+    re.compile(r"Инструмент write_file не найден"),
+    re.compile(r"\bNORM_IN\b"),
+    re.compile(r"(?:Мысль|Результат|Msg:).*TypeError:"),
+    re.compile(r"FileNotFoundError(?!:)"),
 ]
 
 try:
@@ -181,6 +186,9 @@ _NOISE_MARKERS = (
     "connection closed by server",
     "error 111 connecting to",
     'column "tokens_used" does not exist',
+    "NORM_IN",
+    "Инструмент write_file не найден",
+    "msg: typeerror:",
 )
 _RUNBOOK_MARKERS = (
     "connection refused",
@@ -234,11 +242,13 @@ def classify_scanner_incident(container: str, error: Dict) -> str:
     msg = str((error or {}).get("message") or "")
     et = str((error or {}).get("type") or "")
     low = msg.lower()
+    path = extract_code_path(msg)
     if any(m.lower() in low for m in _NOISE_MARKERS):
+        return "noise"
+    if et == "UNKNOWN" and "filenotfounderror" in low and not path:
         return "noise"
     if any(m in low for m in _RUNBOOK_MARKERS):
         return "runbook"
-    path = extract_code_path(msg)
     if path and _is_protected_code_path(path):
         return "human"
     if path and (et in _PATCH_TYPES or any(t in msg for t in _PATCH_TYPES)):
@@ -262,7 +272,12 @@ _HUMAN_BLOCKED_TOOLS = (
     "git_branch_create",
     "git_pr_create",
 )
-_PATCH_BLOCKED_TOOLS = ("git_push",)
+_PATCH_BLOCKED_TOOLS = (
+    "git_push",
+    "git_status",
+    "git_diff",
+    "git_log",
+)
 
 
 def blocked_tools_for_scanner_class(klass: str) -> list:
@@ -285,6 +300,11 @@ def scanner_patch_handoff_rejected(klass: str, output: str) -> bool:
     return bool(_HANDOFF_LINE.search(output or ""))
 
 
+def scanner_class_forces_direct(klass: str) -> bool:
+    """Patch writes via agent.run tools. Enhanced swarm only HANDOFFs."""
+    return (klass or "").strip().lower() == "patch"
+
+
 def build_scanner_goal(container: str, error: Dict, klass: str, code_path: str = "") -> str:
     """Goal for /run: no consilium triggers, no default 'исправь'."""
     typ = (error or {}).get("type") or "?"
@@ -298,7 +318,8 @@ def build_scanner_goal(container: str, error: Dict, klass: str, code_path: str =
     if klass == "patch":
         return (
             f"{head} file={code_path}. {_EVIDENCE} Propose a patch only via write_file with SOURCE_GUARD. "
-            f"Do not call autonomous-code. Do not git_push. Do not HANDOFF. Do not touch src/agents. Msg: {msg}"
+            f"Do not call autonomous-code. Do not git_push. Do not git_status/git_diff/git_log. "
+            f"Do not HANDOFF. Do not touch src/agents. Msg: {msg}"
         )
     return (
         f"{head} Do not write files. {_EVIDENCE} "
