@@ -20,6 +20,47 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-06 v150.98) — python -c os.system git push закрыт ✅
+
+- Детектор: `os.system`/`os.popen`/`subprocess` + `git push` и `['git','push']`.
+- `print('git push')` и `os.system('git status')` не режем. Тот же отказ в local и ssh.
+- Не трогали: node -e / perl -e, TTC 420.
+
+## § Последние изменения (2026-11-06 v150.97) — bash -c и ssh_run не git push ✅
+
+- Детектор разворачивает `bash/sh -c 'git push'`. `echo git push` не режем.
+- `run_ssh_command` — тот же отказ до spawn SSH.
+- Не трогали: python -c / os.system, TTC 420.
+
+## § Последние изменения (2026-11-06 v150.96) — run_terminal_cmd не git push ✅
+
+- `SystemTools.run_local_command`: `git push` / `git -C … push` / `&& git push` без `ATRA_ALLOW_GIT_PUSH` — отказ, subprocess не зовётся.
+- `git status` / `git log --grep=push` не режем.
+- Не трогали: ssh_run, TTC 420.
+
+## § Последние изменения (2026-11-06 v150.95) — git_push fail-closed ✅
+
+- `GitTools.git_push` без `ATRA_ALLOW_GIT_PUSH` — отказ, `_git_run` не зовётся.
+- Убран из `ALLOWED_TOOLS` и списка в executor prompt. Сканер по-прежнему пишет «Do not git_push».
+- Не трогали: run_terminal_cmd `git push`, git_commit, TTC 420.
+
+## § Последние изменения (2026-11-06 v150.94) — apply_patch через SOURCE_GUARD ✅
+
+- `SystemTools.apply_patch`: тот же fail-closed, что write_file. Ядро `src/agents/` не патчится. Нет модуля — отказ, файл не меняется.
+- Не трогали: git_push, TaskRequest.context, TTC 420, 11434.
+
+## § Последние изменения (2026-11-06 v150.93) — write_file fail-closed ✅
+
+- `SystemTools.write_file`: нет `source_guard` → отказ, файл не пишется. Как autonomous-code.
+- Не трогали: apply_patch, git_push, TaskRequest.context, TTC 420, 11434.
+
+## § Последние изменения (2026-11-06 v150.92) — evidence + Reality Checker, без 267 ✅
+
+- `build_scanner_goal` human/patch: command, output, PASS/FAIL, untested. Runbook без схемы. Consilium-слова не в goal.
+- `PROMPT_REALITY_CHECKER` в `configs/victoria_common.py` → Виктория 8010 + inject Анна/Виктория.
+- `configs/experts/rosters.json` — метаданные (ops/patch/core-human). Потребителя нет.
+- Не трогали: TTC 420, 11434, EXPERT_POOL_MODE, 267 агентов, консилиум.
+
 ## § Последние изменения (2026-11-06 v150.91) — сканер async /run; чужой dirty разобран ✅
 
 - Сканер POST `/run` с `async_mode=true`, принимает 202. Корень пустых send-fail: sync hang >30с.

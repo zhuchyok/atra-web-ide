@@ -1,0 +1,18 @@
+{
+  "_note": "Lookup only. Do not drive consilium or EXECUTE_ASSIGNMENTS. Slave of scanner classify.",
+  "ops": {
+    "class": "runbook",
+    "people": ["Елена", "Сергей", "Ольга"],
+    "writes": false
+  },
+  "patch": {
+    "class": "patch",
+    "people": ["Игорь", "Анна"],
+    "writes": true
+  },
+  "core-human": {
+    "class": "human",
+    "people": ["Виктория", "Алексей", "Роман"],
+    "writes": false
+  }
+}

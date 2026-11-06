@@ -4245,6 +4245,20 @@ agent.executor.system_prompt = """ТЫ — ВИКТОРИЯ, TEAM LEAD КОРП�
 код здесь
 ```
 """
+_REALITY_CHECKER_FALLBACK = (
+    "REALITY CHECK: не пиши «готово» без command и output. "
+    "Итог только PASS, FAIL или untested. Нет факта — UNVERIFIED."
+)
+try:
+    _ws = os.environ.get("PROJECT_ROOT") or "/workspace/atra-web-ide"
+    if _ws not in sys.path:
+        sys.path.insert(0, _ws)
+    from configs.victoria_common import PROMPT_REALITY_CHECKER
+except Exception:
+    PROMPT_REALITY_CHECKER = _REALITY_CHECKER_FALLBACK
+agent.executor.system_prompt = (
+    agent.executor.system_prompt.rstrip() + "\n\n" + PROMPT_REALITY_CHECKER
+)
 
 
 def _extract_last_answer_from_long(s: str) -> str:
@@ -8867,6 +8881,23 @@ async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
 
     # Дополнительная проверка: не обрабатываем автоматические задачи как fact-seeking
     goal_lower = (goal or "").lower().strip()
+    # Guardrail: never answer deterministic live-fact for documentation/ownership prompts.
+    # These requests need semantic reading/reasoning and otherwise regress to metric stubs.
+    semantic_markers = (
+        "корпоративный контекст atra",
+        "библи",
+        "team.md",
+        "employees.json",
+        "master_reference",
+        "changes_from_other_chats",
+        "cognitive_code",
+        "кто отвечает за backend",
+        "кто отвечает за бэкенд",
+        "ответ одним именем",
+    )
+    if any(marker in goal_lower for marker in semantic_markers):
+        return None
+
     automated_prefixes = ["[log_scanner]", "[medic]", "[proactive]", "[feedback]"]
     if any(goal_lower.startswith(prefix) for prefix in automated_prefixes):
         return None

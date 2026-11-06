@@ -92,4 +92,4 @@ def test_ai_pipeline_prompt_diet():
     res = inject_anti_hallucination(prompt, "Виктория")
     assert "Ты маленький помощник" not in res
     assert "ПРАВИЛА: Отвечай строго по фактам" in res
-    assert len(res) < len(prompt) + 200
+    assert len(res) < len(prompt) + 400

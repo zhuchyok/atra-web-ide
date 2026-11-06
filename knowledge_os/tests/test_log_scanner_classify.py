@@ -95,3 +95,47 @@ def test_goals_never_say_fix_or_analyze():
     assert "write_file" in patch
     assert "autonomous-code" in patch
     assert "git_push" in patch
+
+
+def test_human_and_patch_goals_require_evidence_fields():
+    """Agency steal: command + output + PASS/FAIL + untested. No consilium words."""
+    for klass in ("human", "patch"):
+        goal = _mod.build_scanner_goal(
+            "c1",
+            _err("TypeError: x", "TypeError"),
+            klass,
+            "src/auto_guard_probe.py" if klass == "patch" else "",
+        )
+        assert "command" in goal
+        assert "output" in goal
+        assert "PASS" in goal
+        assert "FAIL" in goal
+        assert "untested" in goal
+        low = goal.lower()
+        assert "pytest" not in low
+        assert "security" not in low
+        assert "research" not in low
+        assert "тест" not in low
+
+
+def test_runbook_goal_skips_evidence_schema():
+    goal = _mod.build_scanner_goal("c1", _err("connection refused"), "runbook")
+    assert "untested" not in goal
+    assert "PASS" not in goal
+
+
+def test_scanner_goals_do_not_trip_consilium():
+    import sys
+
+    root = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(root))
+    from src.agents.bridge.task_detector import is_consilium_winnable_goal
+
+    for klass in ("runbook", "human", "patch"):
+        goal = _mod.build_scanner_goal(
+            "c1",
+            _err("TypeError: x", "TypeError"),
+            klass,
+            "src/auto_guard_probe.py" if klass == "patch" else "",
+        )
+        assert is_consilium_winnable_goal(goal) is None, klass

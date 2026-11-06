@@ -68,7 +68,6 @@ ALLOWED_TOOLS = {
     "git_branch_create",
     "git_add",
     "git_commit",
-    "git_push",
     "git_pr_create",
     "git_pr_list",
     "git_test_run",
@@ -274,7 +273,7 @@ class OllamaExecutor:
 СТРОГО: Ответ — ОДИН JSON, без текста до/после. Поле "tool" — только из разрешенного списка ниже.
 
 ФОРМАТ: {"thought": "...", "tool": "...", "tool_input": {...}}
-СПИСОК ДОПУСТИМЫХ TOOL: finish, read_file, list_directory, run_terminal_cmd, ssh_run, write_file, apply_patch, grep_search, web_search, db_query, git_status, git_diff, git_log, git_branch_create, git_add, git_commit, git_push, git_pr_create, git_pr_list, git_test_run.
+СПИСОК ДОПУСТИМЫХ TOOL: finish, read_file, list_directory, run_terminal_cmd, ssh_run, write_file, apply_patch, grep_search, web_search, db_query, git_status, git_diff, git_log, git_branch_create, git_add, git_commit, git_pr_create, git_pr_list, git_test_run.
 
 БАЗОВЫЕ ПРИМЕРЫ ИНСТРУМЕНТОВ (список выше является полным):
 1. finish - ЗАВЕРШИТЬ задачу. Используй СРАЗУ для простых вопросов!

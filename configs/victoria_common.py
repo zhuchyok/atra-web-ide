@@ -29,6 +29,12 @@ PROMPT_UNCERTAINTY_LINE = (
     "При недостатке данных или неуверенности в ответе явно пиши: «здесь я не уверен», «нужны данные …», «рекомендую проверить». Не приукрашивай уверенность."
 )
 
+# Agency-agents steal: Reality Checker. Victoria 8010 + inject for Виктория/Анна.
+PROMPT_REALITY_CHECKER = (
+    "REALITY CHECK: не пиши «готово» без command и output. "
+    "Итог только PASS, FAIL или untested. Нет факта — UNVERIFIED."
+)
+
 
 def build_simple_prompt(
     role_instruction: str,

@@ -7,6 +7,45 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+_GIT_PUSH_RE = re.compile(
+    r"(?:^|[;&|\n]|&&|\|\|)\s*(?:sudo\s+)?(?:/usr/bin/)?git(?:\s+-C\s+\S+)*\s+push\b",
+    re.IGNORECASE,
+)
+_SHELL_C_RE = re.compile(
+    r"(?:^|[;&|\n]|&&|\|\|)\s*(?:sudo\s+)?(?:(?:/bin/|/usr/bin/)?(?:ba)?sh|zsh|dash|ksh)\s+(?:-c|--command)\s+(.*)$",
+    re.IGNORECASE | re.DOTALL,
+)
+_PY_GIT_PUSH_RE = re.compile(
+    r"(?:os\.system|os\.popen|subprocess\.\w+)\s*\([^)]*\bgit(?:\s+-C\s+\S+)*\s+push\b"
+    r"|['\"]git['\"]\s*,\s*['\"]push['\"]",
+    re.IGNORECASE,
+)
+
+
+def _allow_git_push() -> bool:
+    return os.getenv("ATRA_ALLOW_GIT_PUSH", "").lower() in ("true", "1", "yes")
+
+
+def _unwrap_quoted(inner: str) -> str:
+    text = (inner or "").strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in ("'", '"'):
+        return text[1:-1]
+    return text
+
+
+def _is_git_push_command(command: str, _depth: int = 0) -> bool:
+    if _depth > 4:
+        return False
+    blob = f"; {command or ''}"
+    if _GIT_PUSH_RE.search(blob):
+        return True
+    if _PY_GIT_PUSH_RE.search(command or ""):
+        return True
+    wrapped = _SHELL_C_RE.search(blob)
+    if wrapped:
+        return _is_git_push_command(_unwrap_quoted(wrapped.group(1)), _depth + 1)
+    return False
+
 # Попытка загрузить переменные окружения для серверов
 SERVER_CREDENTIALS = {
     "185.177.216.15": {
@@ -114,6 +153,10 @@ class SystemTools:
         c = c.strip()
         if not SystemTools._validate_command_safety(c):
             return "Error: Command rejected by ATRA Safety Layer (Risk Manager: Maria). Reason: High destructive risk."
+        if _is_git_push_command(c) and not _allow_git_push():
+            return (
+                "Error: git_push rejected (ATRA_ALLOW_GIT_PUSH not set). Human push only."
+            )
 
         try:
             if not c:
@@ -130,6 +173,27 @@ class SystemTools:
             return f"Exception: {str(e)}"
 
     @staticmethod
+    def _load_guard_file_write():
+        """Fail-closed: нет модуля — нет записи."""
+        try:
+            from source_guard import guard_file_write
+
+            return guard_file_write
+        except ImportError:
+            import sys as _sys
+            from pathlib import Path as _Path
+
+            _ko_app = _Path(__file__).resolve().parents[3] / "knowledge_os" / "app"
+            if _ko_app.is_dir() and str(_ko_app) not in _sys.path:
+                _sys.path.insert(0, str(_ko_app))
+            try:
+                from source_guard import guard_file_write
+
+                return guard_file_write
+            except ImportError:
+                return None
+
+    @staticmethod
     async def write_file(file_path: str, content: str) -> str:
         """Создать/перезаписать файл. Путь реальный относительно корня проекта."""
         if not file_path or not content:
@@ -139,24 +203,15 @@ class SystemTools:
 
         # [v149.5] SOURCE_GUARD: системный код и битый .py агенту писать нельзя
         # (инцидент: LLM-текст был записан поверх ai_core.py)
-        guard_file_write = None
-        try:
-            from source_guard import guard_file_write
-        except ImportError:
-            import sys as _sys
-            from pathlib import Path as _Path
-
-            _ko_app = _Path(__file__).resolve().parents[3] / "knowledge_os" / "app"
-            if _ko_app.is_dir():
-                _sys.path.insert(0, str(_ko_app))
-                try:
-                    from source_guard import guard_file_write
-                except ImportError:
-                    guard_file_write = None
-        if guard_file_write is not None:
-            allowed, reason = guard_file_write(resolved_path, content)
-            if not allowed:
-                return f"Error: write rejected by SOURCE_GUARD ({reason}). Файл: {file_path}"
+        guard_file_write = SystemTools._load_guard_file_write()
+        if guard_file_write is None:
+            return (
+                "Error: write rejected by SOURCE_GUARD (source_guard unavailable). "
+                f"Файл: {file_path}"
+            )
+        allowed, reason = guard_file_write(resolved_path, content)
+        if not allowed:
+            return f"Error: write rejected by SOURCE_GUARD ({reason}). Файл: {file_path}"
 
         # Создаём директории если нужно
         dir_name = os.path.dirname(resolved_path)
@@ -180,6 +235,10 @@ class SystemTools:
         """
         if not SystemTools._validate_command_safety(command):
             return "Error: Command rejected by ATRA Safety Layer (Risk Manager: Maria). Reason: High destructive risk."
+        if _is_git_push_command(command) and not _allow_git_push():
+            return (
+                "Error: git_push rejected (ATRA_ALLOW_GIT_PUSH not set). Human push only."
+            )
 
         # Автоматическая подстановка если хост наш
         if host in SERVER_CREDENTIALS:
@@ -300,6 +359,16 @@ class SystemTools:
                 return "Error: Old text not found in file. Patch failed."
 
             new_content = content.replace(old_text, new_text)
+            guard_file_write = SystemTools._load_guard_file_write()
+            if guard_file_write is None:
+                return (
+                    "Error: write rejected by SOURCE_GUARD (source_guard unavailable). "
+                    f"Файл: {file_path}"
+                )
+            allowed, reason = guard_file_write(resolved_path, new_content)
+            if not allowed:
+                return f"Error: write rejected by SOURCE_GUARD ({reason}). Файл: {file_path}"
+
             with open(resolved_path, "w", encoding="utf-8") as f:
                 f.write(new_content)
 
@@ -634,6 +703,10 @@ class GitTools:
 
     @staticmethod
     async def git_push(remote: str = "origin", branch: str = "") -> str:
+        if not _allow_git_push():
+            return (
+                "Error: git_push rejected (ATRA_ALLOW_GIT_PUSH not set). Human push only."
+            )
         for t in (remote, branch):
             if not GitTools._safe_token(t or "x"):
                 return "Error: опасные токены"
@@ -650,7 +723,7 @@ class GitTools:
         if shutil.which("gh") is None:
             return (
                 "Note: gh CLI доступен только на хосте. Команда прерывания.\n"
-                "Рекомендации агенту: вызвать run_terminal_cmd с host-bridge или push ветку через git_push и создать PR вручную."
+                "Рекомендации агенту: PR с хоста вручную. git_push агенту запрещён."
             )
         if not GitTools._safe_token(title + body):
             return "Error: запрещённые токены"

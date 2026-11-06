@@ -134,9 +134,18 @@ def check_threats(prompt: str) -> Tuple[bool, List[str]]:
 
 def inject_anti_hallucination(prompt: str, expert_name: str, is_discussion: bool = False) -> str:
     """Add anti-hallucination instructions."""
-    if not is_discussion and expert_name.lower() in ("виктория", "victoria"):
+    name = (expert_name or "").lower()
+    if not is_discussion and name in ("виктория", "victoria", "анна", "anna"):
+        try:
+            from configs.victoria_common import PROMPT_REALITY_CHECKER
+        except ImportError:
+            PROMPT_REALITY_CHECKER = (
+                "REALITY CHECK: не пиши «готово» без command и output. "
+                "Итог только PASS, FAIL или untested. Нет факта — UNVERIFIED."
+            )
         instruction = (
-            "### ПРАВИЛА: Отвечай строго по фактам, без выдуманных путей и несуществующих команд."
+            "### ПРАВИЛА: Отвечай строго по фактам, без выдуманных путей и несуществующих команд.\n"
+            + PROMPT_REALITY_CHECKER
         )
         return instruction + "\n" + prompt
     return prompt

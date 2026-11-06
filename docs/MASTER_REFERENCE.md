@@ -225,6 +225,62 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v150.98 (2026-11-06) — python -c не обходит git_push
+
+**Корень:** `python -c "os.system('git push')"` мимо shell-regex.
+
+**Фикс:** паттерн os.system/subprocess + git push; print не режем.
+
+**Не трогали:** node -e, TTC 420.
+
+## § v150.97 (2026-11-06) — bash -c и SSH не обходят git_push
+
+**Корень:** `bash -c 'git push'` и `ssh_run` шли мимо regex.
+
+**Фикс:** разворот `-c`; отказ в `run_ssh_command` до spawn.
+
+**Не трогали:** python -c, TTC 420.
+
+## § v150.96 (2026-11-06) — терминал не обходит git_push
+
+**Корень:** `run_terminal_cmd` мог `git push` после вычёркивания тула.
+
+**Фикс:** тот же `ATRA_ALLOW_GIT_PUSH`; regex на `git push`, не на `git log --grep=push`.
+
+**Не трогали:** ssh_run, TTC 420.
+
+## § v150.95 (2026-11-06) — git_push только человеком
+
+**Корень:** тул делал `git push --no-verify`; модель видела его в ALLOWED_TOOLS.
+
+**Фикс:** отказ без `ATRA_ALLOW_GIT_PUSH`; вычеркнут из ALLOWED_TOOLS.
+
+**Не трогали:** `run_terminal_cmd git push`, TTC 420.
+
+## § v150.94 (2026-11-06) — apply_patch через SOURCE_GUARD
+
+**Корень:** `apply_patch` писал `open()` в обход замка `write_file`.
+
+**Фикс:** guard на `new_content`; нет модуля — отказ.
+
+**Не трогали:** git_push, TTC 420.
+
+## § v150.93 (2026-11-06) — write_file fail-closed
+
+**Корень:** `write_file` при ImportError SOURCE_GUARD писал на диск.
+
+**Фикс:** нет модуля — отказ (`source_guard unavailable`). Как `_autonomous_guard_write`.
+
+**Не трогали:** apply_patch, git_push, TTC 420.
+
+## § v150.92 (2026-11-06) — evidence в сканере + Reality Checker
+
+**Корень:** «готово» без command/output; agency-agents не ставить пачкой.
+
+**Фикс:** 4 поля в human/patch goal; 2 строки Reality Checker в `victoria_common` (8010 + inject Виктория/Анна); `rosters.json` без потребителя.
+
+**Не трогали:** TTC 420, 11434, pool, 267 агентов.
+
 ## § v150.91 (2026-11-06) — сканер async accept; OpenWebUI без stub-библии
 
 **Корень send-fail:** сканер ждал sync `/run` 30с. **Фикс:** `async_mode=true`, HTTP 202.

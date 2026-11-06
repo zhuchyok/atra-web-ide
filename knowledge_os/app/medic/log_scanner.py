@@ -244,6 +244,12 @@ def classify_scanner_incident(container: str, error: Dict) -> str:
     return "human"
 
 
+_EVIDENCE = (
+    "Evidence: command, output, PASS or FAIL, untested. "
+    "No «готово» without those four."
+)
+
+
 def build_scanner_goal(container: str, error: Dict, klass: str, code_path: str = "") -> str:
     """Goal for /run: no consilium triggers, no default 'исправь'."""
     typ = (error or {}).get("type") or "?"
@@ -256,10 +262,13 @@ def build_scanner_goal(container: str, error: Dict, klass: str, code_path: str =
         )
     if klass == "patch":
         return (
-            f"{head} file={code_path}. Propose a patch only via write_file with SOURCE_GUARD. "
+            f"{head} file={code_path}. {_EVIDENCE} Propose a patch only via write_file with SOURCE_GUARD. "
             f"Do not call autonomous-code. Do not git_push. Do not touch src/agents. Msg: {msg}"
         )
-    return f"{head} Do not write files. Short: what broke and whether a human is needed. Msg: {msg}"
+    return (
+        f"{head} Do not write files. {_EVIDENCE} "
+        f"Short: what broke and whether a human is needed. Msg: {msg}"
+    )
 
 
 def scanner_run_payload(
