@@ -28,6 +28,7 @@ services:
     volumes:
       - open-webui-data:/app/backend/data
       - ../docs:/workspace/global_docs:ro
+      - ../configs/experts/team.md:/workspace/atra_team.md:ro
     networks:
       - atra-network
     healthcheck:

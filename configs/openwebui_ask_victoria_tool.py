@@ -78,6 +78,30 @@ def _looks_like_filesystem_request(goal: str) -> bool:
     return any(marker in g for marker in fs_markers)
 
 
+def _force_atra_bible_intent(goal: str) -> str:
+    """Disambiguate 'библия' to ATRA project docs, never religious texts."""
+    text = (goal or "").strip()
+    if not text:
+        return text
+    low = text.lower()
+    if "библи" not in low:
+        return text
+    # If explicit project file paths are already present, keep original goal.
+    if any(p in low for p in ("docs/master_reference.md", "docs/changes_from_other_chats.md", "docs/cognitive_code.md", "configs/experts/team.md")):
+        return text
+    return (
+        "Важно: под словом 'библия' здесь понимается только документация проекта ATRA, "
+        "а не религиозные тексты и не внешние сайты.\n"
+        "Считай источником истины файлы:\n"
+        "- docs/MASTER_REFERENCE.md\n"
+        "- docs/CHANGES_FROM_OTHER_CHATS.md\n"
+        "- docs/COGNITIVE_CODE.md\n"
+        "- configs/experts/team.md\n"
+        "Прочитай эти файлы и ответь по их содержимому.\n\n"
+        f"Запрос пользователя:\n{text}"
+    )
+
+
 def _attach_filesystem_contract(goal: str, host_workspace: str, container_workspace: str) -> str:
     if not _looks_like_filesystem_request(goal):
         return goal
@@ -90,6 +114,18 @@ def _attach_filesystem_contract(goal: str, host_workspace: str, container_worksp
         "- Запрещено имитировать выполненный скан или запуск кода.\n\n"
         f"Задача пользователя:\n{goal}"
     )
+
+
+def _sanitize_project_context(project_context: Optional[str]) -> str:
+    raw = (project_context or "atra-web-ide").strip()
+    if not raw:
+        return "atra-web-ide"
+    # Backend enforces max_length=128 for project_context.
+    compact = " ".join(raw.split())
+    if len(compact) <= 128:
+        return compact
+    # Keep first signal words only; avoid 422 from oversized/LLM-invented context.
+    return compact[:128].rstrip()
 
 
 def _messages_to_chat_history(
@@ -153,7 +189,7 @@ class Tools:
             description="Direct Victoria URL (full agent mode): http://victoria-agent:8000. Backend proxy remains available if USE_BACKEND_PROXY=true.",
         )
         USE_BACKEND_PROXY: bool = Field(
-            default=True,
+            default=False,
             description="If true, call backend /api/chat/ask-victoria. If false, call Victoria /run directly (fuller local agent behavior).",
         )
         ASK_VICTORIA_TIMEOUT: int = Field(
@@ -204,7 +240,7 @@ class Tools:
         goal: str,
         project_context: str = "atra-web-ide",
         user_key: Optional[str] = None,
-        response_format: Literal["text", "json"] = "text",
+        response_format: Literal["text", "json"] = "json",
         __user__: Optional[dict] = None,
         __messages__: Optional[List[Dict[str, Any]]] = None,
     ) -> str:
@@ -214,7 +250,7 @@ class Tools:
         :param goal: The concrete task for Victoria (required). E.g. "Analyze project setki-21" or "Add function to utils.py".
         :param project_context: Project: atra-web-ide, setki-21, or atra. Default atra-web-ide.
         :param user_key: Stable user id for memory, e.g. openwebui-{user_id}.
-        :param response_format: "text" (default) or "json" — backend returns JSON with status/result when json.
+        :param response_format: "json" (default) or "text" — backend returns status/result envelope when json.
         :param __user__: User context (filled by Open WebUI).
         :param __messages__: Recent messages (filled by Open WebUI); converted to chat_history for Victoria.
         """
@@ -246,6 +282,8 @@ class Tools:
             or "/workspace/atra-web-ide"
         ).strip()
         normalized_goal = _rewrite_host_paths(goal.strip(), host_workspace, container_workspace)
+        normalized_goal = _force_atra_bible_intent(normalized_goal)
+        normalized_project_context = _sanitize_project_context(project_context)
         goal_for_victoria = _attach_filesystem_contract(
             normalized_goal, host_workspace, container_workspace
         )
@@ -275,7 +313,7 @@ class Tools:
             if bible_anchor:
                 goal_for_victoria = _attach_bible_context(
                     goal_for_victoria,
-                    (project_context or "atra-web-ide").strip(),
+                    normalized_project_context,
                     bible_anchor.strip(),
                 )
         payload: Dict[str, Any]
@@ -295,7 +333,7 @@ class Tools:
                 url = f"{url}?format=json"
             payload = {
                 "goal": goal_for_victoria,
-                "project_context": (project_context or "atra-web-ide").strip(),
+                "project_context": normalized_project_context,
             }
             backend_payload = dict(payload)
             if user_key and str(user_key).strip():
@@ -312,13 +350,13 @@ class Tools:
             url = f"{base}/run"
             payload = {
                 "goal": goal_for_victoria,
-                "project_context": (project_context or "atra-web-ide").strip(),
+                "project_context": normalized_project_context,
                 "use_enhanced": True,
                 "workspace_path": container_workspace,
             }
             backend_payload = {
                 "goal": goal_for_victoria,
-                "project_context": (project_context or "atra-web-ide").strip(),
+                "project_context": normalized_project_context,
             }
             if user_key and str(user_key).strip():
                 payload["session_id"] = str(user_key).strip()
@@ -398,6 +436,17 @@ class Tools:
                     continue
                 return last_error
             except httpx.HTTPStatusError as e:
+                if e.response.status_code == 422:
+                    # Retry once with strict-minimal payload to bypass model-invented argument noise.
+                    if attempt < max_attempts - 1:
+                        payload = {
+                            "goal": goal_for_victoria,
+                            "project_context": "atra-web-ide",
+                        }
+                        backend_payload = dict(payload)
+                        await asyncio.sleep(1)
+                        continue
+                    return "Victoria request validation failed (HTTP 422). Retried with safe payload, but backend still rejected it."
                 if e.response.status_code == 503:
                     last_error = "Victoria is temporarily unavailable (server busy) for this attempt. On the user's next request, call ask_victoria again — do not skip the call based on this message."
                     if attempt < max_attempts - 1:
