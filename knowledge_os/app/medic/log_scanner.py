@@ -137,6 +137,11 @@ IGNORE_PATTERNS = [
     re.compile(r"\[DISTILLATION\] Failed to parse wisdom"),
     re.compile(r"server busy, please try again"),
     re.compile(r'column "usage_count" does not exist'),
+    re.compile(r'column "tokens_used" does not exist'),
+    # Redis UDS flap: worker/watchdog reconnect, not a code patch.
+    re.compile(r"Connection closed by server"),
+    re.compile(r"Error 111 connecting to"),
+    re.compile(r"\[FALLBACK\] Max fallback attempts reached"),
     # Nightly WARNING, not a crash. Bare TimeoutError must not open a task.
     re.compile(r"ai_core audit failed/timeout"),
     re.compile(r"TimeoutError\(\)"),
@@ -171,6 +176,9 @@ _NOISE_MARKERS = (
     "[RATE_LIMIT] Throttled",
     "Ошибка отправки в Victoria",
     "nomic-embed-text",
+    "connection closed by server",
+    "error 111 connecting to",
+    'column "tokens_used" does not exist',
 )
 _RUNBOOK_MARKERS = (
     "connection refused",
@@ -180,6 +188,8 @@ _RUNBOOK_MARKERS = (
     "out-of-memory",
     "oom-kill",
     "sigkill",
+    "connection closed by server",
+    "error 111 connecting",
 )
 _PATCH_TYPES = frozenset(
     {
@@ -250,6 +260,25 @@ def build_scanner_goal(container: str, error: Dict, klass: str, code_path: str =
             f"Do not call autonomous-code. Do not git_push. Do not touch src/agents. Msg: {msg}"
         )
     return f"{head} Do not write files. Short: what broke and whether a human is needed. Msg: {msg}"
+
+
+def scanner_run_payload(
+    container: str, error: Dict, klass: str, code_path: str = ""
+) -> Dict:
+    """POST /run body: async accept, no sync 30s hang."""
+    return {
+        "goal": build_scanner_goal(container, error, klass, code_path),
+        "async_mode": True,
+        "context": {
+            "source": "log_scanner",
+            "class": klass,
+            "code_path": code_path,
+            "container": container,
+            "error_type": error["type"],
+            "error_message": error["message"],
+            "timestamp": error["timestamp"],
+        },
+    }
 
 
 # Containers to never scan (avoid self-referential loops)
@@ -475,18 +504,7 @@ class LogScanner:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 # [v149.55d] без «Проанализируй» — consilium.
                 # [v150.89] без «Исправь» — класс сигнала, не автопатч.
-                payload = {
-                    "goal": build_scanner_goal(container, error, klass, code_path),
-                    "context": {
-                        "source": "log_scanner",
-                        "class": klass,
-                        "code_path": code_path,
-                        "container": container,
-                        "error_type": error["type"],
-                        "error_message": error["message"],
-                        "timestamp": error["timestamp"],
-                    },
-                }
+                payload = scanner_run_payload(container, error, klass, code_path)
 
                 response = await client.post(
                     f"{VICTORIA_URL}/run",
@@ -494,12 +512,12 @@ class LogScanner:
                     headers={"Content-Type": "application/json"},
                 )
 
-                if response.status_code == 200:
-                    result = response.json()
-                    task_id = result.get("task_id", "unknown")
+                if response.status_code in (200, 202):
+                    result = response.json() if response.content else {}
+                    task_id = result.get("task_id") or result.get("id") or "unknown"
                     logger.info(
                         f"✅ [LOG_SCANNER] Отправлено в Victoria: {container}/{error['type']} "
-                        f"→ task_id={task_id}"
+                        f"→ task_id={task_id} http={response.status_code}"
                     )
                     return True
                 else:
@@ -510,7 +528,11 @@ class LogScanner:
                     return False
 
         except Exception as e:
-            logger.error(f"❌ [LOG_SCANNER] Ошибка отправки в Victoria: {e}")
+            logger.error(
+                "❌ [LOG_SCANNER] Ошибка отправки в Victoria: %s: %r",
+                type(e).__name__,
+                e,
+            )
             return False
 
     async def scan_container(self, container: str) -> int:

@@ -129,6 +129,53 @@ def test_ignore_worker_ops_logged_as_error():
     )
 
 
+def test_ignore_source_guard_refuse_and_embed_404():
+    scanner = LogScanner()
+    assert (
+        scanner.extract_error(
+            "2026-11-03 22:44:33,043 - ERROR - 🛡️ [SOURCE_GUARD] ОТКАЗ "
+            "(protected source path (src/agents/)): /workspace/atra-web-ide/src/agents/bridge/victoria_server.py"
+        )
+        is None
+    )
+    assert (
+        scanner.extract_error(
+            "ERROR:__main__:Search error: Ollama embed failed: 404 "
+            '{"error":"model \\"nomic-embed-text\\" not found"}'
+        )
+        is None
+    )
+    assert (
+        scanner.extract_error(
+            "WARNING [LOG_SCANNER] [RATE_LIMIT] Throttled: 5/5 tasks in last hour"
+        )
+        is None
+    )
+    assert (
+        scanner.extract_error("ERROR [LOG_SCANNER] ❌ [LOG_SCANNER] Ошибка отправки в Victoria: ")
+        is None
+    )
+
+
+def test_ignore_redis_flap_and_tokens_used_sql():
+    scanner = LogScanner()
+    assert scanner.extract_error(
+        "ERROR:event_bus_redis_bridge:⚠️ Bridge loop error: Connection closed by server."
+    ) is None
+    assert scanner.extract_error(
+        "ERROR:ExpertWorker:⚠️ [WORKER] Ошибка в цикле: Connection closed by server."
+    ) is None
+    assert scanner.extract_error(
+        "ERROR:PerformanceWatchdog:Error in system resource monitoring: Error 111 connecting to /data/redis/redis.sock"
+    ) is None
+    assert scanner.extract_error(
+        'ERROR:  column "tokens_used" does not exist at character 47'
+    ) is None
+    assert scanner.extract_error(
+        "ERROR - [FALLBACK] Max fallback attempts reached (3)"
+    ) is None
+
+
 def test_still_catches_resurrection_recovery_failed():
     scanner = LogScanner()
     hit = scanner.extract_error("ERROR:ExpertWorker:❌ [RESURRECTION] Recovery failed: boom")
