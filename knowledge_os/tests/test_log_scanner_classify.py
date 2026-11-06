@@ -294,7 +294,11 @@ def test_idle_in_transaction_and_smart_agent_none_ignored():
         "ERROR ⚠️ [SMART_AGENT] response=None (type=NoneType) — локальные модели не дали ответ"
     )
     name_col = 'ERROR:  column "name" does not exist at character 12'
-    for line in (idle, smart, name_col):
+    ollama500 = (
+        'ERROR - [ROUTER] ❌ Node Mac Studio (Ollama) returned HTTP 500: '
+        '{"error":"llama-server process no longer running: unknown "}'
+    )
+    for line in (idle, smart, name_col, ollama500):
         assert scanner.extract_error(line) is None, line
 
 

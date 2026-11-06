@@ -161,6 +161,8 @@ IGNORE_PATTERNS = [
     re.compile(r"idle-in-transaction"),
     re.compile(r"\[SMART_AGENT\] response=None"),
     re.compile(r'column "name" does not exist'),
+    re.compile(r"llama-server process no longer running"),
+    re.compile(r"Node Mac Studio \(Ollama\) returned HTTP 500"),
 ]
 
 try:
