@@ -249,6 +249,19 @@ _EVIDENCE = (
     "No «готово» without those four."
 )
 
+_HUMAN_BLOCKED_TOOLS = ("write_file", "apply_patch", "git_push")
+_PATCH_BLOCKED_TOOLS = ("git_push",)
+
+
+def blocked_tools_for_scanner_class(klass: str) -> list:
+    """Tools /run must not offer. Lookup slave of classify; no consilium."""
+    k = (klass or "").strip().lower()
+    if k in ("human", "runbook"):
+        return list(_HUMAN_BLOCKED_TOOLS)
+    if k == "patch":
+        return list(_PATCH_BLOCKED_TOOLS)
+    return []
+
 
 def build_scanner_goal(container: str, error: Dict, klass: str, code_path: str = "") -> str:
     """Goal for /run: no consilium triggers, no default 'исправь'."""
@@ -278,6 +291,7 @@ def scanner_run_payload(
     return {
         "goal": build_scanner_goal(container, error, klass, code_path),
         "async_mode": True,
+        "scanner_class": klass,
         "context": {
             "source": "log_scanner",
             "class": klass,

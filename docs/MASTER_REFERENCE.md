@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v150.99 (2026-11-06) — scanner_class доходит до /run
+
+**Корень:** `context.class` выбрасывался Pydantic; класс жил только в тексте goal.
+
+**Фикс:** поле `scanner_class` + `blocked_tools` в `BaseAgent.run`. human не пишет файлы.
+
+**Не трогали:** rosters.json потребитель, TTC 420.
+
 ## § v150.98 (2026-11-06) — python -c не обходит git_push
 
 **Корень:** `python -c "os.system('git push')"` мимо shell-regex.

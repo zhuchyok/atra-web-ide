@@ -1046,6 +1046,7 @@ async def _fail_orphaned_inflight_on_startup() -> None:
                         verbose=bool(replay.get("verbose", False)),
                         restated_goal=None,
                         strategy_result=None,
+                        scanner_class=replay.get("scanner_class"),
                     )
                 )
                 continue
@@ -4016,7 +4017,12 @@ Q: "покажи файлы в текущей директории" → План
             logger.error(traceback.format_exc())
             self._models_resolved = True
 
-    async def run(self, goal: str, max_steps: Optional[int] = None) -> str:
+    async def run(
+        self,
+        goal: str,
+        max_steps: Optional[int] = None,
+        blocked_tools: Optional[List[str]] = None,
+    ) -> str:
         logger.info("[AGENT_RUN] ========== VictoriaAgent.run() ==========")
         logger.info("[AGENT_RUN] Goal: %s", goal[:150] if goal else "(empty)")
         logger.info("[AGENT_RUN] Max steps: %s", max_steps or DEFAULT_MAX_STEPS)
@@ -4193,7 +4199,7 @@ Q: "покажи файлы в текущей директории" → План
         logger.info("[AGENT_RUN] Enhanced prompt length: %d chars", len(enhanced))
         logger.info("[AGENT_RUN] Calling super().run() with model: %s", self.executor.model)
 
-        result = await super().run(enhanced, max_steps)
+        result = await super().run(enhanced, max_steps, blocked_tools=blocked_tools)
 
         logger.info(
             "[AGENT_RUN] super().run() returned, result length: %d chars",
@@ -6126,6 +6132,7 @@ class TaskRequest(BaseModel):
     async_mode: Optional[bool] = None  # Backward-compatible async flag when passed in JSON body
     # Explicit opt-in for CODE→PostgreSQL queue. Substring "code"/"код" alone must NOT queue.
     queue_code: Optional[bool] = False
+    scanner_class: Optional[str] = None  # log_scanner classify: human|runbook|patch
 
 
 class TaskResponse(BaseModel):
@@ -6134,6 +6141,23 @@ class TaskResponse(BaseModel):
     knowledge: Optional[dict] = None
     correlation_id: Optional[str] = None
     execution_plan: Optional[List[Dict[str, Any]]] = None  # План выполнения для IDE
+
+
+def _blocked_tools_for_scanner_class(klass: Optional[str]) -> Optional[List[str]]:
+    """Slave of log_scanner classify. Empty → None so run() stays unchanged."""
+    try:
+        from medic.log_scanner import blocked_tools_for_scanner_class
+
+        tools = blocked_tools_for_scanner_class(klass or "")
+    except Exception:
+        k = (klass or "").strip().lower()
+        if k in ("human", "runbook"):
+            tools = ["write_file", "apply_patch", "git_push"]
+        elif k == "patch":
+            tools = ["git_push"]
+        else:
+            tools = []
+    return tools or None
 
 
 def _format_ide_context(request: TaskRequest) -> str:
@@ -6641,6 +6665,7 @@ async def _run_task_background(
     restated_goal: Optional[str] = None,
     strategy_result: Optional[Dict[str, Any]] = None,
     expert_name: str = "Виктория",
+    scanner_class: Optional[str] = None,
 ) -> None:
     """Фоновое выполнение задачи (202 + polling). Результат пишется в _run_task_store[task_id]. restated_goal/strategy_result передаются из run_task (логика мысли)."""
     global sys  # Fix UnboundLocalError при обращении к sys.path в блоке orchestration
@@ -8026,7 +8051,11 @@ async def _run_task_background(
                 if is_operational_execution_goal(goal_for_exec):
                     _bg_agent_timeout = max(_bg_agent_timeout, _bg_operational_timeout)
                 result = await asyncio.wait_for(
-                    agent.run(goal_sanitized, max_steps=max_steps),
+                    agent.run(
+                        goal_sanitized,
+                        max_steps=max_steps,
+                        blocked_tools=_blocked_tools_for_scanner_class(scanner_class),
+                    ),
                     timeout=_bg_agent_timeout,
                 )
                 await _sync_store()
@@ -9710,6 +9739,7 @@ async def run_task(
                 "session_id": body.session_id,
                 "expert_name": getattr(body, "expert_name", None) or "Виктория",
                 "verbose": bool(body.verbose),
+                "scanner_class": getattr(body, "scanner_class", None),
             },
         }
 
@@ -9734,6 +9764,7 @@ async def run_task(
             verbose=bool(body.verbose),
             restated_goal=None,
             strategy_result=None,
+            scanner_class=getattr(body, "scanner_class", None),
         )
 
         def _done_callback(fut: asyncio.Future):
@@ -10939,6 +10970,7 @@ async def run_task(
                         max_steps=body.max_steps
                         if body.max_steps is not None
                         else DEFAULT_MAX_STEPS,
+                        blocked_tools=_blocked_tools_for_scanner_class(body.scanner_class),
                     ),
                     timeout=VICTORIA_SYNC_EXEC_TIMEOUT_SEC,
                 )

@@ -20,6 +20,12 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-06 v150.99) — /run не выбрасывает scanner_class ✅
+
+- `TaskRequest.scanner_class`; payload сканера шлёт поле на верхнем уровне.
+- human/runbook → blocked write_file/apply_patch/git_push; patch → git_push. Через BaseAgent.run, async replay тоже.
+- `rosters.json` по-прежнему без потребителя.
+
 ## § Последние изменения (2026-11-06 v150.98) — python -c os.system git push закрыт ✅
 
 - Детектор: `os.system`/`os.popen`/`subprocess` + `git push` и `['git','push']`.

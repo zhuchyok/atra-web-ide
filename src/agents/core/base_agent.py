@@ -205,7 +205,11 @@ class AtraBaseAgent(ABC):
             "audit": audit,
         }
 
-    async def run(self, goal: str, max_steps: int = 500) -> str:
+    async def run(
+        self, goal: str, max_steps: int = 500, blocked_tools: Optional[List[str]] = None
+    ) -> str:
+        if max_steps is None:
+            max_steps = 500
         logger.info(f"\n🚀 ЗАДАЧА: {goal}")
         # [v149.13] Per-run изоляция: агент — синглтон, и конкурентные run() затирали
         # друг другу self.memory/_blocked_tools (чужой контекст → чужой ответ).
@@ -213,6 +217,9 @@ class AtraBaseAgent(ABC):
         # они stateless; память и блокировки — свои у каждого run).
         agent = copy.copy(self)
         agent._blocked_tools = {}
+        if blocked_tools:
+            for tool in blocked_tools:
+                agent._blocked_tools[tool] = max_steps + 1
         agent.executed_commands_hash = []
 
         # Мы не стираем память полностью, а добавляем контекст знаний

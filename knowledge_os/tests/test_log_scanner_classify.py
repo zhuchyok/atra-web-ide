@@ -73,7 +73,20 @@ def test_scanner_run_payload_is_async():
     payload = _mod.scanner_run_payload("c1", err, "human")
     assert payload["async_mode"] is True
     assert payload["context"]["source"] == "log_scanner"
+    assert payload["scanner_class"] == "human"
     assert "исправ" not in payload["goal"].lower()
+
+
+def test_blocked_tools_for_scanner_class():
+    human = _mod.blocked_tools_for_scanner_class("human")
+    runbook = _mod.blocked_tools_for_scanner_class("runbook")
+    patch = _mod.blocked_tools_for_scanner_class("patch")
+    assert "write_file" in human and "apply_patch" in human and "git_push" in human
+    assert human == runbook
+    assert "git_push" in patch
+    assert "write_file" not in patch
+    assert _mod.blocked_tools_for_scanner_class("") == []
+    assert _mod.blocked_tools_for_scanner_class("noise") == []
 
 
 def test_goals_never_say_fix_or_analyze():
