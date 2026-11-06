@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v151 (2026-11-06) — полномочия по классу, не десятый regex
+
+**Корень:** human держал `run_terminal_cmd`/`ssh_run`; denylist `git push` не видел `node -e`/`perl -e`.
+
+**Фикс:** human/runbook без шелла и git-write; patch шелл жив; unwrap node/perl; отказ push = noise сканера.
+
+**Не трогали:** TTC 420, 11434, pool, потребитель rosters.json.
+
 ## § v150.99 (2026-11-06) — scanner_class доходит до /run
 
 **Корень:** `context.class` выбрасывался Pydantic; класс жил только в тексте goal.

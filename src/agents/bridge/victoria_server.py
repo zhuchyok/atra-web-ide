@@ -6152,7 +6152,17 @@ def _blocked_tools_for_scanner_class(klass: Optional[str]) -> Optional[List[str]
     except Exception:
         k = (klass or "").strip().lower()
         if k in ("human", "runbook"):
-            tools = ["write_file", "apply_patch", "git_push"]
+            tools = [
+                "write_file",
+                "apply_patch",
+                "git_push",
+                "run_terminal_cmd",
+                "ssh_run",
+                "git_add",
+                "git_commit",
+                "git_branch_create",
+                "git_pr_create",
+            ]
         elif k == "patch":
             tools = ["git_push"]
         else:

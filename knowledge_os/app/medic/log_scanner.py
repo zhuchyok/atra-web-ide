@@ -127,6 +127,7 @@ IGNORE_PATTERNS = [
     # Guard refusal is success — do not open a fix loop on the lock.
     re.compile(r"\[SOURCE_GUARD\]"),
     re.compile(r"SOURCE_GUARD:"),
+    re.compile(r"git_push rejected"),
     re.compile(r"\[RATE_LIMIT\] Throttled"),
     re.compile(r"Ошибка отправки в Victoria"),
     # visual-search 404 when nomic is not on the probed host.
@@ -173,6 +174,7 @@ _FILE_IN_LOG = re.compile(
 _NOISE_MARKERS = (
     "[SOURCE_GUARD]",
     "SOURCE_GUARD:",
+    "git_push rejected",
     "[RATE_LIMIT] Throttled",
     "Ошибка отправки в Victoria",
     "nomic-embed-text",
@@ -249,7 +251,17 @@ _EVIDENCE = (
     "No «готово» without those four."
 )
 
-_HUMAN_BLOCKED_TOOLS = ("write_file", "apply_patch", "git_push")
+_HUMAN_BLOCKED_TOOLS = (
+    "write_file",
+    "apply_patch",
+    "git_push",
+    "run_terminal_cmd",
+    "ssh_run",
+    "git_add",
+    "git_commit",
+    "git_branch_create",
+    "git_pr_create",
+)
 _PATCH_BLOCKED_TOOLS = ("git_push",)
 
 

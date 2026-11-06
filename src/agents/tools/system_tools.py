@@ -20,6 +20,21 @@ _PY_GIT_PUSH_RE = re.compile(
     r"|['\"]git['\"]\s*,\s*['\"]push['\"]",
     re.IGNORECASE,
 )
+_EVAL_C_RE = re.compile(
+    r"(?:^|[;&|\n]|&&|\|\|)\s*(?:sudo\s+)?(?:(?:/usr/bin/)?(?:node|nodejs|perl))"
+    r"\s+(?:-e|--eval|-E)\s+(.*)$",
+    re.IGNORECASE | re.DOTALL,
+)
+_NODE_GIT_PUSH_RE = re.compile(
+    r"(?:child_process|execSync|execFileSync|spawnSync|spawn|execFile)\s*\("
+    r"[^)]*\bgit(?:\s+-C\s+\S+)*\s+push\b"
+    r"|['\"]git['\"]\s*,\s*\[?\s*['\"]push['\"]",
+    re.IGNORECASE,
+)
+_PERL_GIT_PUSH_RE = re.compile(
+    r"(?:system|exec|qx)\s*[(\"'`/].*\bgit(?:\s+-C\s+\S+)*\s+push\b",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 def _allow_git_push() -> bool:
@@ -41,9 +56,14 @@ def _is_git_push_command(command: str, _depth: int = 0) -> bool:
         return True
     if _PY_GIT_PUSH_RE.search(command or ""):
         return True
+    if _NODE_GIT_PUSH_RE.search(command or "") or _PERL_GIT_PUSH_RE.search(command or ""):
+        return True
     wrapped = _SHELL_C_RE.search(blob)
     if wrapped:
         return _is_git_push_command(_unwrap_quoted(wrapped.group(1)), _depth + 1)
+    evaled = _EVAL_C_RE.search(blob)
+    if evaled:
+        return _is_git_push_command(_unwrap_quoted(evaled.group(1)), _depth + 1)
     return False
 
 # Попытка загрузить переменные окружения для серверов

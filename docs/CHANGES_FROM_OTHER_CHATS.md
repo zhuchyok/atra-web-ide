@@ -20,6 +20,13 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-06 v151) — human без шелла; node/perl не git push ✅
+
+- human/runbook `blocked_tools`: + `run_terminal_cmd`, `ssh_run`, `git_add`, `git_commit`, `git_branch_create`, `git_pr_create`. Patch шелл для pytest на месте, `git_push` deny.
+- `_is_git_push_command`: unwrap `node`/`nodejs`/`perl` `-e/--eval`; `execSync`/`system`/`spawn('git','push')`. `console.log`/`print` не режем.
+- Сканер IGNORE + noise: `git_push rejected`.
+- Не трогали: TTC 420, 11434, pool, rosters потребитель, Paperclip.
+
 ## § Последние изменения (2026-11-06 v150.99) — /run не выбрасывает scanner_class ✅
 
 - `TaskRequest.scanner_class`; payload сканера шлёт поле на верхнем уровне.

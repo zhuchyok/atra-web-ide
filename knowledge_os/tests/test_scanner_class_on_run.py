@@ -26,3 +26,26 @@ def test_base_agent_run_seeds_blocked_tools():
     fn = text.split("async def run(", 1)[1].split("Превышен лимит шагов", 1)[0]
     assert "blocked_tools" in fn
     assert "agent._blocked_tools[tool]" in fn
+
+
+def test_victoria_fallback_human_blocks_shell():
+    text = (ROOT / "src" / "agents" / "bridge" / "victoria_server.py").read_text(
+        encoding="utf-8"
+    )
+    fn = text.split("def _blocked_tools_for_scanner_class", 1)[1].split(
+        "def _format_ide_context", 1
+    )[0]
+    for name in (
+        "run_terminal_cmd",
+        "ssh_run",
+        "git_add",
+        "git_commit",
+        "git_branch_create",
+        "git_pr_create",
+    ):
+        assert name in fn
+    human_list = fn.split('if k in ("human", "runbook")', 1)[1].split("elif k ==", 1)[0]
+    assert "run_terminal_cmd" in human_list
+    patch_list = fn.split('elif k == "patch"', 1)[1].split("else:", 1)[0]
+    assert "run_terminal_cmd" not in patch_list
+    assert "git_push" in patch_list

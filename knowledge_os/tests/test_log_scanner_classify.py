@@ -77,6 +77,16 @@ def test_scanner_run_payload_is_async():
     assert "исправ" not in payload["goal"].lower()
 
 
+_SHELL_GIT_WRITE = (
+    "run_terminal_cmd",
+    "ssh_run",
+    "git_add",
+    "git_commit",
+    "git_branch_create",
+    "git_pr_create",
+)
+
+
 def test_blocked_tools_for_scanner_class():
     human = _mod.blocked_tools_for_scanner_class("human")
     runbook = _mod.blocked_tools_for_scanner_class("runbook")
@@ -87,6 +97,30 @@ def test_blocked_tools_for_scanner_class():
     assert "write_file" not in patch
     assert _mod.blocked_tools_for_scanner_class("") == []
     assert _mod.blocked_tools_for_scanner_class("noise") == []
+
+
+def test_human_runbook_block_shell_and_git_write():
+    """Human/runbook diagnose without shell; patch keeps pytest shell."""
+    for klass in ("human", "runbook"):
+        tools = _mod.blocked_tools_for_scanner_class(klass)
+        for name in _SHELL_GIT_WRITE:
+            assert name in tools, name
+        assert "write_file" in tools
+    patch = _mod.blocked_tools_for_scanner_class("patch")
+    for name in _SHELL_GIT_WRITE:
+        assert name not in patch
+    assert "git_push" in patch
+    assert "write_file" not in patch
+
+
+def test_git_push_rejected_is_noise():
+    assert (
+        _mod.classify_scanner_incident(
+            "victoria-agent",
+            _err("Error: git_push rejected (ATRA_ALLOW_GIT_PUSH not set). Human push only."),
+        )
+        == "noise"
+    )
 
 
 def test_goals_never_say_fix_or_analyze():

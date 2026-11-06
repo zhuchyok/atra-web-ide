@@ -176,6 +176,16 @@ def test_ignore_redis_flap_and_tokens_used_sql():
     ) is None
 
 
+def test_ignore_git_push_rejected():
+    scanner = LogScanner()
+    assert (
+        scanner.extract_error(
+            "Error: git_push rejected (ATRA_ALLOW_GIT_PUSH not set). Human push only."
+        )
+        is None
+    )
+
+
 def test_still_catches_resurrection_recovery_failed():
     scanner = LogScanner()
     hit = scanner.extract_error("ERROR:ExpertWorker:❌ [RESURRECTION] Recovery failed: boom")

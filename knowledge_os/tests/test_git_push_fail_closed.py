@@ -202,3 +202,44 @@ async def test_run_local_command_refuses_python_c_git_push(monkeypatch):
     )
     assert "ATRA_ALLOW_GIT_PUSH" in ssh
     assert called == []
+
+
+def test_is_git_push_detects_node_e_and_not_console_log():
+    mod = _load_tools()
+    assert mod._is_git_push_command(
+        "node -e \"require('child_process').execSync('git push')\""
+    )
+    assert mod._is_git_push_command(
+        "node -e \"require('child_process').spawnSync('git', ['push'])\""
+    )
+    assert mod._is_git_push_command("nodejs --eval 'git push origin main'")
+    assert not mod._is_git_push_command("node -e \"console.log('git push')\"")
+    assert not mod._is_git_push_command("node -e \"console.log('hello')\"")
+
+
+def test_is_git_push_detects_perl_e_and_not_print():
+    mod = _load_tools()
+    assert mod._is_git_push_command("perl -e 'system(\"git push\")'")
+    assert mod._is_git_push_command("perl -e 'exec \"git push origin main\"'")
+    assert not mod._is_git_push_command("perl -e 'print \"git push\"'")
+    assert not mod._is_git_push_command("perl -e 'print \"hello\"'")
+
+
+@pytest.mark.asyncio
+async def test_run_local_command_refuses_node_and_perl_git_push(monkeypatch):
+    mod = _load_tools()
+    called = []
+
+    def fake_run(*args, **kwargs):
+        called.append(args)
+        raise AssertionError("subprocess must not run")
+
+    monkeypatch.setattr(mod.subprocess, "run", fake_run)
+    monkeypatch.delenv("ATRA_ALLOW_GIT_PUSH", raising=False)
+    node = await mod.SystemTools.run_local_command(
+        "node -e \"require('child_process').execSync('git push')\""
+    )
+    assert "ATRA_ALLOW_GIT_PUSH" in node
+    perl = await mod.SystemTools.run_local_command("perl -e 'system(\"git push\")'")
+    assert "ATRA_ALLOW_GIT_PUSH" in perl
+    assert called == []
