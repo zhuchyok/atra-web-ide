@@ -298,7 +298,12 @@ def test_idle_in_transaction_and_smart_agent_none_ignored():
         'ERROR - [ROUTER] ❌ Node Mac Studio (Ollama) returned HTTP 500: '
         '{"error":"llama-server process no longer running: unknown "}'
     )
-    for line in (idle, smart, name_col, ollama500):
+    dna = (
+        "Вы - Виктория (Team Lead). Найдите неочевидную связь между двумя фактами: "
+        "ФАКТ А (Management): test"
+    )
+    json_err = 'json.decoder.JSONDecodeError: Expecting value: line 1 column 2 (char 1)'
+    for line in (idle, smart, name_col, ollama500, dna, json_err):
         assert scanner.extract_error(line) is None, line
 
 

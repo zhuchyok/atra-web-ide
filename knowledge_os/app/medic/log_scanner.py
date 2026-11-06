@@ -163,6 +163,8 @@ IGNORE_PATTERNS = [
     re.compile(r'column "name" does not exist'),
     re.compile(r"llama-server process no longer running"),
     re.compile(r"Node Mac Studio \(Ollama\) returned HTTP 500"),
+    re.compile(r"JSONDecodeError"),
+    re.compile(r"Найдите неочевидную связь между двумя фактами"),
 ]
 
 try:
