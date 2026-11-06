@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v156 (2026-11-07) — inflight GC, RECURSION-STOP не инцидент
+
+**Корень:** `_run_task_background` писал Redis `running`/`processing` и возвращался до `finally` (expert_assignments) — `victoria:async_inflight` оставался. RECURSION-STOP — успешный стоп рекурсии, сканер слал class=human.
+
+**Фикс:** status+output, затем один `_sync_store`; `finally` HDEL на terminal; snapshot смотрит metadata.status; сканер IGNORE `RECURSION-STOP`; лог WARNING.
+
+**Не трогали:** TTC 420, 11434, pool, 11437 ctx 8192 для `phi3.5:3.8b`.
+
 ## § v155 (2026-11-07) — DNA timeout, sandbox 403, git_status не в patch
 
 **Корень:** DNA poll 180с при TTC 234с; docker-py KeyError на 403 proxy; patch после write крутил git_status.

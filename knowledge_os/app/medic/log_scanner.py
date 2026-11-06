@@ -157,6 +157,10 @@ IGNORE_PATTERNS = [
     re.compile(r"\bNORM_IN\b"),
     re.compile(r"(?:Мысль|Результат|Msg:).*TypeError:"),
     re.compile(r"FileNotFoundError(?!:)"),
+    re.compile(r"RECURSION-STOP"),
+    re.compile(r"idle-in-transaction"),
+    re.compile(r"\[SMART_AGENT\] response=None"),
+    re.compile(r'column "name" does not exist'),
 ]
 
 try:
@@ -189,6 +193,7 @@ _NOISE_MARKERS = (
     "NORM_IN",
     "Инструмент write_file не найден",
     "msg: typeerror:",
+    "RECURSION-STOP",
 )
 _RUNBOOK_MARKERS = (
     "connection refused",

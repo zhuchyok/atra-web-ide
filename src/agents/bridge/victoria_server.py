@@ -1195,9 +1195,12 @@ async def _async_sla_snapshot() -> dict:
                     rec = None
                 local_status = str(local.get("status") or "").lower()
                 local_text = str(local.get("output") or local.get("error") or "")
+                meta = rec.get("metadata") if isinstance(rec, dict) else None
+                meta_status = str((meta or {}).get("status") or "").lower() if rec else ""
                 terminal = (
                     local_status in ("completed", "failed", "cancelled", "success")
                     or redis_status in ("completed", "failed", "cancelled", "success")
+                    or meta_status in ("completed", "failed", "cancelled", "success")
                     or "задача отменена" in (local_text + " " + redis_result).lower()
                 )
                 if terminal or elapsed > stale_inflight_sec:
@@ -7166,11 +7169,11 @@ async def _run_task_background(
                     )
                     await _clear_async_inflight(task_id)
                 else:
-                    await _sync_store()
                     store["status"] = "completed"
                     store["output"] = _normalize_output_for_user(_synth)
                     store["knowledge"] = _knowledge
                     store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    await _sync_store()
                 try:
                     VICTORIA_CONSILIUM_TTC.labels(category=consilium_category).observe(
                         time.monotonic() - _cons_started
@@ -7234,11 +7237,11 @@ async def _run_task_background(
                     )
                     await _clear_async_inflight(task_id)
                 else:
-                    await _sync_store()
                     store["status"] = "completed"
                     store["output"] = _normalize_output_for_user(quick_text)
                     store["knowledge"] = knowledge
                     store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    await _sync_store()
                 logger.info(
                     "[VICTORIA_CYCLE] background completed task_id=%s route=strategy_quick_answer",
                     task_id[:8],
@@ -7264,11 +7267,11 @@ async def _run_task_background(
                 )
                 await _clear_async_inflight(task_id)
             else:
-                await _sync_store()
                 store["status"] = "completed"
                 store["output"] = clarification_text
                 store["knowledge"] = knowledge
                 store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                await _sync_store()
             return
         if (not _patch_direct) and strategy_result.get("strategy") == "decline_or_redirect":
             reason = (
@@ -7290,11 +7293,11 @@ async def _run_task_background(
                 )
                 await _clear_async_inflight(task_id)
             else:
-                await _sync_store()
                 store["status"] = "completed"
                 store["output"] = output
                 store["knowledge"] = knowledge
                 store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                await _sync_store()
             return
         last_tasks_context = ""
         if _is_ambiguous_goal_reference(goal):
@@ -7575,11 +7578,11 @@ async def _run_task_background(
                                         _inject_strategy_into_knowledge(
                                             store.setdefault("knowledge", {}), strategy_result
                                         )
-                                        await _sync_store()
                                         store["status"] = "completed"
                                         store["stage"] = "completed"
                                         store["output"] = _normalize_output_for_user(_exec_results)
                                         store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                                        await _sync_store()
                                         if session_id:
                                             await _save_session_exchange(
                                                 session_id, goal_for_exec, _exec_results
@@ -7692,7 +7695,6 @@ async def _run_task_background(
                     "goal_preview": (goal_for_exec or "")[:120],
                 }
                 _inject_strategy_into_knowledge(knowledge, strategy_result)
-                await _sync_store()
                 store["status"] = "completed"
                 store["output"] = _normalize_output_for_user(veronica_result.get("output") or "")
                 if not isinstance(store["output"], str):
@@ -7948,7 +7950,6 @@ async def _run_task_background(
             else:
                 enhanced_result = solve_task.result()
             if enhanced_result is None or not isinstance(enhanced_result, dict):
-                await _sync_store()
                 store["status"] = "completed"
                 store["output"] = (
                     "Victoria Enhanced не вернула результат (solve вернул None или не dict)."
@@ -7961,7 +7962,6 @@ async def _run_task_background(
                 _inject_strategy_into_knowledge(store["knowledge"], strategy_result)
             else:
                 if enhanced_result.get("status") == "failed":
-                    await _sync_store()
                     store["status"] = "failed"
                     store["error"] = str(
                         enhanced_result.get("result") or "Victoria Enhanced failed"
@@ -8000,7 +8000,6 @@ async def _run_task_background(
                     "goal_preview": (goal_for_exec or "")[:120],
                 }
                 _inject_strategy_into_knowledge(knowledge, strategy_result)
-                await _sync_store()
                 store["status"] = "completed"
                 # Несколько ключей на случай разных путей Enhanced (CHANGES §56.1)
                 raw_result = enhanced_result.get("result") or enhanced_result.get("output") or ""
@@ -8207,7 +8206,6 @@ async def _run_task_background(
                     ),
                     timeout=_bg_agent_timeout,
                 )
-                await _sync_store()
                 store["status"] = "completed"
                 try:
                     store["output"] = _normalize_output_for_user(result)
@@ -8289,10 +8287,10 @@ async def _run_task_background(
             "Victoria agent.run превысил лимит времени. "
             "Проверьте доступность MLX/Ollama и нагрузку очередей."
         )
-        await _sync_store()
         store["status"] = "failed"
         store["error"] = timeout_msg
         store["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await _sync_store()
         logger.error(
             "[VICTORIA_CYCLE] background agent.run soft-timeout task_id=%s after %ss",
             task_id[:8],
@@ -8330,17 +8328,17 @@ async def _run_task_background(
         if redis_manager:
             await redis_manager.update_task_status(task_id, "failed", result=str(e))
         else:
-            await _sync_store()
             store["status"] = "failed"
             store["error"] = str(e)
+            await _sync_store()
     except BaseException as e:
         logger.exception("[VICTORIA_CYCLE] background BaseException task_id=%s: %s", task_id, e)
         if redis_manager:
             await redis_manager.update_task_status(task_id, "failed", result=str(e)[:2000])
         else:
-            await _sync_store()
             store["status"] = "failed"
             store["error"] = str(e)[:2000]
+            await _sync_store()
         raise
     finally:
         status_final = store.get("status") or "unknown"
@@ -8348,6 +8346,8 @@ async def _run_task_background(
         store["stage"] = store.get("stage") or status_final
         store["updated_at"] = datetime.now(timezone.utc).isoformat()
         await _sync_store()
+        if status_final in ("completed", "failed", "cancelled", "success"):
+            await _clear_async_inflight(task_id)
         await _push_ttc_sample(duration, store.get("handoff_reason"), store)
         if store.get("knowledge_os_task_id"):
             await _record_orchestration_task_complete(

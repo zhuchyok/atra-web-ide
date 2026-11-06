@@ -272,6 +272,32 @@ def test_filenotfounderror_prose_noise_colon_form_still_extracted():
     assert _mod.classify_scanner_incident("victoria-agent", hit) == "human"
 
 
+def test_recursion_stop_guard_is_ignored_and_noise():
+    scanner = _mod.LogScanner()
+    line = (
+        "ERROR knowledge_os.app.task_distribution_system_complete: "
+        "TaskDistribution: RECURSION-STOP — 2 вложений в промпте, задач не извлекаем"
+    )
+    assert scanner.extract_error(line) is None
+    assert (
+        _mod.classify_scanner_incident("victoria-agent", _err(line, "LOG_ERROR"))
+        == "noise"
+    )
+
+
+def test_idle_in_transaction_and_smart_agent_none_ignored():
+    scanner = _mod.LogScanner()
+    idle = (
+        'FATAL:  terminating connection due to idle-in-transaction timeout'
+    )
+    smart = (
+        "ERROR ⚠️ [SMART_AGENT] response=None (type=NoneType) — локальные модели не дали ответ"
+    )
+    name_col = 'ERROR:  column "name" does not exist at character 12'
+    for line in (idle, smart, name_col):
+        assert scanner.extract_error(line) is None, line
+
+
 def test_unprotected_typeerror_with_file_stays_patch():
     msg = (
         'File "/workspace/atra-web-ide/src/auto_guard_probe.py", line 4, in add\n'

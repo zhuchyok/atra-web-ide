@@ -265,7 +265,7 @@ class TaskDistributionSystem:
             # лёгкого guard'а — два и более вложения = паразитный цикл,
             # топлива не даём вообще (пустая выборка задач).
             if _inner.count(_RECURSE_MARK) >= 2:
-                logger.error(
+                logger.warning(
                     "TaskDistribution: RECURSION-STOP — %d вложений в промпте, задач не извлекаем",
                     _inner.count(_RECURSE_MARK),
                 )

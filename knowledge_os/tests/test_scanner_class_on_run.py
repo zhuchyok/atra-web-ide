@@ -122,6 +122,26 @@ def test_base_agent_format_retry_continues():
     assert "continue" in fn[fn.find("FORMAT_RETRY") :]
 
 
+def test_async_complete_sets_status_before_sync_store():
+    text = (ROOT / "src" / "agents" / "bridge" / "victoria_server.py").read_text(
+        encoding="utf-8"
+    )
+    fn = text.split("async def _run_task_background(", 1)[1].split(
+        '@app.get("/run/status/{task_id}")', 1
+    )[0]
+    assert 'store["status"] = "completed"' in fn
+    assert "await _sync_store()" in fn
+    assert "await _sync_store()\n                store[\"status\"] = \"completed\"" not in fn
+    assert "await _sync_store()\n                    store[\"status\"] = \"failed\"" not in fn
+    finally_chunk = fn.split("finally:", 1)[1]
+    assert "_clear_async_inflight(task_id)" in finally_chunk
+    assign = fn.split("route=expert_assignments", 1)[0]
+    status_idx = assign.rfind('store["status"] = "completed"')
+    sync_idx = assign.rfind("await _sync_store()")
+    assert status_idx != -1 and sync_idx != -1
+    assert status_idx < sync_idx
+
+
 def test_execution_phase_skips_patch_templates():
     text = (ROOT / "knowledge_os" / "app" / "execution_phase.py").read_text(
         encoding="utf-8"
