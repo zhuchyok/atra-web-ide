@@ -122,6 +122,19 @@ def test_base_agent_format_retry_continues():
     assert "continue" in fn[fn.find("FORMAT_RETRY") :]
 
 
+def test_orphan_resume_default_matches_ttc_not_hard_timeout():
+    text = (ROOT / "src" / "agents" / "bridge" / "victoria_server.py").read_text(
+        encoding="utf-8"
+    )
+    fn = text.split("async def _fail_orphaned_inflight_on_startup", 1)[1].split(
+        "def _percentile", 1
+    )[0]
+    assert 'VICTORIA_ORPHAN_RESUME_MAX_AGE_SEC", "420"' in fn
+    lifespan = text.split("async def lifespan", 1)[1].split("app = FastAPI", 1)[0]
+    assert "delete(_ASYNC_TTC_REDIS_KEY)" in lifespan
+    assert "delete(_ASYNC_INFLIGHT_REDIS_KEY)" not in lifespan
+
+
 def test_async_complete_sets_status_before_sync_store():
     text = (ROOT / "src" / "agents" / "bridge" / "victoria_server.py").read_text(
         encoding="utf-8"

@@ -978,7 +978,7 @@ async def _fail_orphaned_inflight_on_startup() -> None:
         "yes",
         "on",
     )
-    max_resume_age_sec = float(os.getenv("VICTORIA_ORPHAN_RESUME_MAX_AGE_SEC", "900"))
+    max_resume_age_sec = float(os.getenv("VICTORIA_ORPHAN_RESUME_MAX_AGE_SEC", "420"))
 
     for raw_id, raw_created in inflight.items():
         task_id = raw_id.decode() if isinstance(raw_id, bytes) else str(raw_id)
@@ -2292,7 +2292,6 @@ async def lifespan(app: FastAPI):
     if redis_manager:
         try:
             client = await redis_manager.get_client()
-            await client.delete(_ASYNC_INFLIGHT_REDIS_KEY)
             await client.delete(_ASYNC_TTC_REDIS_KEY)
         except Exception:
             pass

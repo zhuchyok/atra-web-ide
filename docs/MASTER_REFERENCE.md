@@ -229,7 +229,7 @@
 
 **Корень:** `_run_task_background` писал Redis `running`/`processing` и возвращался до `finally` (expert_assignments) — `victoria:async_inflight` оставался. RECURSION-STOP — успешный стоп рекурсии, сканер слал class=human.
 
-**Фикс:** status+output, затем один `_sync_store`; `finally` HDEL на terminal; snapshot смотрит metadata.status; сканер IGNORE `RECURSION-STOP`; лог WARNING.
+**Фикс:** status+output, затем один `_sync_store`; `finally` HDEL на terminal; snapshot смотрит metadata.status; сканер IGNORE `RECURSION-STOP`; orphan resume ≤420с; lifespan не DELETE весь inflight hash.
 
 **Не трогали:** TTC 420, 11434, pool, 11437 ctx 8192 для `phi3.5:3.8b`.
 
