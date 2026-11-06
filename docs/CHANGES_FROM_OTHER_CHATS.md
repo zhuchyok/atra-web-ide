@@ -20,6 +20,38 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-06 v150.91) — сканер async /run; чужой dirty разобран ✅
+
+- Сканер POST `/run` с `async_mode=true`, принимает 202. Корень пустых send-fail: sync hang >30с.
+- OpenWebUI: убран stub-fastpath «библия» (2 строки файлов без Виктории). Остались rewrite intent, sanitize context≤128, retry 422, proxy default=false.
+- local_router: Ollama не режем, если явно `victoria-qwen38`. ui.yml mount `team.md` — ок. `.selfdev-worktree` gitlink — не коммитить.
+- Не трогали: TTC 420, 11434, трио на лог.
+
+## § Последние изменения (2026-11-06 v150.90) — сканер: redis-flap и tokens_used не инцидент ✅
+
+- IGNORE: `Connection closed by server`, `Error 111 connecting to`, `column "tokens_used"`, Max fallback.
+- Send-fail логирует `type: repr`, не пустую строку.
+- Не трогали: TTC 420, 11434, Игорь/Анна на каждый лог.
+
+## § Последние изменения (2026-11-03 v150.89) — сканер: класс сигнала, не «исправь» ✅
+
+- `classify_scanner_incident`: noise / runbook / human / patch. Нет файла → human. Ядро (`src/agents/`…) → human. Патч только TypeError+ и путь не protected.
+- Goal без «исправь»/«проанализируй» — consilium не загорается. Patch: только write_file+SOURCE_GUARD, не autonomous-code, не git_push.
+- Не трио Игорь/Анна на каждый хит. TTC 420 / 11434 / mem Анны не трогали.
+
+## § Последние изменения (2026-11-03 v150.88) — сканер: отказ замка не инцидент ✅
+
+- IGNORE: `[SOURCE_GUARD]`, `Ollama embed failed:` / nomic 404, RATE_LIMIT, send-fail.
+- Не класс-лестница, не Игорь/Анна, не autonomous-code со сканера.
+- Не трогали: TTC 420, 11434, pool, mem Анны.
+
+## § Последние изменения (2026-11-03 v150.87) — SOURCE_GUARD на autonomous-code ✅
+
+- `/api/autonomous-code` больше не пишет сырым `open()`: резолв внутрь workspace + тот же SOURCE_GUARD, что на `write_file`. Нет guard → нет записи.
+- Ядро (`src/agents/` и др.) и escape (`/etc/passwd`, `../`) — отказ **до LLM**. Live: `file_path=src/agents/bridge/victoria_server.py` → `SOURCE_GUARD: protected source path`, sha файла тот же, `llm_ms=0`.
+- Фаза 2 (сканер → Игорь/Анна) не включали: нет инцидентов, консилиум на лог уже жёг TTC.
+- Не трогали: TTC 420, 11434/11436, pool, mem Анны, `git_push`.
+
 ## § Последние изменения (2026-11-03 v150.86) — факт-фаст-трек на резидентную phi ✅
 
 - Не грузим `-stable`, если её нет: слот 11437 = base+nomic.
