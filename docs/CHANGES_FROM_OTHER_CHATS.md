@@ -20,6 +20,13 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-06 v152) — петля patch: FAIL → write → PASS, без push ✅
+
+- `knowledge_os/tests/test_scanner_patch_loop.py`: TypeError на незащищённом `src/*.py` = patch (write жив); ядро = human (шелл/write нет).
+- write_file чинит tmp-probe: TypeError → add(1,2)==3. `git push` и `node -e` отказ. Ядро `src/agents` — SOURCE_GUARD.
+- Без LLM, без Paperclip/mini-swe. 11437 ctx 2048 у `-stable` — контракт факт-полосы, не баг.
+- Не трогали: TTC 420, 11434, pool.
+
 ## § Последние изменения (2026-11-06 v151) — human без шелла; node/perl не git push ✅
 
 - human/runbook `blocked_tools`: + `run_terminal_cmd`, `ssh_run`, `git_add`, `git_commit`, `git_branch_create`, `git_pr_create`. Patch шелл для pytest на месте, `git_push` deny.
