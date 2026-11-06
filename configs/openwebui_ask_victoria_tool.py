@@ -78,6 +78,11 @@ def _looks_like_filesystem_request(goal: str) -> bool:
     return any(marker in g for marker in fs_markers)
 
 
+def _is_atra_bible_request(goal: str) -> bool:
+    g = (goal or "").lower()
+    return "библи" in g or "master_reference" in g or "cognitive_code" in g
+
+
 def _force_atra_bible_intent(goal: str) -> str:
     """Disambiguate 'библия' to ATRA project docs, never religious texts."""
     text = (goal or "").strip()
@@ -216,8 +221,8 @@ class Tools:
             description="Maximum wait time (seconds) when backend reports processing.",
         )
         ALWAYS_ATTACH_BIBLE_CONTEXT: bool = Field(
-            default=True,
-            description="If true, attach compact MASTER_REFERENCE context to every ask_victoria call.",
+            default=False,
+            description="If true, attach compact MASTER_REFERENCE context, but only for explicit bible/docs requests.",
         )
         BIBLE_CONTEXT_MAX_CHARS: int = Field(
             default=4000,
@@ -287,7 +292,10 @@ class Tools:
         goal_for_victoria = _attach_filesystem_contract(
             normalized_goal, host_workspace, container_workspace
         )
-        if bool(getattr(self.valves, "ALWAYS_ATTACH_BIBLE_CONTEXT", True)):
+        should_attach_bible_context = bool(
+            getattr(self.valves, "ALWAYS_ATTACH_BIBLE_CONTEXT", False)
+        ) and _is_atra_bible_request(normalized_goal)
+        if should_attach_bible_context:
             max_chars = int(
                 getattr(self.valves, "BIBLE_CONTEXT_MAX_CHARS", None)
                 or os.getenv("BIBLE_CONTEXT_MAX_CHARS")
