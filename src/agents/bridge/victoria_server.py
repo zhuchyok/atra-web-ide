@@ -6170,6 +6170,23 @@ def _blocked_tools_for_scanner_class(klass: Optional[str]) -> Optional[List[str]
     return tools or None
 
 
+_PATCH_HANDOFF_FAIL = (
+    "UNTESTED: scanner_class=patch cannot HANDOFF. "
+    "write_file with SOURCE_GUARD or fail. "
+    "Evidence: command, output, PASS or FAIL, untested."
+)
+
+
+def _scanner_patch_handoff_rejected(klass: Optional[str], output: str) -> bool:
+    try:
+        from medic.log_scanner import scanner_patch_handoff_rejected
+
+        return scanner_patch_handoff_rejected(klass or "", output or "")
+    except Exception:
+        k = (klass or "").strip().lower()
+        return k == "patch" and "HANDOFF:" in (output or "")
+
+
 def _format_ide_context(request: TaskRequest) -> str:
     """
     Форматирует IDE-контекст (open_files, git_status, cursor_rules) в читаемый текст для промпта Victoria.
@@ -7911,6 +7928,17 @@ async def _run_task_background(
                             agent, session_id, project_context, goal_for_exec, raw_result
                         )
 
+            if _scanner_patch_handoff_rejected(scanner_class, store.get("output") or ""):
+                store["status"] = "failed"
+                store["error"] = _PATCH_HANDOFF_FAIL
+                store["output"] = _PATCH_HANDOFF_FAIL
+                store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                logger.info(
+                    "[VICTORIA_CYCLE] background failed task_id=%s reason=patch_handoff route=enhanced",
+                    task_id,
+                )
+                return
+
             # [EXECUTION PHASE] Parse LLM output for actionable commands and execute them
             if store.get("output") and task_type == "enhanced":
                 try:
@@ -8080,6 +8108,14 @@ async def _run_task_background(
                     logger.warning("Нормализация вывода agent.run: %s", norm_e)
                     store["output"] = (
                         str(result) if result is not None else "Результат не удалось нормализовать."
+                    )
+                if _scanner_patch_handoff_rejected(scanner_class, store.get("output") or ""):
+                    store["status"] = "failed"
+                    store["error"] = _PATCH_HANDOFF_FAIL
+                    store["output"] = _PATCH_HANDOFF_FAIL
+                    logger.info(
+                        "[VICTORIA_CYCLE] background failed task_id=%s reason=patch_handoff route=agent_run",
+                        task_id,
                     )
                 knowledge = {**agent.project_knowledge, "project_context": project_context}
                 model_used = getattr(agent.executor, "model", None) or "unknown"
@@ -10910,9 +10946,17 @@ async def run_task(
                                     enhanced_result.get("result") or "",
                                 )
                         _inject_strategy_into_knowledge(knowledge, strategy_result)
+                        _enh_out = _normalize_output_for_user(enhanced_result.get("result") or "")
+                        if _scanner_patch_handoff_rejected(body.scanner_class, _enh_out):
+                            return TaskResponse(
+                                status="failed",
+                                output=_PATCH_HANDOFF_FAIL,
+                                knowledge=knowledge,
+                                correlation_id=correlation_id,
+                            )
                         return TaskResponse(
                             status="success",
-                            output=_normalize_output_for_user(enhanced_result.get("result") or ""),
+                            output=_enh_out,
                             knowledge=knowledge,
                             correlation_id=correlation_id,
                         )
@@ -11046,9 +11090,17 @@ async def run_task(
                     str(result) or "",
                 )
         _inject_strategy_into_knowledge(knowledge, strategy_result)
+        _run_out = _normalize_output_for_user(result)
+        if _scanner_patch_handoff_rejected(body.scanner_class, _run_out):
+            return TaskResponse(
+                status="failed",
+                output=_PATCH_HANDOFF_FAIL,
+                knowledge=knowledge,
+                correlation_id=correlation_id,
+            )
         return TaskResponse(
             status="success",
-            output=_normalize_output_for_user(result),
+            output=_run_out,
             knowledge=knowledge,
             correlation_id=correlation_id,
         )

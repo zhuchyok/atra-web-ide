@@ -142,6 +142,7 @@ def test_goals_never_say_fix_or_analyze():
     assert "write_file" in patch
     assert "autonomous-code" in patch
     assert "git_push" in patch
+    assert "HANDOFF" in patch
 
 
 def test_human_and_patch_goals_require_evidence_fields():
@@ -169,6 +170,20 @@ def test_runbook_goal_skips_evidence_schema():
     goal = _mod.build_scanner_goal("c1", _err("connection refused"), "runbook")
     assert "untested" not in goal
     assert "PASS" not in goal
+
+
+def test_patch_handoff_is_rejected_human_is_not():
+    igor = (
+        "HANDOFF: @Igor\n"
+        "TASK: Fix TypeError in src/auto_guard_probe.py\n"
+        'CONTRACT: {"expected_output": "Fixed code", "format": "text"}'
+    )
+    assert _mod.scanner_patch_handoff_rejected("patch", igor) is True
+    assert _mod.scanner_patch_handoff_rejected("human", igor) is False
+    assert _mod.scanner_patch_handoff_rejected("runbook", igor) is False
+    assert _mod.scanner_patch_handoff_rejected("patch", "OK: File written: src/auto_guard_probe.py") is False
+    assert _mod.scanner_patch_handoff_rejected("patch", "") is False
+    assert _mod.scanner_patch_handoff_rejected("", igor) is False
 
 
 def test_scanner_goals_do_not_trip_consilium():

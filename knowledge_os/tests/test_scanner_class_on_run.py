@@ -49,3 +49,11 @@ def test_victoria_fallback_human_blocks_shell():
     patch_list = fn.split('elif k == "patch"', 1)[1].split("else:", 1)[0]
     assert "run_terminal_cmd" not in patch_list
     assert "git_push" in patch_list
+
+
+def test_victoria_run_gates_patch_handoff():
+    text = (ROOT / "src" / "agents" / "bridge" / "victoria_server.py").read_text(
+        encoding="utf-8"
+    )
+    assert "scanner_patch_handoff_rejected" in text
+    assert "cannot HANDOFF" in text

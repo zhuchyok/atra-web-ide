@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v153 (2026-11-07) — patch-класс не делегирует
+
+**Корень:** enhanced_solve на `scanner_class=patch` ответил `HANDOFF: @Igor` и статус completed.
+
+**Фикс:** гейт на выходе `/run` (async+sync, enhanced+agent_run). HANDOFF → failed UNTESTED. Goal: Do not HANDOFF.
+
+**Не трогали:** TTC 420, 11434, pool.
+
 ## § v152 (2026-11-06) — петля доказательства patch, не новый агент
 
 **Корень:** замок был, боя «хит → патч → PASS» не было.

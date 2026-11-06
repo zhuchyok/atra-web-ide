@@ -275,6 +275,16 @@ def blocked_tools_for_scanner_class(klass: str) -> list:
     return []
 
 
+_HANDOFF_LINE = re.compile(r"HANDOFF:\s*@?", re.IGNORECASE)
+
+
+def scanner_patch_handoff_rejected(klass: str, output: str) -> bool:
+    """Patch class must write_file or fail — not delegate with HANDOFF."""
+    if (klass or "").strip().lower() != "patch":
+        return False
+    return bool(_HANDOFF_LINE.search(output or ""))
+
+
 def build_scanner_goal(container: str, error: Dict, klass: str, code_path: str = "") -> str:
     """Goal for /run: no consilium triggers, no default 'исправь'."""
     typ = (error or {}).get("type") or "?"
@@ -288,7 +298,7 @@ def build_scanner_goal(container: str, error: Dict, klass: str, code_path: str =
     if klass == "patch":
         return (
             f"{head} file={code_path}. {_EVIDENCE} Propose a patch only via write_file with SOURCE_GUARD. "
-            f"Do not call autonomous-code. Do not git_push. Do not touch src/agents. Msg: {msg}"
+            f"Do not call autonomous-code. Do not git_push. Do not HANDOFF. Do not touch src/agents. Msg: {msg}"
         )
     return (
         f"{head} Do not write files. {_EVIDENCE} "

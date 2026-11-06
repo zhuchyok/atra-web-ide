@@ -20,6 +20,13 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-07 v153) — patch не HANDOFF ✅
+
+- Бой `/run` scanner_class=patch завершился `HANDOFF: @Igor`, файл не тронут.
+- `scanner_patch_handoff_rejected`: patch + `HANDOFF:` → `/run` **failed** `UNTESTED`, не success.
+- Goal patch: `Do not HANDOFF`. human/runbook по-прежнему могут делегировать.
+- Не трогали: TTC 420, 11434, pool.
+
 ## § Последние изменения (2026-11-06 v152) — петля patch: FAIL → write → PASS, без push ✅
 
 - `knowledge_os/tests/test_scanner_patch_loop.py`: TypeError на незащищённом `src/*.py` = patch (write жив); ядро = human (шелл/write нет).
