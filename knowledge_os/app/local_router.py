@@ -1621,10 +1621,13 @@ class LocalAIRouter:
         # v4.2-QUALITY: wisdom не дублировать в 11434 (guard — дворник, это замок).
         # model=None + category=reasoning всё равно выбирает wisdom на MLX — Ollama надо снять.
         mlx_choice = self._select_model(prompt, category, node_type="mlx") if mlx_nodes else None
+        # Не вырезаем Ollama только из-за mlx_choice=wisdom, если пользователь/роутер
+        # явно запросил non-wisdom модель (например victoria-qwen38:latest).
+        auto_wisdom_route = (not model) and self._is_wisdom_model(mlx_choice)
         if (
             is_victoria
             or self._is_wisdom_model(model)
-            or self._is_wisdom_model(mlx_choice)
+            or auto_wisdom_route
             or _skip_as_ollama_hands(model)
         ):
             healthy_nodes = [n for n in healthy_nodes if not self._is_ollama_node(n)]
