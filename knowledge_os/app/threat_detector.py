@@ -46,7 +46,8 @@ class ThreatDetector:
     # Паттерны для детектирования
     PROMPT_INJECTION_PATTERNS = [
         r"ignore\s+(previous|above|all)\s+instructions?",
-        r"system\s*:\s*",
+        # Not r"system\s*:\s*" — that matches our own "SYSTEM:" role headers
+        # and floods Telegram via security_responder.
         r"<\|.*?\|>",
         r"\[INST\]",
     ]

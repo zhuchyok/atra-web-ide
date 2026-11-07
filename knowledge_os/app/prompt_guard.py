@@ -39,7 +39,6 @@ class PromptGuard:
         r"(?i)<\|.*?\|>",
         r"(?i)\[INST\]",
         r"(?i)```system",
-        r"(?i)system\s*:\s*",
         r"(?i)override\s+(your|all)",
         r"(?i)you\s+are\s+(now|free)\s+to",
         r"(?i)act\s+as\s+(if|another)",

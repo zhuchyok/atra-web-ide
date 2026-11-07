@@ -20,8 +20,6 @@ from pathlib import Path
 
 import urllib.request
 
-import psycopg2
-
 STATE_PATH = Path(__file__).resolve().parent.parent / "logs" / "security_responder_state.json"
 ALERT_LOG = Path(__file__).resolve().parent.parent / "logs" / "security_alerts.log"
 
@@ -66,8 +64,26 @@ def log_alert(line: str) -> None:
     ALERT_LOG.open("a").write(line + "\n")
 
 
+def is_self_role_prompt_fp(incident: dict) -> bool:
+    """Own expert/Victoria 'SYSTEM:' role header is not an attack."""
+    meta = incident.get("metadata") or {}
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except Exception:
+            meta = {}
+    threat = meta.get("threat") or {}
+    pattern = str(threat.get("pattern") or "")
+    preview = str(meta.get("query_preview") or incident.get("details") or "")
+    if pattern.replace("\\\\", "\\") in {r"system\s*:\s*", r"(?i)system\s*:\s*"}:
+        return True
+    return preview.lstrip().startswith("### ТЫ —")
+
+
 def _db_connect():
     """Подключение к БД с коротким retry для сглаживания флапов pgbouncer."""
+    import psycopg2
+
     last_exc = None
     for attempt in range(1, DB_CONNECT_RETRIES + 1):
         try:
@@ -133,7 +149,7 @@ def fetch_new_incidents() -> list:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, anomaly_type, severity, description, detected_at
+                SELECT id, anomaly_type, severity, description, detected_at, metadata
                 FROM anomaly_detection_logs
                 WHERE detected_at > NOW() - INTERVAL '%s hours'
                   AND severity = ANY(%s)
@@ -141,16 +157,20 @@ def fetch_new_incidents() -> list:
                 """,
                 (LOOKBACK_HOURS, list(MIN_SEVERITY)),
             )
-            return [
-                {
+            incidents = []
+            for r in cur.fetchall():
+                item = {
                     "id": str(r[0]),
                     "anomaly_type": r[1],
                     "severity": r[2],
                     "details": (r[3] or "")[:500],
                     "detected_at": r[4].isoformat() if r[4] else None,
+                    "metadata": r[5] or {},
                 }
-                for r in cur.fetchall()
-            ]
+                if is_self_role_prompt_fp(item):
+                    continue
+                incidents.append(item)
+            return incidents
     finally:
         conn.close()
 
