@@ -17,6 +17,7 @@ import subprocess
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, List, Optional, Set
 
 import httpx
@@ -32,6 +33,7 @@ VICTORIA_URL = os.getenv("VICTORIA_URL", "http://victoria-agent:8000")
 
 # Scan interval in seconds
 SCAN_INTERVAL = int(os.getenv("LOG_SCANNER_INTERVAL", "30"))
+_SCANNER_SNAP = Path(__file__).resolve().parents[2] / "tmp" / "log_scanner_last.json"
 
 # Containers to monitor (empty = all)
 WATCH_CONTAINERS = os.getenv("LOG_SCANNER_CONTAINERS", "").split(",")
@@ -675,6 +677,22 @@ class LogScanner:
         # Periodic cleanup
         if self.scan_count % 10 == 0:
             self.dedup.cleanup()
+
+        try:
+            _SCANNER_SNAP.parent.mkdir(parents=True, exist_ok=True)
+            _SCANNER_SNAP.write_text(
+                json.dumps(
+                    {
+                        "ts": datetime.now(timezone.utc).isoformat(),
+                        "scan": self.scan_count,
+                        "new_errors": int(total_errors),
+                        "total_errors": int(self.error_count),
+                    }
+                ),
+                encoding="utf-8",
+            )
+        except Exception:
+            logger.debug("scanner snapshot write failed", exc_info=True)
 
         return total_errors
 

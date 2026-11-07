@@ -336,6 +336,13 @@ def test_idle_in_transaction_and_smart_agent_none_ignored():
         assert scanner.extract_error(line) is None, line
 
 
+def test_scanner_writes_last_snapshot_file():
+    text = _SCANNER.read_text(encoding="utf-8")
+    assert "log_scanner_last.json" in text
+    assert "new_errors" in text
+    assert "_SCANNER_SNAP.write_text" in text
+
+
 def test_unprotected_typeerror_with_file_stays_patch():
     msg = (
         'File "/workspace/atra-web-ide/src/auto_guard_probe.py", line 4, in add\n'

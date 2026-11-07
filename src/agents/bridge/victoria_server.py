@@ -979,28 +979,41 @@ async def _fail_orphaned_inflight_on_startup() -> None:
         "on",
     )
     max_resume_age_sec = float(os.getenv("VICTORIA_ORPHAN_RESUME_MAX_AGE_SEC", "420"))
+    try:
+        pass_ok = await client.set("victoria:orphan-pass", str(os.getpid()), ex=15, nx=True)
+        if not pass_ok:
+            logger.warning("[VICTORIA] orphan inflight skip: other worker holds pass")
+            return
+    except Exception as e:
+        logger.warning("[VICTORIA] orphan pass: %s", e)
+    logger.warning("[VICTORIA] orphan inflight scan n=%s", len(inflight))
 
     for raw_id, raw_created in inflight.items():
         task_id = raw_id.decode() if isinstance(raw_id, bytes) else str(raw_id)
-        try:
-            claimed = await client.set(f"victoria:orphan-claim:{task_id}", "1", ex=120, nx=True)
-            if not claimed:
-                continue
-        except Exception:
-            # If claim lock fails, continue with best-effort processing.
-            pass
-        created_raw = raw_created.decode() if isinstance(raw_created, bytes) else str(raw_created)
         age_sec: Optional[float] = None
         try:
-            created_at = datetime.fromisoformat(created_raw)
-            if created_at.tzinfo is None:
-                created_at = created_at.replace(tzinfo=timezone.utc)
-            age_sec = (now - created_at).total_seconds()
-        except Exception:
-            age_sec = None
+            created_raw = raw_created.decode() if isinstance(raw_created, bytes) else str(raw_created)
+            try:
+                created_at = datetime.fromisoformat(created_raw)
+                if created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=timezone.utc)
+                age_sec = (now - created_at).total_seconds()
+            except Exception:
+                age_sec = None
 
-        if resume_enabled:
-            rec = await redis_manager.get_task_status(task_id)
+            rec: dict = {}
+            try:
+                raw_task = await asyncio.wait_for(client.hgetall(f"task:{task_id}"), 5.0)
+                rec = {}
+                for rk, rv in (raw_task or {}).items():
+                    key = rk.decode() if isinstance(rk, bytes) else str(rk)
+                    val = rv.decode() if isinstance(rv, bytes) else rv
+                    try:
+                        rec[key] = json.loads(val)
+                    except Exception:
+                        rec[key] = val
+            except Exception as rec_err:
+                logger.warning("[VICTORIA] orphan status %s: %s", task_id[:8], rec_err)
             meta = rec.get("metadata") if isinstance(rec, dict) else {}
             if isinstance(meta, str):
                 try:
@@ -1008,8 +1021,26 @@ async def _fail_orphaned_inflight_on_startup() -> None:
                 except Exception:
                     meta = {}
             replay = meta.get("replay") if isinstance(meta, dict) else None
+            _sc = str((replay or {}).get("scanner_class") or "").strip().lower()
+            _goal_l = str((replay or {}).get("goal") or "").lower()
+            skip_resume = (
+                _sc in ("human", "runbook")
+                or "class=human" in _goal_l
+                or "class=runbook" in _goal_l
+                or _goal_l.startswith("это шаблон")
+            )
+            logger.warning(
+                "[VICTORIA] orphan inflight %s age=%.1fs sc=%s skip_resume=%s",
+                task_id[:8],
+                age_sec if age_sec is not None else -1.0,
+                _sc or "-",
+                skip_resume,
+            )
+
             if (
-                isinstance(replay, dict)
+                resume_enabled
+                and not skip_resume
+                and isinstance(replay, dict)
                 and replay.get("goal")
                 and (age_sec is None or age_sec <= max_resume_age_sec)
             ):
@@ -1020,11 +1051,6 @@ async def _fail_orphaned_inflight_on_startup() -> None:
                 store["updated_at"] = now_iso
                 store["handoff_reason"] = "resumed_after_restart"
                 _run_task_store[task_id] = store
-                await redis_manager.update_task_status(
-                    task_id,
-                    "processing",
-                    metadata=store,
-                )
                 logger.warning(
                     "[VICTORIA] orphan inflight %s age=%.1fs → resumed",
                     task_id[:8],
@@ -1049,24 +1075,53 @@ async def _fail_orphaned_inflight_on_startup() -> None:
                         scanner_class=replay.get("scanner_class"),
                     )
                 )
+                try:
+                    await asyncio.wait_for(
+                        client.hset(
+                            f"task:{task_id}",
+                            mapping={
+                                "status": json.dumps("processing"),
+                                "updated_at": json.dumps(now_iso),
+                            },
+                        ),
+                        3.0,
+                    )
+                except Exception as e:
+                    logger.warning("[VICTORIA] orphan resume status %s: %s", task_id[:8], e)
                 continue
 
-        store = _run_task_store.get(task_id)
-        if store is not None:
-            store["status"] = "failed"
-            store["stage"] = "failed"
-            store["error"] = err
-            store["updated_at"] = now_iso
-        try:
-            await redis_manager.update_task_status(task_id, "failed", result=err)
+            store = _run_task_store.get(task_id)
+            if store is not None:
+                store["status"] = "failed"
+                store["stage"] = "failed"
+                store["error"] = err
+                store["updated_at"] = now_iso
+            await _clear_async_inflight(task_id)
+            try:
+                await asyncio.wait_for(
+                    client.hset(
+                        f"task:{task_id}",
+                        mapping={
+                            "status": json.dumps("failed"),
+                            "result": json.dumps(err),
+                            "updated_at": json.dumps(now_iso),
+                        },
+                    ),
+                    3.0,
+                )
+            except Exception:
+                pass
+            logger.warning(
+                "[VICTORIA] orphan inflight %s age=%.1fs sc=%s skip_resume=%s → failed",
+                task_id[:8],
+                age_sec if age_sec is not None else -1.0,
+                _sc or "-",
+                skip_resume,
+            )
         except Exception:
-            pass
-        await _clear_async_inflight(task_id)
-        logger.warning(
-            "[VICTORIA] orphan inflight %s age=%.1fs → failed",
-            task_id[:8],
-            age_sec if age_sec is not None else -1.0,
-        )
+            logger.warning(
+                "[VICTORIA] orphan inflight %s handler error", task_id[:8], exc_info=True
+            )
 
 
 def _percentile(values: list[float], p: float) -> float:
@@ -1158,7 +1213,7 @@ async def _async_sla_snapshot() -> dict:
     inflight_max = 0.0
     inflight_n = 0
     stale_inflight_ids: list[str] = []
-    stale_inflight_sec = max(300.0, float(os.getenv("VICTORIA_ASYNC_INFLIGHT_STALE_SEC", "7200")))
+    stale_inflight_sec = max(300.0, float(os.getenv("VICTORIA_ASYNC_INFLIGHT_STALE_SEC", "420")))
     if redis_manager:
         try:
             client = await redis_manager.get_client()
@@ -1241,6 +1296,11 @@ VICTORIA_CHAT_HISTORY_MAX_MESSAGES = max(
 VICTORIA_HISTORY_MAX_CHARS = int(os.getenv("VICTORIA_HISTORY_MAX_CHARS", "0"))  # 0 = не обрезать
 VICTORIA_GOAL_MAX_CHARS = int(os.getenv("VICTORIA_GOAL_MAX_CHARS", "0"))  # 0 = не обрезать
 VICTORIA_SYNC_EXEC_TIMEOUT_SEC = float(os.getenv("VICTORIA_SYNC_EXEC_TIMEOUT_SEC", "150"))
+# Shorter sync timeout for OpenAI/OpenWebUI chat path; long jobs should hand off async.
+OPENAI_SYNC_EXEC_TIMEOUT_SEC = float(os.getenv("OPENAI_SYNC_EXEC_TIMEOUT_SEC", "35"))
+OPENAI_COMPLEX_EXEC_TIMEOUT_SEC = float(
+    os.getenv("OPENAI_COMPLEX_EXEC_TIMEOUT_SEC", str(VICTORIA_SYNC_EXEC_TIMEOUT_SEC))
+)
 VICTORIA_VERONICA_TIMEOUT_SEC = float(os.getenv("VICTORIA_VERONICA_TIMEOUT_SEC", "60"))
 VICTORIA_TIMEOUT_FALLBACK_MODEL = os.getenv("VICTORIA_TIMEOUT_FALLBACK_MODEL", "phi3.5:3.8b")
 VICTORIA_STRATEGY_TIMEOUT_SEC = float(os.getenv("VICTORIA_STRATEGY_TIMEOUT_SEC", "35"))
@@ -5181,6 +5241,57 @@ def _normalize_output_for_user(raw: Any) -> str:
     return str(raw)
 
 
+def _extract_async_task_id(payload: Any) -> Optional[str]:
+    """Extract task_id from async handoff payloads returned to chat clients."""
+    if isinstance(payload, dict):
+        task_id = payload.get("task_id")
+        if task_id and (payload.get("status_url") or payload.get("handoff_reason")):
+            return str(task_id)
+        return None
+    if not isinstance(payload, str):
+        return None
+    text = payload.strip()
+    if not text or "task_id" not in text:
+        return None
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict):
+            return _extract_async_task_id(parsed)
+    except Exception:
+        pass
+    m = re.search(r"task_id['\"]?\s*[:=]\s*['\"]([0-9a-fA-F-]{36})['\"]", text)
+    if m:
+        return m.group(1)
+    return None
+
+
+async def _await_async_handoff_result_for_chat(task_id: str, max_wait_sec: int = 45) -> Optional[str]:
+    """Poll /run status briefly so chat users see final answer, not handoff payload."""
+    if not task_id:
+        return None
+    deadline = time.time() + max(5, int(max_wait_sec))
+    while time.time() < deadline:
+        try:
+            status_payload = await get_run_status(task_id)
+            status = str(status_payload.get("status") or "").lower()
+            if status in ("completed", "success"):
+                out = _normalize_output_for_user(status_payload.get("output") or "")
+                return out or "✅ Задача выполнена, но без текстового вывода."
+            if status in ("failed", "error", "cancelled"):
+                err = (
+                    status_payload.get("error")
+                    or status_payload.get("output")
+                    or "❌ Фоновая задача завершилась с ошибкой."
+                )
+                return _normalize_output_for_user(err)
+        except HTTPException:
+            pass
+        except Exception:
+            pass
+        await asyncio.sleep(1.5)
+    return None
+
+
 def _rewrite_bible_access_denial(text: str) -> str:
     """Replace incorrect 'no access to Bible/docs' replies with deterministic project paths."""
     if not text:
@@ -9097,26 +9208,35 @@ async def _live_ollama_slots_line() -> str:
 
 
 async def _live_scanner_line() -> str:
-    """Last 20m of log-scanner: class hits and /run sends. Fail visible."""
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "docker",
-            "logs",
-            "--since",
-            "20m",
-            "log-scanner",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-        out, _ = await asyncio.wait_for(proc.communicate(), timeout=4)
-        text = (out or b"").decode("utf-8", "replace")
-        if proc.returncode not in (0, None) or "unrecognized stream" in text.lower():
-            return "сканер не сняла"
-        classes = text.count("class=")
-        sends = text.count("Отправлено в Victoria")
-        return f"scanner_class={classes} scanner_sent={sends}"
-    except Exception:
-        return "сканер не сняла"
+    """Shared snapshot from log-scanner. docker logs via proxy lies; fail visible."""
+    from pathlib import Path
+
+    candidates = (
+        Path("/app/knowledge_os/tmp/log_scanner_last.json"),
+        Path(__file__).resolve().parents[3] / "knowledge_os" / "tmp" / "log_scanner_last.json",
+    )
+    for snap in candidates:
+        try:
+            raw = snap.read_text(encoding="utf-8")
+            data = json.loads(raw)
+            ts = str(data.get("ts") or "")
+            created = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            age = (datetime.now(timezone.utc) - created).total_seconds()
+            if age > 180:
+                continue
+            return (
+                "scanner_new="
+                + str(int(data.get("new_errors") or 0))
+                + " scanner_total="
+                + str(int(data.get("total_errors") or 0))
+                + " scanner_age_s="
+                + str(int(age))
+            )
+        except Exception:
+            continue
+    return "сканер не сняла"
 
 
 async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
@@ -12084,6 +12204,16 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     _is_fact_q = is_fact_seeking_question(_user_msg_text)
 
     _force_full_for_docs = _needs_full_pipeline_for_docs(_user_msg_text)
+    openai_chat_timeout_sec = OPENAI_SYNC_EXEC_TIMEOUT_SEC
+    if _force_full_for_docs or _is_execution_task or _is_analysis_heavy_goal(_user_msg_text):
+        openai_chat_timeout_sec = OPENAI_COMPLEX_EXEC_TIMEOUT_SEC
+    logger.info(
+        "⏱ [OPENAI-API] selected timeout=%.1fs simple=%s exec=%s force_docs=%s",
+        openai_chat_timeout_sec,
+        _is_simple_q,
+        _is_execution_task,
+        _force_full_for_docs,
+    )
     shortcuts_enabled = os.getenv("VICTORIA_SIMPLE_SHORTCUTS", "false").lower() in (
         "1",
         "true",
@@ -12163,7 +12293,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
             try:
                 result = await asyncio.wait_for(
                     run_task(task_req, req, async_mode=False),
-                    timeout=VICTORIA_SYNC_EXEC_TIMEOUT_SEC,
+                    timeout=openai_chat_timeout_sec,
                 )
             except asyncio.TimeoutError:
                 logger.warning(f"[OPENAI-API] run_task timed out for goal: {_user_msg_text[:50]}")
@@ -12177,7 +12307,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
         try:
             result = await asyncio.wait_for(
                 run_task(task_req, req, async_mode=False),
-                timeout=VICTORIA_SYNC_EXEC_TIMEOUT_SEC,
+                timeout=openai_chat_timeout_sec,
             )
         except asyncio.TimeoutError:
             logger.warning(f"[OPENAI-API] run_task timed out for goal: {goal[:50]}")
@@ -12207,6 +12337,19 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
             output_text = result.output
         else:
             output_text = _normalize_output_for_user(result)
+
+    # If sync path handed off to async mode, briefly poll final result for chat UX.
+    _async_task_id = _extract_async_task_id(output_text)
+    if _async_task_id:
+        _wait_sec = int(os.getenv("OPENAI_ASYNC_HANDOFF_WAIT_SEC", "20"))
+        _resolved = await _await_async_handoff_result_for_chat(_async_task_id, max_wait_sec=_wait_sec)
+        if _resolved:
+            output_text = _resolved
+        else:
+            output_text = (
+                "⏳ Задача принята и выполняется в фоне. "
+                f"task_id={_async_task_id}. Повторите запрос через 20-40 секунд."
+            )
 
     # Final guard: hide raw internal payloads (task_id/status_url/handoff_reason)
     # and other orchestration artifacts from end-user chat replies.

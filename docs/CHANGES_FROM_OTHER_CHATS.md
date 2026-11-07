@@ -20,6 +20,13 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-07 v160) — scanner snapshot + не resume human/runbook ✅
+
+- log-scanner пишет `knowledge_os/tmp/log_scanner_last.json`; fact-probe читает файл (docker logs через proxy врёт).
+- orphan: human/runbook/`class=human` в goal и DNA «это шаблон» — fail без claim (workers=2 + claim 120s глотал fail). Статус задачи через тот же Redis client + wait_for 5s, не get_task_status. Claim только на resume, TTL 30s.
+- inflight hash GC default 7200→420 (TTC); live /run не убиваем, только HDEL счётчика.
+- Не трогали: TTC 420, pool.
+
 ## § Последние изменения (2026-11-07 v159) — ERROR-вопрос в кавычках не инцидент; probe не врёт 0 ✅
 
 - IGNORE: `"…ERROR…?"`, `Task was destroyed but it is pending`, recruitment JSON empty parse.

@@ -18,8 +18,24 @@ def test_run_has_deterministic_fact_mode_probe():
     assert "goal_wants_ollama_slots" in text
     assert "_live_scanner_line" in text
     assert "goal_wants_scanner" in text
-    assert "unrecognized stream" in text
+    assert "log_scanner_last.json" in text
     assert "сканер не сняла" in text
+    fn = text.split("async def _fail_orphaned_inflight_on_startup", 1)[1].split(
+        "def _percentile", 1
+    )[0]
+    assert '_sc in ("human", "runbook")' in fn
+    assert '"class=human" in _goal_l' in fn
+    assert "это шаблон" in fn
+    assert "orphan inflight scan n=" in fn
+    assert "wait_for(client.hgetall" in fn
+    assert "victoria:orphan-pass" in fn
+    assert "victoria:orphan-claim:" not in fn
+    assert "→ resumed" in fn
+    resume_fn = fn.split("→ resumed", 1)[1].split("continue", 1)[0]
+    assert "_create_tracked_task" in resume_fn
+    assert "update_task_status" not in resume_fn
+    assert "skip_resume" in fn
+    assert "→ failed" in fn
 
 
 def test_chat_fast_path_excludes_fact_questions():

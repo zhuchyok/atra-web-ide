@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v160 (2026-11-07) — snapshot сканера; human/runbook не resume
+
+**Корень:** docker logs из victoria-agent через proxy не читается; restart поднимал scanner `/run` как enhanced_solve; claim nx 120s при workers=2 пропускал fail.
+
+**Фикс:** файл snapshot на shared volume; human/runbook fail без claim; hash GC=420.
+
+**Не трогали:** TTC 420, pool.
+
 ## § v159 (2026-11-07) — кавычки с ERROR?; probe не рапортует ложный 0
 
 **Корень:** мысль Виктории `"…ERROR…?"` снова class=human; docker logs из контейнера через proxy даёт `unrecognized stream`, probe считал 0 хитов.
