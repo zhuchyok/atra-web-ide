@@ -20,6 +20,12 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-07 v159) — ERROR-вопрос в кавычках не инцидент; probe не врёт 0 ✅
+
+- IGNORE: `"…ERROR…?"`, `Task was destroyed but it is pending`, recruitment JSON empty parse.
+- fact-probe: docker logs через proxy `unrecognized stream` → «сканер не сняла», не `scanner_class=0`.
+- Не трогали: TTC 420, pool.
+
 ## § Последние изменения (2026-11-07 v158) — сканер не петлит на ERROR-эхо; probe видит log-scanner ✅
 
 - IGNORE: JUDGE-GATE score=, «контекст ERROR» / «ERROR нужно разобрать», Veronica ReadTimeout.

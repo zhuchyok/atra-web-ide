@@ -9110,6 +9110,8 @@ async def _live_scanner_line() -> str:
         )
         out, _ = await asyncio.wait_for(proc.communicate(), timeout=4)
         text = (out or b"").decode("utf-8", "replace")
+        if proc.returncode not in (0, None) or "unrecognized stream" in text.lower():
+            return "сканер не сняла"
         classes = text.count("class=")
         sends = text.count("Отправлено в Victoria")
         return f"scanner_class={classes} scanner_sent={sends}"

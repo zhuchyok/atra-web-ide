@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v159 (2026-11-07) — кавычки с ERROR?; probe не рапортует ложный 0
+
+**Корень:** мысль Виктории `"…ERROR…?"` снова class=human; docker logs из контейнера через proxy даёт `unrecognized stream`, probe считал 0 хитов.
+
+**Фикс:** IGNORE вопрос в кавычках + asyncio destroyed + recruitment parse; fail-visible «сканер не сняла».
+
+**Не трогали:** TTC 420, pool.
+
 ## § v158 (2026-11-07) — сканер: эхо ERROR не инцидент; probe считает хиты
 
 **Корень:** слово ERROR в мысли/JUDGE-GATE score открывало class=human `/run`.

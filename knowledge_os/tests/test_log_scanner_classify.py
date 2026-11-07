@@ -311,6 +311,13 @@ def test_idle_in_transaction_and_smart_agent_none_ignored():
     )
     ask_err = '"Какой именно ERROR нужно разобрать: команду, вывод и статус PASS/FAIL?"'
     veronica_rt = "ERROR ❌ [VERONICA] Ошибка: ReadTimeout('')"
+    echo_q = (
+        '"Есть ли полный лог вокруг ERROR:asyncio:Task was destroyed but it is pending?",'
+    )
+    destroyed = "ERROR:asyncio:Task was destroyed but it is pending!"
+    recruit = (
+        "ERROR:__main__:❌ Error parsing recruitment output: Expecting value: line 1 column 1 (char 0)"
+    )
     for line in (
         idle,
         smart,
@@ -322,6 +329,9 @@ def test_idle_in_transaction_and_smart_agent_none_ignored():
         echo_err,
         ask_err,
         veronica_rt,
+        echo_q,
+        destroyed,
+        recruit,
     ):
         assert scanner.extract_error(line) is None, line
 

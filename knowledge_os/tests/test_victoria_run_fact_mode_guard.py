@@ -18,6 +18,8 @@ def test_run_has_deterministic_fact_mode_probe():
     assert "goal_wants_ollama_slots" in text
     assert "_live_scanner_line" in text
     assert "goal_wants_scanner" in text
+    assert "unrecognized stream" in text
+    assert "сканер не сняла" in text
 
 
 def test_chat_fast_path_excludes_fact_questions():

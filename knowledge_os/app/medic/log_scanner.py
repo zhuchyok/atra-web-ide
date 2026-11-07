@@ -169,6 +169,9 @@ IGNORE_PATTERNS = [
     re.compile(r"контекст ERROR"),
     re.compile(r"ERROR нужно разобрать"),
     re.compile(r"\[VERONICA\] Ошибка: ReadTimeout"),
+    re.compile(r'"[^"]*ERROR[^"]*\?"'),
+    re.compile(r"Task was destroyed but it is pending"),
+    re.compile(r"Error parsing recruitment output"),
 ]
 
 try:
