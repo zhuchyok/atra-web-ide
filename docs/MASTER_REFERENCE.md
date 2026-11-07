@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v166 (2026-11-07) — стоп; live KPI вне git
+
+**Решение:** harness (`TURN_LOG` и остальные) остаётся выключенным. Следующий выстрел только если нужна память хода, не «ещё код».
+
+**Гигиена:** `runtime_kpi_gate_monitor` пишет jsonl/summary в `docs/audits/runtime/` (или `RUNTIME_KPI_AUDITS_DIR` / `--audits-dir`). Живые `*-live-r2-summary.md` и `*-launchd-probe-summary.md` не в индексе. Запущенные 24h/7d soak не убивали.
+
+**Не трогали:** TTC 420, pool, 11434/11436/11437, флаги harness.
+
 ## § v165 (2026-11-07) — KPI distill tail; phase7 снимки; образ proxy
 
 **Корень:** gate считал idle `eligible_now≈29k` аварией хвоста дистилляции, хотя кампании не было.

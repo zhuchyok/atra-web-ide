@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
-AUDITS_DIR = ROOT / "docs" / "audits"
+DEFAULT_AUDITS_DIR = ROOT / "docs" / "audits" / "runtime"
 sys.path.insert(0, str(ROOT / "knowledge_os" / "app"))
 from distillation_tail_metrics import DISTILL_CAMPAIGN_PROGRESS_SQL
 
@@ -682,11 +682,26 @@ def write_summary(
     summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def resolve_audits_dir(explicit: str | None = None) -> Path:
+    """Live soaks rewrite summaries every interval — keep them out of tracked docs/audits."""
+    if explicit:
+        return Path(explicit)
+    raw = os.getenv("RUNTIME_KPI_AUDITS_DIR", "").strip()
+    if raw:
+        return Path(raw)
+    return DEFAULT_AUDITS_DIR
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--duration-hours", type=float, default=24.0)
     parser.add_argument("--interval-sec", type=int, default=300)
     parser.add_argument("--tag", type=str, default="runtime-gate")
+    parser.add_argument(
+        "--audits-dir",
+        default=None,
+        help="Directory for jsonl/summary (default: docs/audits/runtime, gitignored)",
+    )
     parser.add_argument("--min-completed-per-hour", type=int, default=3)
     parser.add_argument("--distill-target", type=int, default=8)
     parser.add_argument("--distill-high-watermark", type=int, default=12)
@@ -696,11 +711,12 @@ def main() -> int:
     parser.add_argument("--tail-slo-min-samples", type=int, default=12)
     args = parser.parse_args()
 
-    AUDITS_DIR.mkdir(parents=True, exist_ok=True)
+    audits_dir = resolve_audits_dir(args.audits_dir)
+    audits_dir.mkdir(parents=True, exist_ok=True)
     started = utc_now()
     stem = f"{started.strftime('%Y-%m-%d')}-{args.tag}"
-    jsonl_path = AUDITS_DIR / f"{stem}.jsonl"
-    summary_path = AUDITS_DIR / f"{stem}-summary.md"
+    jsonl_path = audits_dir / f"{stem}.jsonl"
+    summary_path = audits_dir / f"{stem}-summary.md"
 
     samples: List[dict] = []
     end_ts = time.time() + int(args.duration_hours * 3600)

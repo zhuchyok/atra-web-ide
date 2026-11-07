@@ -97,6 +97,10 @@ docs/audits/boot_incidents/
 # Long expert/smoke audit dumps (jsonl + 60m runs) — do not commit
 docs/audits/*60m*
 docs/audits/*.jsonl
+# Live KPI soaks rewrite every interval — never git history
+docs/audits/runtime/
+docs/audits/*-live-r2-summary.md
+docs/audits/*-launchd-probe-summary.md
 docs/audits/2026-07-*
 docs/recovery/
 data/lancedb/

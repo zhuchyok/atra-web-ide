@@ -88,6 +88,15 @@ def test_tail_scope_active_campaign_keeps_violation_signal():
     assert res.reason == "distillation_tail_violation"
 
 
+def test_resolve_audits_dir_defaults_to_runtime(monkeypatch):
+    monitor = _load_monitor_module()
+    monkeypatch.delenv("RUNTIME_KPI_AUDITS_DIR", raising=False)
+    assert monitor.resolve_audits_dir() == monitor.ROOT / "docs" / "audits" / "runtime"
+    monkeypatch.setenv("RUNTIME_KPI_AUDITS_DIR", "/tmp/kpi-out")
+    assert monitor.resolve_audits_dir() == Path("/tmp/kpi-out")
+    assert monitor.resolve_audits_dir("/explicit") == Path("/explicit")
+
+
 def test_sustained_tail_slo_inactive_campaign_returns_na_green():
     monitor = _load_monitor_module()
     samples = [

@@ -20,6 +20,12 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-07 v166) — стоп; live KPI вне git ✅
+
+- Решение куратора: TURN_LOG / harness флаги не включать. Пушка стреляет; новый код без цели = осечка.
+- Live-снимки `runtime_kpi_gate_monitor` пишут в `docs/audits/runtime/` (gitignored). Старые `*-live-r2-summary.md` и `*-launchd-probe-summary.md` сняты с индекса — процессы 24h/7d не трогали.
+- Не трогали: TTC 420, pool, порты, harness flags.
+
 ## § Последние изменения (2026-11-07 v165) — KPI distill tail только при живой кампании ✅
 
 - Idle `eligible_now≈29k` без campaign больше не `distillation_tail_violation`.
