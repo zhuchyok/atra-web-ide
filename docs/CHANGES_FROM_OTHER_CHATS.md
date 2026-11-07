@@ -20,6 +20,11 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-07 v162) — chat: guardrails + владелец backend без LLM ✅
+
+- Детерминированный ответ из `COGNITIVE_CODE.md` + `team.md`, если в цели и guardrails, и backend owner.
+- Не трогали: TTC 420, pool.
+
 ## § Последние изменения (2026-11-07 v161) — DNA eval не занимает SLA inflight ✅
 
 - DNA `/run?async_mode=true` шлёт `source=dna_eval`. Счётчик `victoria:async_inflight` не HSET / HDEL в SLA (eval живёт в `task:{id}` и poll `/run/status`).

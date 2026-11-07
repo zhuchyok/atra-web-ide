@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v162 (2026-11-07) — chat guardrails+backend из доков
+
+**Корень:** вопрос «5 guardrails и кто backend» уходил в LLM.
+
+**Фикс:** детерминированный ответ из `COGNITIVE_CODE.md` + `team.md`.
+
+**Не трогали:** TTC 420, pool.
+
 ## § v161 (2026-11-07) — DNA eval не в SLA inflight
 
 **Корень:** DNA `run_answer` бьёт боевой `/run?async_mode=true` и сидит в `victoria:async_inflight` до 420с — probe/hung видят чужой eval как зависший user `/run`.

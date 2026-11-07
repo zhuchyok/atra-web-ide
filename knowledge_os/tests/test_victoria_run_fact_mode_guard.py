@@ -45,6 +45,18 @@ def test_run_has_deterministic_fact_mode_probe():
     assert "source: Optional[str]" in text
 
 
+def test_guardrails_backend_owner_chat_path_is_deterministic():
+    text = VICTORIA_SERVER.read_text(encoding="utf-8")
+    assert "def _build_guardrails_backend_owner_response(goal_text: str)" in text
+    assert "_build_guardrails_backend_owner_response(goal)" in text
+    fn = text.split("def _build_guardrails_backend_owner_response", 1)[1].split(
+        "def _build_orchestration_context", 1
+    )[0]
+    assert "docs/COGNITIVE_CODE.md" in fn
+    assert "configs/experts/team.md" in fn
+    assert "if not (asks_guardrails and asks_backend_owner):" in fn
+
+
 def test_chat_fast_path_excludes_fact_questions():
     text = VICTORIA_SERVER.read_text(encoding="utf-8")
     assert "_is_fact_q = is_fact_seeking_question(_user_msg_text)" in text

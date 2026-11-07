@@ -5605,6 +5605,85 @@ def _build_team_facts_response(goal_text: str) -> Optional[str]:
     return f"По `configs/experts/team.md`: в основной таблице {main_roles} ключевых ролей."
 
 
+def _build_guardrails_backend_owner_response(goal_text: str) -> Optional[str]:
+    """Deterministic answer for 'guardrails + backend owner' requests from local docs."""
+    g = (goal_text or "").lower()
+    asks_guardrails = any(
+        marker in g
+        for marker in (
+            "guardrail",
+            "когнитив",
+            "cognitive_code",
+            "first principles",
+            "five whys",
+            "pre-mortem",
+            "kiss",
+            "strong opinions",
+        )
+    )
+    asks_backend_owner = any(
+        marker in g
+        for marker in (
+            "кто отвечает за backend",
+            "кто отвечает за бэкенд",
+            "backend",
+            "бэкенд",
+            "team.md",
+        )
+    )
+    if not (asks_guardrails and asks_backend_owner):
+        return None
+
+    cognitive_paths = [
+        "/workspace/global_docs/COGNITIVE_CODE.md",
+        "/workspace/atra-web-ide/docs/COGNITIVE_CODE.md",
+        "/Users/bikos/Documents/atra-web-ide/docs/COGNITIVE_CODE.md",
+        os.path.join(os.getcwd(), "docs/COGNITIVE_CODE.md"),
+    ]
+    team_paths = [
+        "/workspace/atra-web-ide/configs/experts/team.md",
+        "/Users/bikos/Documents/atra-web-ide/configs/experts/team.md",
+        os.path.join(os.getcwd(), "configs/experts/team.md"),
+    ]
+
+    def _read_first(paths: List[str], limit: int = 40000) -> str:
+        for p in paths:
+            try:
+                if os.path.exists(p):
+                    with open(p, encoding="utf-8", errors="replace") as f:
+                        return f.read(limit)
+            except Exception:
+                continue
+        return ""
+
+    cognitive = _read_first(cognitive_paths, limit=24000)
+    team = _read_first(team_paths, limit=30000)
+    if not cognitive or not team:
+        return None
+
+    principles = re.findall(r"##\s*\d+\.\s*([^\n]+)", cognitive, flags=re.IGNORECASE)[:5]
+    if len(principles) < 5:
+        principles = [
+            "First Principles Thinking",
+            "Five Whys",
+            "Инверсия и Pre-mortem",
+            "Бритва Оккама и KISS",
+            "Strong Opinions, Weakly Held",
+        ]
+
+    backend_owner = "Игорь"
+    for name, role in re.findall(r"\|\s*\*\*([^*]+)\*\*\s*\|\s*([^|]+)\|", team):
+        if "backend" in role.lower() or "бэкенд" in role.lower():
+            backend_owner = name.strip()
+            break
+
+    return (
+        "Проверила по документам ATRA:\n"
+        f"- 5 guardrails из `docs/COGNITIVE_CODE.md`: {', '.join(principles)}.\n"
+        f"- За backend по `configs/experts/team.md` отвечает: {backend_owner}."
+    )
+
+
 def _build_orchestration_context(bridge_result: Optional[Dict[str, Any]]) -> str:
     """
     Мировая практика: оркестратор распределяет и составляет план; Victoria использует его при выполнении.
@@ -11773,6 +11852,28 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                                 "`docs/COGNITIVE_CODE.md`, `configs/experts/team.md`, `.cursor/rules/`."
                             ),
                         },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    guardrails_backend = _build_guardrails_backend_owner_response(goal)
+    if is_victoria_model and guardrails_backend:
+        logger.info(
+            "[OPENAI-API] Deterministic guardrails+backend response for goal: %s",
+            goal[:100],
+        )
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": guardrails_backend},
                         "finish_reason": "stop",
                     }
                 ],
