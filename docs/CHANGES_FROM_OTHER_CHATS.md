@@ -20,6 +20,12 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-07 v161) — DNA eval не занимает SLA inflight ✅
+
+- DNA `/run?async_mode=true` шлёт `source=dna_eval`. Счётчик `victoria:async_inflight` не HSET / HDEL в SLA (eval живёт в `task:{id}` и poll `/run/status`).
+- Маркеры «объясни: стратегия приоритизации / баланс автономии роя» чистят уже лежащие в hash eval без kill coroutine.
+- Не трогали: TTC 420, pool, DNA timeout 420, resume DNA при age≤420.
+
 ## § Последние изменения (2026-11-07 v160) — scanner snapshot + не resume human/runbook ✅
 
 - log-scanner пишет `knowledge_os/tmp/log_scanner_last.json`; fact-probe читает файл (docker logs через proxy врёт).

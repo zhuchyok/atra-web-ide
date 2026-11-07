@@ -36,6 +36,13 @@ def test_run_has_deterministic_fact_mode_probe():
     assert "update_task_status" not in resume_fn
     assert "skip_resume" in fn
     assert "→ failed" in fn
+    assert "def _is_dna_eval_run(" in text
+    assert '_DNA_EVAL_GOAL_MARKERS' in text
+    sla = text.split("async def _async_sla_snapshot", 1)[1].split("DEFAULT_MAX_STEPS", 1)[0]
+    assert "_is_dna_eval_run(" in sla
+    sync = text.split("async def _sync_store():", 1)[1].split("store[\"status\"] = \"processing\"", 1)[0]
+    assert "dna_eval" in sync
+    assert "source: Optional[str]" in text
 
 
 def test_chat_fast_path_excludes_fact_questions():

@@ -957,6 +957,22 @@ async def _clear_async_inflight(task_id: str) -> None:
         pass
 
 
+_DNA_EVAL_GOAL_MARKERS = (
+    "стратегия приоритизации задач команды",
+    "баланс между автономией роя",
+)
+
+
+def _is_dna_eval_run(source: str = "", goal: str = "") -> bool:
+    """DNA eval uses battle /run but is not a user hung-task for SLA/inflight."""
+    if str(source or "").strip().lower() in ("dna_eval", "dna"):
+        return True
+    g = str(goal or "").lower()
+    if not g.startswith("объясни:"):
+        return False
+    return any(m in g for m in _DNA_EVAL_GOAL_MARKERS)
+
+
 async def _fail_orphaned_inflight_on_startup() -> None:
     """After process restart: try to resume inflight /run tasks, fail only non-resumable leftovers."""
     if not redis_manager:
@@ -1252,6 +1268,15 @@ async def _async_sla_snapshot() -> dict:
                 local_text = str(local.get("output") or local.get("error") or "")
                 meta = rec.get("metadata") if isinstance(rec, dict) else None
                 meta_status = str((meta or {}).get("status") or "").lower() if rec else ""
+                replay = (meta or {}).get("replay") if isinstance(meta, dict) else None
+                if not isinstance(replay, dict):
+                    replay = local.get("replay") if isinstance(local.get("replay"), dict) else {}
+                if _is_dna_eval_run(
+                    source=str((replay or {}).get("source") or ""),
+                    goal=str((replay or {}).get("goal") or local.get("goal") or ""),
+                ):
+                    stale_inflight_ids.append(task_id)
+                    continue
                 terminal = (
                     local_status in ("completed", "failed", "cancelled", "success")
                     or redis_status in ("completed", "failed", "cancelled", "success")
@@ -6335,6 +6360,7 @@ class TaskRequest(BaseModel):
     # Explicit opt-in for CODE→PostgreSQL queue. Substring "code"/"код" alone must NOT queue.
     queue_code: Optional[bool] = False
     scanner_class: Optional[str] = None  # log_scanner classify: human|runbook|patch
+    source: Optional[str] = None  # dna_eval: battle /run, not user SLA inflight
 
 
 class TaskResponse(BaseModel):
@@ -6921,7 +6947,14 @@ async def _run_task_background(
                 )
                 client = await redis_manager.get_client()
                 created = store.get("created_at")
-                if status_now in ("queued", "processing", "running") and created:
+                replay = store.get("replay") if isinstance(store.get("replay"), dict) else {}
+                dna_eval = _is_dna_eval_run(
+                    source=str(replay.get("source") or store.get("source") or ""),
+                    goal=str(replay.get("goal") or store.get("goal") or ""),
+                )
+                if dna_eval:
+                    await _clear_async_inflight(task_id)
+                elif status_now in ("queued", "processing", "running") and created:
                     await client.hset(_ASYNC_INFLIGHT_REDIS_KEY, task_id, str(created))
                 else:
                     await _clear_async_inflight(task_id)
@@ -10096,6 +10129,7 @@ async def run_task(
                 "expert_name": getattr(body, "expert_name", None) or "Виктория",
                 "verbose": bool(body.verbose),
                 "scanner_class": getattr(body, "scanner_class", None),
+                "source": getattr(body, "source", None),
             },
         }
 

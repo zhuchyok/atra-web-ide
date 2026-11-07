@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v161 (2026-11-07) — DNA eval не в SLA inflight
+
+**Корень:** DNA `run_answer` бьёт боевой `/run?async_mode=true` и сидит в `victoria:async_inflight` до 420с — probe/hung видят чужой eval как зависший user `/run`.
+
+**Фикс:** `source=dna_eval` + маркеры eval-вопросов Виктории; hash не считает их inflight. Coroutine и poll не убиваем.
+
+**Не трогали:** TTC 420, pool, DNA timeout 420.
+
 ## § v160 (2026-11-07) — snapshot сканера; human/runbook не resume
 
 **Корень:** docker logs из victoria-agent через proxy не читается; restart поднимал scanner `/run` как enhanced_solve; claim nx 120s при workers=2 пропускал fail.

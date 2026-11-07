@@ -168,7 +168,10 @@ async def select_wisdom_batch(limit: int = 30) -> List[Dict[str, Any]]:
 async def run_answer(goal: str) -> str:
     """Ответ Виктории через боевой /run (async + poll)."""
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(f"{VICTORIA_URL}/run?async_mode=true", json={"goal": goal})
+        resp = await client.post(
+            f"{VICTORIA_URL}/run?async_mode=true",
+            json={"goal": goal, "source": "dna_eval"},
+        )
         data = resp.json()
     if data.get("status") == "success" and data.get("output"):
         return str(data["output"])[:1500]
