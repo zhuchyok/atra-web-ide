@@ -159,6 +159,20 @@ load_env_file()
 # Telegram конфигурация
 # Используем токен из telegram_simple.py или из переменных окружения
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TG_TOKEN", "")
+
+
+def _telegram_token() -> str:
+    """Флаг CREDENTIAL_REF читает токен на каждый вызов. Без флага — снимок при старте."""
+    if os.getenv("CREDENTIAL_REF", "0").strip().lower() not in {"1", "true", "yes", "on"}:
+        return TELEGRAM_BOT_TOKEN or ""
+    try:
+        try:
+            from app.turn_harness.credentials import resolve
+        except ImportError:
+            from turn_harness.credentials import resolve
+    except ImportError:
+        return TELEGRAM_BOT_TOKEN or ""
+    return resolve("TELEGRAM_BOT_TOKEN") or resolve("TG_TOKEN") or ""
 # Используем ID из telegram_simple.py или из переменных окружения
 TELEGRAM_USER_ID = os.getenv("TELEGRAM_USER_ID") or os.getenv("ALLOWED_USER_ID", "")
 # Chat ID группы Bikos_Corporation (если указан, бот будет работать в группе)
@@ -193,9 +207,10 @@ def _get_session(chat_id: str) -> dict:
 
 async def _set_bot_commands() -> bool:
     """Установить меню команд бота (появляется при нажатии /)"""
-    if not TELEGRAM_BOT_TOKEN:
+    token = _telegram_token()
+    if not token:
         return False
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setMyCommands"
+    url = f"https://api.telegram.org/bot{token}/setMyCommands"
     commands = [
         {"command": "start", "description": "Начать / справка"},
         {"command": "help", "description": "Справка по командам"},
@@ -218,7 +233,7 @@ async def _set_bot_commands() -> bool:
     return False
 
 
-if not TELEGRAM_BOT_TOKEN:
+if not _telegram_token():
     logger.error("❌ TELEGRAM_BOT_TOKEN не установлен в переменных окружения!")
     logger.info("💡 Получите токен у @BotFather в Telegram")
     logger.info("💡 Добавьте в .env: TELEGRAM_BOT_TOKEN=your_token_here")
@@ -242,11 +257,12 @@ async def send_telegram_message(
 ) -> bool:
     """Отправка сообщения в Telegram. По умолчанию plain text — без parse_mode.
     Ответы Victoria (код, markdown) отправляются только как plain text."""
-    if not TELEGRAM_BOT_TOKEN:
+    token = _telegram_token()
+    if not token:
         return False
     if not isinstance(text, str):
         text = str(text)
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
     text = _escape_telegram_plain(text)
     # Лимит Telegram 4096 символов
     if len(text) > 4096:
@@ -280,10 +296,11 @@ async def send_telegram_message_with_retry(chat_id: str, text: str, retries: int
 
 async def get_telegram_updates(offset: int = 0) -> tuple[int, list]:
     """Получение обновлений из Telegram. Retry при DNS/сетевых ошибках."""
-    if not TELEGRAM_BOT_TOKEN:
+    token = _telegram_token()
+    if not token:
         return offset, []
 
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
+    url = f"https://api.telegram.org/bot{token}/getUpdates"
     for attempt in range(3):
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -313,12 +330,13 @@ async def get_telegram_updates(offset: int = 0) -> tuple[int, list]:
 
 async def download_telegram_file(file_id: str) -> Optional[bytes]:
     """Скачивание файла из Telegram по file_id"""
-    if not TELEGRAM_BOT_TOKEN:
+    token = _telegram_token()
+    if not token:
         return None
 
     try:
         # Получаем информацию о файле
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile"
+        url = f"https://api.telegram.org/bot{token}/getFile"
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(url, params={"file_id": file_id})
             if response.status_code != 200:
@@ -331,7 +349,7 @@ async def download_telegram_file(file_id: str) -> Optional[bytes]:
             file_path = data["result"]["file_path"]
 
             # Скачиваем файл
-            file_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
+            file_url = f"https://api.telegram.org/file/bot{token}/{file_path}"
             file_response = await client.get(file_url, timeout=60.0)
             if file_response.status_code == 200:
                 return file_response.content
@@ -990,7 +1008,7 @@ async def telegram_bridge():
         logger.error("❌ Другой экземпляр бота уже запущен (lock file занят). Выход.")
         sys.exit(0)
 
-    if not TELEGRAM_BOT_TOKEN:
+    if not _telegram_token():
         logger.error("❌ TELEGRAM_BOT_TOKEN не установлен! Бот не может работать.")
         return
 

@@ -973,6 +973,30 @@ def _is_dna_eval_run(source: str = "", goal: str = "") -> bool:
     return any(m in g for m in _DNA_EVAL_GOAL_MARKERS)
 
 
+def _turn_log():
+    try:
+        from app.turn_harness.events import (
+            append_event,
+            log_dir,
+            logging_enabled,
+            reason_for_store,
+            sweep_open_turns,
+        )
+    except ImportError:
+        from turn_harness.events import (
+            append_event,
+            log_dir,
+            logging_enabled,
+            reason_for_store,
+            sweep_open_turns,
+        )
+    return append_event, log_dir, logging_enabled, reason_for_store, sweep_open_turns
+
+
+def _approval_fail_closed() -> bool:
+    return os.getenv("APPROVAL_FAIL_CLOSED", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 async def _fail_orphaned_inflight_on_startup() -> None:
     """After process restart: try to resume inflight /run tasks, fail only non-resumable leftovers."""
     if not redis_manager:
@@ -2211,6 +2235,14 @@ async def lifespan(app: FastAPI):
             _create_tracked_task(warmup_victoria())
     _create_tracked_task(_unload_ollama_wisdom_if_mlx_brain())
     _create_tracked_task(_fail_orphaned_inflight_on_startup())
+    try:
+        _append, _dir, _on, _reason, _sweep = _turn_log()
+        if _on():
+            n = _sweep(_dir())
+            if n:
+                logger.warning("[TURN] sweep closed %s open journals as crashed", n)
+    except Exception as e:
+        logger.warning("[TURN] sweep failed: %s", e)
 
     # Memory watchdog: gc + malloc_trim каждые 30 мин + аварийный перезапуск при >18GB
     # [SINGULARITY 30.0] Dynamic interval and event-driven GC
@@ -7090,8 +7122,62 @@ async def _run_task_background(
         except Exception as e:
             logger.debug("[MEMORY] query_knowledge failed: %s", e)
 
-    # [MULTI-AGENT] Проверка Human-in-the-Loop для критических действий
-    if human_approval_instance:
+    # [MULTI-AGENT] Проверка Human-in-the-Loop для критических действий.
+    # APPROVAL_FAIL_CLOSED=1: нет ответа — отказ. Флаг 0 сохраняет прежний вызов.
+    _critical_markers = (
+        "деплой",
+        "deploy",
+        "удал",
+        "delete",
+        "rm ",
+        "api ключ",
+        "secret",
+        "пароль",
+    )
+    if _approval_fail_closed():
+        try:
+            is_critical = any(marker in goal.lower() for marker in _critical_markers)
+            if is_critical:
+                try:
+                    from app.turn_harness.approval import decide
+                    from app.turn_harness.events import append_event, log_dir, logging_enabled
+                except ImportError:
+                    from turn_harness.approval import decide
+                    from turn_harness.events import append_event, log_dir, logging_enabled
+
+                policy = os.getenv("APPROVAL_POLICY", "never")
+                if logging_enabled():
+                    append_event(
+                        log_dir(),
+                        task_id,
+                        "approval_asked",
+                        tool_name="task_execution",
+                        reason=goal[:200],
+                    )
+                outcome = await decide(
+                    task_id=task_id,
+                    tool_name="task_execution",
+                    call_id=task_id,
+                    reason=goal[:200],
+                    policy=policy,
+                    answerer=None,
+                )
+                if logging_enabled():
+                    append_event(log_dir(), task_id, "approval_decided", outcome=outcome)
+                if outcome != "allowed-once":
+                    store["status"] = "failed"
+                    store["turn_end_reason"] = "approval_denied"
+                    store["error"] = "Действие не одобрено: " + outcome
+                    await _sync_store()
+                    return
+        except Exception as e:
+            logger.warning("[HUMAN] fail-closed approval error: %s", e)
+            store["status"] = "failed"
+            store["turn_end_reason"] = "approval_denied"
+            store["error"] = "Действие не одобрено: unavailable"
+            await _sync_store()
+            return
+    elif human_approval_instance:
         try:
             is_critical = any(
                 marker in goal.lower()
@@ -10293,7 +10379,15 @@ async def run_task(
                     store["status"] = "failed"
                     store["stage"] = "failed"
                     store["error"] = f"Background timeout after {seconds:.0f}s ({why})"
+                    store["turn_end_reason"] = "timeout"
                     store["updated_at"] = now_iso
+
+            try:
+                _append, _dir, _on, _reason, _sweep = _turn_log()
+                if _on():
+                    _append(_dir(), task_id, "turn_opened", goal=str(goal or "")[:2000])
+            except Exception as e:
+                logger.warning("[TURN] open failed task_id=%s: %s", task_id[:8], e)
 
             bg_task = asyncio.ensure_future(task_coro)
             try:
@@ -10348,6 +10442,14 @@ async def run_task(
                     if status_final in ("completed", "failed", "cancelled"):
                         duration = _record_async_ttc(store, status_final)
                         store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                        try:
+                            _append, _dir, _on, _reason, _sweep = _turn_log()
+                            if _on():
+                                rows_reason = _reason(store)
+                                _append(_dir(), task_id, "turn_closed", reason=rows_reason)
+                                store["turn_end_reason"] = rows_reason
+                        except Exception as e:
+                            logger.warning("[TURN] close failed task_id=%s: %s", task_id[:8], e)
                         if redis_manager:
                             try:
                                 st = {k: v for k, v in store.items() if v is not None}
@@ -11006,7 +11108,49 @@ async def run_task(
                     logger.debug("[CONSENSUS] reach_consensus failed (sync): %s", e)
 
             # [MULTI-AGENT] HumanApproval — одобрение критических действий
-            if human_approval_instance:
+            if _approval_fail_closed():
+                try:
+                    _goal_for_approval = restated_goal or goal
+                    is_critical = any(
+                        marker in _goal_for_approval.lower()
+                        for marker in (
+                            "деплой",
+                            "deploy",
+                            "удал",
+                            "delete",
+                            "rm ",
+                            "api ключ",
+                            "secret",
+                            "пароль",
+                        )
+                    )
+                    if is_critical:
+                        try:
+                            from app.turn_harness.approval import decide
+                        except ImportError:
+                            from turn_harness.approval import decide
+                        outcome = await decide(
+                            task_id=correlation_id or "sync",
+                            tool_name="task_execution",
+                            call_id=correlation_id or "sync",
+                            reason=_goal_for_approval[:200],
+                            policy=os.getenv("APPROVAL_POLICY", "never"),
+                            answerer=None,
+                        )
+                        if outcome != "allowed-once":
+                            return TaskResponse(
+                                status="failed",
+                                output="Действие не одобрено: " + outcome,
+                                knowledge={"metadata": {"turn_end_reason": "approval_denied"}},
+                            )
+                except Exception as e:
+                    logger.warning("[HUMAN] fail-closed approval error (sync): %s", e)
+                    return TaskResponse(
+                        status="failed",
+                        output="Действие не одобрено: unavailable",
+                        knowledge={"metadata": {"turn_end_reason": "approval_denied"}},
+                    )
+            elif human_approval_instance:
                 try:
                     is_critical = any(
                         marker in (restated_goal or goal).lower()
@@ -13362,10 +13506,45 @@ async def autonomous_code(request: dict):
     except Exception as e:  # noqa: BLE001
         logging.debug("experience skip: %s", e)
 
+    presented: list = []
+    workspace_diff = ""
+    deliverable_on = os.getenv("TURN_DELIVERABLE", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if deliverable_on:
+        try:
+            from app.turn_harness.deliverable import build_deliverable
+        except ImportError:
+            from turn_harness.deliverable import build_deliverable
+        rel_paths = []
+        if file_written:
+            rel = file_written
+            if os.path.isabs(file_written):
+                try:
+                    rel = os.path.relpath(file_written, workspace)
+                except ValueError:
+                    rel = file_written
+            rel_paths.append(rel)
+        got = build_deliverable(workspace, rel_paths)
+        presented = list(got.get("presented") or [])
+        workspace_diff = str(got.get("workspace_diff") or "")
+        if final_stage == "passed" and file_path and (
+            not presented or workspace_diff.startswith("git_diff_unavailable")
+        ):
+            final_stage = "deliverable_missing"
+
     return {
         "compile_status": compile_status,
         "runtime_status": runtime_status,
         "final_status": "passed" if final_stage == "passed" else final_stage,
+        **(
+            {"presented": presented, "workspace_diff": workspace_diff}
+            if deliverable_on
+            else {}
+        ),
         "fix_iterations": fix_iterations,
         "attempts": attempts,
         "file_path": file_written or file_path,
@@ -13450,6 +13629,11 @@ async def _dispatch_plan_step_to_stream(step: dict, fp: str, session_id: str) ->
             "kind": "plan_step",
             "plan_session": session_id,
             "step_file": fp,
+            "parent_task_id": session_id,
+            "depth": 1,
+            "permission_mode": "accept_edits",
+            "allowed_tools": ["read_file", "write_file", "list_directory"],
+            "output_schema": ["file_path", "status"],
         },
         "contract": {
             "version": "1",

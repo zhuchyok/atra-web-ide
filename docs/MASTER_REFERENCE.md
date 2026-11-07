@@ -225,6 +225,18 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v164 (2026-11-07) — журнал хода, флаги выключены
+
+**Корень:** память сессии — краткий пересказ, одобрение критической цели глотало чужой вызов `check_approval`, ребёнок эксперта не имел потолка прав.
+
+**Контракт:** пакет `knowledge_os/app/turn_harness/`. JSONL `logs/turns/{task_id}.jsonl` (каталог процесса `/app/logs`, том хоста `logs/`). Причины закрытия: `completed`, `cancelled`, `timeout`, `max_steps`, `tool_error`, `approval_denied`, `crashed`. В промпт хвост до 12 000 символов, один результат тула до 4 000; якоря — цель, последнее одобрение, последняя ошибка тула, сданные файлы. Пропуск одобрения только `allowed-once`. `output_schema` ребёнка — список ключей; строка `expert_response_v1` списком не считается.
+
+**Флаги, все выключены:** `TURN_LOG`, `APPROVAL_FAIL_CLOSED`, `TURN_DELIVERABLE`, `CHILD_CEILING` (`off`), `CREDENTIAL_REF`. Пока они пустые, `/run`, очередь и Telegram как раньше.
+
+**Проверено:** pytest пакета harness; `py_compile` сервера, бота и воркера; `victoria-agent` рестарт 2026-11-07 08:25, `GET /health` → `ok`, в логе старта нет Traceback. Живой флаг не включали.
+
+**Не трогали:** TTC 420, pool, порты 11434/11436/11437, `session_context` (справка чата на 2000 символов), `git_push` (по-прежнему только при `ATRA_ALLOW_GIT_PUSH`).
+
 ## § v163 (2026-11-07) — docker-proxy logs как Engine multiplex
 
 **Корень:** `/logs` text/plain → docker-py `unrecognized stream: 50`.

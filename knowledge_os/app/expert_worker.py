@@ -1449,6 +1449,36 @@ async def process_task(task_data: dict):
                             )
                             return
 
+                    try:
+                        try:
+                            from app.turn_harness.child import ceiling_mode, inspect_child
+                        except ImportError:
+                            from turn_harness.child import ceiling_mode, inspect_child
+
+                        _ceiling = ceiling_mode()
+                        if _ceiling != "off":
+                            _meta = metadata if isinstance(metadata, dict) else {}
+                            _tool = str(_meta.get("requested_tool") or "write_file")
+                            _ok, _why = inspect_child(_meta, _tool)
+                            if not _ok:
+                                logger.warning("[CHILD] %s task=%s (%s)", _ceiling, task_id, _why)
+                                if _ceiling == "enforce":
+                                    await conn.execute(
+                                        "UPDATE tasks SET status = 'failed', updated_at = NOW(), "
+                                        "metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb "
+                                        "WHERE id = $1",
+                                        db_task_id,
+                                        json.dumps(
+                                            {
+                                                "turn_end_reason": "tool_error",
+                                                "child_violation": _why,
+                                            }
+                                        ),
+                                    )
+                                    return
+                    except Exception as _child_e:
+                        logger.warning("[CHILD] check skipped task=%s: %s", task_id, _child_e)
+
                     await conn.execute(
                         "UPDATE tasks SET status = 'in_progress', updated_at = NOW(), "
                         "last_real_progress_at = NOW() WHERE id = $1",
@@ -2617,27 +2647,62 @@ async def process_task(task_data: dict):
                 completion_committed = True
                 global _last_success_ts
                 _last_success_ts = int(time.time())
+                _finish_status = "completed"
+                _finish_result = report_text
+                _ceiling = os.getenv("CHILD_CEILING", "off").strip().lower()
+                if _ceiling in {"log", "enforce"}:
+                    try:
+                        try:
+                            from app.turn_harness.child import result_violation
+                        except ImportError:
+                            from turn_harness.child import result_violation
+
+                        _why = result_violation(
+                            metadata if isinstance(metadata, dict) else {},
+                            report_text,
+                        )
+                        if _why:
+                            logger.warning("[CHILD] %s task=%s (%s)", _ceiling, task_id, _why)
+                            if _ceiling == "enforce":
+                                _finish_status = "failed"
+                                _finish_result = json.dumps(
+                                    {"error": "schema", "detail": _why},
+                                    ensure_ascii=False,
+                                )
+                    except Exception as _child_finish_e:
+                        logger.warning(
+                            "[CHILD] result check skipped task=%s: %s",
+                            task_id,
+                            _child_finish_e,
+                        )
+
                 if is_valid_uuid:
                     # TODO: Convert f-string to %s formatting for performance
-                    logger.info(f"DEBUG_PRINT: Updating task {task_id} to completed in DB")
+                    logger.info(
+                        "DEBUG_PRINT: Updating task %s to %s in DB", task_id, _finish_status
+                    )
                     finish_pool = await get_db_pool()
                     async with finish_pool.acquire() as finish_conn:
                         _update_res = await finish_conn.execute(
                             """
                             UPDATE tasks
-                            SET status = 'completed',
+                            SET status = $4,
                                 result = $2,
-                                completed_at = NOW(),
+                                completed_at = CASE WHEN $4 = 'completed' THEN NOW() ELSE completed_at END,
                                 updated_at = NOW(),
                                 metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
                             WHERE id = $1
                               AND status = 'in_progress'
                         """,
                             db_task_id,
-                            report_text,
+                            _finish_result,
                             json.dumps(
                                 {
-                                    "completion_reason": "worker_success",
+                                    "completion_reason": (
+                                        "worker_success"
+                                        if _finish_status == "completed"
+                                        else "child_schema"
+                                    ),
                                     "completed_by": expert_name,
                                     "last_progress_at": datetime.now(timezone.utc).isoformat(),
                                     "task_contract_version": contract_trace["version"],
@@ -2648,6 +2713,7 @@ async def process_task(task_data: dict):
                                 },
                                 ensure_ascii=False,
                             ),
+                            _finish_status,
                         )
                         try:
                             _updated_rows = int(str(_update_res).split()[-1])
