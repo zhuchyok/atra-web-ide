@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v158 (2026-11-07) — сканер: эхо ERROR не инцидент; probe считает хиты
+
+**Корень:** слово ERROR в мысли/JUDGE-GATE score открывало class=human `/run`.
+
+**Фикс:** IGNORE узко; fact-probe `scanner_class=` / `scanner_sent=` или «сканер не сняла».
+
+**Не трогали:** TTC 420, pool.
+
 ## § v157 (2026-11-07) — fact-probe снимает слоты; db_query только SQL
 
 **Корень:** «проверь систему» → postgres stub без `/api/ps`; `db_query:` + инструкция ломала SQL.

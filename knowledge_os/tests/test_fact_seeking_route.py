@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from src.agents.bridge.task_detector import (
     format_live_fact_answer,
     goal_wants_ollama_slots,
+    goal_wants_scanner,
     grounded_ports_answer,
     is_fact_seeking_question,
     public_task_title,
@@ -143,3 +144,13 @@ def test_slot_check_is_fact_seeking_and_needs_live_ps():
     )
     assert "11434=victoria-qwen38:latest@16384" in live
     assert "слоты не сняла" not in live
+
+
+def test_scanner_check_in_fact_answer():
+    goal = "проверь log-scanner class=human за 20м"
+    assert is_fact_seeking_question(goal)
+    assert goal_wants_scanner(goal)
+    assert "сканер не сняла" in format_live_fact_answer(goal, health="ok")
+    live = format_live_fact_answer(goal, health="ok", scanner="scanner_class=0 scanner_sent=0")
+    assert "scanner_class=0" in live
+    assert "сканер не сняла" not in live

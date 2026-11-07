@@ -165,6 +165,10 @@ IGNORE_PATTERNS = [
     re.compile(r"Node Mac Studio \(Ollama\) returned HTTP 500"),
     re.compile(r"JSONDecodeError"),
     re.compile(r"Найдите неочевидную связь между двумя фактами"),
+    re.compile(r"\[JUDGE-GATE\].*score="),
+    re.compile(r"контекст ERROR"),
+    re.compile(r"ERROR нужно разобрать"),
+    re.compile(r"\[VERONICA\] Ошибка: ReadTimeout"),
 ]
 
 try:

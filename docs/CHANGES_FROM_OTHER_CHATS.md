@@ -20,6 +20,12 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-07 v158) — сканер не петлит на ERROR-эхо; probe видит log-scanner ✅
+
+- IGNORE: JUDGE-GATE score=, «контекст ERROR» / «ERROR нужно разобрать», Veronica ReadTimeout.
+- fact_live_probe при «сканер/log-scanner» снимает class=/отправки за 20м или «сканер не сняла».
+- Не трогали: TTC 420, pool.
+
 ## § Последние изменения (2026-11-07 v157) — fact-probe слоты + SQL-only db_query ✅
 
 - «Проверь контур / 11434» больше не отвечает только pending/inflight: fact_live_probe снимает live `/api/ps` (или «слоты не сняла»).

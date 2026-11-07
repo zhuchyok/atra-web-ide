@@ -1289,6 +1289,7 @@ from src.agents.bridge.task_detector import (
     detect_task_type,
     format_live_fact_answer,
     goal_wants_ollama_slots,
+    goal_wants_scanner,
     is_fact_seeking_question,
     is_curator_standard_goal,
     is_consilium_winnable_goal,
@@ -9095,6 +9096,27 @@ async def _live_ollama_slots_line() -> str:
     return " ".join(parts)
 
 
+async def _live_scanner_line() -> str:
+    """Last 20m of log-scanner: class hits and /run sends. Fail visible."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "docker",
+            "logs",
+            "--since",
+            "20m",
+            "log-scanner",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=4)
+        text = (out or b"").decode("utf-8", "replace")
+        classes = text.count("class=")
+        sends = text.count("Отправлено в Victoria")
+        return f"scanner_class={classes} scanner_sent={sends}"
+    except Exception:
+        return "сканер не сняла"
+
+
 async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
     """Build a deterministic fact answer for /run without LLM."""
     # Tool directives (web/sql/git) must go through quick-tools, not fact-live probe.
@@ -9130,9 +9152,14 @@ async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
     slots = None
     if goal_wants_ollama_slots(goal or ""):
         slots = await _live_ollama_slots_line()
+    scanner = None
+    if goal_wants_scanner(goal or ""):
+        scanner = await _live_scanner_line()
     pool = await agent._get_db_pool()
     if not pool:
-        return format_live_fact_answer(goal, health="ok", ttc=sla, slots=slots)
+        return format_live_fact_answer(
+            goal, health="ok", ttc=sla, slots=slots, scanner=scanner
+        )
 
     queue: Optional[dict] = None
     nodes: Optional[int] = None
@@ -9240,7 +9267,14 @@ async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
         return None
 
     return format_live_fact_answer(
-        goal, health=health, queue=queue, nodes=nodes, ops=ops, ttc=sla, slots=slots
+        goal,
+        health=health,
+        queue=queue,
+        nodes=nodes,
+        ops=ops,
+        ttc=sla,
+        slots=slots,
+        scanner=scanner,
     )
 
 

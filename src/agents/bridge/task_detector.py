@@ -183,6 +183,9 @@ FACT_SEEKING_MARKERS = (
     "11437",
     "/api/ps",
     "слот",
+    "сканер",
+    "log-scanner",
+    "log_scanner",
     "по фактам",
     "живьём",
     "живьем",
@@ -224,6 +227,11 @@ CANONICAL_ATRA_PORTS = (
     ("dashboard", "8501"),
     ("дашборд", "8501"),
 )
+
+
+def goal_wants_scanner(goal: str) -> bool:
+    g = (goal or "").lower()
+    return any(x in g for x in ("сканер", "log-scanner", "log_scanner", "class=human"))
 
 
 def goal_wants_ollama_slots(goal: str) -> bool:
@@ -282,6 +290,7 @@ def format_live_fact_answer(
     ops: Optional[dict] = None,
     ttc: Optional[dict] = None,
     slots: Optional[str] = None,
+    scanner: Optional[str] = None,
 ) -> Optional[str]:
     """Короткий ответ из живых probe, без LLM."""
     if not is_fact_seeking_question(goal):
@@ -293,6 +302,8 @@ def format_live_fact_answer(
         bits.append(ports)
     if goal_wants_ollama_slots(goal):
         bits.append(slots if slots else "слоты не сняла")
+    if goal_wants_scanner(goal):
+        bits.append(scanner if scanner else "сканер не сняла")
     if ("health" in g or "жив" in g) and health:
         bits.append(health)
     if queue is not None and any(x in g for x in ("очеред", "pending", "in_progress")):

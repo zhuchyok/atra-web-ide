@@ -303,7 +303,26 @@ def test_idle_in_transaction_and_smart_agent_none_ignored():
         "ФАКТ А (Management): test"
     )
     json_err = 'json.decoder.JSONDecodeError: Expecting value: line 1 column 2 (char 1)'
-    for line in (idle, smart, name_col, ollama500, dna, json_err):
+    judge = (
+        "ERROR:ExpertWorker:⚠️ [JUDGE-GATE] Task f45b1b3d: завершение со score=3"
+    )
+    echo_err = (
+        '"reason": "Чтобы понять контекст ERROR и уровень знаний ExpertWorker"'
+    )
+    ask_err = '"Какой именно ERROR нужно разобрать: команду, вывод и статус PASS/FAIL?"'
+    veronica_rt = "ERROR ❌ [VERONICA] Ошибка: ReadTimeout('')"
+    for line in (
+        idle,
+        smart,
+        name_col,
+        ollama500,
+        dna,
+        json_err,
+        judge,
+        echo_err,
+        ask_err,
+        veronica_rt,
+    ):
         assert scanner.extract_error(line) is None, line
 
 
