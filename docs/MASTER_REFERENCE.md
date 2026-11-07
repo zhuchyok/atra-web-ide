@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v165 (2026-11-07) — KPI distill tail; phase7 снимки; образ proxy
+
+**Корень:** gate считал idle `eligible_now≈29k` аварией хвоста дистилляции, хотя кампании не было.
+
+**Фикс:** tail SLO только при `campaign_done|in_progress|retry>0` (или `RUNTIME_KPI_FORCE_DISTILL_TAIL`). Снимки `docs/audits/2026-11-06-phase7-*` и `2026-11-07-phase7-*`. Образ `knowledge_os-docker-proxy` собран с `log_frames.py` (не docker cp).
+
+**Не трогали:** TTC 420, pool. Nested `.selfdev-worktree` в git не входит.
+
 ## § v164 (2026-11-07) — журнал хода, флаги выключены
 
 **Корень:** память сессии — краткий пересказ, одобрение критической цели глотало чужой вызов `check_approval`, ребёнок эксперта не имел потолка прав.

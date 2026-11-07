@@ -20,6 +20,18 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-07 v165) — KPI distill tail только при живой кампании ✅
+
+- Idle `eligible_now≈29k` без campaign больше не `distillation_tail_violation`.
+- Снимки phase7/expert-recheck 6–7 Nov в `docs/audits/`. Образ `docker-proxy` пересобран (`log_frames.py` в image).
+- Не трогали: TTC 420, pool. `.selfdev-worktree` не коммитили.
+
+## § Последние изменения (2026-11-07 v164) — журнал хода, флаги выключены ✅
+
+- Пакет `knowledge_os/app/turn_harness/`: JSONL, fail-closed approval, deliverable, потолок ребёнка, credential-ref.
+- Флаги default off: `TURN_LOG`, `APPROVAL_FAIL_CLOSED`, `TURN_DELIVERABLE`, `CHILD_CEILING=off`, `CREDENTIAL_REF`.
+- Не трогали: TTC 420, pool, порты, `session_context`.
+
 ## § Последние изменения (2026-11-07 v163) — docker-proxy logs multiplex ✅
 
 - Корень `unrecognized stream: 50`: proxy отдавал plain text (`2026-…`, байт `'2'`), docker CLI/SDK ждал кадр Engine API.
