@@ -5,6 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from src.agents.bridge.task_detector import (
     format_live_fact_answer,
+    goal_wants_ollama_slots,
     grounded_ports_answer,
     is_fact_seeking_question,
     public_task_title,
@@ -129,3 +130,16 @@ def test_ttc_metrics_append_by_reason_when_present():
     assert "by_reason=" in ans
     assert "timeout_watchdog:p95=480.0/n=2" in ans
     assert "quick:p95=12.0/n=3" in ans
+
+
+def test_slot_check_is_fact_seeking_and_needs_live_ps():
+    goal = "Факт-проверка: GET :11434/api/ps :11436/api/ps :11437/api/ps"
+    assert is_fact_seeking_question(goal)
+    assert goal_wants_ollama_slots(goal)
+    missing = format_live_fact_answer(goal, health="ok")
+    assert "слоты не сняла" in missing
+    live = format_live_fact_answer(
+        goal, health="ok", slots="11434=victoria-qwen38:latest@16384"
+    )
+    assert "11434=victoria-qwen38:latest@16384" in live
+    assert "слоты не сняла" not in live

@@ -1288,6 +1288,7 @@ from src.agents.bridge.project_registry import get_main_project, get_projects_re
 from src.agents.bridge.task_detector import (
     detect_task_type,
     format_live_fact_answer,
+    goal_wants_ollama_slots,
     is_fact_seeking_question,
     is_curator_standard_goal,
     is_consilium_winnable_goal,
@@ -4615,16 +4616,7 @@ async def _run_quick_tools_for_goal(goal: str) -> list:
             continue
         arg: Any = goal
         if tool_name == "db_query":
-            m = re.search(r"(SELECT|WITH|EXPLAIN)[^;]{0,600}", goal, re.IGNORECASE)
-            # Срезаем синтаксический хвост («FROM tasks.» → «FROM tasks»)
-            arg = m.group(0).rstrip(" .;,«»()").rstrip(" .;") if m else ""
-            tail_stoppers = (" и покажи", " и выведи", " и дай", " затем ", " потом ")
-            arg_lower = arg.lower()
-            for stopper in tail_stoppers:
-                idx = arg_lower.find(stopper)
-                if idx > 0:
-                    arg = arg[:idx].rstrip(" .;,")
-                    break
+            arg = DataTools.extract_readonly_sql(goal)
         elif tool_name == "git_log":
             m = re.search(r"(\d+)\s*(?:коммит|commit)", g_lower)
             arg = int(m.group(1)) if m else 5
@@ -9056,6 +9048,53 @@ async def _try_fact_fast_track(goal: str) -> Optional[str]:
         return None
 
 
+def _slot_base_url(env_keys: tuple[str, ...], default: str) -> str:
+    for key in env_keys:
+        raw = (os.getenv(key) or "").strip()
+        if not raw:
+            continue
+        url = raw.rstrip("/")
+        for suffix in ("/api/embeddings", "/api/generate", "/api/chat", "/api/ps"):
+            if url.endswith(suffix):
+                url = url[: -len(suffix)]
+        return url
+    return default.rstrip("/")
+
+
+async def _live_ollama_slots_line() -> str:
+    """Live /api/ps for brain/coder/hands. Fail visible, not silent."""
+    specs = (
+        ("11434", ("OLLAMA_BASE_URL",), "http://127.0.0.1:11434"),
+        ("11436", ("OLLAMA_CODER_URL", "OLLAMA_EXECUTOR_BASE_URL"), "http://127.0.0.1:11436"),
+        ("11437", ("OLLAMA_HANDS_URL", "OLLAMA_EMBED_URL"), "http://127.0.0.1:11437"),
+    )
+    parts: list[str] = []
+    timeout = httpx.Timeout(2.0, connect=1.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        for label, env_keys, default in specs:
+            base = _slot_base_url(env_keys, default)
+            if label == "11436" and "11434" in base and "11436" not in base:
+                base = default
+            try:
+                resp = await client.get(f"{base}/api/ps")
+                if resp.status_code != 200:
+                    parts.append(f"{label}=не сняла HTTP {resp.status_code}")
+                    continue
+                models = resp.json().get("models") or []
+                names = []
+                for row in models:
+                    if not isinstance(row, dict):
+                        continue
+                    name = str(row.get("name") or "").strip()
+                    ctx = row.get("context_length")
+                    if name:
+                        names.append(f"{name}@{ctx}" if ctx is not None else name)
+                parts.append(f"{label}=" + (",".join(names) if names else "empty"))
+            except Exception as exc:
+                parts.append(f"{label}=не сняла {type(exc).__name__}")
+    return " ".join(parts)
+
+
 async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
     """Build a deterministic fact answer for /run without LLM."""
     # Tool directives (web/sql/git) must go through quick-tools, not fact-live probe.
@@ -9088,9 +9127,12 @@ async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
         return None
 
     sla = await _async_sla_snapshot()
+    slots = None
+    if goal_wants_ollama_slots(goal or ""):
+        slots = await _live_ollama_slots_line()
     pool = await agent._get_db_pool()
     if not pool:
-        return format_live_fact_answer(goal, health="ok", ttc=sla)
+        return format_live_fact_answer(goal, health="ok", ttc=sla, slots=slots)
 
     queue: Optional[dict] = None
     nodes: Optional[int] = None
@@ -9197,7 +9239,9 @@ async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
         logger.warning("[VICTORIA_FACT] failed to build live fact answer: %s", e)
         return None
 
-    return format_live_fact_answer(goal, health=health, queue=queue, nodes=nodes, ops=ops, ttc=sla)
+    return format_live_fact_answer(
+        goal, health=health, queue=queue, nodes=nodes, ops=ops, ttc=sla, slots=slots
+    )
 
 
 @app.post("/run")

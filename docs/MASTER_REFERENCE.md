@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v157 (2026-11-07) — fact-probe снимает слоты; db_query только SQL
+
+**Корень:** «проверь систему» → postgres stub без `/api/ps`; `db_query:` + инструкция ломала SQL.
+
+**Фикс:** live `/api/ps` 11434/36/37 в fact_live_probe; extract SQL до `;`/кириллицы.
+
+**Не трогали:** TTC 420, pool.
+
 ## § v156 (2026-11-07) — inflight GC, RECURSION-STOP не инцидент
 
 **Корень:** `_run_task_background` писал Redis `running`/`processing` и возвращался до `finally` (expert_assignments) — `victoria:async_inflight` оставался. RECURSION-STOP — успешный стоп рекурсии, сканер слал class=human.

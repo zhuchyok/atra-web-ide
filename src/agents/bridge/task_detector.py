@@ -178,6 +178,11 @@ FACT_SEEKING_MARKERS = (
     "8011",
     "3005",
     "8501",
+    "11434",
+    "11436",
+    "11437",
+    "/api/ps",
+    "слот",
     "по фактам",
     "живьём",
     "живьем",
@@ -219,6 +224,15 @@ CANONICAL_ATRA_PORTS = (
     ("dashboard", "8501"),
     ("дашборд", "8501"),
 )
+
+
+def goal_wants_ollama_slots(goal: str) -> bool:
+    """Live /api/ps, not the 8010/8011/3005 registry."""
+    g = (goal or "").lower()
+    return any(
+        x in g
+        for x in ("11434", "11436", "11437", "/api/ps", "слот", "ollama")
+    )
 
 
 def grounded_ports_answer(goal: str) -> Optional[str]:
@@ -267,6 +281,7 @@ def format_live_fact_answer(
     nodes: Optional[int] = None,
     ops: Optional[dict] = None,
     ttc: Optional[dict] = None,
+    slots: Optional[str] = None,
 ) -> Optional[str]:
     """Короткий ответ из живых probe, без LLM."""
     if not is_fact_seeking_question(goal):
@@ -276,6 +291,8 @@ def format_live_fact_answer(
     ports = grounded_ports_answer(goal)
     if ports:
         bits.append(ports)
+    if goal_wants_ollama_slots(goal):
+        bits.append(slots if slots else "слоты не сняла")
     if ("health" in g or "жив" in g) and health:
         bits.append(health)
     if queue is not None and any(x in g for x in ("очеред", "pending", "in_progress")):

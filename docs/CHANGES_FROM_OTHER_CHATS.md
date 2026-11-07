@@ -20,12 +20,18 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-07 v157) — fact-probe слоты + SQL-only db_query ✅
+
+- «Проверь контур / 11434» больше не отвечает только pending/inflight: fact_live_probe снимает live `/api/ps` (или «слоты не сняла»).
+- `db_query` берёт SELECT/WITH/EXPLAIN до `;` или кириллицы — хвост «Верни результат» не уезжает в SQL.
+- Не трогали: TTC 420, 11434, pool.
+
 ## § Последние изменения (2026-11-07 v156) — leftover inflight + RECURSION-STOP ✅
 
 - Корень leftover: `expert_assignments` `_sync_store()` пока status ещё processing, `return` до `try/finally` → Redis hash `victoria:async_inflight` не HDEL.
 - Фикс: terminal status+output, затем один `_sync_store`; `finally` всегда `_clear_async_inflight` на completed/failed/cancelled/success; snapshot HDEL если metadata.status terminal.
 - RECURSION-STOP: guard success → logger.warning + scanner IGNORE (не class=human).
-- Сканер IGNORE: idle-in-transaction, SMART_AGENT response=None, `column "name"`, llama-server 500 (runbook, не patch).
+- Сканер IGNORE: idle-in-transaction, SMART_AGENT response=None, `column "name"`, llama-server 500, JSONDecodeError, DNA-промпт «Найдите неочевидную связь» (лог не инцидент).
 - 11437 `phi3.5:3.8b@8192` + nomic@2048 — XOR by design, pin не трогали.
 - Orphan resume max age 900→420 (TTC): leftover DNA не переигрывается. Lifespan не DELETE весь inflight hash (гонка workers=2).
 - Не трогали: TTC 420, 11434, pool.

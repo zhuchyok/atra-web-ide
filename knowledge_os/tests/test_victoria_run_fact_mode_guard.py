@@ -13,6 +13,9 @@ def test_run_has_deterministic_fact_mode_probe():
     assert 'strategy": "fact_live_probe"' in text
     assert 'source": "postgres_live"' in text
     assert 'fact_mode": True' in text
+    assert "_live_ollama_slots_line" in text
+    assert "/api/ps" in text
+    assert "goal_wants_ollama_slots" in text
 
 
 def test_chat_fast_path_excludes_fact_questions():

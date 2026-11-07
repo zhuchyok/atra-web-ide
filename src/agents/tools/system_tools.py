@@ -532,6 +532,23 @@ class DataTools:
         r"\b(insert|update|delete|drop|alter|truncate|vacuum|reindex|copy|create)\b",
         re.IGNORECASE,
     )
+    _SQL_START = re.compile(r"(?is)\b(SELECT|WITH|EXPLAIN)\b")
+    _CYRILLIC = re.compile(r"[А-Яа-яЁё]")
+
+    @staticmethod
+    def extract_readonly_sql(blob: str) -> str:
+        """Take SELECT/WITH/EXPLAIN only; drop prompt tail after SQL."""
+        text = (blob or "").strip()
+        if not text:
+            return ""
+        m = DataTools._SQL_START.search(text)
+        sql = text[m.start() :] if m else text
+        if ";" in sql:
+            sql = sql.split(";", 1)[0]
+        cyr = DataTools._CYRILLIC.search(sql)
+        if cyr is not None and cyr.start() > 8:
+            sql = sql[: cyr.start()]
+        return sql.rstrip(" \t\r\n.;,«»()")
 
     @staticmethod
     def _strip_sql_leading_comments(sql: str) -> str:
@@ -566,7 +583,7 @@ class DataTools:
         """Read-only SQL к knowledge_os (DATABASE_URL). Только SELECT/WITH/EXPLAIN."""
         import asyncpg
 
-        q = (sql or query or "").strip()
+        q = DataTools.extract_readonly_sql(sql or query)
         if not q:
             return "Ошибка: пустой SQL"
         err = DataTools._validate_readonly_sql(q)
