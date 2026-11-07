@@ -308,6 +308,28 @@ class SustainedTailSLOResult:
     reason: str
 
 
+def _distillation_tail_scope_active(samples: List[dict]) -> bool:
+    """Tail SLO is actionable only when cursor distillation campaign is active."""
+    force_tail = os.getenv("RUNTIME_KPI_FORCE_DISTILL_TAIL", "false").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    if force_tail:
+        return True
+    for row in samples:
+        try:
+            if int(row.get("campaign_done", 0)) > 0:
+                return True
+            if int(row.get("campaign_in_progress", 0)) > 0:
+                return True
+            if int(row.get("campaign_retry", 0)) > 0:
+                return True
+        except Exception:
+            continue
+    return False
+
+
 def evaluate_window(
     window_name: str,
     window_minutes: int,
@@ -373,23 +395,28 @@ def evaluate_window(
     )
     eligible_series = [int(x.get("eligible_now", -1)) for x in bucket]
     max_eligible_now = max(eligible_series) if eligible_series else -1
-    current_streak = 0
-    tail_breach_streak_max = 0
-    for val in eligible_series:
-        if val > distill_high_watermark:
-            current_streak += 1
-            tail_breach_streak_max = max(tail_breach_streak_max, current_streak)
-        else:
-            current_streak = 0
-    distill_tail_ok = tail_breach_streak_max < max(1, distill_consecutive_breach)
+    tail_scope_active = _distillation_tail_scope_active(bucket)
+    if tail_scope_active:
+        current_streak = 0
+        tail_breach_streak_max = 0
+        for val in eligible_series:
+            if val > distill_high_watermark:
+                current_streak += 1
+                tail_breach_streak_max = max(tail_breach_streak_max, current_streak)
+            else:
+                current_streak = 0
+        distill_tail_ok = tail_breach_streak_max < max(1, distill_consecutive_breach)
 
-    non_improving = 0
-    for i in range(1, len(eligible_series)):
-        prev, cur = eligible_series[i - 1], eligible_series[i]
-        if prev > distill_target and cur >= prev:
-            non_improving += 1
-    if non_improving >= max(2, distill_consecutive_breach):
-        distill_tail_ok = False
+        non_improving = 0
+        for i in range(1, len(eligible_series)):
+            prev, cur = eligible_series[i - 1], eligible_series[i]
+            if prev > distill_target and cur >= prev:
+                non_improving += 1
+        if non_improving >= max(2, distill_consecutive_breach):
+            distill_tail_ok = False
+    else:
+        tail_breach_streak_max = 0
+        distill_tail_ok = True
 
     min_completed_required = max(1, int(round((window_minutes / 60.0) * max(1, min_completed_per_hour))))
     throughput_eligible = completed_delta >= min_completed_required
@@ -481,6 +508,18 @@ def evaluate_sustained_tail_slo(
 ) -> SustainedTailSLOResult:
     eligible_series = [int(x.get("eligible_now", -1)) for x in samples if isinstance(x.get("eligible_now"), int)]
     sample_count = len(eligible_series)
+    if not _distillation_tail_scope_active(samples):
+        return SustainedTailSLOResult(
+            ok=True,
+            sample_count=sample_count,
+            min_samples_required=max(1, min_samples_required),
+            max_consecutive_high_watermark_breach=0,
+            max_allowed_consecutive_breach=max(1, max_consecutive_breach),
+            above_target_ratio=0.0,
+            max_allowed_above_target_ratio=max(0.0, min(1.0, max_above_target_ratio)),
+            latest_eligible_now=eligible_series[-1] if eligible_series else -1,
+            reason="inactive_campaign_n_a",
+        )
     if sample_count < max(1, min_samples_required):
         return SustainedTailSLOResult(
             ok=False,
