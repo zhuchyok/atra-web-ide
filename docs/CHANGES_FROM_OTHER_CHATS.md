@@ -20,6 +20,12 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-07 v163) — docker-proxy logs multiplex ✅
+
+- Корень `unrecognized stream: 50`: proxy отдавал plain text (`2026-…`, байт `'2'`), docker CLI/SDK ждал кадр Engine API.
+- `/containers/{id}/logs` теперь stdout-frame (header 8 байт + payload). Victoria `docker logs` через `tcp://docker-proxy:2376` читает логи.
+- Не трогали: TTC 420, pool, лишний docker.sock у victoria-agent.
+
 ## § Последние изменения (2026-11-07 v162) — chat: guardrails + владелец backend без LLM ✅
 
 - Детерминированный ответ из `COGNITIVE_CODE.md` + `team.md`, если в цели и guardrails, и backend owner.

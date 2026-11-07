@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v163 (2026-11-07) — docker-proxy logs как Engine multiplex
+
+**Корень:** `/logs` text/plain → docker-py `unrecognized stream: 50`.
+
+**Фикс:** кадр stdout (`struct >BxxxI`) + octet-stream.
+
+**Не трогали:** TTC 420, pool, docker.sock у Victoria.
+
 ## § v162 (2026-11-07) — chat guardrails+backend из доков
 
 **Корень:** вопрос «5 guardrails и кто backend» уходил в LLM.

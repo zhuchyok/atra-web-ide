@@ -25,6 +25,8 @@ from typing import Any, Dict, List, Optional, Set
 
 import docker
 from fastapi import FastAPI, HTTPException, Request, Response
+
+from log_frames import multiplex_docker_logs
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -193,8 +195,19 @@ async def proxy_get(path: str, request: Request):
             result = api.inspect_container(cid)
         elif full_path.startswith("/containers/") and "/logs" in full_path:
             cid = container_id
-            logs = api.logs(cid, stdout=True, stderr=True, tail=100)
-            return Response(content=logs, media_type="text/plain")
+            tail_raw = request.query_params.get("tail", "100")
+            try:
+                tail = int(tail_raw) if str(tail_raw).isdigit() else 100
+            except Exception:
+                tail = 100
+            stdout = request.query_params.get("stdout", "1") not in ("0", "false")
+            stderr = request.query_params.get("stderr", "1") not in ("0", "false")
+            logs = api.logs(cid, stdout=stdout, stderr=stderr, tail=tail)
+            payload = logs if isinstance(logs, bytes) else str(logs).encode("utf-8", errors="replace")
+            return Response(
+                content=multiplex_docker_logs(payload),
+                media_type="application/octet-stream",
+            )
         elif full_path.startswith("/containers/") and "/stats" in full_path:
             cid = container_id
             stats = api.stats(cid, stream=False)

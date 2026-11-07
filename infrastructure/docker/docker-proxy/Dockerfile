@@ -6,7 +6,7 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir fastapi uvicorn docker pydantic
 
-COPY main.py .
+COPY main.py log_frames.py .
 
 EXPOSE 2376
 
