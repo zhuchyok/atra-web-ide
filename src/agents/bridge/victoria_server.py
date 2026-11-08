@@ -1203,6 +1203,12 @@ def _record_async_ttc(store: dict, status_final: str) -> Optional[float]:
     """Record accept→terminal latency for async /run tasks. Returns duration seconds."""
     if status_final not in ("completed", "failed", "cancelled"):
         return None
+    replay = store.get("replay") if isinstance(store.get("replay"), dict) else {}
+    if _is_dna_eval_run(
+        source=str(replay.get("source") or store.get("source") or ""),
+        goal=str(replay.get("goal") or store.get("goal") or ""),
+    ):
+        return None
     if store.get("_sla_ttc_recorded"):
         existing = _coerce_float(store.get("duration_seconds"))
         return round(existing, 3) if existing is not None else None
@@ -2408,12 +2414,6 @@ async def lifespan(app: FastAPI):
         logger.warning(f"⚠️ [GIT] Init failed: {e}")
 
     logger.info("[VICTORIA] Lifespan startup завершён, Uvicorn переходит в режим приёма запросов")
-    if redis_manager:
-        try:
-            client = await redis_manager.get_client()
-            await client.delete(_ASYNC_TTC_REDIS_KEY)
-        except Exception:
-            pass
     yield
 
     # Shutdown

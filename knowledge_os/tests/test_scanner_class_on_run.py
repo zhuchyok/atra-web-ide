@@ -133,7 +133,7 @@ def test_orphan_resume_default_matches_ttc_not_hard_timeout():
     sla = text.split("async def _async_sla_snapshot", 1)[1].split("DEFAULT_MAX_STEPS", 1)[0]
     assert 'VICTORIA_ASYNC_INFLIGHT_STALE_SEC", "420"' in sla
     lifespan = text.split("async def lifespan", 1)[1].split("app = FastAPI", 1)[0]
-    assert "delete(_ASYNC_TTC_REDIS_KEY)" in lifespan
+    assert "delete(_ASYNC_TTC_REDIS_KEY)" not in lifespan
     assert "delete(_ASYNC_INFLIGHT_REDIS_KEY)" not in lifespan
 
 

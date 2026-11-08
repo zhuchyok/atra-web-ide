@@ -23,7 +23,8 @@
 ## § Последние изменения (2026-11-08 v175) — DNA eval не в TTC p95; алерт 420 не 180 ✅
 
 - Корень p95=458: два DNA `объясни: стратегия приоритизации…` (865.874s `8680acc8`, 479.730s `73f605a7`) подняли в слот p95 вчерашний самоаудит 458.705s `a3677519`. Без них p95=347.17.
-- `_is_dna_eval_run` уже выкидывал DNA из inflight, но `_record_async_ttc` писал в Redis. Skip DNA в TTC. Метрики не удаляли.
+- `_is_dna_eval_run` уже выкидывал DNA из inflight, но `_record_async_ttc` писал в Redis. Skip DNA в TTC.
+- Lifespan больше не `DELETE victoria:async_ttc_samples` (рестарт обнулял p95). Метрики не чистили.
 - Алерт: «3 минут» → `_fmt_sec(typical_threshold)` (420). TTC не поднимали.
 - Не трогали: pool, freeze дебатов, docker.sock, distill skip.
 

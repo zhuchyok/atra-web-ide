@@ -229,7 +229,7 @@
 
 **Корень:** `_is_dna_eval_run` чистил inflight, но `_record_async_ttc` писал DNA в `victoria:async_ttc_samples`. Live n=49, p95=458.705 = 3-й по величине (nearest-rank idx=46). Два DNA сегодня: `8680acc8` 865.874s и `73f605a7` 479.730s; без них p95=347.17 (как раньше за день). Алерт-текст ещё говорил «3 минут» при пороге 420.
 
-**Фикс:** skip DNA в `_record_async_ttc`. Текст Telegram = `_fmt_sec(typical_threshold)`. Redis не чистили. TTC 420 не поднимали.
+**Фикс:** skip DNA в `_record_async_ttc`. Lifespan больше не DELETE `victoria:async_ttc_samples`. Текст Telegram = `_fmt_sec(typical_threshold)`. TTC 420 не поднимали.
 
 **Не трогали:** pool, freeze дебатов, docker.sock, distill skip.
 
