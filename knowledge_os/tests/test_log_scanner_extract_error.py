@@ -233,6 +233,9 @@ def test_ignore_any_missing_pg_column_and_dna_inj_rollback():
         "ERROR:  aggregate functions are not allowed in GROUP BY at character 29",
         "2026-11-08 18:39:55.248 MSK [1543] STATEMENT:  SELECT COUNT(*) FROM interaction_logs WHERE query LIKE '%OOM guards%';",
         "[hybrid] Sim 0.48 (Rerank 0.00): Урок cursor_method. Задача: Validate and stabilize MLX brain daemon OOM guards",
+        "ERROR - Ошибка выполнения SQL: syntax error at or near \";\"",
+        "ERROR - Ошибка выполнения SQL: unterminated quoted string at or near \"'%syntax error at\"",
+        "2026-11-08 21:07:02.731 MSK [36912] ERROR:  unterminated quoted string at or near \"'%syntax error at\"",
     ):
         assert scanner.extract_error(line) is None, line
 

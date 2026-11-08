@@ -111,6 +111,10 @@ IGNORE_PATTERNS = [
     re.compile(r"password authentication failed for user"),
     re.compile(r"FATAL:  password authentication failed"),
     re.compile(r"task_identity_map.*violates foreign key constraint"),
+    # Corp SQL diagnostics can emit parser errors while probing logs; not runtime outage.
+    re.compile(r"Ошибка выполнения SQL: syntax error at or near"),
+    re.compile(r"Ошибка выполнения SQL: unterminated quoted string"),
+    re.compile(r"unterminated quoted string at or near"),
     re.compile(r"Sandbox bind path .* is container-local"),
     re.compile(r"SandboxManager: Docker not available"),
     # Header alone is not an incident; the exception line is. CancelledError

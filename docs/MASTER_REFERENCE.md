@@ -257,6 +257,14 @@
 
 **Не трогали:** TTC 420, pool, freeze, слоты.
 
+## § v181 (2026-11-08) — scanner не пейджит SQL-parser шум из корп-диагностик
+
+**Корень:** после v180 сканер подхватывал `Ошибка выполнения SQL: syntax error...` и `unterminated quoted string...` из диагностического SQL Victoria/corp tool, открывал новые `/run`.
+
+**Фикс:** добавлен узкий IGNORE для этих SQL-parser сообщений + тесты на extract/hash.
+
+**Не трогали:** TTC 420, pool, freeze, слоты.
+
 ## § v176 (2026-11-08) — старый ELK/Grafana не в unless-stopped
 
 **Корень:** `docker-compose.monitoring.yml` держал atra-elasticsearch/kibana/grafana/prometheus Up 11d (`unless-stopped`). ES 0 документов, ~2.5GiB. Живой путь: knowledge_rest:8002 → atra-web-ide-prometheus:9091 → `com.atra.tg-deferred-alerts`. 3002/9091 не дубли.

@@ -37,6 +37,8 @@ def test_log_scanner_ignores_watchdog_postgres_type_noise():
     assert r"Too many conn" in text
     assert r'unrecognized configuration parameter "default_pool_size"' in text
     assert r"task_identity_map.*violates foreign key constraint" in text
+    assert r"Ошибка выполнения SQL: syntax error at or near" in text
+    assert r"unterminated quoted string at or near" in text
     assert r"Sandbox bind path .* is container-local" in text
     assert r"SandboxManager: Docker not available" in text
     assert r"Ошибка парсинга промпта" in text
