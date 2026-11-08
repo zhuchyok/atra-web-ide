@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v176 (2026-11-08) — старый ELK/Grafana не в unless-stopped
+
+**Корень:** `docker-compose.monitoring.yml` держал atra-elasticsearch/kibana/grafana/prometheus Up 11d (`unless-stopped`). ES 0 документов, ~2.5GiB. Живой путь: knowledge_rest:8002 → atra-web-ide-prometheus:9091 → `com.atra.tg-deferred-alerts`. 3002/9091 не дубли.
+
+**Фикс:** profile `legacy-monitoring`, `restart: no`, stop, volumes на месте. Rollback: `docker compose --profile legacy-monitoring -f knowledge_os/docker-compose.yml up -d`.
+
+**Не трогали:** TTC 420, pool, freeze дебатов, 9091/3002.
+
 ## § v175 (2026-11-08) — DNA eval не в TTC p95; алерт copy = 420
 
 **Корень:** `_is_dna_eval_run` чистил inflight, но `_record_async_ttc` писал DNA в `victoria:async_ttc_samples`. Live n=49, p95=458.705 = 3-й по величине (nearest-rank idx=46). Два DNA сегодня: `8680acc8` 865.874s и `73f605a7` 479.730s; без них p95=347.17 (как раньше за день). Алерт-текст ещё говорил «3 минут» при пороге 420.

@@ -1,5 +1,7 @@
-# Monitoring Stack for Singularity 31.2
-# Usage: docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+# Legacy monitoring (duplicate of atra-web-ide-prometheus:9091 / grafana:3002).
+# Default compose up does not start these (profile legacy-monitoring).
+# Rollback: docker compose --profile legacy-monitoring -f docker-compose.yml up -d
+# Volumes kept. Live alerts: knowledge_rest:8002 → 9091 → com.atra.tg-deferred-alerts.
 
 services:
   prometheus:
@@ -20,7 +22,8 @@ services:
       - "--storage.tsdb.retention.time=30d"
     networks:
       - atra-network
-    restart: unless-stopped
+    profiles: ["legacy-monitoring"]
+    restart: "no"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
       interval: 30s
@@ -46,7 +49,8 @@ services:
       - atra-network
     depends_on:
       - prometheus
-    restart: unless-stopped
+    profiles: ["legacy-monitoring"]
+    restart: "no"
     # v131: ensure Healthcheck is applied (older creates had Healthcheck=null → docker ps without healthy)
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || exit 1"]
@@ -58,7 +62,8 @@ services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
     container_name: atra-elasticsearch
-    restart: unless-stopped
+    profiles: ["legacy-monitoring"]
+    restart: "no"
     mem_limit: 2g
     environment:
       - TZ=Europe/Moscow
@@ -93,7 +98,8 @@ services:
     depends_on:
       elasticsearch:
         condition: service_healthy
-    restart: unless-stopped
+    profiles: ["legacy-monitoring"]
+    restart: "no"
 
 networks:
   atra-network:

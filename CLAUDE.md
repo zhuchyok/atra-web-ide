@@ -50,7 +50,7 @@ Live routing is Architecture above (qwen38 @11434, hands @11437, coder @11436). 
 - Grafana alerts → Telegram (AtlE bot `vikoria_atra_bot`, chat 556251171)
 - Alert `deferred-to-human-high`: `knowledge_os_tasks_deferred_new_24h_total > 10` (pipeline A→reduce→math)
 - Prometheus scrapes knowledge_rest:8002 (deferred metrics)
-- Old monitoring stack (atra-grafana, atra-prometheus, atra-kibana, atra-elasticsearch) остановлен (restart=no, volumes сохранены)
+- Old monitoring stack (atra-grafana, atra-prometheus, atra-kibana, atra-elasticsearch) остановлен (compose profile `legacy-monitoring`, restart=no, volumes сохранены). Live: 9091 / 3002.
 - Исторический бэклог 65 deferred задач помечен `deferred_review_done=true` (13.09.2026)
 
 ## Super-Agent Roadmap (сент 2026) — ЗАВЕРШЕН

@@ -20,6 +20,13 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-08 v176) — старый ELK/Grafana остановлен, volumes на месте ✅
+
+- Корень: four `unless-stopped` дублировали 9091/3002; ES 0 docs ~2GiB.
+- Profile `legacy-monitoring` + `restart: no` + `docker stop`. Живой путь 8002→9091→tg-deferred не трогали.
+- Rollback: `docker compose --profile legacy-monitoring -f knowledge_os/docker-compose.yml up -d`.
+- Не трогали: TTC 420, pool, freeze дебатов.
+
 ## § Последние изменения (2026-11-08 v175) — DNA eval не в TTC p95; алерт 420 не 180 ✅
 
 - Корень p95=458: два DNA `объясни: стратегия приоритизации…` (865.874s `8680acc8`, 479.730s `73f605a7`) подняли в слот p95 вчерашний самоаудит 458.705s `a3677519`. Без них p95=347.17.
