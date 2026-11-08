@@ -77,6 +77,7 @@ IGNORE_PATTERNS = [
     re.compile(r"log-scanner"),  # Ignore own container
     re.compile(r"CancelledError"),  # Benign asyncio timeout cancellation
     re.compile(r"_GatheringFuture exception was never retrieved"),
+    re.compile(r"Future exception was never retrieved"),
     re.compile(r"sync safe mode failed"),
     re.compile(r"background hard-timeout"),
     # Warmup saturation is transient startup pressure, not a remediation incident.
@@ -169,6 +170,8 @@ IGNORE_PATTERNS = [
     re.compile(r"\[DNA-INJ\].*откат"),
     # Evolution sanity reject is the gate working, not an incident to /run.
     re.compile(r"\[EEVOL\] sanity gate rejected"),
+    # Wrapper logs empty Exception/TimeoutError(); cycle still returns True.
+    re.compile(r"\[EVOLUTION\] Ошибка эволюции экспертов:\s*$"),
     re.compile(r"llama-server process no longer running"),
     re.compile(r"Node Mac Studio \(Ollama\) returned HTTP 500"),
     re.compile(r"JSONDecodeError"),

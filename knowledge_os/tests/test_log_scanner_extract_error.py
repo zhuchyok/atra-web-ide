@@ -16,6 +16,7 @@ def test_ignore_cancelled_traceback_header():
     assert scanner.extract_error("Traceback (most recent call last):") is None
     assert scanner.extract_error("asyncio.exceptions.CancelledError") is None
     assert scanner.extract_error("event = await self._receive_event(timeout=timeout)") is None
+    assert scanner.extract_error("ERROR Future exception was never retrieved") is None
 
 
 def test_ignore_sandbox_qa_noise():
@@ -210,6 +211,7 @@ def test_ignore_any_missing_pg_column_and_dna_inj_rollback():
         "ERROR 🚨 [DNA-INJ] Виктория: eval-ошибки — откат",
         "ERROR 🚨 [EEVOL] sanity gate rejected (metrics evolution): Новый Промпт:",
         "WARNING ⏸️ [EEVOL] sanity gate rejected (metrics evolution): Новый Промпт:",
+        "2026-11-08 18:57:14,511 ERROR ⚠️ [EVOLUTION] Ошибка эволюции экспертов:",
         "ERROR:  aggregate functions are not allowed in GROUP BY at character 29",
         "2026-11-08 18:39:55.248 MSK [1543] STATEMENT:  SELECT COUNT(*) FROM interaction_logs WHERE query LIKE '%OOM guards%';",
         "[hybrid] Sim 0.48 (Rerank 0.00): Урок cursor_method. Задача: Validate and stabilize MLX brain daemon OOM guards",
@@ -231,3 +233,8 @@ def test_still_catches_real_type_and_sql_errors():
 
     oom = scanner.extract_error("ERROR: process OOMKilled: exit code 137")
     assert oom is not None
+
+    evol = scanner.extract_error(
+        "ERROR ⚠️ [EVOLUTION] Ошибка эволюции экспертов: UniqueViolation: duplicate key"
+    )
+    assert evol is not None

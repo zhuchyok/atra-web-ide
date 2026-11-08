@@ -9,3 +9,4 @@ def test_recursive_evolution_timeout_is_handled_as_budget_warning():
     assert "except asyncio.TimeoutError:" in text
     assert "Recursive cycle timed out after %ss (budget mode)." in text
     assert "EVOLUTION_SCOUT_TIMEOUT_SEC" in text
+    assert "Expert mutations timed out after %ss (budget mode)." in text

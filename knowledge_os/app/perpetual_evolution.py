@@ -107,9 +107,24 @@ class PerpetualEvolution:
                     else:
                         await evolve_coro
                     await run_promotion_cycle()
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "⚠️ [EVOLUTION] Expert mutations timed out after %ss (budget mode).",
+                        EVOLUTION_EXPERT_TIMEOUT_SEC,
+                    )
                 except Exception as e:
-                    # TODO: Convert f-string to %s formatting for performance
-                    logger.error(f"⚠️ [EVOLUTION] Ошибка эволюции экспертов: {e}")
+                    detail = str(e).strip()
+                    if detail:
+                        logger.error(
+                            "⚠️ [EVOLUTION] Ошибка эволюции экспертов: %s: %s",
+                            type(e).__name__,
+                            detail,
+                        )
+                    else:
+                        logger.warning(
+                            "⚠️ [EVOLUTION] Ошибка эволюции экспертов: %s (empty message)",
+                            type(e).__name__,
+                        )
 
             return True
         except Exception as e:

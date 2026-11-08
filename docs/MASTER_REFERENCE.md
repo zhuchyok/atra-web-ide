@@ -233,6 +233,14 @@
 
 **Не трогали:** TTC 420, pool, freeze дебатов, failed эталон-задачи (не pending).
 
+## § v178 (2026-11-08) — пустой ERROR эволюции не пейджит Victoria
+
+**Корень:** `knowledge_evolution` ловит Exception с пустым `str(e)` (`TimeoutError()` и т.п.) → `ERROR ⚠️ [EVOLUTION] Ошибка эволюции экспертов:` без текста. Цикл всё равно `True`, следующий через 8ч. Сканер class=human → `/run` без tasks-row. Live `EVOLUTION_ROLLOUT_MODE=hybrid` у evolution (default), nightly уже shadow.
+
+**Фикс:** IGNORE пустого wrapper и `Future exception was never retrieved`; TimeoutError мутаций → warning; compose default evolution → `shadow`; recreate `knowledge_evolution` (live `EVOLUTION_ROLLOUT_MODE=shadow`).
+
+**Не трогали:** TTC 420, pool, freeze дебатов.
+
 ## § v176 (2026-11-08) — старый ELK/Grafana не в unless-stopped
 
 **Корень:** `docker-compose.monitoring.yml` держал atra-elasticsearch/kibana/grafana/prometheus Up 11d (`unless-stopped`). ES 0 документов, ~2.5GiB. Живой путь: knowledge_rest:8002 → atra-web-ide-prometheus:9091 → `com.atra.tg-deferred-alerts`. 3002/9091 не дубли.

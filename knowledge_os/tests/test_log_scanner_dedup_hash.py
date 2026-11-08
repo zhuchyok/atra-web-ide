@@ -27,6 +27,7 @@ def test_log_scanner_ignores_watchdog_postgres_type_noise():
     assert r"FATAL:\s+connection to client lost" in text
     assert r'column "[^"]+" does not exist' in text
     assert r"\[EEVOL\] sanity gate rejected" in text
+    assert r"\[EVOLUTION\] Ошибка эволюции экспертов:\s*$" in text
     assert r"aggregate functions are not allowed in GROUP BY" in text
     assert r"\] STATEMENT:" in text
     assert r"\[hybrid\] Sim " in text
@@ -57,5 +58,6 @@ def test_log_scanner_ignores_watchdog_postgres_type_noise():
     assert r"\[INFERENCE\] Ошибка прогрева модели" in text
     assert r"ai_core audit failed/timeout" in text
     assert r"TimeoutError\(\)" in text
+    assert r"Future exception was never retrieved" in text
     assert r"\b(TimeoutError|ReadTimeout|ConnectTimeout)\b" not in text
     assert 're.compile(r"timeout|TimeoutError|ReadTimeout")' not in text

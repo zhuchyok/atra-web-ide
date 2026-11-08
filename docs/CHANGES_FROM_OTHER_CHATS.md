@@ -20,6 +20,12 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-08 v178) — пустой ERROR эволюции не пейджит Victoria ✅
+
+- Корень: `str(e)==""` → `ERROR [EVOLUTION] Ошибка эволюции экспертов:` → class=human `/run`. Цикл True.
+- IGNORE пустого wrapper и `Future exception was never retrieved`; TimeoutError мутаций → warning; compose evolution default `shadow`; recreate live `shadow`.
+- Не трогали: TTC 420, pool, freeze.
+
 ## § Последние изменения (2026-11-08 v177) — сканер не пейджит SQL STATEMENT и RAG hybrid ✅
 
 - Корень: `OOM` в SQL/RAG «OOM guards» → /run. Stub `src/get_current_date_utc.py` нигде не звался.
