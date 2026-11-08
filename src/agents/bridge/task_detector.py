@@ -218,6 +218,22 @@ FACT_SEEKING_MARKERS = (
     "victoria_async",
 )
 
+FACT_PLANNING_EXCLUDE_MARKERS = (
+    "сделай план",
+    "дай план",
+    "план фикса",
+    "план исправ",
+    "в 5 шагах",
+    "в 3 шагах",
+    "пошагово",
+    "как исправ",
+    "как проверить",
+    "как починить",
+    "mitigation plan",
+    "fix plan",
+    "step-by-step",
+)
+
 
 CANONICAL_ATRA_PORTS = (
     ("victoria", "8010"),
@@ -480,6 +496,10 @@ def is_fact_seeking_question(goal: str) -> bool:
     # Эти задачи требуют реальной обработки, а не детерминированного ответа
     automated_prefixes = ["[log_scanner]", "[medic]", "[proactive]", "[feedback]"]
     if any(g.startswith(prefix) for prefix in automated_prefixes):
+        return False
+
+    # План/инструкция — это не live-fact probe даже при наличии метрик/портов.
+    if any(marker in g for marker in FACT_PLANNING_EXCLUDE_MARKERS):
         return False
 
     # Исключаем задачи которые начинаются с маркера ошибки - это задачи на исправление

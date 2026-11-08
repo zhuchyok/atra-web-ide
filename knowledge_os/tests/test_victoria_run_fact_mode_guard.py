@@ -57,7 +57,8 @@ def test_guardrails_backend_owner_chat_path_is_deterministic():
     )[0]
     assert "docs/COGNITIVE_CODE.md" in fn
     assert "configs/experts/team.md" in fn
-    assert "if not (asks_guardrails and asks_backend_owner):" in fn
+    assert "if not (asks_owner_intent and asks_backend_owner):" in fn
+    assert "if not asks_guardrails:" in fn
 
 
 def test_chat_fast_path_excludes_fact_questions():

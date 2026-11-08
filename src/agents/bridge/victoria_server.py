@@ -5407,6 +5407,10 @@ def _needs_full_pipeline_for_docs(goal_text: str) -> bool:
         "изучи библию",
         "прочитай библию",
         "дай бриф",
+        "в контексте atra",
+        "что у нас за проект",
+        "что за проект atra",
+        "опиши проект atra",
     )
     return any(m in g for m in markers)
 
@@ -5425,6 +5429,10 @@ def _build_bible_brief_from_docs(goal_text: str) -> Optional[str]:
         "прочитай библию",
         "дай бриф",
         "войди в контекст",
+        "в контексте atra",
+        "что у нас за проект",
+        "что за проект atra",
+        "опиши проект atra",
     )
     if not any(t in g for t in triggers):
         return None
@@ -5598,6 +5606,72 @@ def _build_project_file_study_response(goal_text: str) -> Optional[str]:
     return "Прочитала файлы проекта напрямую с диска:\n" + "\n".join(chunks)
 
 
+def _build_openwebui_victoria_plan_response(goal_text: str) -> Optional[str]:
+    """Ultra-fast deterministic plan for common OpenWebUI/Victoria operational planning prompts."""
+    g = (goal_text or "").lower()
+    asks_plan = any(
+        m in g
+        for m in (
+            "сделай план",
+            "дай план",
+            "как проверить",
+            "пошагово",
+            "в 3 шагах",
+            "в 5 шагах",
+            "fix plan",
+            "mitigation plan",
+        )
+    )
+    is_scope = any(
+        m in g
+        for m in (
+            "open webui",
+            "openwebui",
+            "victoria",
+            "таймаут",
+            "timeout",
+            "connection error",
+            "server connection error",
+            "stabiliz",
+            "стабилиз",
+        )
+    )
+    if not (asks_plan and is_scope):
+        return None
+    base = (
+        "1) Снять факт-срез: `docker ps`, `curl http://localhost:3005/health`, "
+        "`curl http://localhost:8010/health`, `curl http://localhost:8080/health`.\n"
+        "2) Проверить связность Open WebUI -> Victoria изнутри контейнера: "
+        "`docker exec open-webui curl -sS http://victoria-agent:8000/health`.\n"
+    )
+    timeout_plan = (
+        "3) Для timeout-сценария: сверить таймауты в Open WebUI/Victoria и время ответа модели; "
+        "проверить, не уходит ли запрос в async fallback.\n"
+        "4) Упростить маршрут: для коротких/плановых запросов использовать быстрый path, "
+        "для тяжелых — явный async c polling.\n"
+        "5) Закрепить: 5 mixed-запросов, проверить, что нет новых timeout/`run_task timed out` в логах."
+    )
+    conn_plan = (
+        "3) Для connection error: проверить DNS/сеть контейнеров (`open-webui` -> `victoria-agent:8000`) "
+        "и перезапуски в момент сбоев.\n"
+        "4) При обрывах — перезапустить только `victoria-agent`, затем повторить п.1-3 и убедиться, что "
+        "ошибка `Cannot connect to host victoria-agent` исчезла.\n"
+        "5) Закрепить: прогнать 5 mixed-запросов и убедиться, что нет новых `Server Connection Error`."
+    )
+    stabilize_plan = (
+        "3) Для стабилизации: проверить p50/p95 на коротких запросах и отсутствие loop-breaker/traceback.\n"
+        "4) Зафиксировать guardrails маршрутизации: simple/plan/fact не должны пересекаться.\n"
+        "5) Закрепить: 10 mixed-запросов + сверка логов `open-webui`/`victoria-agent` без ошибок."
+    )
+    if any(m in g for m in ("timeout", "таймаут")):
+        return base + timeout_plan
+    if any(m in g for m in ("connection error", "server connection error", "cannot connect")):
+        return base + conn_plan
+    if any(m in g for m in ("stabiliz", "стабилиз", "стабильност")):
+        return base + stabilize_plan
+    return base + conn_plan
+
+
 def _build_team_facts_response(goal_text: str) -> Optional[str]:
     """Deterministic team facts from configs/experts/team.md for headcount-style questions."""
     g = (goal_text or "").lower()
@@ -5638,7 +5712,7 @@ def _build_team_facts_response(goal_text: str) -> Optional[str]:
 
 
 def _build_guardrails_backend_owner_response(goal_text: str) -> Optional[str]:
-    """Deterministic answer for 'guardrails + backend owner' requests from local docs."""
+    """Deterministic answer for backend-owner and optional guardrails requests from local docs."""
     g = (goal_text or "").lower()
     asks_guardrails = any(
         marker in g
@@ -5653,17 +5727,27 @@ def _build_guardrails_backend_owner_response(goal_text: str) -> Optional[str]:
             "strong opinions",
         )
     )
+    asks_owner_intent = any(
+        marker in g
+        for marker in (
+            "кто отвечает",
+            "кто ответственный",
+            "кто владелец",
+            "owner",
+            "ownership",
+            "who owns",
+            "who is responsible",
+        )
+    )
     asks_backend_owner = any(
         marker in g
         for marker in (
-            "кто отвечает за backend",
-            "кто отвечает за бэкенд",
             "backend",
             "бэкенд",
             "team.md",
         )
     )
-    if not (asks_guardrails and asks_backend_owner):
+    if not (asks_owner_intent and asks_backend_owner):
         return None
 
     cognitive_paths = [
@@ -5688,12 +5772,22 @@ def _build_guardrails_backend_owner_response(goal_text: str) -> Optional[str]:
                 continue
         return ""
 
-    cognitive = _read_first(cognitive_paths, limit=24000)
     team = _read_first(team_paths, limit=30000)
-    if not cognitive or not team:
+    if not team:
         return None
 
-    principles = re.findall(r"##\s*\d+\.\s*([^\n]+)", cognitive, flags=re.IGNORECASE)[:5]
+    backend_owner = "Игорь"
+    for name, role in re.findall(r"\|\s*\*\*([^*]+)\*\*\s*\|\s*([^|]+)\|", team):
+        if "backend" in role.lower() or "бэкенд" in role.lower():
+            backend_owner = name.strip()
+            break
+
+    # For plain ownership questions we answer only ownership. For combined prompts include guardrails.
+    if not asks_guardrails:
+        return f"За backend по `configs/experts/team.md` отвечает: {backend_owner}."
+
+    cognitive = _read_first(cognitive_paths, limit=24000)
+    principles = re.findall(r"##\s*\d+\.\s*([^\n]+)", cognitive or "", flags=re.IGNORECASE)[:5]
     if len(principles) < 5:
         principles = [
             "First Principles Thinking",
@@ -5702,13 +5796,6 @@ def _build_guardrails_backend_owner_response(goal_text: str) -> Optional[str]:
             "Бритва Оккама и KISS",
             "Strong Opinions, Weakly Held",
         ]
-
-    backend_owner = "Игорь"
-    for name, role in re.findall(r"\|\s*\*\*([^*]+)\*\*\s*\|\s*([^|]+)\|", team):
-        if "backend" in role.lower() or "бэкенд" in role.lower():
-            backend_owner = name.strip()
-            break
-
     return (
         "Проверила по документам ATRA:\n"
         f"- 5 guardrails из `docs/COGNITIVE_CODE.md`: {', '.join(principles)}.\n"
@@ -5912,6 +5999,34 @@ def _is_analysis_heavy_goal(goal: str) -> bool:
         "пошагово",
     )
     return any(m in g for m in markers) and len(g) >= 20
+
+
+def _is_planning_guidance_goal(goal: str) -> bool:
+    """Planning/help requests should not be treated as execution tasks."""
+    g = (goal or "").lower()
+    if not g:
+        return False
+    planning_markers = (
+        "сделай план",
+        "дай план",
+        "план фикса",
+        "план исправ",
+        "как проверить",
+        "как исправить",
+        "пошагово",
+        "в 3 шагах",
+        "в 5 шагах",
+        "step-by-step",
+        "fix plan",
+        "mitigation plan",
+    )
+    if not any(m in g for m in planning_markers):
+        return False
+    # If user explicitly asks to execute commands/changes now, keep execution route.
+    hard_exec_markers = ("запусти", "выполни", "примени", "измени файл", "исправь код", "deploy")
+    if any(m in g for m in hard_exec_markers):
+        return False
+    return True
 
 
 async def _select_strategy(
@@ -11958,6 +12073,28 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
             "где библия",
         )
     )
+    is_project_brief_prompt = any(
+        token in goal_lower
+        for token in (
+            "в контексте atra",
+            "что у нас за проект",
+            "что за проект atra",
+            "опиши проект atra",
+        )
+    )
+    is_file_access_prompt = any(
+        token in goal_lower
+        for token in (
+            "доступ к файлам",
+            "доступ к файл",
+            "доступ есть у тебя к файлам",
+            "есть доступ к файлам",
+            "можешь читать файлы",
+            "можешь зайти в проект",
+            "можешь читать проект",
+            "есть доступ к проекту",
+        )
+    )
     if is_victoria_model and is_identity_prompt:
         return JSONResponse(
             content={
@@ -11996,6 +12133,48 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                                 "`docs/COGNITIVE_CODE.md`, `configs/experts/team.md`, `.cursor/rules/`."
                             ),
                         },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    if is_victoria_model and is_file_access_prompt:
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": (
+                                "Да, в контуре ATRA у меня есть доступ к файлам проекта и документации "
+                                "(`docs/*`, `configs/*`, `.cursor/rules/*`) через внутренние инструменты. "
+                                "Могу читать и анализировать их по запросу."
+                            ),
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    operational_plan = _build_openwebui_victoria_plan_response(goal)
+    if is_victoria_model and operational_plan:
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": operational_plan},
                         "finish_reason": "stop",
                     }
                 ],
@@ -12089,7 +12268,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
             }
         )
     bible_brief = _build_bible_brief_from_docs(goal)
-    if deterministic_chat_enabled and bible_brief:
+    if bible_brief and (deterministic_chat_enabled or (is_victoria_model and is_project_brief_prompt)):
         logger.info("[OPENAI-API] Deterministic Bible brief for goal: %s", goal[:80])
         return JSONResponse(
             content={
@@ -12478,7 +12657,10 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
         "настрой",
         "задеплой",
     )
-    _is_execution_task = any(marker in task_req.goal.lower() for marker in _execution_markers)
+    _is_planning_goal = _is_planning_guidance_goal(_user_msg_text)
+    _is_execution_task = (
+        any(marker in task_req.goal.lower() for marker in _execution_markers) and not _is_planning_goal
+    )
     _is_simple_q = is_simple_message(_user_msg_text) or is_fast_track_message(_user_msg_text)
     _is_fact_q = is_fact_seeking_question(_user_msg_text)
 
@@ -12487,13 +12669,15 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     if _force_full_for_docs or _is_execution_task or _is_analysis_heavy_goal(_user_msg_text):
         openai_chat_timeout_sec = OPENAI_COMPLEX_EXEC_TIMEOUT_SEC
     logger.info(
-        "⏱ [OPENAI-API] selected timeout=%.1fs simple=%s exec=%s force_docs=%s",
+        "⏱ [OPENAI-API] selected timeout=%.1fs simple=%s exec=%s planning=%s force_docs=%s",
         openai_chat_timeout_sec,
         _is_simple_q,
         _is_execution_task,
+        _is_planning_goal,
         _force_full_for_docs,
     )
-    shortcuts_enabled = os.getenv("VICTORIA_SIMPLE_SHORTCUTS", "false").lower() in (
+    # Keep simple chat responsive by default; can be disabled via env if needed.
+    shortcuts_enabled = os.getenv("VICTORIA_SIMPLE_SHORTCUTS", "true").lower() in (
         "1",
         "true",
         "yes",
@@ -12532,36 +12716,49 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 output_text = "Да, я Виктория, Team Lead корпорации ATRA."
             elif "что ты умеешь" in goal_lower:
                 output_text = "Я — Виктория, Assistant ATRA. Могу отвечать на вопросы по проекту, анализировать код, управлять задачами."
+            elif "скажи одно слово" in goal_lower or "ответь одним словом" in goal_lower:
+                # Keep strict one-word prompts ultra-fast and deterministic.
+                output_text = "ок"
             elif len(goal_lower.split()) <= 2:
                 output_text = "Чем могу помочь?"
         if not output_text:
             # [SINGULARITY 31.3] RAG for fast-path knowledge questions
             _rag_context = ""
-            try:
-                from app.enhanced_search import SearchMode, enhanced_search_knowledge
+            if not _is_planning_goal:
+                try:
+                    from app.enhanced_search import SearchMode, enhanced_search_knowledge
 
-                _rag_res = await enhanced_search_knowledge(
-                    query=_user_msg_text, mode=SearchMode.HYBRID, limit=2
-                )
-                if _rag_res and _rag_res.get("result_text"):
-                    _rag_context = _rag_res["result_text"][:1500]
-            except Exception:
-                pass
+                    _rag_res = await enhanced_search_knowledge(
+                        query=_user_msg_text, mode=SearchMode.HYBRID, limit=2
+                    )
+                    if _rag_res and _rag_res.get("result_text"):
+                        _rag_context = _rag_res["result_text"][:1500]
+                except Exception:
+                    pass
 
             logger.info(f"⚡ [OPENAI-API] Knowledge fast-path for goal: {_user_msg_text[:60]}")
             try:
                 _model = _select_model_for_chat(task_req.goal)
+                if _is_planning_goal:
+                    _model = os.getenv("VICTORIA_SYNC_SAFE_MODEL", "phi3.5:3.8b")
                 _prompt = task_req.goal
                 if _rag_context:
                     _prompt = f"Контекст из базы знаний:\n{_rag_context}\n\nВопрос: {task_req.goal}"
+                _system_prompt = (
+                    "Ты — Виктория, Lead-разработчик ATRA. "
+                    "У тебя есть контекст из базы знаний. "
+                    "Отвечай кратко, по существу, без лишних предисловий."
+                )
+                if _is_planning_goal:
+                    _system_prompt = (
+                        "Ты — Виктория, Team Lead ATRA. "
+                        "Дай практичный короткий план (3-5 шагов), без выдуманных версий/фактов, "
+                        "только проверяемые действия."
+                    )
                 _content, _source = await _generate_via_mlx_or_ollama(
                     _prompt,
                     _model,
-                    system=(
-                        "Ты — Виктория, Lead-разработчик ATRA. "
-                        "У тебя есть контекст из базы знаний. "
-                        "Отвечай кратко, по существу, без лишних предисловий."
-                    ),
+                    system=_system_prompt,
                 )
                 if _content:
                     output_text = _normalize_output_for_user(_content)
