@@ -25,6 +25,30 @@ AssignFn = Callable[..., Awaitable[Any]]
 MetricFn = Callable[..., None]
 
 
+def hypothesis_debates_enabled() -> bool:
+    return os.getenv("HYPOTHESIS_DEBATES_ENABLED", "true").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def is_persistable_hypothesis(text: Any) -> bool:
+    """Loop-breaker / empty LLM output is not a cross-domain hypothesis."""
+    if text is None:
+        return False
+    raw = str(text).strip()
+    if not raw:
+        return False
+    lowered = raw.lower()
+    if "[loop-breaker]" in lowered or "петля сломана" in lowered:
+        return False
+    if raw.startswith("🔬") and "[LOOP-BREAKER]" in raw:
+        return False
+    return True
+
+
 async def phase_0_auto_fix(conn) -> Dict[str, Any]:
     """Phase 0: Auto-fix stuck/unassigned errors before new work."""
     t0 = time.time()
@@ -899,6 +923,26 @@ async def phase_4_cross_domain(
         LIMIT 10
     """)
 
+    if not hypothesis_debates_enabled():
+        logger.info(
+            "⏸️ [ENHANCED_ORCHESTRATOR] phase4 skip: HYPOTHESIS_DEBATES_ENABLED=false "
+            "(do not call LLM or insert LOOP-BREAKER nodes)"
+        )
+        for node in new_knowledge:
+            await conn.execute(
+                """
+                UPDATE knowledge_nodes
+                SET metadata = metadata || '{"orchestrated": "true"}'::jsonb
+                WHERE id = $1
+            """,
+                node["id"],
+            )
+        return {
+            "interrupted": False,
+            "nodes": len(new_knowledge),
+            "skipped": "debates_disabled",
+        }
+
     for node in new_knowledge:
         random_node = await conn.fetchrow(
             """
@@ -929,7 +973,7 @@ async def phase_4_cross_domain(
                     heavy_phase_step_timeout_sec,
                 )
                 hypothesis = None
-            if hypothesis:
+            if is_persistable_hypothesis(hypothesis):
                 content_kn = f"🔬 КРОСС-ДОМЕННАЯ ГИПОТЕЗА: {hypothesis}"
                 meta_kn = json.dumps(
                     {"source": "cross_domain_linker", "parents": [str(node["id"])]}
@@ -980,6 +1024,11 @@ async def phase_4_cross_domain(
                     )
                 except Exception as db_err:
                     logger.debug("Hypothesis debate skip: %s", db_err)
+            elif hypothesis:
+                logger.info(
+                    "⏸️ [ENHANCED_ORCHESTRATOR] phase4 skip persist: junk hypothesis %s",
+                    str(hypothesis)[:80],
+                )
 
         await conn.execute(
             """

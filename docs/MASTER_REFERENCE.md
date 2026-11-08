@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v168 (2026-11-08) — Phase 4 не пишет LOOP-BREAKER в knowledge
+
+**Корень:** freeze дебатов отключал только `create_debate_for_hypothesis`. Phase 4 всё равно звал Викторию, получал `[LOOP-BREAKER]`, писал `is_verified=true` (~10k/сутки). Drain distill мёртв — хвост eligible вырос до ~44k.
+
+**Фикс:** `HYPOTHESIS_DEBATES_ENABLED=false` → Phase 4 skip LLM/INSERT. `is_persistable_hypothesis` режет LOOP-BREAKER.
+
+**Не трогали:** флаг дебатов, nightly drain, TTC 420, pool.
+
 ## § v167 (2026-11-07) — Telegram не орёт на свой SYSTEM:
 
 **Корень:** high `prompt_injection` #54468 и все за 24ч — паттерн `system\s*:\s*` на собственном `SYSTEM:` в роли Виктории. Два пуша — два цикла responder после закрытия предыдущей сводной.

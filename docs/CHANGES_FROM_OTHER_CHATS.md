@@ -20,6 +20,12 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-08 v168) — Phase 4 не пишет LOOP-BREAKER в knowledge ✅
+
+- Корень хвоста distill: оркестратор Phase 4 звал LLM «найдите неочевидную связь» при `HYPOTHESIS_DEBATES_ENABLED=false`, ловил LOOP-BREAKER и вставлял ~10k `is_verified` нод/сутки.
+- При флаге false Phase 4 не зовёт LLM и не INSERT, только `orchestrated=true`. Junk `[LOOP-BREAKER]` не persist даже если флаг on.
+- Не трогали: freeze дебатов, drain 43k, TTC 420, pool.
+
 ## § Последние изменения (2026-11-07 v167) — Telegram не орёт на свой SYSTEM: ✅
 
 - Корень: `threat_detector` паттерн `system\s*:\s*` ловил роль Виктории (`### ТЫ — ВИКТОРИЯ` / `SYSTEM:`).
