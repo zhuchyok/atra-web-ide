@@ -85,6 +85,12 @@ def test_ignore_llm_prose_error_and_rag_timeout():
     )
     assert (
         scanner.extract_error(
+            "Посмотрите в браузере / Network или в логах Open WebUI: `timeout`, `DNS`, `502`, `CORS`, `connection`"
+        )
+        is None
+    )
+    assert (
+        scanner.extract_error(
             "2026-09-20 23:44:47,223 - ERROR - ⏰ RAG retrieval превысил таймаут 30.0с — продолжаем без контекста"
         )
         is None

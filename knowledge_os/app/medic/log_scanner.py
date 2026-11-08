@@ -133,6 +133,7 @@ IGNORE_PATTERNS = [
     re.compile(r"\[WORKER\] I am identified as:"),
     re.compile(r"Blackboard monitor started"),
     re.compile(r"Error de respuesta"),
+    re.compile(r"Посмотрите в браузере / Network или в логах Open WebUI"),
     re.compile(r"RAG retrieval превысил таймаут"),
     re.compile(r"продолжаем без контекста"),
     re.compile(r'terminating background worker "parallel worker"'),

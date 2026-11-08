@@ -249,6 +249,14 @@
 
 **Не трогали:** TTC 420, pool, freeze, слоты XOR phi.
 
+## § v180 (2026-11-08) — scanner не подхватывает runbook-текст как инцидент
+
+**Корень:** строка-подсказка `Посмотрите в браузере / Network или в логах Open WebUI...` попадала в ERROR-паттерны через `connection` и уходила в class=runbook `/run`.
+
+**Фикс:** добавлен точный IGNORE для этой runbook-фразы + тесты на extract/hash.
+
+**Не трогали:** TTC 420, pool, freeze, слоты.
+
 ## § v176 (2026-11-08) — старый ELK/Grafana не в unless-stopped
 
 **Корень:** `docker-compose.monitoring.yml` держал atra-elasticsearch/kibana/grafana/prometheus Up 11d (`unless-stopped`). ES 0 документов, ~2.5GiB. Живой путь: knowledge_rest:8002 → atra-web-ide-prometheus:9091 → `com.atra.tg-deferred-alerts`. 3002/9091 не дубли.

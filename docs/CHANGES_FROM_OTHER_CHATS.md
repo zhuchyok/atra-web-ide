@@ -26,6 +26,12 @@
 - IGNORE Node RemoteProtocol/ConnectError/disconnected и LLM unexpected EOF.
 - Не трогали: TTC 420, pool, freeze.
 
+## § Последние изменения (2026-11-08 v180) — runbook-фраза не уходит в /run ✅
+
+- Корень: строка `Посмотрите в браузере / Network или в логах Open WebUI...` ловилась через общий ERROR-путь и отправлялась в Victoria как runbook.
+- Добавлен узкий IGNORE по этой фразе + тесты extract/hash.
+- Не трогали: TTC 420, pool, freeze.
+
 ## § Последние изменения (2026-11-08 v178) — пустой ERROR эволюции не пейджит Victoria ✅
 
 - Корень: `str(e)==""` → `ERROR [EVOLUTION] Ошибка эволюции экспертов:` → class=human `/run`. Цикл True.

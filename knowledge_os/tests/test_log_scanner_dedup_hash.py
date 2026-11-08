@@ -57,6 +57,7 @@ def test_log_scanner_ignores_watchdog_postgres_type_noise():
     assert r"Exception:|Error:|RuntimeError:" not in text
     assert r"\[INFERENCE\] Ошибка прогрева модели" in text
     assert r"ai_core audit failed/timeout" in text
+    assert r"Посмотрите в браузере / Network или в логах Open WebUI" in text
     assert r"TimeoutError\(\)" in text
     assert r"Future exception was never retrieved" in text
     assert r"RemoteProtocolError" in text
