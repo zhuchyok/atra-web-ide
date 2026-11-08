@@ -20,6 +20,12 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-08 v179) — Hands disconnect не пейджит Victoria ✅
+
+- Корень: `RemoteProtocolError` на 11437 + `unexpected EOF` → два `/run`, цикл всё равно True.
+- IGNORE Node RemoteProtocol/ConnectError/disconnected и LLM unexpected EOF.
+- Не трогали: TTC 420, pool, freeze.
+
 ## § Последние изменения (2026-11-08 v178) — пустой ERROR эволюции не пейджит Victoria ✅
 
 - Корень: `str(e)==""` → `ERROR [EVOLUTION] Ошибка эволюции экспертов:` → class=human `/run`. Цикл True.

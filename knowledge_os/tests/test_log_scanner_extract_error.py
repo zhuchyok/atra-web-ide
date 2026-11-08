@@ -39,6 +39,18 @@ def test_ignore_visual_search_retry_and_router_readtimeout():
         )
         is None
     )
+    assert (
+        scanner.extract_error(
+            "ERROR [ROUTER] Exception calling Node Mac Studio (Ollama Hands): RemoteProtocolError: Server disconnected without sending a response."
+        )
+        is None
+    )
+    assert (
+        scanner.extract_error(
+            'ERROR - [LLM_ERROR] HTTP 500: {"error":"an error was encountered while running the model: unexpected EOF"}'
+        )
+        is None
+    )
 
 
 def test_ignore_pg_parallel_fatal_and_busy_retries():

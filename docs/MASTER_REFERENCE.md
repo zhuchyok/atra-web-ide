@@ -241,6 +241,14 @@
 
 **Не трогали:** TTC 420, pool, freeze дебатов.
 
+## § v179 (2026-11-08) — Hands disconnect не пейджит Victoria
+
+**Корень:** цикл эволюции оборвал 11437 (`RemoteProtocolError: Server disconnected`), через 16с `SUCCESS`. Сканер ловил только `ReadTimeout` на Node; `unexpected EOF` на victoria-agent — второй `/run`. Очередь не выросла.
+
+**Фикс:** IGNORE Node `RemoteProtocolError|ConnectError|Server disconnected` и `[LLM_ERROR] HTTP 500:.*unexpected EOF`.
+
+**Не трогали:** TTC 420, pool, freeze, слоты XOR phi.
+
 ## § v176 (2026-11-08) — старый ELK/Grafana не в unless-stopped
 
 **Корень:** `docker-compose.monitoring.yml` держал atra-elasticsearch/kibana/grafana/prometheus Up 11d (`unless-stopped`). ES 0 документов, ~2.5GiB. Живой путь: knowledge_rest:8002 → atra-web-ide-prometheus:9091 → `com.atra.tg-deferred-alerts`. 3002/9091 не дубли.

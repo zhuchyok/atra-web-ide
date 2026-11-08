@@ -44,7 +44,7 @@ def test_log_scanner_ignores_watchdog_postgres_type_noise():
     assert r"Traceback \(most recent call last\):" in text
     assert r"_receive_event\(timeout=timeout\)" in text
     assert r"Ollama timeout, retry \d+/\d+" in text
-    assert r"Exception calling Node .*ReadTimeout" in text
+    assert r"Exception calling Node .*(ReadTimeout|RemoteProtocolError|ConnectError|Server disconnected)" in text
     assert r"\[SANDBOX GROUNDING\]" in text
     assert r"No module named 'pytest'" in text
     assert r"Все модели недоступны" in text
@@ -59,5 +59,7 @@ def test_log_scanner_ignores_watchdog_postgres_type_noise():
     assert r"ai_core audit failed/timeout" in text
     assert r"TimeoutError\(\)" in text
     assert r"Future exception was never retrieved" in text
+    assert r"RemoteProtocolError" in text
+    assert r"unexpected EOF" in text
     assert r"\b(TimeoutError|ReadTimeout|ConnectTimeout)\b" not in text
     assert 're.compile(r"timeout|TimeoutError|ReadTimeout")' not in text

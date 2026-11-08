@@ -118,7 +118,10 @@ IGNORE_PATTERNS = [
     re.compile(r"Traceback \(most recent call last\):"),
     re.compile(r"_receive_event\(timeout=timeout\)"),
     re.compile(r"Ollama timeout, retry \d+/\d+"),
-    re.compile(r"Exception calling Node .*ReadTimeout"),
+    re.compile(
+        r"Exception calling Node .*(ReadTimeout|RemoteProtocolError|ConnectError|Server disconnected)"
+    ),
+    re.compile(r"\[LLM_ERROR\] HTTP 500:.*unexpected EOF"),
     # LLM snippet QA is expected to fail; not a runtime incident.
     re.compile(r"\[SANDBOX GROUNDING\]"),
     re.compile(r"\[QUALITY CHECK\]"),
