@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v169 (2026-11-08) — сканер не шлёт missing-column SQL в /run
+
+**Корень:** postgres `column "X" does not exist` без .py-пути → class=human → `/run`. Named IGNORE не покрывал query/kind/decision.
+
+**Фикс:** generic `column "[^"]+" does not exist`; `[DNA-INJ].*откат`. Не глушим прочий SQL.
+
+**Не трогали:** TTC 420, pool, drain.
+
 ## § v168 (2026-11-08) — Phase 4 не пишет LOOP-BREAKER в knowledge
 
 **Корень:** freeze дебатов отключал только `create_debate_for_hypothesis`. Phase 4 всё равно звал Викторию, получал `[LOOP-BREAKER]`, писал `is_verified=true` (~10k/сутки). Drain distill мёртв — хвост eligible вырос до ~44k.

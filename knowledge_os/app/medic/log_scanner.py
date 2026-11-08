@@ -87,9 +87,8 @@ IGNORE_PATTERNS = [
     re.compile(r"operator does not exist: (double precision \* text|text \* double precision)"),
     re.compile(r"canceling statement due to user request"),
     re.compile(r"FATAL:\s+connection to client lost"),
-    re.compile(r'column "last_exec_time" does not exist'),
-    re.compile(r'column "stats_reset" does not exist'),
-    re.compile(r'column "(status|source|assigned_to)" does not exist'),
+    # Curator/skill SQL against the wrong table: not a schema outage.
+    re.compile(r'column "[^"]+" does not exist'),
     re.compile(r"password authentication failed"),
     re.compile(r"\[MISMATCH-RECOVERY\]"),
     # Truncated corp module / parse self-loop (root is restored file).
@@ -139,8 +138,6 @@ IGNORE_PATTERNS = [
     re.compile(r"\[DISTILLATION\] Failed to get response"),
     re.compile(r"\[DISTILLATION\] Failed to parse wisdom"),
     re.compile(r"server busy, please try again"),
-    re.compile(r'column "usage_count" does not exist'),
-    re.compile(r'column "tokens_used" does not exist'),
     # Redis UDS flap: worker/watchdog reconnect, not a code patch.
     re.compile(r"Connection closed by server"),
     re.compile(r"Error 111 connecting to"),
@@ -162,7 +159,7 @@ IGNORE_PATTERNS = [
     re.compile(r"RECURSION-STOP"),
     re.compile(r"idle-in-transaction"),
     re.compile(r"\[SMART_AGENT\] response=None"),
-    re.compile(r'column "name" does not exist'),
+    re.compile(r"\[DNA-INJ\].*откат"),
     re.compile(r"llama-server process no longer running"),
     re.compile(r"Node Mac Studio \(Ollama\) returned HTTP 500"),
     re.compile(r"JSONDecodeError"),

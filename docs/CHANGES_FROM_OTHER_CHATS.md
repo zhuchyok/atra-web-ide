@@ -20,6 +20,12 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-08 v169) — сканер не шлёт missing-column SQL в /run ✅
+
+- Корень: IGNORE ловил только named `column "status|name|…"`, а `query/kind/decision/created_at` шли class=human → Victoria /run (в т.ч. SQL аудита).
+- Один паттерн `column "[^"]+" does not exist` + `[DNA-INJ].*откат`. Реальный SQL вроде `invalid input syntax` по-прежнему extract.
+- Не трогали: TTC 420, pool, freeze дебатов, drain 43k.
+
 ## § Последние изменения (2026-11-08 v168) — Phase 4 не пишет LOOP-BREAKER в knowledge ✅
 
 - Корень хвоста distill: оркестратор Phase 4 звал LLM «найдите неочевидную связь» при `HYPOTHESIS_DEBATES_ENABLED=false`, ловил LOOP-BREAKER и вставлял ~10k `is_verified` нод/сутки.

@@ -25,7 +25,7 @@ def test_log_scanner_ignores_watchdog_postgres_type_noise():
     assert r"operator does not exist: (double precision \* text|text \* double precision)" in text
     assert r"canceling statement due to user request" in text
     assert r"FATAL:\s+connection to client lost" in text
-    assert r'column "last_exec_time" does not exist' in text
+    assert r'column "[^"]+" does not exist' in text
     assert r"password authentication failed" in text
     assert r"\[MISMATCH-RECOVERY\]" in text
     assert r"Too many conn" in text

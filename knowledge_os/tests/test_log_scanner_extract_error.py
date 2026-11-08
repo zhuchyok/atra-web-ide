@@ -198,6 +198,20 @@ def test_still_catches_resurrection_recovery_failed():
     assert hit is not None
 
 
+def test_ignore_any_missing_pg_column_and_dna_inj_rollback():
+    scanner = LogScanner()
+    for line in (
+        'ERROR:  column "query" does not exist at character 61',
+        'ERROR:  column "kind" does not exist at character 17',
+        'ERROR:  column "node_type" does not exist at character 17',
+        'ERROR:  column "decision" does not exist at character 25',
+        'ERROR:  column "created_at" does not exist at character 32',
+        "ERROR 🚨 [DNA-INJ] Виктория: пустые ответы — откат",
+        "ERROR 🚨 [DNA-INJ] Виктория: eval-ошибки — откат",
+    ):
+        assert scanner.extract_error(line) is None, line
+
+
 def test_still_catches_real_type_and_sql_errors():
     scanner = LogScanner()
     typo = scanner.extract_error(
