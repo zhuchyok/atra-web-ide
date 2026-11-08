@@ -14,6 +14,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
@@ -29,9 +30,23 @@ _MUTATION_META_MARKERS = (
     "improved prompt",
     "предлагаю оптимизировать",
 )
+_MUTATION_WRAPPER = re.compile(
+    r"^\s*(?:новый\s+промпт|improved prompt|system prompt)\s*:\s*",
+    re.IGNORECASE,
+)
+
+
+def _normalize_mutation_text(text: str) -> str:
+    """Strip LLM wrappers so the sanity gate sees the persona, not the label."""
+    raw = (text or "").strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```[a-zA-Z0-9_-]*\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw).strip()
+    return _MUTATION_WRAPPER.sub("", raw, count=1).strip()
 
 
 def _is_sane_mutation(new_prompt: str) -> bool:
+    new_prompt = _normalize_mutation_text(new_prompt)
     if not new_prompt or len(new_prompt) < 200:
         return False
     low = new_prompt.lower()
@@ -405,7 +420,7 @@ class ExpertEvolver:
                 ОТВЕТЬТЕ ТОЛЬКО ТЕКСТОМ НОВОГО ПРОМПТА.
                 """
 
-                new_prompt = await run_mutation_agent(evolution_prompt)
+                new_prompt = _normalize_mutation_text(await run_mutation_agent(evolution_prompt) or "")
 
                 if new_prompt and len(new_prompt) > 100:
                     base_version = expert["version"] or 0
@@ -453,8 +468,8 @@ class ExpertEvolver:
                         }
                     )
                     if not _is_sane_mutation(new_prompt):
-                        logger.error(
-                            "🚨 [EEVOL] sanity gate rejected (metrics evolution): %s",
+                        logger.warning(
+                            "⏸️ [EEVOL] sanity gate rejected (metrics evolution): %s",
                             str(new_prompt)[:80],
                         )
                         return False
@@ -599,7 +614,7 @@ class ExpertEvolver:
 
 ЗАДАЧА: Сгенерируй ОБНОВЛЁННЫЙ system_prompt, который сохраняет личность эксперта и добавляет/учитывает инсайты выше. Не удаляй существующие сильные формулировки. Ответь ТОЛЬКО текстом нового промпта, без пояснений.
 """
-            new_prompt = await run_mutation_agent(evolution_prompt)
+            new_prompt = _normalize_mutation_text(await run_mutation_agent(evolution_prompt) or "")
             if not new_prompt or len(new_prompt.strip()) < 100:
                 return False
             base_version = expert["version"] or 0
@@ -634,8 +649,8 @@ class ExpertEvolver:
                 }
             )
             if not _is_sane_mutation(new_prompt):
-                logger.error(
-                    "🚨 [EEVOL] sanity gate rejected (shadow promote): %s", str(new_prompt)[:80]
+                logger.warning(
+                    "⏸️ [EEVOL] sanity gate rejected (shadow promote): %s", str(new_prompt)[:80]
                 )
                 return False
             await conn.execute(
@@ -806,7 +821,9 @@ class ExpertEvolver:
                 ОТВЕТЬТЕ ТОЛЬКО ТЕКСТОМ НОВОГО ПРОМПТА.
                 """
 
-                new_prompt = await run_mutation_agent(specialization_prompt)
+                new_prompt = _normalize_mutation_text(
+                    await run_mutation_agent(specialization_prompt) or ""
+                )
 
                 if new_prompt and len(new_prompt) > 100:
                     meta_patch = json.dumps(
@@ -816,8 +833,8 @@ class ExpertEvolver:
                         }
                     )
                     if not _is_sane_mutation(new_prompt):
-                        logger.error(
-                            "🚨 [EEVOL] sanity gate rejected (specialization): %s",
+                        logger.warning(
+                            "⏸️ [EEVOL] sanity gate rejected (specialization): %s",
                             str(new_prompt)[:80],
                         )
                         return False

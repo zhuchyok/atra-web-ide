@@ -26,6 +26,8 @@ def test_log_scanner_ignores_watchdog_postgres_type_noise():
     assert r"canceling statement due to user request" in text
     assert r"FATAL:\s+connection to client lost" in text
     assert r'column "[^"]+" does not exist' in text
+    assert r"\[EEVOL\] sanity gate rejected" in text
+    assert r"aggregate functions are not allowed in GROUP BY" in text
     assert r"password authentication failed" in text
     assert r"\[MISMATCH-RECOVERY\]" in text
     assert r"Too many conn" in text

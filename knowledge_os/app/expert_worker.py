@@ -2741,6 +2741,24 @@ async def process_task(task_data: dict):
                             task_id,
                             status_err,
                         )
+                    try:
+                        try:
+                            from memory.journal_manager import record_worker_outcome
+                        except ImportError:
+                            from app.memory.journal_manager import record_worker_outcome
+
+                        _journal_pool = await get_db_pool()
+                        await record_worker_outcome(
+                            _journal_pool,
+                            expert_name,
+                            db_task_id or task_id,
+                            summary=f"Task completed: {str(description or task_id)[:200]}",
+                            learnings=(report_text or "")[:400],
+                            importance=6,
+                            execution_mode="success",
+                        )
+                    except Exception as j_err:
+                        logger.debug("Journaling skipped for success %s: %s", task_id, j_err)
 
                 # [SINGULARITY 26.3] Extract reasoning_trace and store in task metadata
                 if "<reasoning_trace>" in report_text and is_valid_uuid:
@@ -3218,6 +3236,28 @@ async def _handle_task_error(
                     except Exception as mut_err:
                         # TODO: Convert f-string to %s formatting for performance
                         logger.debug(f"Failed to trigger DNA mutation: {mut_err}")
+                    try:
+                        try:
+                            from memory.journal_manager import record_worker_outcome
+                        except ImportError:
+                            from app.memory.journal_manager import record_worker_outcome
+
+                        await record_worker_outcome(
+                            pool,
+                            expert_name,
+                            canonical_task_id or external_task_id,
+                            summary=f"Task failed: {external_task_id}",
+                            learnings=f"Error: {error_msg[:400]}",
+                            importance=7,
+                            execution_mode="failure",
+                            metadata={"error": error_msg[:300]},
+                        )
+                    except Exception as j_err:
+                        logger.debug(
+                            "Journaling skipped for failure %s: %s",
+                            external_task_id,
+                            j_err,
+                        )
 
         await redis_manager.release_task_lock(external_task_id)
         # [SINGULARITY 31.2] Release task from expert's active set in Blackboard

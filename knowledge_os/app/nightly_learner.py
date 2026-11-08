@@ -58,6 +58,11 @@ NIGHTLY_DISTILL_TURBO_EXIT_WATERMARK = int(
 NIGHTLY_DISTILL_TURBO_ENTER_STREAK = int(os.getenv("NIGHTLY_DISTILL_TURBO_ENTER_STREAK", "2"))
 NIGHTLY_DISTILL_TURBO_EXIT_STREAK = int(os.getenv("NIGHTLY_DISTILL_TURBO_EXIT_STREAK", "2"))
 NIGHTLY_DISTILL_FORCE_MODE = os.getenv("NIGHTLY_DISTILL_FORCE_MODE", "auto").strip().lower()
+# Skip drain when the eligible tail is a frozen backlog, not a live catch-up.
+# Turbo-to-target=5 on ~40k LOOP-BREAKER nodes would pin 11437 for days.
+NIGHTLY_DISTILL_SKIP_ELIGIBLE_ABOVE = int(
+    os.getenv("NIGHTLY_DISTILL_SKIP_ELIGIBLE_ABOVE", "500")
+)
 NIGHTLY_ROUTING_GUARD_ENABLED = os.getenv("NIGHTLY_ROUTING_GUARD_ENABLED", "true").lower() in (
     "1",
     "true",
@@ -107,8 +112,14 @@ def _get_distiller_singleton():
 def _select_distill_mode(eligible_now: int, target: int) -> tuple[str, str]:
     """
     Adaptive mode selection with hysteresis to avoid normal/turbo flapping.
+    Idle when the eligible tail is too large to drain onto hands (11437).
+    Force turbo/normal never overrides the skip — 43k LOOP-BREAKER is not a catch-up.
     """
     global _DISTILL_MODE, _DISTILL_HIGH_STREAK, _DISTILL_LOW_STREAK
+
+    skip_mark = max(target + 1, NIGHTLY_DISTILL_SKIP_ELIGIBLE_ABOVE)
+    if eligible_now >= skip_mark:
+        return "idle", "tail_too_large_skip_drain"
 
     if NIGHTLY_DISTILL_FORCE_MODE in {"normal", "turbo"}:
         forced = NIGHTLY_DISTILL_FORCE_MODE
@@ -163,6 +174,15 @@ async def run_distillation_until_target() -> None:
         conn = await asyncpg.connect(DB_URL)
         eligible_now = await get_distill_eligible_now(conn)
         distill_mode, mode_reason = _select_distill_mode(eligible_now, target)
+        if distill_mode == "idle":
+            logger.info(
+                "⏭️ [NIGHTLY] Distillation skip: eligible_now=%s target=%s skip_mark=%s reason=%s",
+                eligible_now,
+                target,
+                max(target + 1, NIGHTLY_DISTILL_SKIP_ELIGIBLE_ABOVE),
+                mode_reason,
+            )
+            return
         turbo_mode = distill_mode == "turbo"
         max_rounds = (
             max(base_max_rounds, NIGHTLY_DISTILL_TURBO_MAX_ROUNDS)
@@ -491,10 +511,17 @@ async def run_nightly_cycle() -> None:
 
 
 async def run_continuous_distillation() -> None:
-    """Run distillation continuously as a background task."""
+    """Run distillation continuously as a background task.
+
+    Survive closed DB connections the same way embedding backfill does.
+    A dead drain task is how eligible_now grew 27k → 43k after Phase 4 inflow.
+    """
     logger.info("⚗️ [NIGHTLY] Continuous distillation started in background")
     while True:
-        await run_distillation_until_target()
+        try:
+            await run_distillation_until_target()
+        except Exception as exc:
+            logger.warning("⚗️ [NIGHTLY] Distillation drain failed: %s", exc)
         await asyncio.sleep(300)
 
 

@@ -20,6 +20,32 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-08 v173) — эволюция: обёртка не инцидент, fallback в shadow ✅
+
+- Корень: `Новый Промпт:` валил sanity как ERROR; fallback Alex был direct.
+- Снимаем обёртку до гейта; reject → warning; nightly `EVOLUTION_ROLLOUT_MODE=shadow`.
+- Journal: live smoke `record_worker_outcome`.
+- Не трогали: freeze дебатов, TTC 420, pool, DELETE 43k.
+
+## § Последние изменения (2026-11-08 v172) — сканер не шлёт EEVOL sanity-reject в /run ✅
+
+- Корень: recreate nightly → `[EEVOL] sanity gate rejected` → /run + inflight без tasks-row. Кураторский `GROUP BY count(*)` — тот же класс.
+- IGNORE обоих. Гейт эволюции работает — не чинить.
+- Не трогали: TTC 420, pool, freeze дебатов, 120s evolution timeout.
+
+## § Последние изменения (2026-11-08 v171) — expert_worker пишет expert_journals ✅
+
+- Корень: journal только в smart_worker; dedicated worker не писал — `expert_journals` last=2026-10-15.
+- `record_worker_outcome` на complete и permanent fail. Fast-path skip. Fail-open.
+- `expert_learning_logs` не воскрешаем (нет INSERT; live = `corporation_learning_log`).
+- Не трогали: TTC 420, pool, freeze дебатов.
+
+## § Последние изменения (2026-11-08 v170) — drain не ест 43k на 11437 ✅
+
+- Корень: фоновый distill без try/except умирал; turbo к target=5 на 43k сжёг бы 11437.
+- try/except как embed; skip если eligible ≥ 500. Force turbo skip не обходит.
+- Не трогали: freeze дебатов, DELETE 43k, TTC 420, pool.
+
 ## § Последние изменения (2026-11-08 v169) — сканер не шлёт missing-column SQL в /run ✅
 
 - Корень: IGNORE ловил только named `column "status|name|…"`, а `query/kind/decision/created_at` шли class=human → Victoria /run (в т.ч. SQL аудита).

@@ -89,6 +89,8 @@ IGNORE_PATTERNS = [
     re.compile(r"FATAL:\s+connection to client lost"),
     # Curator/skill SQL against the wrong table: not a schema outage.
     re.compile(r'column "[^"]+" does not exist'),
+    # Curator/skill SQL: GROUP BY mistake, not a schema outage.
+    re.compile(r"aggregate functions are not allowed in GROUP BY"),
     re.compile(r"password authentication failed"),
     re.compile(r"\[MISMATCH-RECOVERY\]"),
     # Truncated corp module / parse self-loop (root is restored file).
@@ -160,6 +162,8 @@ IGNORE_PATTERNS = [
     re.compile(r"idle-in-transaction"),
     re.compile(r"\[SMART_AGENT\] response=None"),
     re.compile(r"\[DNA-INJ\].*откат"),
+    # Evolution sanity reject is the gate working, not an incident to /run.
+    re.compile(r"\[EEVOL\] sanity gate rejected"),
     re.compile(r"llama-server process no longer running"),
     re.compile(r"Node Mac Studio \(Ollama\) returned HTTP 500"),
     re.compile(r"JSONDecodeError"),

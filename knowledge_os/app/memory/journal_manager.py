@@ -125,3 +125,58 @@ class ExpertJournalManager:
             formatted_entries.append(item)
 
         return header + "\n".join(formatted_entries)
+
+
+def _task_uuid(task_id) -> Optional[uuid.UUID]:
+    if isinstance(task_id, uuid.UUID):
+        return task_id
+    try:
+        return uuid.UUID(str(task_id))
+    except Exception:
+        return None
+
+
+async def record_worker_outcome(
+    pool,
+    expert_name: Optional[str],
+    task_id,
+    summary: str,
+    learnings: Optional[str] = None,
+    importance: int = 5,
+    execution_mode: str = "success",
+    metadata: Optional[Dict[str, Any]] = None,
+) -> bool:
+    """Fail-open journal write for the dedicated expert_worker path.
+
+    smart_worker already journals. expert_worker did not, so expert_journals
+    froze on 2026-10-15 while corporation_learning_log stayed live.
+    """
+    if pool is None or not expert_name:
+        return False
+    try:
+        try:
+            from cursor_method import should_journal_task
+        except ImportError:
+            from app.cursor_method import should_journal_task
+
+        if not should_journal_task(summary, execution_mode):
+            return False
+        async with pool.acquire() as conn:
+            expert_id = await conn.fetchval(
+                "SELECT id FROM experts WHERE name = $1 LIMIT 1", expert_name
+            )
+        if expert_id is None:
+            return False
+        mgr = ExpertJournalManager(pool)
+        await mgr.add_entry(
+            expert_id=expert_id,
+            task_id=_task_uuid(task_id),
+            summary=summary,
+            learnings=learnings,
+            importance=importance,
+            metadata={"execution_mode": execution_mode, **(metadata or {})},
+        )
+        return True
+    except Exception as exc:
+        logger.debug("Journaling skipped for %s: %s", expert_name, exc)
+        return False

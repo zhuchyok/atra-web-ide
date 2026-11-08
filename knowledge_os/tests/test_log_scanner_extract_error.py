@@ -208,6 +208,9 @@ def test_ignore_any_missing_pg_column_and_dna_inj_rollback():
         'ERROR:  column "created_at" does not exist at character 32',
         "ERROR 🚨 [DNA-INJ] Виктория: пустые ответы — откат",
         "ERROR 🚨 [DNA-INJ] Виктория: eval-ошибки — откат",
+        "ERROR 🚨 [EEVOL] sanity gate rejected (metrics evolution): Новый Промпт:",
+        "WARNING ⏸️ [EEVOL] sanity gate rejected (metrics evolution): Новый Промпт:",
+        "ERROR:  aggregate functions are not allowed in GROUP BY at character 29",
     ):
         assert scanner.extract_error(line) is None, line
 

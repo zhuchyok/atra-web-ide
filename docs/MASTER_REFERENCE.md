@@ -225,6 +225,38 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v173 (2026-11-08) — эволюция: обёртка не инцидент, fallback в shadow
+
+**Корень:** LLM возвращал `Новый Промпт:` → sanity ERROR → сканер /run. Fallback Alex шёл в `direct` и мог переписать персону (инцидент 24.09). Journals: хук был, live INSERT не доказан.
+
+**Фикс:** `_normalize_mutation_text` снимает обёртку; reject → warning; nightly `EVOLUTION_ROLLOUT_MODE=shadow`. Journal smoke через `record_worker_outcome`.
+
+**Не трогали:** freeze дебатов, TTC 420, pool, DELETE 43k.
+
+## § v172 (2026-11-08) — сканер не шлёт EEVOL sanity-reject в /run
+
+**Корень:** nightly recreate → `[EEVOL] sanity gate rejected` class=human → leftover inflight без строки в `tasks`. Кураторский SQL `GROUP BY count(*)` тоже ушёл в /run.
+
+**Фикс:** IGNORE обоих. Гейт эволюции работает — это не инцидент.
+
+**Не трогали:** TTC 420, pool, freeze дебатов, сам evolution timeout.
+
+## § v171 (2026-11-08) — expert_worker пишет expert_journals
+
+**Корень:** journal был только в `smart_worker_autonomous`. Dedicated `expert_worker` закрывал задачи без `add_entry` — таблица замерзла 2026-10-15. `expert_learning_logs` холодная (нет INSERT); живой learning — `corporation_learning_log`.
+
+**Фикс:** `record_worker_outcome` на complete и permanent fail. Fail-open. Fast-path не пишем.
+
+**Не трогали:** TTC 420, pool, freeze дебатов, `expert_learning_logs`.
+
+## § v170 (2026-11-08) — drain не ест 43k на 11437
+
+**Корень:** `run_continuous_distillation` без try/except умирал на `connection_closed`. Turbo-to-target=5 на хвосте ~44k сжёг бы руки.
+
+**Фикс:** try/except как у embed; `idle` если `eligible_now >= NIGHTLY_DISTILL_SKIP_ELIGIBLE_ABOVE` (500). Force turbo skip не обходит.
+
+**Не трогали:** freeze дебатов, массовый DELETE 43k, TTC 420, pool.
+
 ## § v169 (2026-11-08) — сканер не шлёт missing-column SQL в /run
 
 **Корень:** postgres `column "X" does not exist` без .py-пути → class=human → `/run`. Named IGNORE не покрывал query/kind/decision.

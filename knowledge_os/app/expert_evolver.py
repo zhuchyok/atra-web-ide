@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -19,9 +20,23 @@ _MUTATION_META_MARKERS = (
     "improved prompt",
     "предлагаю оптимизировать",
 )
+_MUTATION_WRAPPER = re.compile(
+    r"^\s*(?:новый\s+промпт|improved prompt|system prompt)\s*:\s*",
+    re.IGNORECASE,
+)
+
+
+def _normalize_mutation_text(text: str) -> str:
+    """Strip LLM wrappers so the sanity gate sees the persona, not the label."""
+    raw = (text or "").strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```[a-zA-Z0-9_-]*\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw).strip()
+    return _MUTATION_WRAPPER.sub("", raw, count=1).strip()
 
 
 def _is_sane_mutation(new_prompt: str) -> bool:
+    new_prompt = _normalize_mutation_text(new_prompt)
     if not new_prompt or len(new_prompt) < 200:
         return False
     low = new_prompt.lower()
@@ -199,9 +214,10 @@ async def evolve_experts(expert_name: Optional[str] = None):
                 assigned_skills = data.get("assigned_skills", [])
 
                 if new_prompt and len(new_prompt) > 100:
+                    new_prompt = _normalize_mutation_text(new_prompt)
                     if not _is_sane_mutation(new_prompt):
-                        logger.error(
-                            "🚨 [EVOLVER] Mutation rejected by sanity gate (meta-garbage): %s",
+                        logger.warning(
+                            "⏸️ [EVOLVER] Mutation rejected by sanity gate (meta-garbage): %s",
                             new_prompt[:80],
                         )
                         await conn.close()

@@ -794,6 +794,8 @@ services:
       # [v149.60] quality-freeze: дебаты-гипотезы давали 69% failed. Включение
       # обратно: HYPOTHESIS_DEBATES_ENABLED=true (критерий разморозки — в библии)
       HYPOTHESIS_DEBATES_ENABLED: "false"
+      # [v173] fallback mutation must not rewrite personas (инцидент 24.09).
+      EVOLUTION_ROLLOUT_MODE: ${EVOLUTION_ROLLOUT_MODE:-shadow}
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-secret}@knowledge_pgbouncer:6432/knowledge_os?application_name=knowledge_nightly
@@ -808,6 +810,9 @@ services:
       OLLAMA_MAX_QUEUE: "100"
       NIGHTLY_INTERVAL_SEC: ${NIGHTLY_INTERVAL_SEC:-86400}
       NIGHTLY_DISTILL_TARGET_ELIGIBLE: ${NIGHTLY_DISTILL_TARGET_ELIGIBLE:-5}
+      # [v170] skip drain when eligible is a frozen tail, not a live catch-up.
+      # Do not turbo ~40k LOOP-BREAKER nodes onto hands (11437).
+      NIGHTLY_DISTILL_SKIP_ELIGIBLE_ABOVE: ${NIGHTLY_DISTILL_SKIP_ELIGIBLE_ABOVE:-500}
       # Tandem: light teacher + grounding + skip-if-busy (Open WebUI stays responsive).
       REDISTILL_PRIORITY_ENABLED: ${REDISTILL_PRIORITY_ENABLED:-true}
       REDISTILL_PRIORITY_INTERVAL_SEC: ${REDISTILL_PRIORITY_INTERVAL_SEC:-1800}
