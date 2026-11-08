@@ -57,7 +57,20 @@ def db_session():
 
     conn = None
     try:
-        conn = p.getconn()
+        # Pool can occasionally hand out a stale closed connection.
+        # Retry a few times before declaring DB unavailable.
+        for _ in range(3):
+            conn = p.getconn()
+            if conn and getattr(conn, "closed", 1) == 0:
+                break
+            try:
+                if conn:
+                    p.putconn(conn, close=True)
+            except Exception:
+                pass
+            conn = None
+        if not conn:
+            raise psycopg2.OperationalError("No live DB connection from pool")
         _set_query_timeout(conn)
         yield conn
     except Exception as e:
@@ -298,7 +311,19 @@ def quick_db_check():
                 cur.execute("SELECT 1")
                 return True, None
     except Exception as e:
-        return False, str(e)
+        msg = str(e)
+        # Recover from stale cached pool that may contain closed sockets.
+        if "connection already closed" in msg.lower():
+            try:
+                _get_connection_pool.clear()
+                with db_session() as conn:
+                    if conn:
+                        with conn.cursor() as cur:
+                            cur.execute("SELECT 1")
+                            return True, None
+            except Exception as retry_e:
+                return False, str(retry_e)
+        return False, msg
 
 
 def _normalize_metadata(metadata):
