@@ -7,6 +7,9 @@ if SCRIPTS not in sys.path:
     sys.path.insert(0, SCRIPTS)
 
 from tg_deferred_alerts import (  # noqa: E402
+    TTC_P95_THRESHOLD,
+    _build_ttc_text,
+    is_complex_reason,
     parse_reason_metrics,
     split_typical_complex,
     ttc_p95_over,
@@ -25,6 +28,18 @@ def test_parse_reason_metrics_from_prometheus_text():
     assert got["timeout_enhanced_solve"]["samples"] == 1
     assert got["quick"]["p95"] == 12.5
     assert got["quick"]["samples"] == 8
+
+
+def test_request_async_mode_is_typical_not_complex():
+    assert is_complex_reason("request_async_mode") is False
+    assert is_complex_reason("timeout_enhanced_solve") is True
+    typical_p95, typical_n, complex_p95, complex_n = split_typical_complex(
+        {"request_async_mode": {"p95": 458.705, "samples": 49}}
+    )
+    assert typical_n == 49
+    assert typical_p95 == 458.705
+    assert complex_n == 0
+    assert complex_p95 is None
 
 
 def test_timeouts_are_complex_not_typical():
@@ -79,3 +94,28 @@ def test_complex_pages_only_past_15min_with_enough_samples():
     )
     assert typical_over is False
     assert complex_over is True
+
+
+def test_production_typical_threshold_is_420_not_180():
+    assert TTC_P95_THRESHOLD == 420
+
+
+def test_alert_copy_uses_typical_threshold_not_hardcoded_3min():
+    text = _build_ttc_text(
+        typical_threshold=420,
+        complex_threshold=900,
+        hung_threshold=600,
+        typical_over=True,
+        complex_over=False,
+        hung_over=False,
+        p50=209.0,
+        typical_p95=458.0,
+        complex_p95=None,
+        typical_n=49,
+        complex_n=0,
+        inflight_max=0.0,
+        inflight_n=0,
+    )
+    assert "3 минут" not in text
+    assert "7 мин" in text
+    assert "норма до 7 мин" in text

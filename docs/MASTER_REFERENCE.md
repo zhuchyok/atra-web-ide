@@ -225,6 +225,22 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v175 (2026-11-08) — DNA eval не в TTC p95; алерт copy = 420
+
+**Корень:** `_is_dna_eval_run` чистил inflight, но `_record_async_ttc` писал DNA в `victoria:async_ttc_samples`. Live n=49, p95=458.705 = 3-й по величине (nearest-rank idx=46). Два DNA сегодня: `8680acc8` 865.874s и `73f605a7` 479.730s; без них p95=347.17 (как раньше за день). Алерт-текст ещё говорил «3 минут» при пороге 420.
+
+**Фикс:** skip DNA в `_record_async_ttc`. Текст Telegram = `_fmt_sec(typical_threshold)`. Redis не чистили. TTC 420 не поднимали.
+
+**Не трогали:** pool, freeze дебатов, docker.sock, distill skip.
+
+## § v174 (2026-11-08) — typical TTC не глотает request_async_mode
+
+**Корень:** `_COMPLEX_MARKERS` содержал `"async"` → `request_async_mode` ехал в complex@900, порог 420 в Telegram не работал. Unlabeled p95=458 из 3 жирных /run (max 866s), n=49.
+
+**Фикс:** убран bare `"async"`. `timeout_`/`enhanced_solve` остаются complex. TTC 420 не поднимали. Headscale SSH-tunnel launchd (интерактивный setup-скрипт) → `.plist.disabled`.
+
+**Не трогали:** freeze дебатов, pool, DELETE 43k, dual ELK (ещё Up unless-stopped).
+
 ## § v173 (2026-11-08) — эволюция: обёртка не инцидент, fallback в shadow
 
 **Корень:** LLM возвращал `Новый Промпт:` → sanity ERROR → сканер /run. Fallback Alex шёл в `direct` и мог переписать персону (инцидент 24.09). Journals: хук был, live INSERT не доказан.

@@ -27,7 +27,9 @@ TTC_COMPLEX_P95_THRESHOLD = float(os.getenv("VICTORIA_ASYNC_TTC_COMPLEX_P95_SEC"
 CONSILIUM_P95_THRESHOLD = float(os.getenv("VICTORIA_CONSILIUM_TTC_P95_SEC", "300"))
 TTC_MIN_SAMPLES = int(os.getenv("VICTORIA_ASYNC_TTC_MIN_SAMPLES", "20"))
 TTC_HUNG_THRESHOLD = float(os.getenv("VICTORIA_ASYNC_TTC_HUNG_SEC", "600"))
-_COMPLEX_MARKERS = ("timeout_", "async", "enhanced_solve", "consilium", "deep")
+# Do not use a bare "async" marker: it matches request_async_mode (all /run)
+# and silently moves typical p95 onto the 900s complex lane.
+_COMPLEX_MARKERS = ("timeout_", "enhanced_solve", "consilium", "deep")
 _P95_REASON_RE = re.compile(
     r'victoria_async_ttc_p95_by_reason_seconds\{handoff_reason="([^"]+)"\}\s+(\S+)'
 )
@@ -236,7 +238,9 @@ def _build_ttc_text(
         lines.append("• Зависшая задача погаснет при следующем рестарте Виктории;")
         lines.append("  если ответ всё ещё нужен — отправьте запрос заново.")
     if typical_over:
-        lines.append("• Обычные ответы не должны занимать больше 3 минут.")
+        lines.append(
+            f"• Обычные ответы не должны занимать больше {_fmt_sec(typical_threshold)}."
+        )
     if complex_over:
         lines.append("• Сложные ответы могут идти до 15 минут. Этот алерт — только если дольше.")
         lines.append("  Dashboard 8501 → «Задачи и SLA».")

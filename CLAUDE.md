@@ -4,11 +4,17 @@ Multi-agent AI system with Victoria as team lead, 88 experts, PostgreSQL, Redis,
 
 ## Architecture
 
-- **Victoria** (port 8010) → `victoria-wisdom-24k:latest` (num_ctx=24576, ~7.9GB RSS)
+Live routing (MASTER v173, Nov 2026) — current-state must match compose, not the Sept 2026 snapshot below:
+
+- **Victoria** (port 8010) → brain `victoria-qwen38*` on **Ollama 11434** (`num_ctx=16384`). Not phi/nomic/wisdom/minicpm on this port. `VICTORIA_MLX_BRAIN=false`.
+- **Hands** (port 11437) → XOR one phi (`phi3.5:3.8b` @8192 **or** `phi3.5:3.8b-stable` @2048) + `nomic-embed-text` @2048.
+- **Coder** (port 11436) → `qwen3-coder:30b` only.
+- **MLX** (port 11435) → exists (`victoria-wisdom-24k` cache); fallback only, not the live brain.
 - **Backend** (port 8080) → FastAPI
-- **Ollama** (port 11434) → MLX API
 - **PostgreSQL** (port 5432) → knowledge_os DB, 91,328 records, 88 experts
 - **Redis** → streams for expert task routing
+- **Flags:** `EXPERT_POOL_MODE=true`; `HYPOTHESIS_DEBATES_ENABLED=false` (quality freeze); TTC p95 threshold 420 (do not raise).
+- **Bible:** `docs/MASTER_REFERENCE.md` (latest v173), `docs/CHANGES_FROM_OTHER_CHATS.md`.
 
 ## Expert Workers
 
@@ -31,9 +37,11 @@ Multi-agent AI system with Victoria as team lead, 88 experts, PostgreSQL, Redis,
 - `knowledge_os/app/medic/watchdog.py` — health monitoring
 - `knowledge_os/docker-compose.agents.yml` — container config
 
-## Current State (Sept 2026)
+## Current State (Sept 2026 — historical)
 
-- Victoria model: `victoria-wisdom-24k` (switched from v3.5, 6x faster response)
+Live routing is Architecture above (qwen38 @11434, hands @11437, coder @11436). This Sept block is a snapshot: Victoria then used `victoria-wisdom-24k`.
+
+- Victoria model (then): `victoria-wisdom-24k` (switched from v3.5, 6x faster response)
 - Veronica model: `qwen3-coder:30b` (switched from qwen2.5-coder:14b)
 - All containers healthy, 0 pending tasks
 - Overflow routing fixed (dispatch_stream_for_expert checks is_overflow_expert)
@@ -69,9 +77,10 @@ Multi-agent AI system with Victoria as team lead, 88 experts, PostgreSQL, Redis,
 3. **Планировщик** (`/api/orchestrate-plan`): цель → LLM-декомпозиция `[{title,goal}]` (raw_decode-сканер переживает битые JSON) → исполнение через autonomous-code → сводный отчёт. `DIALOGUE_MAX_TOKENS=1500` в victoria-agent
 4. **Telegram alert test**: пряма доставка боту подтверждена (message_id 1943); contact point file-provisioned (bottoken REDACTED, chatid 556251171); policy default=telegram. Сквозной Grafana→Telegram route (unified alertmanager dispatch) — не подтверждён боем (time-box); fallback-канал — прямой bot. Alert rule `deferred-to-human-high` активна
 5. **Чистка**: 51 мусорный файл из src/ удалён (test/generated артефакты прошлых сессий); мусорные тестовые демо-скрипты физически снесены
-6. **Guardian**: `smollm2:360m` вместо phi3.5:3.8b (GIT_GUARDIAN_MODEL/DIALOGUE_*_MODEL в .env), fast pre-commit
+6. **Guardian**: `smollm2:360m` вместо phi3.5:3.8b (GIT*GUARDIAN_MODEL/DIALOGUE*\*\_MODEL в .env), fast pre-commit
 
 Известные ограничения:
+
 - Veronica пишет в `/app/src` (mounted to host src/) — ок
 - **Coder выделенный**: Veronica + autonomous-code работают через отдельный Ollama-инстанс `127.0.0.1:11436` (OLLAMA_CODER_URL в victoria-agent, OLLAMA_EXECUTOR_BASE_URL в veronica-agent; models через symlink blobs ~/.ollama-veronica; qwen3-coder keep_alive=-1). Причина: конкуренция с wisdom-24k на 11434 порождала IndentError/фрагменты классов/циклы. Сплит-геноверация: plan 5/5 passed за 160с
 - **indent normalizer** в autonomous-code: rank уровней → 4n, автоматически до py_compile
@@ -110,10 +119,10 @@ Multi-agent AI system with Victoria as team lead, 88 experts, PostgreSQL, Redis,
 - **Loop LOG_SCANNER закрыт** (18.09): фильтры noise (`operator does not exist`, `default_pool_size`, `password auth fail`, `[HEARTBEAT] Too many connections`, `IndentationError corporation`) — после 111 cancelled/24ч поток остановлен (0 новых за 10 мин). corporation_knowledge_system.py восстановлен на 911 строк (был 1-строчный stub в git, откатывался при checkout)
 - **Экспертный full-check (18.09, /expert)**: перезапуск heavy/anna/orchestrator для reload semantic_cache fix; регрессии и soak повторены: 3 задача terminal, HLEN=0, wisdom guard после reasoning сам вычищает за ≤5 мин, LOG_SCANNER 0. Ошибки Victoria 49x`_GatheringFuture` — известный наполовину benign CancelledError (филтр есть)
 - **Финал 100% системы** (18.09): пусто pending/in_progress/queued (0 активных), HLEN=0, wisdom в Ollama=False, LOG_SCANNER 0 сообщений/2 мин, фильтр `stats_reset` добавлен. Система чисто idle, всё 100% закрыто и проверено.
-- **Multi-day re-check (20.09, /expert)**: 
-  1) SASL auth fail у dynamic-1..5 после рестартов — .env knowledge_os не имел POSTGRES_PASSWORD (была сломанная строка `SMART_WORKER_MAX_PENDING=10POSTGRES_PASSWORD`), исправлено + compose anchor; все 5 healthy
-  2) EXPERT_POOL_MODE=true на dynamic-1..5 — orphaned-стримы Дмитрий (427) / Леонид (582) / Анастасия (553) теперь обрабатываются pool-адопшеном (лог "🔄 [POOL] Adopting expert '<name>'"), 0 skip чужого payload
-  3) 3-й soak (10 мин) — 0 pending/in_progress, HLEN=0, wisdom=False
+- **Multi-day re-check (20.09, /expert)**:
+  1. SASL auth fail у dynamic-1..5 после рестартов — .env knowledge_os не имел POSTGRES_PASSWORD (была сломанная строка `SMART_WORKER_MAX_PENDING=10POSTGRES_PASSWORD`), исправлено + compose anchor; все 5 healthy
+  2. EXPERT_POOL_MODE=true на dynamic-1..5 — orphaned-стримы Дмитрий (427) / Леонид (582) / Анастасия (553) теперь обрабатываются pool-адопшеном (лог "🔄 [POOL] Adopting expert '<name>'"), 0 skip чужого payload
+  3. 3-й soak (10 мин) — 0 pending/in_progress, HLEN=0, wisdom=False
 
 ## Режим /expert — авто-триггер (без явной команды)
 
