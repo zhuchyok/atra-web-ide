@@ -20,6 +20,12 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-08 v177) — сканер не пейджит SQL STATEMENT и RAG hybrid ✅
+
+- Корень: `OOM` в SQL/RAG «OOM guards» → /run. Stub `src/get_current_date_utc.py` нигде не звался.
+- IGNORE STATEMENT + hybrid Sim; OOM только killer-токены. Stub удалён.
+- Не трогали: TTC 420, pool, freeze, failed эталоны.
+
 ## § Последние изменения (2026-11-08 v176) — старый ELK/Grafana остановлен, volumes на месте ✅
 
 - Корень: four `unless-stopped` дублировали 9091/3002; ES 0 docs ~2GiB.

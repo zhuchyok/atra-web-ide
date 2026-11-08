@@ -49,7 +49,8 @@ ERROR_PATTERNS = [
     re.compile(r"connection refused|ConnectionRefusedError"),
     # TimeoutError/ReadTimeout as bare tokens fire on WARNING audits and
     # Ollama retries. Real hangs still match ERROR: / Traceback / Exception:.
-    re.compile(r"OOM|OutOfMemory|memory error"),
+    # Bare "OOM" fires on SQL/RAG "OOM guards". Real killer is oom-kill / OOMKilled.
+    re.compile(r"OutOfMemoryError|OOMKilled|oom-kill"),
     re.compile(r"signal \d+|SIGKILL|SIGTERM"),
     re.compile(r"killed|oom-kill"),
     re.compile(r"assert.*failed|AssertionError"),
@@ -91,6 +92,10 @@ IGNORE_PATTERNS = [
     re.compile(r'column "[^"]+" does not exist'),
     # Curator/skill SQL: GROUP BY mistake, not a schema outage.
     re.compile(r"aggregate functions are not allowed in GROUP BY"),
+    # Postgres prints STATEMENT: after ERROR; SQL text (OOM guards, etc.) is not an incident.
+    re.compile(r"\] STATEMENT:"),
+    # RAG score lines, not crashes.
+    re.compile(r"\[hybrid\] Sim "),
     re.compile(r"password authentication failed"),
     re.compile(r"\[MISMATCH-RECOVERY\]"),
     # Truncated corp module / parse self-loop (root is restored file).

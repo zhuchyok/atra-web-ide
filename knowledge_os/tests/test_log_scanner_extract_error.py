@@ -211,6 +211,8 @@ def test_ignore_any_missing_pg_column_and_dna_inj_rollback():
         "ERROR 🚨 [EEVOL] sanity gate rejected (metrics evolution): Новый Промпт:",
         "WARNING ⏸️ [EEVOL] sanity gate rejected (metrics evolution): Новый Промпт:",
         "ERROR:  aggregate functions are not allowed in GROUP BY at character 29",
+        "2026-11-08 18:39:55.248 MSK [1543] STATEMENT:  SELECT COUNT(*) FROM interaction_logs WHERE query LIKE '%OOM guards%';",
+        "[hybrid] Sim 0.48 (Rerank 0.00): Урок cursor_method. Задача: Validate and stabilize MLX brain daemon OOM guards",
     ):
         assert scanner.extract_error(line) is None, line
 
@@ -226,3 +228,6 @@ def test_still_catches_real_type_and_sql_errors():
     sql = scanner.extract_error('ERROR:  invalid input syntax for type interval: "%s days"')
     assert sql is not None
     assert sql["type"] in ("LOG_ERROR", "EXCEPTION")
+
+    oom = scanner.extract_error("ERROR: process OOMKilled: exit code 137")
+    assert oom is not None

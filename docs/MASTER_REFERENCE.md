@@ -225,6 +225,14 @@
 
 **Не трогали:** TTC 420, pin ctx, pool, mem Анны.
 
+## § v177 (2026-11-08) — сканер не пейджит SQL STATEMENT и RAG hybrid
+
+**Корень:** чужой DNA/self-dev SQL `LIKE '%OOM guards%'` в postgres `STATEMENT:` и строка `[hybrid] Sim` матчили bare `OOM` → class=human `/run` без tasks-row. `src/get_current_date_utc.py` — мусор autonomous-code, нигде не импортируется.
+
+**Фикс:** IGNORE `] STATEMENT:` и `[hybrid] Sim `; OOM-детектор только `OOMKilled|oom-kill|OutOfMemoryError`. Файл-stub удалён.
+
+**Не трогали:** TTC 420, pool, freeze дебатов, failed эталон-задачи (не pending).
+
 ## § v176 (2026-11-08) — старый ELK/Grafana не в unless-stopped
 
 **Корень:** `docker-compose.monitoring.yml` держал atra-elasticsearch/kibana/grafana/prometheus Up 11d (`unless-stopped`). ES 0 документов, ~2.5GiB. Живой путь: knowledge_rest:8002 → atra-web-ide-prometheus:9091 → `com.atra.tg-deferred-alerts`. 3002/9091 не дубли.
