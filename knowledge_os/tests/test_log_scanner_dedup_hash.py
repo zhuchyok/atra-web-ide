@@ -39,6 +39,9 @@ def test_log_scanner_ignores_watchdog_postgres_type_noise():
     assert r"task_identity_map.*violates foreign key constraint" in text
     assert r"Ошибка выполнения SQL: syntax error at or near" in text
     assert r"unterminated quoted string at or near" in text
+    assert r"canceling statement due to lock timeout" in text
+    assert r"missing FROM-clause entry for table" in text
+    assert r"VectorCore error: Server error '503 Service Unavailable'" in text
     assert r"Sandbox bind path .* is container-local" in text
     assert r"SandboxManager: Docker not available" in text
     assert r"Ошибка парсинга промпта" in text
@@ -60,6 +63,9 @@ def test_log_scanner_ignores_watchdog_postgres_type_noise():
     assert r"\[INFERENCE\] Ошибка прогрева модели" in text
     assert r"ai_core audit failed/timeout" in text
     assert r"Посмотрите в браузере / Network или в логах Open WebUI" in text
+    assert r"Enhanced разведка недоступна: No module named 'duckduckgo_search'" in text
+    assert r"Ошибка базовой разведки: No module named 'duckduckgo_search'" in text
+    assert r"Ошибка обработки задачи разведки: , обрабатываем через LLM" in text
     assert r"TimeoutError\(\)" in text
     assert r"Future exception was never retrieved" in text
     assert r"RemoteProtocolError" in text

@@ -20,6 +20,12 @@
 
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-11-08 v182) — scanner не пейджит scout fallback и SQL lock/noise ✅
+
+- Корень: fallback scout (`No module named 'duckduckgo_search'`) и SQL-шум (`lock timeout`, `missing FROM-clause`, transient `VectorCore 503`) открывали лишние `/run`.
+- Добавлены узкие IGNORE-паттерны + тесты extract/hash.
+- Не трогали: TTC 420, pool, freeze, слоты.
+
 ## § Последние изменения (2026-11-08 v181) — scanner не пейджит SQL-parser шум из корп-диагностик ✅
 
 - Корень: после v180 сканер ловил строки `Ошибка выполнения SQL: syntax error...` и `unterminated quoted string...` (порождено диагностическим SQL), что запускало новые `/run`.

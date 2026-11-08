@@ -95,6 +95,22 @@ def test_ignore_llm_prose_error_and_rag_timeout():
         )
         is None
     )
+    assert (
+        scanner.extract_error(
+            "WARNING:scout_task_processor:Enhanced разведка недоступна: No module named 'duckduckgo_search', используем базовую"
+        )
+        is None
+    )
+    assert (
+        scanner.extract_error(
+            "ERROR:scout_task_processor:Ошибка базовой разведки: No module named 'duckduckgo_search'"
+        )
+        is None
+    )
+    assert (
+        scanner.extract_error("ERROR:__main__:Ошибка обработки задачи разведки: , обрабатываем через LLM")
+        is None
+    )
 
 
 def test_ignore_nightly_ai_core_audit_timeout():
@@ -236,6 +252,9 @@ def test_ignore_any_missing_pg_column_and_dna_inj_rollback():
         "ERROR - Ошибка выполнения SQL: syntax error at or near \";\"",
         "ERROR - Ошибка выполнения SQL: unterminated quoted string at or near \"'%syntax error at\"",
         "2026-11-08 21:07:02.731 MSK [36912] ERROR:  unterminated quoted string at or near \"'%syntax error at\"",
+        "2026-11-08 21:27:16.649 MSK [42482] ERROR:  canceling statement due to lock timeout",
+        "ERROR: missing FROM-clause entry for table \"e\" at character 88",
+        "ERROR:enhanced_scout_researcher:VectorCore error: Server error '503 Service Unavailable' for url 'http://vector-core/query'",
     ):
         assert scanner.extract_error(line) is None, line
 

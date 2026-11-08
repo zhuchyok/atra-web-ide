@@ -265,6 +265,14 @@
 
 **Не трогали:** TTC 420, pool, freeze, слоты.
 
+## § v182 (2026-11-08) — scanner не пейджит scout fallback + lock-timeout SQL шум
+
+**Корень:** сканер подхватывал fallback-строки `duckduckgo_search` в `knowledge_os_worker`, а также SQL-шум (`canceling statement due to lock timeout`, `missing FROM-clause entry`, transient `VectorCore 503`) и открывал лишние `/run`.
+
+**Фикс:** добавлены точечные IGNORE-паттерны для этих сообщений + тесты extract/hash.
+
+**Не трогали:** TTC 420, pool, freeze, модельные слоты.
+
 ## § v176 (2026-11-08) — старый ELK/Grafana не в unless-stopped
 
 **Корень:** `docker-compose.monitoring.yml` держал atra-elasticsearch/kibana/grafana/prometheus Up 11d (`unless-stopped`). ES 0 документов, ~2.5GiB. Живой путь: knowledge_rest:8002 → atra-web-ide-prometheus:9091 → `com.atra.tg-deferred-alerts`. 3002/9091 не дубли.
