@@ -24,8 +24,9 @@ def test_reality_checker_snippet_is_short():
 
 
 def test_inject_appends_checker_for_victoria_and_anna():
-    from configs.victoria_common import PROMPT_REALITY_CHECKER
     from ai_pipeline import inject_anti_hallucination
+
+    from configs.victoria_common import PROMPT_REALITY_CHECKER
 
     for name in ("Виктория", "victoria", "Анна", "anna"):
         out = inject_anti_hallucination("вопрос", name)
@@ -35,8 +36,9 @@ def test_inject_appends_checker_for_victoria_and_anna():
 
 
 def test_inject_skips_checker_for_igor():
-    from configs.victoria_common import PROMPT_REALITY_CHECKER
     from ai_pipeline import inject_anti_hallucination
+
+    from configs.victoria_common import PROMPT_REALITY_CHECKER
 
     out = inject_anti_hallucination("вопрос", "Игорь")
     assert out == "вопрос"
@@ -44,9 +46,7 @@ def test_inject_skips_checker_for_igor():
 
 
 def test_victoria_server_appends_checker_constant():
-    text = (ROOT / "src" / "agents" / "bridge" / "victoria_server.py").read_text(
-        encoding="utf-8"
-    )
+    text = (ROOT / "src" / "agents" / "bridge" / "victoria_server.py").read_text(encoding="utf-8")
     assert "PROMPT_REALITY_CHECKER" in text
 
 

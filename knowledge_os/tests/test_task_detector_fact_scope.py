@@ -1,6 +1,6 @@
 import importlib.util
-from pathlib import Path
 import sys
+from pathlib import Path
 
 
 def _load_task_detector():
@@ -29,4 +29,6 @@ def test_fact_probe_disabled_for_planning_prompt():
 
 def test_fact_probe_disabled_for_how_to_check_prompt():
     td = _load_task_detector()
-    assert td.is_fact_seeking_question("как проверить open webui connection errors пошагово") is False
+    assert (
+        td.is_fact_seeking_question("как проверить open webui connection errors пошагово") is False
+    )

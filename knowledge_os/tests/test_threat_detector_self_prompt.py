@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from app.threat_detector import ThreatDetector
 
-
 VICTORIA_ROLE = """### ТЫ — ВИКТОРИЯ
 SYSTEM: Обработка неясных соображений и ошибок: прояснение конкретной задачи.
 """
