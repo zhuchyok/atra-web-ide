@@ -351,6 +351,7 @@ def main() -> int:
             # пишем всегда после алерта: чат мог быть без текста (фото/вложение)
             state[chat_id] = {"last_seen_key": seen_key,
                               "item": item_title,
+                              "last_reply": (reply if not via_template else "шаблон:" + reply[:60]),
                               "ts": datetime.now(timezone.utc).isoformat()}
             state_dirty = True
             save_state(state)
@@ -434,16 +435,22 @@ def main() -> int:
             reply = ""
             # ── 1) MLX-мозг (11435): быстрый (1-3с) и умный — приоритет ──
             # контекст диалога: последние 6 сообщений чата (клиент видел прошлые ответы!)
-            history = "\n".join(
-                ("- Клиент: " + str(m.get("content", {}).get("text", "")).strip()[:150]
-                 if (m.get("author") or {}).get("type") == "customer"
-                 else "- Татьяна отвечала: " + str(m.get("content", {}).get("text", "")).strip()[:150])
-                for m in msgs[-6:] if str(m.get("content", {}).get("text", "")).strip()
-            ) if msgs else ""
+            # атрибуция по direction (in = клиент, out = мы); чистим «Татьяна:» префиксы
+            history_lines = []
+            for m in msgs[-6:]:
+                txt = str(m.get("content", {}).get("text", "")).strip()
+                if not txt or txt.startswith("[Системное сообщение]"):
+                    continue
+                txt = re.sub(r"^Татьяна:\s*", "", txt)
+                who = "Клиент" if m.get("direction") == "in" else "Татьяна"
+                history_lines.append(f"- {who}: {txt[:150]}")
+            history = "\n".join(history_lines)
             mlx_prompt = (sys_prompt
-                + ("\n\nИстория диалога (не повторяй уже данные ответы и вопросы):\n" + history if history else "")
+                + ("\n\nИстория диалога (хронология). ЕСЛИ КЛИЕНТ УЖЕ НАЗВАЛ РАЗМЕРЫ — НЕ СПРАШИВАЙ РАЗМЕРЫ ПОВТОРНО: "
+                   "поблагодари, скажи что передаёшь запрос в расчётный отдел и расчёт подготовят в ближайшее время. "
+                   "НЕ ПОВТОРЯЙ свои прошлые вопросы:\n" + history if history else "")
                 + "\n\nНовое сообщение клиента по объявлению «" + item_title + "»: " + customer_text
-                + "\nОтветь как Татьяна на НОВОЕ сообщение, учитывая, что уже было сказано ранее.")
+                + "\nОтветь как Татьяна именно на ЭТО сообщение.")
             try:
                 mlx_payload = json.dumps({
                     "model": "default",
