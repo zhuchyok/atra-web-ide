@@ -1032,7 +1032,9 @@ async def _fail_orphaned_inflight_on_startup() -> None:
         task_id = raw_id.decode() if isinstance(raw_id, bytes) else str(raw_id)
         age_sec: Optional[float] = None
         try:
-            created_raw = raw_created.decode() if isinstance(raw_created, bytes) else str(raw_created)
+            created_raw = (
+                raw_created.decode() if isinstance(raw_created, bytes) else str(raw_created)
+            )
             try:
                 created_at = datetime.fromisoformat(created_raw)
                 if created_at.tzinfo is None:
@@ -2508,9 +2510,7 @@ def _scanner_patch_verify(goal: str, result: str) -> str:
         src = open(fp, encoding="utf-8").read()
         compile(src, fp, "exec")
     except Exception as e:
-        return (
-            f"command: python3 -m py_compile {rel}\noutput: {e}\nFAIL\nuntested\n{result}"
-        )
+        return f"command: python3 -m py_compile {rel}\noutput: {e}\nFAIL\nuntested\n{result}"
     runtime = "compiled"
     try:
         ns: dict = {}
@@ -2519,13 +2519,9 @@ def _scanner_patch_verify(goal: str, result: str) -> str:
             val = ns["add"](1, 2)
             runtime = f"add(1,2)={val}"
             if val != 3:
-                return (
-                    f"command: python3 -c add(1,2)\noutput: {runtime}\nFAIL\n{result}"
-                )
+                return f"command: python3 -c add(1,2)\noutput: {runtime}\nFAIL\n{result}"
     except Exception as e:
-        return (
-            f"command: python3 -c add(1,2)\noutput: {type(e).__name__}: {e}\nFAIL\n{result}"
-        )
+        return f"command: python3 -c add(1,2)\noutput: {type(e).__name__}: {e}\nFAIL\n{result}"
     return (
         f"command: python3 -m py_compile {rel}; add(1,2)\n"
         f"output: OK; {runtime}\nPASS\nwrite_file {rel}"
@@ -5322,7 +5318,9 @@ def _extract_async_task_id(payload: Any) -> Optional[str]:
     return None
 
 
-async def _await_async_handoff_result_for_chat(task_id: str, max_wait_sec: int = 45) -> Optional[str]:
+async def _await_async_handoff_result_for_chat(
+    task_id: str, max_wait_sec: int = 45
+) -> Optional[str]:
     """Poll /run status briefly so chat users see final answer, not handoff payload."""
     if not task_id:
         return None
@@ -9592,9 +9590,7 @@ async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
         scanner = await _live_scanner_line()
     pool = await agent._get_db_pool()
     if not pool:
-        return format_live_fact_answer(
-            goal, health="ok", ttc=sla, slots=slots, scanner=scanner
-        )
+        return format_live_fact_answer(goal, health="ok", ttc=sla, slots=slots, scanner=scanner)
 
     queue: Optional[dict] = None
     nodes: Optional[int] = None
@@ -10812,7 +10808,11 @@ async def run_task(
         _sc_dir_sync = lambda k: (k or "").strip().lower() == "patch"  # noqa: E731
     _patch_direct_sync = _sc_dir_sync(getattr(body, "scanner_class", None))
     forced_reason = _force_deep_analysis_reason(goal)
-    if (not _patch_direct_sync) and forced_reason and strategy_result.get("strategy") == "need_clarification":
+    if (
+        (not _patch_direct_sync)
+        and forced_reason
+        and strategy_result.get("strategy") == "need_clarification"
+    ):
         strategy_result = {
             "strategy": "deep_analysis",
             "reason": forced_reason,
@@ -12268,7 +12268,9 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
             }
         )
     bible_brief = _build_bible_brief_from_docs(goal)
-    if bible_brief and (deterministic_chat_enabled or (is_victoria_model and is_project_brief_prompt)):
+    if bible_brief and (
+        deterministic_chat_enabled or (is_victoria_model and is_project_brief_prompt)
+    ):
         logger.info("[OPENAI-API] Deterministic Bible brief for goal: %s", goal[:80])
         return JSONResponse(
             content={
@@ -12659,7 +12661,8 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     )
     _is_planning_goal = _is_planning_guidance_goal(_user_msg_text)
     _is_execution_task = (
-        any(marker in task_req.goal.lower() for marker in _execution_markers) and not _is_planning_goal
+        any(marker in task_req.goal.lower() for marker in _execution_markers)
+        and not _is_planning_goal
     )
     _is_simple_q = is_simple_message(_user_msg_text) or is_fast_track_message(_user_msg_text)
     _is_fact_q = is_fact_seeking_question(_user_msg_text)
@@ -12818,7 +12821,9 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     _async_task_id = _extract_async_task_id(output_text)
     if _async_task_id:
         _wait_sec = int(os.getenv("OPENAI_ASYNC_HANDOFF_WAIT_SEC", "20"))
-        _resolved = await _await_async_handoff_result_for_chat(_async_task_id, max_wait_sec=_wait_sec)
+        _resolved = await _await_async_handoff_result_for_chat(
+            _async_task_id, max_wait_sec=_wait_sec
+        )
         if _resolved:
             output_text = _resolved
         else:
@@ -13728,8 +13733,10 @@ async def autonomous_code(request: dict):
         got = build_deliverable(workspace, rel_paths)
         presented = list(got.get("presented") or [])
         workspace_diff = str(got.get("workspace_diff") or "")
-        if final_stage == "passed" and file_path and (
-            not presented or workspace_diff.startswith("git_diff_unavailable")
+        if (
+            final_stage == "passed"
+            and file_path
+            and (not presented or workspace_diff.startswith("git_diff_unavailable"))
         ):
             final_stage = "deliverable_missing"
 
@@ -13737,11 +13744,7 @@ async def autonomous_code(request: dict):
         "compile_status": compile_status,
         "runtime_status": runtime_status,
         "final_status": "passed" if final_stage == "passed" else final_stage,
-        **(
-            {"presented": presented, "workspace_diff": workspace_diff}
-            if deliverable_on
-            else {}
-        ),
+        **({"presented": presented, "workspace_diff": workspace_diff} if deliverable_on else {}),
         "fix_iterations": fix_iterations,
         "attempts": attempts,
         "file_path": file_written or file_path,

@@ -108,7 +108,9 @@ def test_ignore_llm_prose_error_and_rag_timeout():
         is None
     )
     assert (
-        scanner.extract_error("ERROR:__main__:Ошибка обработки задачи разведки: , обрабатываем через LLM")
+        scanner.extract_error(
+            "ERROR:__main__:Ошибка обработки задачи разведки: , обрабатываем через LLM"
+        )
         is None
     )
 
@@ -194,21 +196,28 @@ def test_ignore_source_guard_refuse_and_embed_404():
 
 def test_ignore_redis_flap_and_tokens_used_sql():
     scanner = LogScanner()
-    assert scanner.extract_error(
-        "ERROR:event_bus_redis_bridge:⚠️ Bridge loop error: Connection closed by server."
-    ) is None
-    assert scanner.extract_error(
-        "ERROR:ExpertWorker:⚠️ [WORKER] Ошибка в цикле: Connection closed by server."
-    ) is None
-    assert scanner.extract_error(
-        "ERROR:PerformanceWatchdog:Error in system resource monitoring: Error 111 connecting to /data/redis/redis.sock"
-    ) is None
-    assert scanner.extract_error(
-        'ERROR:  column "tokens_used" does not exist at character 47'
-    ) is None
-    assert scanner.extract_error(
-        "ERROR - [FALLBACK] Max fallback attempts reached (3)"
-    ) is None
+    assert (
+        scanner.extract_error(
+            "ERROR:event_bus_redis_bridge:⚠️ Bridge loop error: Connection closed by server."
+        )
+        is None
+    )
+    assert (
+        scanner.extract_error(
+            "ERROR:ExpertWorker:⚠️ [WORKER] Ошибка в цикле: Connection closed by server."
+        )
+        is None
+    )
+    assert (
+        scanner.extract_error(
+            "ERROR:PerformanceWatchdog:Error in system resource monitoring: Error 111 connecting to /data/redis/redis.sock"
+        )
+        is None
+    )
+    assert (
+        scanner.extract_error('ERROR:  column "tokens_used" does not exist at character 47') is None
+    )
+    assert scanner.extract_error("ERROR - [FALLBACK] Max fallback attempts reached (3)") is None
 
 
 def test_ignore_write_file_missing_and_norm_in_echo():
@@ -249,11 +258,11 @@ def test_ignore_any_missing_pg_column_and_dna_inj_rollback():
         "ERROR:  aggregate functions are not allowed in GROUP BY at character 29",
         "2026-11-08 18:39:55.248 MSK [1543] STATEMENT:  SELECT COUNT(*) FROM interaction_logs WHERE query LIKE '%OOM guards%';",
         "[hybrid] Sim 0.48 (Rerank 0.00): Урок cursor_method. Задача: Validate and stabilize MLX brain daemon OOM guards",
-        "ERROR - Ошибка выполнения SQL: syntax error at or near \";\"",
-        "ERROR - Ошибка выполнения SQL: unterminated quoted string at or near \"'%syntax error at\"",
-        "2026-11-08 21:07:02.731 MSK [36912] ERROR:  unterminated quoted string at or near \"'%syntax error at\"",
+        'ERROR - Ошибка выполнения SQL: syntax error at or near ";"',
+        'ERROR - Ошибка выполнения SQL: unterminated quoted string at or near "\'%syntax error at"',
+        '2026-11-08 21:07:02.731 MSK [36912] ERROR:  unterminated quoted string at or near "\'%syntax error at"',
         "2026-11-08 21:27:16.649 MSK [42482] ERROR:  canceling statement due to lock timeout",
-        "ERROR: missing FROM-clause entry for table \"e\" at character 88",
+        'ERROR: missing FROM-clause entry for table "e" at character 88',
         "ERROR:enhanced_scout_researcher:VectorCore error: Server error '503 Service Unavailable' for url 'http://vector-core/query'",
     ):
         assert scanner.extract_error(line) is None, line

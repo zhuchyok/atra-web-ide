@@ -37,13 +37,15 @@ def test_run_has_deterministic_fact_mode_probe():
     assert "skip_resume" in fn
     assert "→ failed" in fn
     assert "def _is_dna_eval_run(" in text
-    assert '_DNA_EVAL_GOAL_MARKERS' in text
+    assert "_DNA_EVAL_GOAL_MARKERS" in text
     rec = text.split("def _record_async_ttc", 1)[1].split("async def _push_ttc_sample", 1)[0]
     assert "_is_dna_eval_run(" in rec
     assert "delete(_ASYNC_TTC_REDIS_KEY)" not in text
     sla = text.split("async def _async_sla_snapshot", 1)[1].split("DEFAULT_MAX_STEPS", 1)[0]
     assert "_is_dna_eval_run(" in sla
-    sync = text.split("async def _sync_store():", 1)[1].split("store[\"status\"] = \"processing\"", 1)[0]
+    sync = text.split("async def _sync_store():", 1)[1].split('store["status"] = "processing"', 1)[
+        0
+    ]
     assert "dna_eval" in sync
     assert "source: Optional[str]" in text
 

@@ -66,6 +66,7 @@ def _is_git_push_command(command: str, _depth: int = 0) -> bool:
         return _is_git_push_command(_unwrap_quoted(evaled.group(1)), _depth + 1)
     return False
 
+
 # Попытка загрузить переменные окружения для серверов
 SERVER_CREDENTIALS = {
     "185.177.216.15": {
@@ -174,9 +175,7 @@ class SystemTools:
         if not SystemTools._validate_command_safety(c):
             return "Error: Command rejected by ATRA Safety Layer (Risk Manager: Maria). Reason: High destructive risk."
         if _is_git_push_command(c) and not _allow_git_push():
-            return (
-                "Error: git_push rejected (ATRA_ALLOW_GIT_PUSH not set). Human push only."
-            )
+            return "Error: git_push rejected (ATRA_ALLOW_GIT_PUSH not set). Human push only."
 
         try:
             if not c:
@@ -256,9 +255,7 @@ class SystemTools:
         if not SystemTools._validate_command_safety(command):
             return "Error: Command rejected by ATRA Safety Layer (Risk Manager: Maria). Reason: High destructive risk."
         if _is_git_push_command(command) and not _allow_git_push():
-            return (
-                "Error: git_push rejected (ATRA_ALLOW_GIT_PUSH not set). Human push only."
-            )
+            return "Error: git_push rejected (ATRA_ALLOW_GIT_PUSH not set). Human push only."
 
         # Автоматическая подстановка если хост наш
         if host in SERVER_CREDENTIALS:
@@ -741,9 +738,7 @@ class GitTools:
     @staticmethod
     async def git_push(remote: str = "origin", branch: str = "") -> str:
         if not _allow_git_push():
-            return (
-                "Error: git_push rejected (ATRA_ALLOW_GIT_PUSH not set). Human push only."
-            )
+            return "Error: git_push rejected (ATRA_ALLOW_GIT_PUSH not set). Human push only."
         for t in (remote, branch):
             if not GitTools._safe_token(t or "x"):
                 return "Error: опасные токены"

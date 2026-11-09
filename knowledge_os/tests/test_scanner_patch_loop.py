@@ -33,16 +33,16 @@ def test_unprotected_typeerror_is_patch_and_may_write():
         'File "/workspace/atra-web-ide/src/auto_guard_probe.py", line 4, in add\n'
         "TypeError: unsupported operand"
     )
-    klass = _scanner.classify_scanner_incident(
-        "dynamic-1", {"type": "TypeError", "message": msg}
-    )
+    klass = _scanner.classify_scanner_incident("dynamic-1", {"type": "TypeError", "message": msg})
     assert klass == "patch"
     tools = _scanner.blocked_tools_for_scanner_class(klass)
     assert "write_file" not in tools
     assert "apply_patch" not in tools
     assert "run_terminal_cmd" not in tools
     assert "git_push" in tools
-    goal = _scanner.build_scanner_goal("dynamic-1", {"type": "TypeError", "message": msg}, klass, "src/auto_guard_probe.py")
+    goal = _scanner.build_scanner_goal(
+        "dynamic-1", {"type": "TypeError", "message": msg}, klass, "src/auto_guard_probe.py"
+    )
     assert "command" in goal and "PASS" in goal
     assert "git_push" in goal
 
