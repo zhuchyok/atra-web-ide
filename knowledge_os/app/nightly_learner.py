@@ -60,9 +60,7 @@ NIGHTLY_DISTILL_TURBO_EXIT_STREAK = int(os.getenv("NIGHTLY_DISTILL_TURBO_EXIT_ST
 NIGHTLY_DISTILL_FORCE_MODE = os.getenv("NIGHTLY_DISTILL_FORCE_MODE", "auto").strip().lower()
 # Skip drain when the eligible tail is a frozen backlog, not a live catch-up.
 # Turbo-to-target=5 on ~40k LOOP-BREAKER nodes would pin 11437 for days.
-NIGHTLY_DISTILL_SKIP_ELIGIBLE_ABOVE = int(
-    os.getenv("NIGHTLY_DISTILL_SKIP_ELIGIBLE_ABOVE", "500")
-)
+NIGHTLY_DISTILL_SKIP_ELIGIBLE_ABOVE = int(os.getenv("NIGHTLY_DISTILL_SKIP_ELIGIBLE_ABOVE", "500"))
 NIGHTLY_ROUTING_GUARD_ENABLED = os.getenv("NIGHTLY_ROUTING_GUARD_ENABLED", "true").lower() in (
     "1",
     "true",

@@ -420,7 +420,9 @@ class ExpertEvolver:
                 ОТВЕТЬТЕ ТОЛЬКО ТЕКСТОМ НОВОГО ПРОМПТА.
                 """
 
-                new_prompt = _normalize_mutation_text(await run_mutation_agent(evolution_prompt) or "")
+                new_prompt = _normalize_mutation_text(
+                    await run_mutation_agent(evolution_prompt) or ""
+                )
 
                 if new_prompt and len(new_prompt) > 100:
                     base_version = expert["version"] or 0

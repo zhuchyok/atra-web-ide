@@ -65,9 +65,11 @@ def test_git_push_not_in_allowed_tools():
 
 
 def test_run_local_command_source_blocks_git_push():
-    fn = _TOOLS.read_text(encoding="utf-8").split("async def run_local_command", 1)[1].split(
-        "def _load_guard_file_write", 1
-    )[0]
+    fn = (
+        _TOOLS.read_text(encoding="utf-8")
+        .split("async def run_local_command", 1)[1]
+        .split("def _load_guard_file_write", 1)[0]
+    )
     assert "ATRA_ALLOW_GIT_PUSH" in fn or "_allow_git_push" in fn
     assert "_is_git_push_command" in fn or "git push" in fn.lower()
 
@@ -146,9 +148,11 @@ async def test_run_local_command_refuses_bash_c_git_push(monkeypatch):
 
 
 def test_ssh_run_source_blocks_git_push():
-    fn = _TOOLS.read_text(encoding="utf-8").split("async def run_ssh_command", 1)[1].split(
-        "async def read_project_file", 1
-    )[0]
+    fn = (
+        _TOOLS.read_text(encoding="utf-8")
+        .split("async def run_ssh_command", 1)[1]
+        .split("async def read_project_file", 1)[0]
+    )
     assert "_is_git_push_command" in fn
     assert "ATRA_ALLOW_GIT_PUSH" in fn or "_allow_git_push" in fn
 
@@ -206,9 +210,7 @@ async def test_run_local_command_refuses_python_c_git_push(monkeypatch):
 
 def test_is_git_push_detects_node_e_and_not_console_log():
     mod = _load_tools()
-    assert mod._is_git_push_command(
-        "node -e \"require('child_process').execSync('git push')\""
-    )
+    assert mod._is_git_push_command("node -e \"require('child_process').execSync('git push')\"")
     assert mod._is_git_push_command(
         "node -e \"require('child_process').spawnSync('git', ['push'])\""
     )

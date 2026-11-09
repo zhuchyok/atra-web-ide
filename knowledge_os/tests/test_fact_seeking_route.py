@@ -139,9 +139,7 @@ def test_slot_check_is_fact_seeking_and_needs_live_ps():
     assert goal_wants_ollama_slots(goal)
     missing = format_live_fact_answer(goal, health="ok")
     assert "слоты не сняла" in missing
-    live = format_live_fact_answer(
-        goal, health="ok", slots="11434=victoria-qwen38:latest@16384"
-    )
+    live = format_live_fact_answer(goal, health="ok", slots="11434=victoria-qwen38:latest@16384")
     assert "11434=victoria-qwen38:latest@16384" in live
     assert "слоты не сняла" not in live
 

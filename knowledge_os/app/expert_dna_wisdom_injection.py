@@ -427,9 +427,7 @@ async def run_injection_cycle(dry_run: bool = False) -> Dict[str, Any]:
                         "verdict": {"reason": "before-ответы с ошибками (инфраструктура)"},
                     }
                 )
-                logger.warning(
-                    "[DNA-INJ] %s: before-ошибки — цикл прерван без инъекции", expert
-                )
+                logger.warning("[DNA-INJ] %s: before-ошибки — цикл прерван без инъекции", expert)
                 report["injections"].append(entry)
                 continue
             ok = await inject_wisdom_dna(conn, expert, w["node_id"], w["override_text"])
