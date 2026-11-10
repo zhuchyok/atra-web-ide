@@ -94,18 +94,21 @@ def classify_pending(
     keep: list[Mapping[str, Any]] = []
     for entry in entries or []:
         msg_id = pending_id(entry)
+        owner = _consumer(entry)
+        idle = _idle_ms(entry)
         if msg_id and msg_id in inflight:
+            keep.append(entry)
+            continue
+        # Do not kill messages that are still fresh or owned by a live worker.
+        # We only mark zombie after the owner is stale and message is idle long enough.
+        if idle <= idle_cut:
+            keep.append(entry)
+            continue
+        if owner and owner in live:
             keep.append(entry)
             continue
         if _deliveries(entry) > zombie_n:
             zombies.append(entry)
-            continue
-        if _idle_ms(entry) <= idle_cut:
-            keep.append(entry)
-            continue
-        owner = _consumer(entry)
-        if owner and owner in live:
-            keep.append(entry)
             continue
         reclaim.append(entry)
     return {"zombies": zombies, "reclaim": reclaim, "keep": keep}

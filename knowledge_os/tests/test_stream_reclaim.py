@@ -47,10 +47,18 @@ def test_fresh_idle_is_keep():
     assert out["reclaim"] == []
 
 
-def test_high_delivery_is_zombie_even_if_live():
+def test_high_delivery_live_consumer_is_keep_not_zombie():
     entries = [_entry("5-0", idle_ms=400_000, deliveries=11, consumer="worker_live")]
     out = classify_pending(entries, live_consumers={"worker_live"}, min_idle_ms=300_000)
-    assert pending_id(out["zombies"][0]) == "5-0"
+    assert pending_id(out["keep"][0]) == "5-0"
+    assert out["reclaim"] == []
+    assert out["zombies"] == []
+
+
+def test_high_delivery_dead_consumer_is_zombie():
+    entries = [_entry("5-1", idle_ms=400_000, deliveries=11, consumer="worker_dead")]
+    out = classify_pending(entries, live_consumers={"worker_live"}, min_idle_ms=300_000)
+    assert pending_id(out["zombies"][0]) == "5-1"
     assert out["reclaim"] == []
 
 
