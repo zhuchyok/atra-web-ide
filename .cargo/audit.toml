@@ -19,6 +19,9 @@ ignore = [
     "RUSTSEC-2025-0134",
     "RUSTSEC-2024-0363",
     "RUSTSEC-2024-0436",
+    # libsqlite3-sys 0.27 (пин sqlx 0.7): C SQLite CVE-2026-1193. Фикс требует sqlx 0.8 (#62).
+    # Мы не используем SQLite в runtime (только Postgres) — vuln неприменима, уйдёт с #62.
+    "RUSTSEC-2026-0459",
     # dotenv: unmaintained, замена dotenvy — косметика, в плане
     "RUSTSEC-2021-0141",
 ]

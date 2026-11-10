@@ -88,3 +88,4 @@ redis>=5.0.1
 
 # Multi-Agent framework (Actor model, MsgHub, ReMe memory, Swarm orchestration)
 agentscope>=0.0.5
+psutil
