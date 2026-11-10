@@ -6213,6 +6213,12 @@ def _check_ambiguity(goal: str, category: str, restated: str) -> bool:
     Возвращает True, если нужны уточняющие вопросы (не выполнять задачу сразу).
     """
     goal_lower = goal.lower().strip()
+    # Задачи интроспекции (самоаудит Виктории от куратора) — исполнять сразу,
+    # без уточняющих вопросов: у них нет «конкретных индикаторов» (файл/инструмент),
+    # но они однозначны по определению. Issue #64.
+    introspection_markers = ("самоаудит", "интроспек", "честность отказов")
+    if any(m in goal_lower for m in introspection_markers):
+        return False
     # Явно конкретные задачи — всегда выполнять без уточнений
     concrete_indicators = [
         ".parquet",
