@@ -157,7 +157,12 @@ SELF_AUDIT_FILE="$ROOT/scripts/curator_self_audit_tasks.txt"
 if [ -z "$ROOT" ]; then SELF_AUDIT_FILE="$(cd "$(dirname "$0")/.." && pwd)/scripts/curator_self_audit_tasks.txt"; fi
 if [ "${SELF_AUDIT:-1}" != "0" ] && [ -f "$SELF_AUDIT_FILE" ]; then
   echo "=== 8. Самоаудит Виктории с консилиумом ==="
-  $PYTHON_CMD scripts/curator_send_tasks_to_victoria.py --file "$SELF_AUDIT_FILE" --async --max-wait 3600 || true
+  # [2026-11-10] Виктория stateless: своих прошлых ответов не видит — подкладываем
+  # реальные выдержки её ответов за сутки (иначе честно откажется: «выдумывать не буду»)
+  SA_TASK_FILE="/tmp/atra_self_audit_task_$$.txt"
+  $PYTHON_CMD scripts/build_self_audit_task.py > "$SA_TASK_FILE" 2>/dev/null || cp "$SELF_AUDIT_FILE" "$SA_TASK_FILE"
+  $PYTHON_CMD scripts/curator_send_tasks_to_victoria.py --file "$SA_TASK_FILE" --async --max-wait 3600 || true
+  rm -f "$SA_TASK_FILE"
   echo ""
 fi
 
