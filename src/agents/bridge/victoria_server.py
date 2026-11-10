@@ -1409,6 +1409,7 @@ from src.agents.bridge.task_detector import (
     goal_wants_scanner,
     is_fact_seeking_question,
     is_curator_standard_goal,
+    is_introspection_goal,
     is_consilium_winnable_goal,
     consilium_categories,
     is_operational_execution_goal,
@@ -7516,6 +7517,14 @@ async def _run_task_background(
         # Guardrail (v144): уточнения не перебивают кураторские эталоны.
         # «Какой статус проекта?» и т.п. всегда идут в Enhanced + RAG,
         # а не в LLM-стратегию, которая локально просит «уточните».
+        if strategy_result.get("strategy") == "need_clarification" and is_introspection_goal(
+            goal
+        ):
+            strategy_result = {
+                "strategy": "deep_analysis",
+                "reason": "introspection_goal_no_clarify",
+                "confidence": 0.95,
+            }
         if strategy_result.get("strategy") == "need_clarification" and is_curator_standard_goal(
             goal
         ):
