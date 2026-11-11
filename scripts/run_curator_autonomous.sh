@@ -159,10 +159,12 @@ if [ "${SELF_AUDIT:-1}" != "0" ] && [ -f "$SELF_AUDIT_FILE" ]; then
   echo "=== 8. Самоаудит Виктории с консилиумом ==="
   # [2026-11-10] Виктория stateless: своих прошлых ответов не видит — подкладываем
   # реальные выдержки её ответов за сутки (иначе честно откажется: «выдумывать не буду»)
-  SA_TASK_FILE="/tmp/atra_self_audit_task_$$.txt"
-  $PYTHON_CMD scripts/build_self_audit_task.py > "$SA_TASK_FILE" 2>/dev/null || cp "$SELF_AUDIT_FILE" "$SA_TASK_FILE"
-  $PYTHON_CMD scripts/curator_send_tasks_to_victoria.py --file "$SA_TASK_FILE" --async --max-wait 3600 || true
-  rm -f "$SA_TASK_FILE"
+  # [2026-11-11] ВАЖНО: материал должен уходить ОДНОЙ задачей. --file режет по
+  # строкам/абзацам и взрывал материал на 8 микрозадач (каждая ушла не туда).
+  # Поэтому копим в однострочный JSON-аргумент --tasks.
+  SA_TASK="$($PYTHON_CMD scripts/build_self_audit_task.py 2>/dev/null | tr '\n' ' ')"
+  if [ -z "$SA_TASK" ]; then SA_TASK="$(tr '\n' ' ' < "$SELF_AUDIT_FILE")"; fi
+  $PYTHON_CMD scripts/curator_send_tasks_to_victoria.py --tasks "$SA_TASK" --async --max-wait 3600 || true
   echo ""
 fi
 
