@@ -4289,7 +4289,7 @@ Q: "покажи файлы в текущей директории" → План
                 )
                 return "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?"
             # Быстрый путь: «что ты умеешь» — конкретный список возможностей (куратор: FINDINGS_2026-02-08)
-            if any(
+            if not is_introspection_goal(goal) and any(
                 p in goal_lower
                 for p in (
                     "что ты умеешь",
@@ -7407,7 +7407,11 @@ async def _run_task_background(
 
         # Ранний выход для приветствий и «что умеешь» — без вызова LLM (как в agent.run fast path). Интеграционные тесты и UI не зависают.
         goal_lower = (goal or "").strip().lower()
-        if goal_lower in (
+        # Задачи интроспекции содержат цитаты «что ты умеешь?» в материале —
+        # substring-фастпасы не должны срабатывать (issue #64).
+        if is_introspection_goal(goal):
+            pass  # сразу к полному циклу
+        elif goal_lower in (
             "привет",
             "скажи привет",
             "здравствуй",
@@ -7430,7 +7434,7 @@ async def _run_task_background(
                 task_id[:8],
             )
             return
-        if any(
+        elif any(
             p in goal_lower
             for p in (
                 "что ты умеешь",
@@ -9567,6 +9571,10 @@ async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
     """Build a deterministic fact answer for /run without LLM."""
     # Tool directives (web/sql/git) must go through quick-tools, not fact-live probe.
     if _has_explicit_tool_directive(goal or ""):
+        return None
+    # Fact-probe — для КОРОТКИХ живых вопросов. Длинный текст (>400 симв.) —
+    # документ с цитатами: проба по подстроке ложно срабатывает на цитаты (уроки #64).
+    if len(goal or "") > 400:
         return None
     if not is_fact_seeking_question(goal or ""):
         return None
