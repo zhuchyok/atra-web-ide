@@ -258,6 +258,11 @@ def correct_text(text: str) -> str:
     return text
 
 
+def cid_key(chat_id: str) -> str:
+    import hashlib
+    return hashlib.md5(chat_id.encode()).hexdigest()[:10]
+
+
 def send_reply(token: str, chat_id: str, text: str) -> bool:
     hdrs = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     body = json.dumps({"message": {"text": text}, "type": "text"}).encode()
@@ -360,6 +365,27 @@ def main() -> int:
                               "ts": datetime.now(timezone.utc).isoformat()}
             state_dirty = True
             save_state(state)
+
+        # ─── ПРОАКТИВНОЕ ПЕРВОЕ СООБЩЕНИЕ ───
+        # Клиент посмотрел номер из объявления, но не написал — самый горячий лид.
+        # Пишем один раз на чат (фиксируется в state), не зависимо от unread.
+        if not customer_text:
+            sys_txt = " ".join(str(m.get("content", {}).get("text", "")) for m in msgs[-3:])
+            if "посмотрел номер" in sys_txt.lower() and not state.get(chat_id, {}).get("proactive_sent"):
+                first_msg = ("Здравствуйте! Татьяна, компания «Столичные Окна» — видела, что вы "
+                             "смотрели наш номер по объявлению «" + item_title + "». "
+                             "Подскажу по любым вопросам: размеры, установка, гарантия. "
+                             "Могу подготовить расчёт под ваши размеры — напишите ширину и высоту проёма.")
+                sent = send_reply(token, chat_id, first_msg)
+                if sent:
+                    prev = state.get(chat_id, {})
+                    state[chat_id] = {**prev, "proactive_sent": True,
+                                      "item": item_title,
+                                      "ts": datetime.now(timezone.utc).isoformat()}
+                    save_state(state)
+                    print(f"  📣 проактивное сообщение отправлено ({chat_id[:12]}…)")
+                    time.sleep(1)
+                    continue
 
         # ─── ПРОВЕРКИ ОСТАНОВКИ ───
         # 1) Менеджер уже ответил → бот молчит
