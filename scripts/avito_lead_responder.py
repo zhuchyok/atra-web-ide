@@ -317,16 +317,21 @@ def main() -> int:
             continue
 
         # последнее сообщение от клиента
+        # ВАЖНО: в v3 API поле author отсутствует — направление только в direction
+        # ("in" = клиент, "out" = мы). Старая проверка author.type не работала ВООБЩЕ,
+        # из-за чего Татьяна не видела вопросы клиентов и отвечала шаблонами на пустоту.
         customer_text = ""
         customer_msg_id = ""
         for m in reversed(msgs):
-            author = m.get("author", {})
-            content = m.get("content", {})
-            if author.get("type") == "customer" and isinstance(content, dict):
-                customer_text = str(content.get("text", ""))[:150]
-                customer_msg_id = str(m.get("id") or m.get("message_id")
-                                      or m.get("uuid") or "")
-                break
+            if m.get("direction") == "in":
+                content = m.get("content", {})
+                if isinstance(content, dict):
+                    txt = str(content.get("text", "")).strip()
+                    if txt and not txt.startswith("[Системное сообщение]"):
+                        customer_text = txt[:150]
+                        customer_msg_id = str(m.get("id") or m.get("message_id")
+                                              or m.get("uuid") or "")
+                        break
 
         # дедуп: алерт только если сообщение клиента новое
         # (если id пустой — хэш текста, hash() солёный per-process)
