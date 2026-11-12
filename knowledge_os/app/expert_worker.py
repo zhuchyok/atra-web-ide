@@ -3969,10 +3969,11 @@ async def worker_loop():
                         min_idle_ms=300000,
                     )
                     # Phase 1: Zombies → DLQ + PostgreSQL sync
-                    zombie_msg_ids = [pending_id(p) for p in classified["zombies"] if pending_id(p)]
-                    if zombie_msg_ids:
+                    zombie_candidates = [pending_id(p) for p in classified["zombies"] if pending_id(p)]
+                    if zombie_candidates:
+                        zombie_msg_ids = []
                         zombie_task_ids = []
-                        for zmid in zombie_msg_ids:
+                        for zmid in zombie_candidates:
                             try:
                                 raw = await client.xrange(f"stream:{STREAM_NAME}", zmid, zmid)
                                 if raw:
@@ -3986,15 +3987,33 @@ async def worker_loop():
                                         )
                                         task_id = zpayload.get("task_id")
                                         if task_id:
+                                            # Guardrail: never DLQ-kill a task that still has a live
+                                            # blackboard heartbeat ownership; this is an active run.
+                                            hb_key = f"blackboard:heartbeat:{task_id}"
+                                            if await client.exists(hb_key):
+                                                logger.info(
+                                                    "🛟 [DLQ-GUARD] Skip zombie kill for active heartbeat task_id=%s msg_id=%s",
+                                                    task_id,
+                                                    zmid,
+                                                )
+                                                continue
                                             zombie_task_ids.append(task_id)
+                                        zombie_msg_ids.append(zmid)
+                                    else:
+                                        zombie_msg_ids.append(zmid)
+                                else:
+                                    zombie_msg_ids.append(zmid)
                             except Exception as ze:
                                 logger.warning(
                                     f"⚠️ [DLQ] Could not read zombie payload {zmid}: {ze}"
                                 )
-                        logger.warning(
-                            f"💀 [DLQ] Killing {len(zombie_msg_ids)} zombie messages, task_ids={zombie_task_ids}"
-                        )
-                        await client.xack(f"stream:{STREAM_NAME}", GROUP_NAME, *zombie_msg_ids)
+                                # Fail-safe: keep original DLQ behavior if payload lookup fails.
+                                zombie_msg_ids.append(zmid)
+                        if zombie_msg_ids:
+                            logger.warning(
+                                f"💀 [DLQ] Killing {len(zombie_msg_ids)} zombie messages, task_ids={zombie_task_ids}"
+                            )
+                            await client.xack(f"stream:{STREAM_NAME}", GROUP_NAME, *zombie_msg_ids)
                         if zombie_task_ids:
                             zombie_uuid_ids = [
                                 parsed
