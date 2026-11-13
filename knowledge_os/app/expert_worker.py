@@ -3969,7 +3969,9 @@ async def worker_loop():
                         min_idle_ms=300000,
                     )
                     # Phase 1: Zombies → DLQ + PostgreSQL sync
-                    zombie_candidates = [pending_id(p) for p in classified["zombies"] if pending_id(p)]
+                    zombie_candidates = [
+                        pending_id(p) for p in classified["zombies"] if pending_id(p)
+                    ]
                     if zombie_candidates:
                         zombie_msg_ids = []
                         zombie_task_ids = []
