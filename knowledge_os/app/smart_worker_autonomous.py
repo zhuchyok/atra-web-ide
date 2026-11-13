@@ -380,20 +380,38 @@ def _fast_file_check(task_title: str) -> str | None:
 
     file_path = (pip_m or secret_m or deep_m).group(1)
     if not os.path.exists(file_path):
-        return f"ОК (файл {file_path} не найден на хосте — пропущено)"
+        return f"ФАЙЛ НЕ НАЙДЕН: {file_path}"
 
     try:
         with open(file_path, encoding="utf-8", errors="ignore") as f:
             lines = f.readlines()
     except OSError as e:
-        return f"ОК (ошибка чтения {file_path}: {e})"
+        return f"ПРОБЛЕМА: ошибка чтения {file_path}: {e}"
+
+    def _is_runtime_pip_line(line: str) -> bool:
+        lowered = line.lower()
+        if "pip" not in lowered or "install" not in lowered:
+            return False
+        if "not in text" in lowered or "not in normalized" in lowered:
+            return False
+        if "subprocess." in lowered:
+            return True
+        if "os.system(" in lowered:
+            return True
+        if "python -m pip install" in lowered and (
+            "subprocess." in lowered or "os.system(" in lowered
+        ):
+            return True
+        if "python3 -m pip install" in lowered and (
+            "subprocess." in lowered or "os.system(" in lowered
+        ):
+            return True
+        return False
 
     if pip_m:
         matches = []
         for i, line in enumerate(lines, 1):
-            if "subprocess" in line and "pip" in line:
-                matches.append(f"строка {i}: {line.strip()[:100]}")
-            elif "os.system" in line and "pip" in line:
+            if _is_runtime_pip_line(line):
                 matches.append(f"строка {i}: {line.strip()[:100]}")
         if matches:
             return "ПРОБЛЕМА: " + "; ".join(matches[:3])

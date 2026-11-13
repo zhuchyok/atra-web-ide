@@ -153,10 +153,9 @@ _SECRET_PATTERNS = [
 ]
 
 _PIP_RUNTIME_PATTERNS = [
-    re.compile(r"pip\s+install", re.I),
-    re.compile(r"python\s+-m\s+pip\s+install", re.I),
     re.compile(r"subprocess\.(run|Popen)\([^)]*pip", re.I),
     re.compile(r"os\.system\([^)]*pip", re.I),
+    re.compile(r"python\s*(?:3)?\s*-\s*m\s*pip\s+install", re.I),
 ]
 
 
@@ -213,6 +212,16 @@ def _extract_file_audit_params(title: str, description: str = "") -> tuple[str |
     return file_path, first_lines
 
 
+def _line_has_runtime_pip_install(content: str) -> bool:
+    lowered = (content or "").lower()
+    if "pip" not in lowered or "install" not in lowered:
+        return False
+    # Guard conditions in detector code are not runtime installation.
+    if "not in text" in lowered or "not in normalized" in lowered:
+        return False
+    return any(pat.search(content or "") for pat in _PIP_RUNTIME_PATTERNS)
+
+
 def _execute_file_audit(title: str, description: str = "") -> str:
     text = (title or "") + "\n" + (description or "")
     file_path, first_lines = _extract_file_audit_params(title, description)
@@ -239,6 +248,15 @@ def _execute_file_audit(title: str, description: str = "") -> str:
         # Skip obvious comments for fewer false positives.
         stripped = content.strip()
         if stripped.startswith("#") or stripped.startswith("//"):
+            continue
+        if check_pip:
+            if _line_has_runtime_pip_install(content):
+                return (
+                    "ПРОБЛЕМА\n"
+                    f"Файл: {file_path}\n"
+                    f"Проверка: {issue_kind} (первые {first_lines} строк)\n"
+                    f"Цитата: L{ln}: {content[:220]}"
+                )
             continue
         for pat in patterns:
             if pat.search(content):

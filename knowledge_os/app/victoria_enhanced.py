@@ -100,6 +100,25 @@ def _resolve_existing_python_path(raw_path: str) -> Optional[str]:
     return None
 
 
+def _line_has_runtime_pip_install(line: str) -> bool:
+    lowered = (line or "").lower()
+    if "pip" not in lowered or "install" not in lowered:
+        return False
+    if "not in text" in lowered or "not in normalized" in lowered:
+        return False
+    if "subprocess." in lowered:
+        return True
+    if "os.system(" in lowered:
+        return True
+    if "python -m pip install" in lowered and ("subprocess." in lowered or "os.system(" in lowered):
+        return True
+    if "python3 -m pip install" in lowered and (
+        "subprocess." in lowered or "os.system(" in lowered
+    ):
+        return True
+    return False
+
+
 def _run_fast_security_audit(goal: str) -> Optional[str]:
     text = (goal or "").lower()
     is_file_check = "проверь файл" in text or "check file" in text
@@ -110,8 +129,10 @@ def _run_fast_security_audit(goal: str) -> Optional[str]:
 
     raw_path = _extract_audit_file_path(goal or "")
     resolved_path = _resolve_existing_python_path(raw_path or "")
+    if not raw_path:
+        return "НЕ МОГУ ПРОВЕРИТЬ: путь к файлу не распознан в задаче."
     if not resolved_path:
-        return None
+        return f"ФАЙЛ НЕ НАЙДЕН: {raw_path}"
 
     try:
         with open(resolved_path, encoding="utf-8", errors="ignore") as handle:
@@ -122,17 +143,7 @@ def _run_fast_security_audit(goal: str) -> Optional[str]:
     if "pip install" in text:
         findings = []
         for idx, line in enumerate(lines, 1):
-            lowered = line.lower()
-            if (
-                "pip" in lowered
-                and "install" in lowered
-                and (
-                    "subprocess." in lowered
-                    or "os.system(" in lowered
-                    or "python -m pip install" in lowered
-                    or "python3 -m pip install" in lowered
-                )
-            ):
+            if _line_has_runtime_pip_install(line):
                 findings.append(f"L{idx}: {line.strip()[:220]}")
         if findings:
             return (

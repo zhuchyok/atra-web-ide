@@ -275,6 +275,26 @@ def _resolve_existing_python_path(raw_path: str) -> Optional[str]:
     return None
 
 
+def _line_has_runtime_pip_install(line: str) -> bool:
+    """Detect runtime pip execution, not checker conditions/prompts."""
+    normalized = (line or "").lower()
+    if "pip" not in normalized or "install" not in normalized:
+        return False
+    if "not in text" in normalized or "not in normalized" in normalized:
+        return False
+    if "subprocess." in normalized:
+        return True
+    if "os.system(" in normalized:
+        return True
+    if "python -m pip install" in normalized and ("subprocess." in normalized or "os.system(" in normalized):
+        return True
+    if "python3 -m pip install" in normalized and (
+        "subprocess." in normalized or "os.system(" in normalized
+    ):
+        return True
+    return False
+
+
 def _run_monster_pip_runtime_audit(description: str, metadata: Dict) -> Optional[str]:
     """
     Fast deterministic audit for prompts like:
@@ -292,24 +312,16 @@ def _run_monster_pip_runtime_audit(description: str, metadata: Dict) -> Optional
 
     raw_path = _extract_monster_audit_path(description or "", metadata or {})
     if not raw_path:
-        return None
+        return "НЕ МОГУ ПРОВЕРИТЬ: путь к файлу не распознан в задаче."
     resolved_path = _resolve_existing_python_path(raw_path)
     if not resolved_path:
-        return None
+        return f"ФАЙЛ НЕ НАЙДЕН: {raw_path}"
 
     findings: List[str] = []
     try:
         with open(resolved_path, encoding="utf-8", errors="ignore") as f:
             for idx, line in enumerate(f, 1):
-                normalized = line.lower()
-                if "pip" not in normalized or "install" not in normalized:
-                    continue
-                if (
-                    "subprocess." in normalized
-                    or "os.system(" in normalized
-                    or "python -m pip install" in normalized
-                    or "python3 -m pip install" in normalized
-                ):
+                if _line_has_runtime_pip_install(line):
                     findings.append(f"L{idx}: {line.strip()[:220]}")
     except Exception as err:
         return f"ПРОБЛЕМА\nФайл: {resolved_path}\nНе удалось провести проверку файла: {err}"
@@ -3969,9 +3981,7 @@ async def worker_loop():
                         min_idle_ms=300000,
                     )
                     # Phase 1: Zombies → DLQ + PostgreSQL sync
-                    zombie_candidates = [
-                        pending_id(p) for p in classified["zombies"] if pending_id(p)
-                    ]
+                    zombie_candidates = [pending_id(p) for p in classified["zombies"] if pending_id(p)]
                     if zombie_candidates:
                         zombie_msg_ids = []
                         zombie_task_ids = []

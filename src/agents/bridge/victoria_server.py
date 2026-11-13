@@ -1032,9 +1032,7 @@ async def _fail_orphaned_inflight_on_startup() -> None:
         task_id = raw_id.decode() if isinstance(raw_id, bytes) else str(raw_id)
         age_sec: Optional[float] = None
         try:
-            created_raw = (
-                raw_created.decode() if isinstance(raw_created, bytes) else str(raw_created)
-            )
+            created_raw = raw_created.decode() if isinstance(raw_created, bytes) else str(raw_created)
             try:
                 created_at = datetime.fromisoformat(created_raw)
                 if created_at.tzinfo is None:
@@ -2511,7 +2509,9 @@ def _scanner_patch_verify(goal: str, result: str) -> str:
         src = open(fp, encoding="utf-8").read()
         compile(src, fp, "exec")
     except Exception as e:
-        return f"command: python3 -m py_compile {rel}\noutput: {e}\nFAIL\nuntested\n{result}"
+        return (
+            f"command: python3 -m py_compile {rel}\noutput: {e}\nFAIL\nuntested\n{result}"
+        )
     runtime = "compiled"
     try:
         ns: dict = {}
@@ -2520,9 +2520,13 @@ def _scanner_patch_verify(goal: str, result: str) -> str:
             val = ns["add"](1, 2)
             runtime = f"add(1,2)={val}"
             if val != 3:
-                return f"command: python3 -c add(1,2)\noutput: {runtime}\nFAIL\n{result}"
+                return (
+                    f"command: python3 -c add(1,2)\noutput: {runtime}\nFAIL\n{result}"
+                )
     except Exception as e:
-        return f"command: python3 -c add(1,2)\noutput: {type(e).__name__}: {e}\nFAIL\n{result}"
+        return (
+            f"command: python3 -c add(1,2)\noutput: {type(e).__name__}: {e}\nFAIL\n{result}"
+        )
     return (
         f"command: python3 -m py_compile {rel}; add(1,2)\n"
         f"output: OK; {runtime}\nPASS\nwrite_file {rel}"
@@ -4274,6 +4278,9 @@ Q: "покажи файлы в текущей директории" → План
             return cached_result
 
         goal_lower = (goal or "").strip().lower()
+        # Задачи интроспекции (самоаудит с материалом) содержат цитаты вроде
+        # «что ты умеешь?» внутри — сабстринг-фастпасы не должны на них срабатывать.
+        _introspective = is_introspection_goal(goal)
         try:
             # Быстрый путь: простые приветствия — сразу ответ (полный цикл без зависания на LLM)
             if goal_lower in (
@@ -4289,7 +4296,7 @@ Q: "покажи файлы в текущей директории" → План
                 )
                 return "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?"
             # Быстрый путь: «что ты умеешь» — конкретный список возможностей (куратор: FINDINGS_2026-02-08)
-            if not is_introspection_goal(goal) and any(
+            if not _introspective and any(
                 p in goal_lower
                 for p in (
                     "что ты умеешь",
@@ -4783,6 +4790,25 @@ _FILE_CHECK_RE = re.compile(
 _FILE_CHECK_MAX_PREFIX = 120
 
 
+def _line_has_runtime_pip_install(line: str) -> bool:
+    """True only for likely runtime pip execution, not for detector text itself."""
+    lowered = (line or "").lower()
+    if "pip" not in lowered or "install" not in lowered:
+        return False
+    # Guard against prompt/detector text like: if "pip install" not in text
+    if "not in text" in lowered or "not in normalized" in lowered:
+        return False
+    if "subprocess." in lowered:
+        return True
+    if "os.system(" in lowered:
+        return True
+    if "python -m pip install" in lowered and ("subprocess." in lowered or "os.system(" in lowered):
+        return True
+    if "python3 -m pip install" in lowered and ("subprocess." in lowered or "os.system(" in lowered):
+        return True
+    return False
+
+
 def _file_check_scan(path: str, task_text: str) -> Optional[str]:
     """Deterministic file check: «есть ли X» → substring scan, «найди проблемы: a, b» → per-pattern scan.
 
@@ -4816,19 +4842,18 @@ def _file_check_scan(path: str, task_text: str) -> Optional[str]:
         what = re.sub(r"\s*\(.*?\)\s*$", "", what).strip()
         if not what:
             return None
+        if "pip install" in what:
+            hits = [i for i, ln in enumerate(view) if _line_has_runtime_pip_install(ln)]
+            if not hits:
+                return (
+                    f"ОК: runtime pip install через subprocess/os.system в файле {path} не найдено."
+                )
+            return (
+                "ПРОБЛЕМА: найден потенциальный runtime pip install "
+                f"(строка {hits[0] + 1}): {_quote(hits[0])}"
+            )
         hits = [i for i, ln in enumerate(view) if what in ln]
         if not hits:
-            # Fallback: полная фраза могла не сойтись из-за формулировки —
-            # ищем первые два слова (например «pip install») против false-ОК.
-            words = what.split()
-            if len(words) >= 2:
-                short = " ".join(words[:2])
-                hits = [i for i, ln in enumerate(view) if short in ln]
-                if hits:
-                    return (
-                        f"ПРОБЛЕМА: найдено «{short}» (строка {hits[0] + 1}): {_quote(hits[0])} "
-                        f"— уточни вручную, является ли это рантайм-установкой."
-                    )
             return f"ОК: «{what}» в файле {path} не найдено."
         return f"ПРОБЛЕМА: найдено «{what}» (строка {hits[0] + 1}): {_quote(hits[0])}"
 
@@ -4842,6 +4867,16 @@ def _file_check_scan(path: str, task_text: str) -> Optional[str]:
             return None
         findings = []
         for item in items:
+            if "pip install" in item:
+                pip_hit = next(
+                    (i for i, ln in enumerate(view) if _line_has_runtime_pip_install(ln)),
+                    None,
+                )
+                if pip_hit is not None:
+                    findings.append(
+                        f"«runtime pip install» (строка {pip_hit + 1}): {_quote(pip_hit)}"
+                    )
+                continue
             for i, ln in enumerate(view):
                 if item in ln:
                     findings.append(f"«{item}» (строка {i + 1}): {_quote(i)}")
@@ -5319,9 +5354,7 @@ def _extract_async_task_id(payload: Any) -> Optional[str]:
     return None
 
 
-async def _await_async_handoff_result_for_chat(
-    task_id: str, max_wait_sec: int = 45
-) -> Optional[str]:
+async def _await_async_handoff_result_for_chat(task_id: str, max_wait_sec: int = 45) -> Optional[str]:
     """Poll /run status briefly so chat users see final answer, not handoff payload."""
     if not task_id:
         return None
@@ -7405,10 +7438,10 @@ async def _run_task_background(
                 )
                 return
 
-        # Ранний выход для приветствий и «что умеешь» — без вызова LLM (как в agent.run fast path). Интеграционные тесты и UI не зависают.
+        # Ранний выход для приветствий и «что умеешь» — без вызова LLM (как в agent.run fast path). Интеграционные тесты и UI не зависят.
         goal_lower = (goal or "").strip().lower()
         # Задачи интроспекции содержат цитаты «что ты умеешь?» в материале —
-        # substring-фастпасы не должны срабатывать (issue #64).
+        # substring-фастпасы не должны срабатывать (issue #64, слой 3).
         if is_introspection_goal(goal):
             pass  # сразу к полному циклу
         elif goal_lower in (
@@ -7521,7 +7554,9 @@ async def _run_task_background(
         # Guardrail (v144): уточнения не перебивают кураторские эталоны.
         # «Какой статус проекта?» и т.п. всегда идут в Enhanced + RAG,
         # а не в LLM-стратегию, которая локально просит «уточните».
-        if strategy_result.get("strategy") == "need_clarification" and is_introspection_goal(goal):
+        if strategy_result.get("strategy") == "need_clarification" and is_introspection_goal(
+            goal
+        ):
             strategy_result = {
                 "strategy": "deep_analysis",
                 "reason": "introspection_goal_no_clarify",
@@ -9572,8 +9607,9 @@ async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
     # Tool directives (web/sql/git) must go through quick-tools, not fact-live probe.
     if _has_explicit_tool_directive(goal or ""):
         return None
-    # Fact-probe — для КОРОТКИХ живых вопросов. Длинный текст (>400 симв.) —
-    # документ с цитатами: проба по подстроке ложно срабатывает на цитаты (уроки #64).
+    # Fact-probe — для КОРОТКИХ живых вопросов. Длинный текст (>400 симв.) — это
+    # документ/материал с цитатами: факт-проба по подстроке ложно срабатывает
+    # на цитаты вида «какой статус проекта?» внутри (уроки #64, слой 5).
     if len(goal or "") > 400:
         return None
     if not is_fact_seeking_question(goal or ""):
@@ -9611,7 +9647,9 @@ async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
         scanner = await _live_scanner_line()
     pool = await agent._get_db_pool()
     if not pool:
-        return format_live_fact_answer(goal, health="ok", ttc=sla, slots=slots, scanner=scanner)
+        return format_live_fact_answer(
+            goal, health="ok", ttc=sla, slots=slots, scanner=scanner
+        )
 
     queue: Optional[dict] = None
     nodes: Optional[int] = None
@@ -10829,11 +10867,7 @@ async def run_task(
         _sc_dir_sync = lambda k: (k or "").strip().lower() == "patch"  # noqa: E731
     _patch_direct_sync = _sc_dir_sync(getattr(body, "scanner_class", None))
     forced_reason = _force_deep_analysis_reason(goal)
-    if (
-        (not _patch_direct_sync)
-        and forced_reason
-        and strategy_result.get("strategy") == "need_clarification"
-    ):
+    if (not _patch_direct_sync) and forced_reason and strategy_result.get("strategy") == "need_clarification":
         strategy_result = {
             "strategy": "deep_analysis",
             "reason": forced_reason,
@@ -12289,9 +12323,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
             }
         )
     bible_brief = _build_bible_brief_from_docs(goal)
-    if bible_brief and (
-        deterministic_chat_enabled or (is_victoria_model and is_project_brief_prompt)
-    ):
+    if bible_brief and (deterministic_chat_enabled or (is_victoria_model and is_project_brief_prompt)):
         logger.info("[OPENAI-API] Deterministic Bible brief for goal: %s", goal[:80])
         return JSONResponse(
             content={
@@ -12682,8 +12714,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     )
     _is_planning_goal = _is_planning_guidance_goal(_user_msg_text)
     _is_execution_task = (
-        any(marker in task_req.goal.lower() for marker in _execution_markers)
-        and not _is_planning_goal
+        any(marker in task_req.goal.lower() for marker in _execution_markers) and not _is_planning_goal
     )
     _is_simple_q = is_simple_message(_user_msg_text) or is_fast_track_message(_user_msg_text)
     _is_fact_q = is_fact_seeking_question(_user_msg_text)
@@ -12842,9 +12873,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     _async_task_id = _extract_async_task_id(output_text)
     if _async_task_id:
         _wait_sec = int(os.getenv("OPENAI_ASYNC_HANDOFF_WAIT_SEC", "20"))
-        _resolved = await _await_async_handoff_result_for_chat(
-            _async_task_id, max_wait_sec=_wait_sec
-        )
+        _resolved = await _await_async_handoff_result_for_chat(_async_task_id, max_wait_sec=_wait_sec)
         if _resolved:
             output_text = _resolved
         else:
@@ -13754,10 +13783,8 @@ async def autonomous_code(request: dict):
         got = build_deliverable(workspace, rel_paths)
         presented = list(got.get("presented") or [])
         workspace_diff = str(got.get("workspace_diff") or "")
-        if (
-            final_stage == "passed"
-            and file_path
-            and (not presented or workspace_diff.startswith("git_diff_unavailable"))
+        if final_stage == "passed" and file_path and (
+            not presented or workspace_diff.startswith("git_diff_unavailable")
         ):
             final_stage = "deliverable_missing"
 
@@ -13765,7 +13792,11 @@ async def autonomous_code(request: dict):
         "compile_status": compile_status,
         "runtime_status": runtime_status,
         "final_status": "passed" if final_stage == "passed" else final_stage,
-        **({"presented": presented, "workspace_diff": workspace_diff} if deliverable_on else {}),
+        **(
+            {"presented": presented, "workspace_diff": workspace_diff}
+            if deliverable_on
+            else {}
+        ),
         "fix_iterations": fix_iterations,
         "attempts": attempts,
         "file_path": file_written or file_path,

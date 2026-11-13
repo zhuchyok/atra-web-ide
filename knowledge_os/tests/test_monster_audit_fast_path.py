@@ -35,10 +35,38 @@ def test_monster_fast_audit_returns_ok_for_clean_file(tmp_path, monkeypatch):
     assert result.startswith("ОК")
 
 
+def test_monster_fast_audit_ignores_negative_guard_condition(tmp_path, monkeypatch):
+    monkeypatch.setenv("MONSTER_AUDIT_FAST_PATH", "true")
+    target = tmp_path / "guard_only.py"
+    target.write_text('if "pip install" not in text:\\n    return "ok"\\n', encoding="utf-8")
+    prompt = f"проверь файл {target} — есть ли там pip install в рантайме?"
+
+    result = _run_monster_pip_runtime_audit(
+        prompt,
+        {"source": "victoria_monster_delegation", "source_path": str(target)},
+    )
+
+    assert result is not None
+    assert result.startswith("ОК")
+
+
 def test_monster_fast_audit_returns_none_for_unrelated_prompt(monkeypatch):
     monkeypatch.setenv("MONSTER_AUDIT_FAST_PATH", "true")
     result = _run_monster_pip_runtime_audit("просто напиши ответ", {})
     assert result is None
+
+
+def test_monster_fast_audit_reports_missing_file(monkeypatch):
+    monkeypatch.setenv("MONSTER_AUDIT_FAST_PATH", "true")
+    missing = "/app/knowledge_os/app/definitely_missing_target.py"
+    prompt = f"проверь файл {missing} — есть ли там pip install в рантайме?"
+
+    result = _run_monster_pip_runtime_audit(
+        prompt,
+        {"source": "victoria_monster_delegation", "source_path": missing},
+    )
+
+    assert result == f"ФАЙЛ НЕ НАЙДЕН: {missing}"
 
 
 def test_monster_fast_audit_toggle_off(tmp_path, monkeypatch):

@@ -2,6 +2,7 @@
 
 import pytest
 from app.task_rule_executor import (
+    _execute_file_audit,
     can_handle,
     execute_fallback,
     finalize_rule_result,
@@ -57,3 +58,52 @@ async def test_monster_delegation_allows_file_audit_fast_path():
     assert can_handle(task) is True
     result = await execute_fallback(task)
     assert result is not None
+
+
+def test_file_audit_ignores_negative_guard_condition(tmp_path):
+    import builtins
+    import app.task_rule_executor as tre
+
+    target = tmp_path / "guard_only.py"
+    target.write_text('if "pip install" not in text:\\n    return "ok"\\n', encoding="utf-8")
+    virtual = "/app/knowledge_os/app/guard_only.py"
+    real_open = builtins.open
+
+    def fake_open(file, *args, **kwargs):
+        if str(file) == virtual:
+            return real_open(target, *args, **kwargs)
+        return real_open(file, *args, **kwargs)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(builtins, "open", fake_open)
+        result = tre._execute_file_audit(
+            f"проверь файл {virtual} — есть ли там pip install в рантайме",
+            "",
+        )
+    assert result.startswith("ОК")
+
+
+def test_file_audit_detects_runtime_pip_subprocess(tmp_path):
+    import builtins
+    import app.task_rule_executor as tre
+
+    target = tmp_path / "runtime_pip.py"
+    target.write_text(
+        "import subprocess\\nsubprocess.run(['python3','-m','pip','install','x'])\\n",
+        encoding="utf-8",
+    )
+    virtual = "/app/knowledge_os/app/runtime_pip.py"
+    real_open = builtins.open
+
+    def fake_open(file, *args, **kwargs):
+        if str(file) == virtual:
+            return real_open(target, *args, **kwargs)
+        return real_open(file, *args, **kwargs)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(builtins, "open", fake_open)
+        result = tre._execute_file_audit(
+            f"проверь файл {virtual} — есть ли там pip install в рантайме",
+            "",
+        )
+    assert result.startswith("ПРОБЛЕМА")
