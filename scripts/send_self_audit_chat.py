@@ -49,7 +49,7 @@ async def main() -> int:
     # [2026-11-12] В 6:05 мозг ещё разгребал очередь после 28 кураторских задач
     # (500) — ретраи с паузой, самоаудиту неспешно
     data = None
-    for attempt in range(4):
+    for attempt in range(10):
         try:
             async with httpx.AsyncClient(timeout=TIMEOUT) as client:
                 r = await client.post(f"{BRAIN_URL}/api/chat", json=payload)
@@ -57,10 +57,11 @@ async def main() -> int:
                 data = r.json()
             break
         except httpx.HTTPError as e:
-            if attempt == 3:
+            if attempt == 9:
                 raise
-            print(f"попытка {attempt + 1} не удалась ({e}), ждём 90с", file=sys.stderr)
-            await asyncio.sleep(90)
+            wait = min(120, 60 + attempt * 15)
+            print(f"попытка {attempt + 1} не удалась ({e}), ждём {wait}с", file=sys.stderr)
+            await asyncio.sleep(wait)
     msg = data.get("message", {}) or {}
     out = msg.get("content") or ""
     if not out.strip():  # фолбэк: qwen38 иногда всё кладёт в thinking
