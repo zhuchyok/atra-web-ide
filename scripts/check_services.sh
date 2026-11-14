@@ -18,7 +18,7 @@ check_service() {
     local url="$2"
     local timeout="${3:-3}"
 
-    if curl -s --connect-timeout $timeout "$url" > /dev/null 2>&1; then
+    if curl -fsS --connect-timeout $timeout "$url" > /dev/null 2>&1; then
         echo -e "${GREEN}✅${NC} $name: $url"
         return 0
     else
@@ -29,6 +29,8 @@ check_service() {
 
 echo "📡 Локальные сервисы:"
 check_service "Ollama (local)" "http://localhost:11434/api/tags"
+check_service "Ollama Coder (11436)" "http://localhost:11436/api/tags"
+check_service "Ollama Hands (11437)" "http://localhost:11437/api/tags"
 check_service "Victoria Agent" "http://localhost:8010/health"
 check_service "Veronica Agent" "http://localhost:8011/health"
 check_service "Victoria MCP" "http://localhost:8012/sse"

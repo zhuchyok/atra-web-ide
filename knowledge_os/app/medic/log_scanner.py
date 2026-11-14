@@ -417,19 +417,29 @@ class ErrorDeduplicator:
         self._load()
 
     def is_duplicate(self, container: str, error_hash: str) -> bool:
-        """Проверить, была ли уже такая ошибка недавно."""
+        """Совместимость: проверить и сразу пометить, если новая."""
+        if self.was_seen_recently(container, error_hash):
+            return True
+        self.mark_seen(container, error_hash)
+        return False
+
+    def was_seen_recently(self, container: str, error_hash: str) -> bool:
+        """Проверить, была ли уже такая ошибка недавно, без записи."""
         key = f"{container}:{error_hash}"
         now = time.time()
 
         # Очистить старые записи
         self.history[key] = [t for t in self.history[key] if now - t < self.window]
 
-        if self.history[key]:
-            return True
+        return bool(self.history[key])
 
+    def mark_seen(self, container: str, error_hash: str):
+        """Пометить ошибку как отправленную (успешно обработанную)."""
+        key = f"{container}:{error_hash}"
+        now = time.time()
+        self.history[key] = [t for t in self.history[key] if now - t < self.window]
         self.history[key].append(now)
         self._save()
-        return False
 
     def _load(self):
         try:
@@ -481,7 +491,7 @@ class LogScanner:
     def get_containers(self) -> List[str]:
         """Получить список контейнеров для мониторинга."""
         if WATCH_CONTAINERS and WATCH_CONTAINERS != [""]:
-            return [c.strip() for c in WATCH_CONTAINERS if c.strip()]
+            return [c.strip() for c in WATCH_CONTAINERS if c.strip() and c.strip() not in SKIP_CONTAINERS]
 
         try:
             result = subprocess.run(
@@ -589,8 +599,11 @@ class LogScanner:
                 f"tasks in last hour. Skipping Victoria notification."
             )
             return False
-        self._task_timestamps.append(now)
         return True
+
+    def _mark_rate_limit_hit(self):
+        """Reserve one rate-limit slot after successful dispatch."""
+        self._task_timestamps.append(time.time())
 
     async def send_to_victoria(
         self,
@@ -622,6 +635,7 @@ class LogScanner:
                 if response.status_code in (200, 202):
                     result = response.json() if response.content else {}
                     task_id = result.get("task_id") or result.get("id") or "unknown"
+                    self._mark_rate_limit_hit()
                     logger.info(
                         f"✅ [LOG_SCANNER] Отправлено в Victoria: {container}/{error['type']} "
                         f"→ task_id={task_id} http={response.status_code}"
@@ -661,14 +675,12 @@ class LogScanner:
             if not error:
                 continue
 
-            # Dedup
             error_hash = self.make_error_hash(container, error)
-            if self.dedup.is_duplicate(container, error_hash):
-                continue
-
             klass = classify_scanner_incident(container, error)
             code_path = extract_code_path(error.get("message") or "")
             if klass == "noise":
+                continue
+            if self.dedup.was_seen_recently(container, error_hash):
                 continue
 
             # New error found!
@@ -679,7 +691,9 @@ class LogScanner:
                 f"🔍 [LOG_SCANNER] class={klass} {container}: {error['type']}: {error['message'][:100]}"
             )
 
-            await self.send_to_victoria(container, error, klass=klass, code_path=code_path)
+            sent = await self.send_to_victoria(container, error, klass=klass, code_path=code_path)
+            if sent:
+                self.dedup.mark_seen(container, error_hash)
 
         return errors_found
 

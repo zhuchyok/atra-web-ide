@@ -3466,8 +3466,8 @@ class VictoriaAgent(BaseAgent):
         else:  # multi_department или unknown
             # Межотдельная задача → иерархия (пока упрощенная версия)
             logger.info("🏢 Межотдельная задача → иерархический подход")
-            # Пока используем Swarm подход как fallback
-            return await self.orchestrate_task(goal)  # Рекурсивно, но с use_multiple=True
+            # Безопасный fallback без рекурсии: идем в прямое выполнение.
+            return await self._run_direct_execution(goal, max_steps=600)
 
     async def _run_extended_swarm(self, goal: str) -> str:
         """Extended Swarm with 8 experts for critical tasks"""
@@ -7620,6 +7620,11 @@ async def _run_task_background(
                         "correlation_id": correlation_id,
                     },
                 }
+                store["status"] = "completed"
+                store["stage"] = "completed"
+                store["output"] = _normalize_output_for_user(_synth)
+                store["knowledge"] = _knowledge
+                store["updated_at"] = datetime.now(timezone.utc).isoformat()
                 try:
                     VICTORIA_CONSILIUM_ROUTED.labels(
                         category=consilium_category, outcome="applied"
@@ -7634,12 +7639,7 @@ async def _run_task_background(
                         metadata={"knowledge": _knowledge, "stage": "completed"},
                     )
                     await _clear_async_inflight(task_id)
-                else:
-                    store["status"] = "completed"
-                    store["output"] = _normalize_output_for_user(_synth)
-                    store["knowledge"] = _knowledge
-                    store["updated_at"] = datetime.now(timezone.utc).isoformat()
-                    await _sync_store()
+                await _sync_store()
                 try:
                     VICTORIA_CONSILIUM_TTC.labels(category=consilium_category).observe(
                         time.monotonic() - _cons_started
@@ -7694,6 +7694,11 @@ async def _run_task_background(
                     },
                 }
                 _inject_strategy_into_knowledge(knowledge, strategy_result)
+                store["status"] = "completed"
+                store["stage"] = "completed"
+                store["output"] = _normalize_output_for_user(quick_text)
+                store["knowledge"] = knowledge
+                store["updated_at"] = datetime.now(timezone.utc).isoformat()
                 if redis_manager:
                     await redis_manager.update_task_status(
                         task_id,
@@ -7702,12 +7707,7 @@ async def _run_task_background(
                         metadata={"knowledge": knowledge, "stage": "completed"},
                     )
                     await _clear_async_inflight(task_id)
-                else:
-                    store["status"] = "completed"
-                    store["output"] = _normalize_output_for_user(quick_text)
-                    store["knowledge"] = knowledge
-                    store["updated_at"] = datetime.now(timezone.utc).isoformat()
-                    await _sync_store()
+                await _sync_store()
                 logger.info(
                     "[VICTORIA_CYCLE] background completed task_id=%s route=strategy_quick_answer",
                     task_id[:8],
@@ -7724,6 +7724,11 @@ async def _run_task_background(
                 "strategy": "need_clarification",
             }
             _inject_strategy_into_knowledge(knowledge, strategy_result)
+            store["status"] = "completed"
+            store["stage"] = "clarification"
+            store["output"] = clarification_text
+            store["knowledge"] = knowledge
+            store["updated_at"] = datetime.now(timezone.utc).isoformat()
             if redis_manager:
                 await redis_manager.update_task_status(
                     task_id,
@@ -7732,12 +7737,7 @@ async def _run_task_background(
                     metadata={"knowledge": knowledge, "stage": "clarification"},
                 )
                 await _clear_async_inflight(task_id)
-            else:
-                store["status"] = "completed"
-                store["output"] = clarification_text
-                store["knowledge"] = knowledge
-                store["updated_at"] = datetime.now(timezone.utc).isoformat()
-                await _sync_store()
+            await _sync_store()
             return
         if (not _patch_direct) and strategy_result.get("strategy") == "decline_or_redirect":
             reason = (
@@ -7750,6 +7750,11 @@ async def _run_task_background(
                 "strategy_reason": reason,
                 "confidence": strategy_result.get("confidence", 0.5),
             }
+            store["status"] = "completed"
+            store["stage"] = "decline"
+            store["output"] = output
+            store["knowledge"] = knowledge
+            store["updated_at"] = datetime.now(timezone.utc).isoformat()
             if redis_manager:
                 await redis_manager.update_task_status(
                     task_id,
@@ -7758,12 +7763,7 @@ async def _run_task_background(
                     metadata={"knowledge": knowledge, "stage": "decline"},
                 )
                 await _clear_async_inflight(task_id)
-            else:
-                store["status"] = "completed"
-                store["output"] = output
-                store["knowledge"] = knowledge
-                store["updated_at"] = datetime.now(timezone.utc).isoformat()
-                await _sync_store()
+            await _sync_store()
             return
         last_tasks_context = ""
         if _is_ambiguous_goal_reference(goal):
@@ -8791,20 +8791,22 @@ async def _run_task_background(
     except Exception as e:
         logger.info("[VICTORIA_CYCLE] background failed task_id=%s error=%s", task_id, str(e)[:200])
         logger.exception("Фоновая задача %s завершилась с ошибкой", task_id)
+        store["status"] = "failed"
+        store["stage"] = "failed"
+        store["error"] = str(e)
+        store["updated_at"] = datetime.now(timezone.utc).isoformat()
         if redis_manager:
             await redis_manager.update_task_status(task_id, "failed", result=str(e))
-        else:
-            store["status"] = "failed"
-            store["error"] = str(e)
-            await _sync_store()
+        await _sync_store()
     except BaseException as e:
         logger.exception("[VICTORIA_CYCLE] background BaseException task_id=%s: %s", task_id, e)
+        store["status"] = "failed"
+        store["stage"] = "failed"
+        store["error"] = str(e)[:2000]
+        store["updated_at"] = datetime.now(timezone.utc).isoformat()
         if redis_manager:
             await redis_manager.update_task_status(task_id, "failed", result=str(e)[:2000])
-        else:
-            store["status"] = "failed"
-            store["error"] = str(e)[:2000]
-            await _sync_store()
+        await _sync_store()
         raise
     finally:
         status_final = store.get("status") or "unknown"
