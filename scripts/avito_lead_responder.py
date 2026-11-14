@@ -350,6 +350,7 @@ def main() -> int:
 
         alert = f"Avito: новый лид!\nОбъявление: {item_title}\nСообщение: {customer_text or '(без текста)'}"
 
+        via_template = False  # инициализация до alert-блока (там используется в state)
         # ntfy (мгновенно на телефон)
         try:
             notify_ntfy(alert)
@@ -584,6 +585,47 @@ def main() -> int:
     if state_dirty:
         save_state(state)
     print(f"Итого алертов отправлено: {alerts_sent}")
+
+    # ── ПРОАКТИВНЫЙ ПРОХОД: клиенты, посмотревшие номер из объявления ──
+    # Чаты с событием «посмотрел номер» не помечаются непрочитанными —
+    # отдельный скан свежих чатов, пишем первое сообщение 1 раз на чат.
+    try:
+        u_all = "https://api.avito.ru/messenger/v2/accounts/" + "7561711" + "/chats?limit=100"
+        all_chats = json.loads(urllib.request.urlopen(urllib.request.Request(u_all, headers=hdr), timeout=20).read()).get("chats", [])
+    except Exception as e:
+        print(f"проактивный проход: chats ERR {type(e).__name__}")
+        all_chats = []
+    proactive_sent = 0
+    for c in all_chats[:30]:
+        cid, item_title = c["id"], str(c.get("context", {}).get("value", {}).get("title", "?"))[:45]
+        prev = state.get(cid, {})
+        if prev.get("proactive_sent") or prev.get("last_seen_key"):
+            continue  # уже обработан этот чат (писали/отвечали/проактив отправлен)
+        try:
+            u2 = "https://api.avito.ru/messenger/v3/accounts/7561711/chats/" + cid + "/messages/?limit=15"
+            mlist = json.loads(urllib.request.urlopen(urllib.request.Request(u2, headers=hdr), timeout=15).read()).get("messages", [])
+        except Exception:
+            continue
+        sys_evt = " ".join(str(m.get("content", {}).get("text", "")) for m in mlist[-3:]).lower()
+        if "посмотрел номер" not in sys_evt:
+            continue
+        first_msg = ("Здравствуйте! Татьяна, компания «Столичные Окна» — видела, что вы смотрели наш номер "
+                     "по объявлению «" + item_title + "». Подскажу по любым вопросам: размеры, установка, "
+                     "гарантия. Могу подготовить расчёт под ваши размеры — напишите ширину и высоту проёма.")
+        try:
+            sent = send_reply(token, cid, first_msg)
+        except Exception as e:
+            print(f"  проактив ERR {cid[:10]}: {type(e).__name__}")
+            continue
+        if sent:
+            state[cid] = {"proactive_sent": True, "item": item_title,
+                          "ts": datetime.now(timezone.utc).isoformat()}
+            save_state(state)
+            proactive_sent += 1
+            print(f"  📣 проактив: {item_title[:35]}")
+        time.sleep(1)
+    if proactive_sent:
+        print(f"Итого проактивных сообщений: {proactive_sent}")
     return 0
 
 

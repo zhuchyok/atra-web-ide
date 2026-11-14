@@ -49,10 +49,7 @@ def test_log_scanner_ignores_watchdog_postgres_type_noise():
     assert r"Traceback \(most recent call last\):" in text
     assert r"_receive_event\(timeout=timeout\)" in text
     assert r"Ollama timeout, retry \d+/\d+" in text
-    assert (
-        r"Exception calling Node .*(ReadTimeout|RemoteProtocolError|ConnectError|Server disconnected)"
-        in text
-    )
+    assert r"Exception calling Node .*(ReadTimeout|RemoteProtocolError|ConnectError|Server disconnected)" in text
     assert r"\[SANDBOX GROUNDING\]" in text
     assert r"No module named 'pytest'" in text
     assert r"Все модели недоступны" in text

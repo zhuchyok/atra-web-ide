@@ -297,7 +297,10 @@ def classify_scanner_incident(container: str, error: Dict) -> str:
     return "human"
 
 
-_EVIDENCE = "Evidence: command, output, PASS or FAIL, untested. No «готово» without those four."
+_EVIDENCE = (
+    "Evidence: command, output, PASS or FAIL, untested. "
+    "No «готово» without those four."
+)
 
 _HUMAN_BLOCKED_TOOLS = (
     "write_file",
@@ -365,7 +368,9 @@ def build_scanner_goal(container: str, error: Dict, klass: str, code_path: str =
     )
 
 
-def scanner_run_payload(container: str, error: Dict, klass: str, code_path: str = "") -> Dict:
+def scanner_run_payload(
+    container: str, error: Dict, klass: str, code_path: str = ""
+) -> Dict:
     """POST /run body: async accept, no sync 30s hang."""
     return {
         "goal": build_scanner_goal(container, error, klass, code_path),

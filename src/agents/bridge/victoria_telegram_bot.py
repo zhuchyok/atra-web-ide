@@ -173,8 +173,6 @@ def _telegram_token() -> str:
     except ImportError:
         return TELEGRAM_BOT_TOKEN or ""
     return resolve("TELEGRAM_BOT_TOKEN") or resolve("TG_TOKEN") or ""
-
-
 # Используем ID из telegram_simple.py или из переменных окружения
 TELEGRAM_USER_ID = os.getenv("TELEGRAM_USER_ID") or os.getenv("ALLOWED_USER_ID", "")
 # Chat ID группы Bikos_Corporation (если указан, бот будет работать в группе)

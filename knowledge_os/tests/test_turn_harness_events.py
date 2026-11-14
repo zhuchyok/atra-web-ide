@@ -18,13 +18,8 @@ def test_append_and_single_close(tmp_path):
 
 
 def test_reason_for_store_prefers_explicit():
-    assert (
-        events.reason_for_store({"status": "failed", "turn_end_reason": "max_steps"}) == "max_steps"
-    )
-    assert (
-        events.reason_for_store({"status": "failed", "error": "Background timeout after 180s"})
-        == "timeout"
-    )
+    assert events.reason_for_store({"status": "failed", "turn_end_reason": "max_steps"}) == "max_steps"
+    assert events.reason_for_store({"status": "failed", "error": "Background timeout after 180s"}) == "timeout"
     assert events.reason_for_store({"status": "completed"}) == "completed"
     assert events.reason_for_store({"status": "cancelled"}) == "cancelled"
     assert events.reason_for_store({"status": "failed", "error": "boom"}) == "tool_error"
@@ -33,12 +28,7 @@ def test_reason_for_store_prefers_explicit():
 def test_derive_prompt_keeps_anchors_inside_budget():
     ev = [
         {"seq": 1, "type": "turn_opened", "goal": "цель-якорь"},
-        {
-            "seq": 2,
-            "type": "tool_result",
-            "status": "error",
-            "text": "ОШИБКА-ЯКОРЬ " + ("z" * 8000),
-        },
+        {"seq": 2, "type": "tool_result", "status": "error", "text": "ОШИБКА-ЯКОРЬ " + ("z" * 8000)},
         {"seq": 3, "type": "approval_decided", "outcome": "allowed-once"},
         {"seq": 4, "type": "files_presented", "paths": ["src/a.py"]},
         {"seq": 5, "type": "model_message", "text": "m" * 20000},

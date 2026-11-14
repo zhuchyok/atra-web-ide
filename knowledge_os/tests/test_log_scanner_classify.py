@@ -193,10 +193,7 @@ def test_patch_handoff_is_rejected_human_is_not():
     assert _mod.scanner_patch_handoff_rejected("patch", igor) is True
     assert _mod.scanner_patch_handoff_rejected("human", igor) is False
     assert _mod.scanner_patch_handoff_rejected("runbook", igor) is False
-    assert (
-        _mod.scanner_patch_handoff_rejected("patch", "OK: File written: src/auto_guard_probe.py")
-        is False
-    )
+    assert _mod.scanner_patch_handoff_rejected("patch", "OK: File written: src/auto_guard_probe.py") is False
     assert _mod.scanner_patch_handoff_rejected("patch", "") is False
     assert _mod.scanner_patch_handoff_rejected("", igor) is False
 
@@ -222,42 +219,52 @@ def test_write_file_missing_tool_is_ignored_and_noise():
     scanner = _mod.LogScanner()
     line = "ERROR src.agents.core.base_agent: ❌ Инструмент write_file не найден."
     assert scanner.extract_error(line) is None
-    assert _mod.classify_scanner_incident("victoria-agent", _err(line, "LOG_ERROR")) == "noise"
+    assert (
+        _mod.classify_scanner_incident("victoria-agent", _err(line, "LOG_ERROR"))
+        == "noise"
+    )
 
 
 def test_norm_in_typeerror_echo_is_ignored():
     scanner = _mod.LogScanner()
     line = (
         "WARNING norm_dbg: NORM_IN len=412 "
-        'head=\'TypeError: unsupported operand type(s) for +: "int" and "NoneType"\' '
+        "head='TypeError: unsupported operand type(s) for +: \"int\" and \"NoneType\"' "
         "from=['executor.py:836']"
     )
     assert scanner.extract_error(line) is None
-    assert _mod.classify_scanner_incident("victoria-agent", _err(line, "TypeError")) == "noise"
+    assert (
+        _mod.classify_scanner_incident("victoria-agent", _err(line, "TypeError"))
+        == "noise"
+    )
 
 
 def test_typeerror_msg_and_thought_echo_ignored_bare_typeerror_still_hits():
     scanner = _mod.LogScanner()
-    assert (
-        scanner.extract_error(
-            "Msg: TypeError: unsupported operand type(s) for +: 'int' and 'NoneType'"
-        )
-        is None
-    )
+    assert scanner.extract_error(
+        "Msg: TypeError: unsupported operand type(s) for +: 'int' and 'NoneType'"
+    ) is None
     assert scanner.extract_error("🤔 Мысль: fix TypeError: bad") is None
     live = scanner.extract_error(
         "TypeError: unsupported operand type(s) for +: 'int' and 'NoneType'"
     )
     assert live is not None
     assert live["type"] == "TypeError"
-    assert _mod.classify_scanner_incident("knowledge_os_orchestrator", live) == "human"
+    assert (
+        _mod.classify_scanner_incident("knowledge_os_orchestrator", live) == "human"
+    )
 
 
 def test_filenotfounderror_prose_noise_colon_form_still_extracted():
     scanner = _mod.LogScanner()
-    prose = "🤔 Мысль: The reason is FileNotFoundError because the probe path does not exist"
+    prose = (
+        "🤔 Мысль: The reason is FileNotFoundError because the probe path does not exist"
+    )
     assert scanner.extract_error(prose) is None
-    assert _mod.classify_scanner_incident("victoria-agent", _err(prose, "UNKNOWN")) == "noise"
+    assert (
+        _mod.classify_scanner_incident("victoria-agent", _err(prose, "UNKNOWN"))
+        == "noise"
+    )
     real = "FileNotFoundError: [Errno 2] No such file or directory: '/tmp/missing.py'"
     hit = scanner.extract_error(real)
     assert hit is not None
@@ -272,30 +279,45 @@ def test_recursion_stop_guard_is_ignored_and_noise():
         "TaskDistribution: RECURSION-STOP — 2 вложений в промпте, задач не извлекаем"
     )
     assert scanner.extract_error(line) is None
-    assert _mod.classify_scanner_incident("victoria-agent", _err(line, "LOG_ERROR")) == "noise"
+    assert (
+        _mod.classify_scanner_incident("victoria-agent", _err(line, "LOG_ERROR"))
+        == "noise"
+    )
 
 
 def test_idle_in_transaction_and_smart_agent_none_ignored():
     scanner = _mod.LogScanner()
-    idle = "FATAL:  terminating connection due to idle-in-transaction timeout"
-    smart = "ERROR ⚠️ [SMART_AGENT] response=None (type=NoneType) — локальные модели не дали ответ"
+    idle = (
+        'FATAL:  terminating connection due to idle-in-transaction timeout'
+    )
+    smart = (
+        "ERROR ⚠️ [SMART_AGENT] response=None (type=NoneType) — локальные модели не дали ответ"
+    )
     name_col = 'ERROR:  column "name" does not exist at character 12'
     ollama500 = (
-        "ERROR - [ROUTER] ❌ Node Mac Studio (Ollama) returned HTTP 500: "
+        'ERROR - [ROUTER] ❌ Node Mac Studio (Ollama) returned HTTP 500: '
         '{"error":"llama-server process no longer running: unknown "}'
     )
     dna = (
         "Вы - Виктория (Team Lead). Найдите неочевидную связь между двумя фактами: "
         "ФАКТ А (Management): test"
     )
-    json_err = "json.decoder.JSONDecodeError: Expecting value: line 1 column 2 (char 1)"
-    judge = "ERROR:ExpertWorker:⚠️ [JUDGE-GATE] Task f45b1b3d: завершение со score=3"
-    echo_err = '"reason": "Чтобы понять контекст ERROR и уровень знаний ExpertWorker"'
+    json_err = 'json.decoder.JSONDecodeError: Expecting value: line 1 column 2 (char 1)'
+    judge = (
+        "ERROR:ExpertWorker:⚠️ [JUDGE-GATE] Task f45b1b3d: завершение со score=3"
+    )
+    echo_err = (
+        '"reason": "Чтобы понять контекст ERROR и уровень знаний ExpertWorker"'
+    )
     ask_err = '"Какой именно ERROR нужно разобрать: команду, вывод и статус PASS/FAIL?"'
     veronica_rt = "ERROR ❌ [VERONICA] Ошибка: ReadTimeout('')"
-    echo_q = '"Есть ли полный лог вокруг ERROR:asyncio:Task was destroyed but it is pending?",'
+    echo_q = (
+        '"Есть ли полный лог вокруг ERROR:asyncio:Task was destroyed but it is pending?",'
+    )
     destroyed = "ERROR:asyncio:Task was destroyed but it is pending!"
-    recruit = "ERROR:__main__:❌ Error parsing recruitment output: Expecting value: line 1 column 1 (char 0)"
+    recruit = (
+        "ERROR:__main__:❌ Error parsing recruitment output: Expecting value: line 1 column 1 (char 0)"
+    )
     for line in (
         idle,
         smart,
@@ -322,7 +344,10 @@ def test_scanner_writes_last_snapshot_file():
 
 
 def test_unprotected_typeerror_with_file_stays_patch():
-    msg = 'File "/workspace/atra-web-ide/src/auto_guard_probe.py", line 4, in add\nTypeError: bad'
+    msg = (
+        'File "/workspace/atra-web-ide/src/auto_guard_probe.py", line 4, in add\n'
+        "TypeError: bad"
+    )
     assert _mod.classify_scanner_incident("dynamic-1", _err(msg, "TypeError")) == "patch"
     assert _mod.LogScanner().extract_error("TypeError: bad") is not None
 

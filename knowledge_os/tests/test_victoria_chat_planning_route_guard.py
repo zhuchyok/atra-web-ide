@@ -16,8 +16,5 @@ def test_planning_goal_helper_and_execution_override_present():
     assert "def _build_openwebui_victoria_plan_response(goal_text: str) -> Optional[str]:" in text
     assert "operational_plan = _build_openwebui_victoria_plan_response(goal)" in text
     assert 'if any(m in g for m in ("timeout", "таймаут")):' in text
-    assert (
-        'if any(m in g for m in ("connection error", "server connection error", "cannot connect")):'
-        in text
-    )
+    assert 'if any(m in g for m in ("connection error", "server connection error", "cannot connect")):' in text
     assert 'if any(m in g for m in ("stabiliz", "стабилиз", "стабильност")):' in text
