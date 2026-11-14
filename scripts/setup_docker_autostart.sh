@@ -70,47 +70,28 @@ echo "[3/3] Создание скрипта автозапуска контей�
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 AUTOSTART_SCRIPT="$ROOT/scripts/auto_start_containers.sh"
+SETUP_FAIL=0
 
-cat > "$AUTOSTART_SCRIPT" << 'AUTOEOF'
-#!/bin/bash
-# Автозапуск контейнеров корпорации ATRA
-# Запускается после старта Docker Desktop
-
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
-
-# Ждем пока Docker запустится
-MAX_WAIT=60
-WAITED=0
-while ! docker info >/dev/null 2>&1; do
-    if [ $WAITED -ge $MAX_WAIT ]; then
-        echo "⚠️ Docker не запустился за $MAX_WAIT секунд"
-        exit 1
-    fi
-    sleep 2
-    WAITED=$((WAITED + 2))
-done
-
-# Запускаем контейнеры
-echo "🚀 Запуск контейнеров корпорации ATRA..."
-docker-compose -f knowledge_os/docker-compose.yml up -d db
-sleep 5
-docker-compose -f knowledge_os/docker-compose.yml up -d victoria-agent veronica-agent knowledge_os_api knowledge_os_worker 2>/dev/null || true
-
-# Проверяем Redis
-if ! docker ps | grep -q atra-redis; then
-    docker run -d --name atra-redis --network atra-network -p 6379:6379 redis:7-alpine 2>/dev/null || true
+# Never overwrite the hardened auto_start_containers.sh with a soft HEREDOC.
+# That previously reintroduced `|| true` and stale service names.
+if [ ! -f "$AUTOSTART_SCRIPT" ]; then
+    echo "   ❌ Отсутствует $AUTOSTART_SCRIPT — восстановите из репозитория"
+    SETUP_FAIL=1
+elif ! grep -q 'ensure_docker_network\|FAIL=0' "$AUTOSTART_SCRIPT"; then
+    echo "   ❌ $AUTOSTART_SCRIPT не содержит fail-closed контрактов"
+    SETUP_FAIL=1
+else
+    chmod +x "$AUTOSTART_SCRIPT"
+    echo "   ✅ Используем hardened скрипт: $AUTOSTART_SCRIPT"
 fi
-
-echo "✅ Контейнеры запущены"
-AUTOEOF
-
-chmod +x "$AUTOSTART_SCRIPT"
-echo "   ✅ Скрипт создан: $AUTOSTART_SCRIPT"
 
 echo ""
 echo "=============================================="
-echo "✅ НАСТРОЙКА ЗАВЕРШЕНА"
+if [ "$SETUP_FAIL" -eq 0 ]; then
+    echo "✅ НАСТРОЙКА ЗАВЕРШЕНА"
+else
+    echo "⚠️ НАСТРОЙКА ЗАВЕРШЕНА С ОШИБКАМИ"
+fi
 echo "=============================================="
 echo ""
 echo "📋 Что нужно сделать:"
@@ -130,3 +111,4 @@ echo ""
 echo "💡 Альтернатива: Запускайте вручную:"
 echo "   bash scripts/start_full_corporation.sh"
 echo ""
+exit "$SETUP_FAIL"

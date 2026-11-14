@@ -60,13 +60,14 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
     echo "   Запуск через docker-compose..."
     docker-compose -f knowledge_os/docker-compose.yml up -d
 
-    echo "   ⏳ Ожидание готовности сервисов (15 секунд)..."
-    sleep 15
+    WAIT_SEC="${ATRA_SETUP_WAIT_SEC:-15}"
+    echo "   ⏳ Ожидание готовности сервисов (${WAIT_SEC} секунд)..."
+    sleep "$WAIT_SEC"
 
     echo "   📊 Статус контейнеров:"
     docker-compose -f knowledge_os/docker-compose.yml ps
 
-    echo "   ✅ Контейнеры запущены"
+    echo "   ✅ Compose up выдан"
 else
     echo "   ❌ docker-compose.yml не найден!"
     exit 1
@@ -89,23 +90,28 @@ check_service() {
     fi
 }
 
-check_service "Victoria (8010)" "http://localhost:8010/health"
-check_service "Veronica (8011)" "http://localhost:8011/health"
-check_service "Victoria MCP (8012)" "http://localhost:8012/sse"
-check_service "Ollama/MLX (11434)" "http://localhost:11434/api/tags"
-check_service "Knowledge OS (8000)" "http://localhost:8000/health"
+SERVICES_OK=0
+check_service "Victoria (8010)" "http://localhost:8010/health" && SERVICES_OK=$((SERVICES_OK + 1)) || true
+check_service "Veronica (8011)" "http://localhost:8011/health" && SERVICES_OK=$((SERVICES_OK + 1)) || true
+check_service "Ollama brain (11434)" "http://localhost:11434/api/tags" && SERVICES_OK=$((SERVICES_OK + 1)) || true
+check_service "Knowledge OS REST (8002)" "http://localhost:8002/health" && SERVICES_OK=$((SERVICES_OK + 1)) || true
 
 echo ""
 echo "=============================================="
-echo "✅ НАСТРОЙКА ЗАВЕРШЕНА"
+EXIT_CODE=0
+if [ "$SERVICES_OK" -ge 4 ]; then
+    echo "✅ НАСТРОЙКА ЗАВЕРШЕНА"
+else
+    echo "⚠️ НАСТРОЙКА ЗАВЕРШЕНА С ОШИБКАМИ ($SERVICES_OK/4)"
+    EXIT_CODE=1
+fi
 echo "=============================================="
 echo ""
 echo "📋 Доступные сервисы:"
 echo "   - Victoria: http://localhost:8010"
 echo "   - Veronica: http://localhost:8011"
-echo "   - Victoria MCP: http://localhost:8012/sse"
-echo "   - Ollama/MLX: http://localhost:11434"
-echo "   - Knowledge OS: http://localhost:8000"
+echo "   - Ollama brain: http://localhost:11434"
+echo "   - Knowledge OS REST: http://localhost:8002"
 echo ""
 echo "🌐 Для удаленного доступа:"
 echo "   - Victoria: http://192.168.1.64:8010"
@@ -115,3 +121,4 @@ echo ""
 echo "📊 Проверка статуса:"
 echo "   docker-compose -f knowledge_os/docker-compose.yml ps"
 echo ""
+exit "$EXIT_CODE"

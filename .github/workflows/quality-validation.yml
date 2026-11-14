@@ -138,7 +138,12 @@ jobs:
             echo "Latency results:"
             python3 -c "import json; d=json.load(open('latency_benchmark.json')); print('  P95:', d.get('p95_ms','?'), 'ms'); print('  P50:', d.get('p50_ms','?'), 'ms')"
             test -s latency_benchmark.json
-            python3 -c 'import json; d=json.load(open("latency_benchmark.json")); assert "p95_ms" in d or d=={}'
+            if [ "${{ github.event_name }}" = "schedule" ]; then
+              python3 -c 'import json; d=json.load(open("latency_benchmark.json")); assert isinstance(d, dict)'
+            else
+              # Fail-closed: empty {} must not green PR/push latency gate
+              python3 -c 'import json; d=json.load(open("latency_benchmark.json")); assert isinstance(d, dict) and d and "p95_ms" in d and isinstance(d["p95_ms"], (int, float))'
+            fi
           else
             if [ "${{ github.event_name }}" = "schedule" ]; then
               echo '{}' > latency_benchmark.json

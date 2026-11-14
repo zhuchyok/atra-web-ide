@@ -13,21 +13,23 @@ echo "🔍 ВЕРИФИКАЦИЯ САМОВОССТАНОВЛЕНИЯ MAC STUDI
 echo "=============================================="
 echo ""
 
-OK=0
-TOTAL=0
+CRITICAL_OK=0
+CRITICAL_TOTAL=0
+CRITICAL_FAIL=0
 WARN=0
 
 check() {
     local name="$1"
     local cmd="$2"
     local fix="$3"
-    TOTAL=$((TOTAL + 1))
+    CRITICAL_TOTAL=$((CRITICAL_TOTAL + 1))
     if eval "$cmd" >/dev/null 2>&1; then
         echo "  ✅ $name"
-        OK=$((OK + 1))
+        CRITICAL_OK=$((CRITICAL_OK + 1))
         return 0
     else
         echo "  ❌ $name"
+        CRITICAL_FAIL=$((CRITICAL_FAIL + 1))
         [ -n "$fix" ] && echo "     💡 $fix"
         return 1
     fi
@@ -36,10 +38,8 @@ check() {
 warn() {
     local name="$1"
     local cmd="$2"
-    TOTAL=$((TOTAL + 1))
     if eval "$cmd" >/dev/null 2>&1; then
         echo "  ✅ $name"
-        OK=$((OK + 1))
         return 0
     else
         echo "  ⚠️  $name (не критично)"
@@ -97,11 +97,11 @@ warn "Ollama (brew services)" "brew services list 2>/dev/null | grep ollama | gr
 echo ""
 
 echo "=============================================="
-echo "📊 ИТОГ: $OK/$TOTAL критичных, $WARN некритичных"
+echo "📊 ИТОГ: $CRITICAL_OK/$CRITICAL_TOTAL критичных OK, fail=$CRITICAL_FAIL, warn=$WARN"
 echo "=============================================="
 echo ""
 
-if [ "$OK" -lt 7 ]; then
+if [ "$CRITICAL_FAIL" -ne 0 ]; then
     echo "⚠️  Критичные сервисы недоступны. Запустите:"
     echo "   bash scripts/start_all_on_mac_studio.sh"
     echo "   bash scripts/system_auto_recovery.sh"

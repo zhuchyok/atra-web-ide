@@ -1,5 +1,6 @@
 #!/bin/bash
 # Запуск всех автономных систем корпорации ATRA
+set -euo pipefail
 
 echo "🚀 ЗАПУСК ВСЕХ АВТОНОМНЫХ СИСТЕМ"
 echo "================================================"
@@ -7,6 +8,7 @@ echo ""
 
 # Переходим в корень проекта
 cd "$(dirname "$0")/.." || exit 1
+HARD_FAIL=0
 
 # Проверка Docker
 if ! docker ps > /dev/null 2>&1; then
@@ -14,156 +16,107 @@ if ! docker ps > /dev/null 2>&1; then
     exit 1
 fi
 
-# Проверка БД
-if ! docker exec atra-knowledge-os-db psql -U admin -d knowledge_os -c "SELECT 1;" > /dev/null 2>&1; then
-    echo "❌ База данных недоступна!"
+# Проверка БД (live container name)
+if ! docker exec knowledge_postgres psql -U admin -d knowledge_os -c "SELECT 1;" > /dev/null 2>&1; then
+    echo "❌ База данных недоступна (knowledge_postgres)!"
     exit 1
 fi
 
-# Функция запуска системы
-start_system() {
-    local name=$1
-    local script=$2
-    local check_cmd=$3
-
+spawn_checked() {
+    local name="$1"
+    local pattern="$2"
+    shift 2
     echo -n "Запуск $name... "
-
-    # Проверяем, не запущен ли уже
-    if eval "$check_cmd" > /dev/null 2>&1; then
+    if pgrep -f "$pattern" >/dev/null 2>&1; then
         echo "✅ Уже запущен"
         return 0
     fi
-
-    # Запускаем
-    if [ -f "$script" ]; then
-        nohup python3 "$script" > /dev/null 2>&1 &
-        sleep 2
-        if eval "$check_cmd" > /dev/null 2>&1; then
-            echo "✅ Запущен"
-            return 0
-        else
-            echo "❌ Ошибка запуска"
-            return 1
-        fi
-    else
-        echo "❌ Скрипт не найден: $script"
-        return 1
+    nohup "$@" >/tmp/"${name// /_}.log" 2>&1 &
+    local pid=$!
+    sleep 2
+    if kill -0 "$pid" 2>/dev/null || pgrep -f "$pattern" >/dev/null 2>&1; then
+        echo "✅ Запущен (PID: $pid)"
+        return 0
     fi
+    echo "❌ Ошибка запуска"
+    HARD_FAIL=1
+    return 1
 }
 
-# 1. Enhanced Orchestrator (каждые 5 минут)
-echo "1️⃣ Enhanced Orchestrator..."
-if ps aux | grep -E "enhanced_orchestrator" | grep -v grep > /dev/null; then
-    echo "   ✅ Уже запущен"
+# Prefer Docker continuous services when present (Singularity live path).
+if docker ps --format '{{.Names}}' | grep -q '^knowledge_os_orchestrator$'; then
+    echo "1️⃣ Enhanced Orchestrator... ✅ Docker knowledge_os_orchestrator"
 else
-    echo "   Запуск..."
-    cd knowledge_os/app || exit 1
-    nohup python3 -c "
-import asyncio
-import sys
+    echo "1️⃣ Enhanced Orchestrator..."
+    (
+      cd knowledge_os/app || exit 1
+      spawn_checked "enhanced_orchestrator" "enhanced_orchestrator" python3 -c "
+import asyncio, sys
 sys.path.insert(0, '.')
 from enhanced_orchestrator import run_enhanced_orchestration_cycle
-import time
-
 async def main():
     while True:
         try:
             await run_enhanced_orchestration_cycle()
-            await asyncio.sleep(300)  # 5 минут
+            await asyncio.sleep(300)
         except Exception as e:
             print(f'Error: {e}')
             await asyncio.sleep(60)
-
 asyncio.run(main())
-" > /tmp/enhanced_orchestrator.log 2>&1 &
-    echo "   ✅ Запущен (PID: $!)"
-    cd ../..
+"
+    ) || HARD_FAIL=1
 fi
 
-# 2. Curiosity Engine (каждые 6 часов)
 echo ""
 echo "2️⃣ Curiosity Engine..."
-if ps aux | grep -E "curiosity_engine" | grep -v grep > /dev/null; then
-    echo "   ✅ Уже запущен"
-else
-    echo "   Запуск..."
-    cd knowledge_os/app || exit 1
-    nohup python3 -c "
-import asyncio
-import sys
-sys.path.insert(0, '.')
+spawn_checked "curiosity_engine" "curiosity_engine" python3 -c "
+import asyncio, sys
+sys.path.insert(0, 'knowledge_os/app')
 from curiosity_engine import CuriosityEngine
-import time
-
 async def main():
     engine = CuriosityEngine()
     while True:
         try:
             await engine.scan_for_gaps()
-            await asyncio.sleep(21600)  # 6 часов
+            await asyncio.sleep(21600)
         except Exception as e:
             print(f'Error: {e}')
             await asyncio.sleep(3600)
-
 asyncio.run(main())
-" > /tmp/curiosity_engine.log 2>&1 &
-    echo "   ✅ Запущен (PID: $!)"
-    cd ../..
-fi
+" || true
+# curiosity is best-effort; do not hard-fail entire stack
 
-# 3. Smart Worker (постоянно)
 echo ""
-echo "3️⃣ Smart Worker..."
-if ps aux | grep -E "smart_worker_autonomous" | grep -v grep > /dev/null; then
-    echo "   ✅ Уже запущен"
+if docker ps --format '{{.Names}}' | grep -q '^knowledge_os_worker$'; then
+    echo "3️⃣ Smart Worker... ✅ Docker knowledge_os_worker"
 else
-    echo "   Запуск..."
-    cd knowledge_os/app || exit 1
-    nohup python3 smart_worker_autonomous.py > /tmp/smart_worker.log 2>&1 &
-    echo "   ✅ Запущен (PID: $!)"
-    cd ../..
+    echo "3️⃣ Smart Worker..."
+    spawn_checked "smart_worker" "smart_worker_autonomous" python3 knowledge_os/app/smart_worker_autonomous.py || HARD_FAIL=1
 fi
 
-# 4. Nightly Learner (ежедневно в 6:00 MSK)
 echo ""
 echo "4️⃣ Nightly Learner..."
-if ps aux | grep -E "nightly_learner" | grep -v grep > /dev/null; then
-    echo "   ✅ Уже запущен"
+if docker ps --format '{{.Names}}' | grep -q '^knowledge_nightly$'; then
+    echo "   ✅ Docker knowledge_nightly"
+elif crontab -l 2>/dev/null | grep -q "nightly_learner"; then
+    echo "   ✅ Уже в crontab"
 else
-    echo "   Запуск (проверка каждые 60 минут)..."
-    cd knowledge_os/app || exit 1
-    nohup python3 -c "
-import asyncio
-import sys
-from datetime import datetime, time
-sys.path.insert(0, '.')
-from nightly_learner import nightly_learning_cycle
-
-async def main():
-    while True:
-        try:
-            now = datetime.now()
-            # Проверяем, 6:00 MSK (3:00 UTC)
-            if now.hour == 3 and now.minute < 5:
-                await nightly_learning_cycle()
-            await asyncio.sleep(300)  # Проверка каждые 5 минут
-        except Exception as e:
-            print(f'Error: {e}')
-            await asyncio.sleep(60)
-
-asyncio.run(main())
-" > /tmp/nightly_learner.log 2>&1 &
-    echo "   ✅ Запущен (PID: $!)"
-    cd ../..
+    echo "   ⚠️ Nightly Learner не найден (Docker/crontab) — запустите ensure_autonomous_systems.sh"
+    HARD_FAIL=1
 fi
 
 echo ""
-echo "✅ ВСЕ СИСТЕМЫ ЗАПУЩЕНЫ"
+if [ "$HARD_FAIL" -eq 0 ]; then
+    echo "✅ ВСЕ СИСТЕМЫ ЗАПУЩЕНЫ"
+else
+    echo "⚠️ СИСТЕМЫ ЗАПУЩЕНЫ С ОШИБКАМИ"
+fi
 echo ""
 echo "📝 Логи:"
-echo "  - Enhanced Orchestrator: /tmp/enhanced_orchestrator.log"
+echo "  - Enhanced Orchestrator: docker logs knowledge_os_orchestrator  OR /tmp/enhanced_orchestrator.log"
 echo "  - Curiosity Engine: /tmp/curiosity_engine.log"
-echo "  - Smart Worker: /tmp/smart_worker.log"
+echo "  - Smart Worker: docker logs knowledge_os_worker OR /tmp/smart_worker.log"
 echo "  - Nightly Learner: /tmp/nightly_learner.log"
 echo ""
 echo "🔍 Проверка: bash scripts/check_all_autonomous_systems.sh"
+exit "$HARD_FAIL"

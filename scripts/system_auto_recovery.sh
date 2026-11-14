@@ -189,6 +189,7 @@ else
         log "[4.5/10] ✅ Ollama (${OLLAMA_PORT}): работает (вторая попытка)"
     else
         log "[4.5/10] ❌ Ollama (${OLLAMA_PORT}): не отвечает дважды — ALERT, pkill/serve НЕ выполняем (v149.58g)"
+        RECOVERY_HARD_FAIL=1
         curl -s -m 8 -H "Title: 🔴 Ollama не отвечает (auto-recovery НЕ вмешивается)" -H "Priority: high" -d "11434 не отвечает 2 пробы x20s. Если продлится — ручной kickstart под maintenance." "https://ntfy.sh/atra_victoria_curator" >/dev/null 2>&1
     fi
 fi
@@ -260,6 +261,7 @@ else
         MLX_RUNNING=true
     else
         log_error "   ❌ MLX API Server не запустился"
+        RECOVERY_HARD_FAIL=1
     fi
 fi
 
@@ -540,21 +542,23 @@ log ""
 log ""
 log "[9/10] Финальная проверка..."
 
-# Повторная проверка после исправлений
+# Повторная проверка после исправлений (core = Vic+Ver+Ollama+Backend)
 FINAL_SERVICES_OK=0
 check_service "Victoria Agent" "http://localhost:8010/health" "8010" && FINAL_SERVICES_OK=$((FINAL_SERVICES_OK + 1)) || true
 check_service "Veronica Agent" "http://localhost:8011/health" "8011" && FINAL_SERVICES_OK=$((FINAL_SERVICES_OK + 1)) || true
+check_service "Ollama brain" "http://localhost:11434/api/tags" "11434" && FINAL_SERVICES_OK=$((FINAL_SERVICES_OK + 1)) || true
 check_service "ATRA Web IDE Backend" "http://localhost:8080/health" "8080" && FINAL_SERVICES_OK=$((FINAL_SERVICES_OK + 1)) || true
-check_service "ATRA Web IDE Frontend" "http://localhost:3000" "3000" && FINAL_SERVICES_OK=$((FINAL_SERVICES_OK + 1)) || true
-check_service "Open WebUI" "http://localhost:3005" "3005" && FINAL_SERVICES_OK=$((FINAL_SERVICES_OK + 1)) || true
+# Frontend / Open WebUI — informative only (not required for core gate)
+check_service "ATRA Web IDE Frontend" "http://localhost:3000" "3000" || true
+check_service "Open WebUI" "http://localhost:3005" "3005" || true
 
 log ""
 log "=============================================="
 log "📊 ИТОГОВЫЙ СТАТУС"
 log "=============================================="
-log "Работающих сервисов: $FINAL_SERVICES_OK/$TOTAL_SERVICES"
+log "Работающих core-сервисов: $FINAL_SERVICES_OK/4 (hard_fail=$RECOVERY_HARD_FAIL)"
 log ""
-REQUIRED_FINAL_SERVICES=5
+REQUIRED_FINAL_SERVICES=4
 
     # 10. Самопроверка — полная верификация (система проверяет сама себя)
     log "[10/10] Самопроверка (verify_mac_studio_self_recovery)..."

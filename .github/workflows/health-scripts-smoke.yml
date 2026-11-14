@@ -39,6 +39,14 @@ jobs:
           bash -n scripts/start_all_on_mac_studio.sh
           bash -n scripts/ensure_autonomous_systems.sh
           bash -n scripts/setup_system_auto_recovery.sh
+          bash -n scripts/setup_docker_autostart.sh
+          bash -n scripts/setup_mac_studio_docker.sh
+          bash -n scripts/setup_complete_autostart.sh
+          bash -n scripts/start_all_autonomous_systems.sh
+          bash -n scripts/run_quality_pipeline.sh
+          bash -n scripts/verify_full_recovery_readiness.sh
+          bash -n scripts/verify_mac_studio_self_recovery.sh
+          bash -n scripts/create_mac_studio_autostart.sh
 
       - name: Python syntax check
         run: |
@@ -124,6 +132,9 @@ jobs:
                   "compose_rc",
                   "verify_rc",
                   "run_compose_tracked",
+                  "11434",
+                  "REQUIRED_FINAL_SERVICES=4",
+                  "Ollama brain",
                   "exit 1",
               ],
               "scripts/do_everything_setup.sh": [
@@ -150,6 +161,45 @@ jobs:
                   "exit \"$HARD_FAIL\"",
               ],
               "scripts/setup_system_auto_recovery.sh": [
+                  "SETUP_FAIL",
+                  "exit \"$SETUP_FAIL\"",
+              ],
+              "scripts/setup_docker_autostart.sh": [
+                  "SETUP_FAIL",
+                  "exit \"$SETUP_FAIL\"",
+                  "hardened",
+              ],
+              "scripts/setup_mac_studio_docker.sh": [
+                  "8002",
+                  "11434",
+                  "SERVICES_OK",
+                  "exit \"$EXIT_CODE\"",
+              ],
+              "scripts/setup_complete_autostart.sh": [
+                  "SETUP_FAIL",
+                  "exit \"$SETUP_FAIL\"",
+                  "ensure_autonomous_systems.sh",
+              ],
+              "scripts/start_all_autonomous_systems.sh": [
+                  "HARD_FAIL",
+                  "exit \"$HARD_FAIL\"",
+                  "knowledge_os_orchestrator",
+              ],
+              "scripts/run_quality_pipeline.sh": [
+                  "PIPELINE_FAIL",
+                  "exit \"$PIPELINE_FAIL\"",
+                  "passed\":false",
+              ],
+              "scripts/verify_full_recovery_readiness.sh": [
+                  "FAIL=0",
+                  "exit \"$FAIL\"",
+                  "11434",
+              ],
+              "scripts/verify_mac_studio_self_recovery.sh": [
+                  "CRITICAL_FAIL",
+                  "CRITICAL_OK",
+              ],
+              "scripts/create_mac_studio_autostart.sh": [
                   "SETUP_FAIL",
                   "exit \"$SETUP_FAIL\"",
               ],
@@ -314,8 +364,15 @@ jobs:
           set -e
           test "$rc" -eq 1
 
-          echo '{"avg_metrics":{"faithfulness":0.9,"relevance":0.9,"coherence":0.8}}' >"$tmp"
+          echo '{"avg_metrics":{"faithfulness":0.9,"relevance":0.9,"coherence":0.8},"total_queries":3}' >"$tmp"
           python scripts/check_quality_thresholds.py "$tmp" --threshold faithfulness:0.8,relevance:0.85,coherence:0.7
+
+          echo '{"avg_metrics":{"faithfulness":0.9,"relevance":0.9,"coherence":0.8},"total_queries":0}' >"$tmp"
+          set +e
+          python scripts/check_quality_thresholds.py "$tmp" --threshold faithfulness:0.8,relevance:0.85,coherence:0.7
+          rc=$?
+          set -e
+          test "$rc" -eq 1
 
           python - <<'PY'
           import json, math, os, subprocess, tempfile
@@ -437,3 +494,72 @@ jobs:
           set -e
           test "$rc" -ne 0
           grep -Eqi 'Docker|daemon|не найден|не запущен' "$out"
+
+      - name: Runtime smoke - start_all_autonomous fail-closed without docker
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOCK_DIR="$(mktemp -d)"
+          mkdir -p "$MOCK_DIR/bin"
+          cat > "$MOCK_DIR/bin/docker" <<'EOF'
+          #!/usr/bin/env bash
+          exit 1
+          EOF
+          chmod +x "$MOCK_DIR/bin/docker"
+          out="$(mktemp)"
+          set +e
+          env PATH="$MOCK_DIR/bin:/bin:/usr/bin" /bin/bash scripts/start_all_autonomous_systems.sh >"$out" 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -Eqi 'Docker|не запущен' "$out"
+
+      - name: Runtime smoke - setup_mac_studio_docker fail-closed on dead services
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOCK_DIR="$(mktemp -d)"
+          mkdir -p "$MOCK_DIR/bin"
+          cat > "$MOCK_DIR/bin/docker" <<'EOF'
+          #!/usr/bin/env bash
+          # Pretend daemon ok for early checks; services still fail via curl
+          case "${1:-}" in
+            info|version|ps) exit 0 ;;
+            compose|*) exit 0 ;;
+          esac
+          EOF
+          cat > "$MOCK_DIR/bin/docker-compose" <<'EOF'
+          #!/usr/bin/env bash
+          exit 0
+          EOF
+          cat > "$MOCK_DIR/bin/curl" <<'EOF'
+          #!/usr/bin/env bash
+          exit 22
+          EOF
+          chmod +x "$MOCK_DIR/bin/docker" "$MOCK_DIR/bin/docker-compose" "$MOCK_DIR/bin/curl"
+          # Script may call real docker early; if compose file missing it exits 1; if services fail EXIT_CODE=1
+          out="$(mktemp)"
+          set +e
+          env PATH="$MOCK_DIR/bin:/bin:/usr/bin" ATRA_SETUP_WAIT_SEC=0 \
+            /bin/bash scripts/setup_mac_studio_docker.sh >"$out" 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+
+      - name: Runtime smoke - quality_ab_test winner fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          path = Path("backend/app/services/quality_ab_test.py")
+          spec = importlib.util.spec_from_file_location("quality_ab_test", path)
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          ab = mod.QualityABTest(results_path="/tmp/atra_ab_empty_round13.json")
+          assert ab.get_winner("reranking_method") is None
+          ab.track_result("reranking_method", "hybrid", {"relevance": 0.9})
+          assert ab.get_winner("reranking_method") == "hybrid"
+          print("ab winner fail-closed ok")
+          PY

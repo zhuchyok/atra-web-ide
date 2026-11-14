@@ -300,8 +300,9 @@ def routing_quality() -> dict[str, Any]:
     routes = snap.get("excluded_routes", [])
     sufficient_data = events >= min_events
     if not sufficient_data:
+        # Fail-closed: empty/insufficient routing must not green cognitive_pass
         return {
-            "ok": True,
+            "ok": False,
             "sufficient_data": False,
             "status": "insufficient_data",
             "events_total_window": events,
@@ -382,7 +383,16 @@ def summary_report() -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", default="", help="Optional JSON output path")
-    parser.add_argument("--strict", action="store_true", help="Return non-zero when gate fails")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Return non-zero when gate fails (default behavior; kept for compatibility)",
+    )
+    parser.add_argument(
+        "--soft",
+        action="store_true",
+        help="Always exit 0 (report-only; do not use in CI)",
+    )
     args = parser.parse_args()
 
     report = summary_report()
@@ -396,7 +406,9 @@ def main() -> int:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(payload + "\n", encoding="utf-8")
 
-    if args.strict and not report["gate_pass"]:
+    if args.soft:
+        return 0
+    if not report["gate_pass"]:
         return 2
     return 0
 

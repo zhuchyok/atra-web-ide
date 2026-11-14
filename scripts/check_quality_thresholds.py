@@ -42,6 +42,16 @@ def main() -> int:
         print("No avg_metrics in report", file=sys.stderr)
         return 1
 
+    # Fail-closed on empty/stub runs (total_queries=0 must not green-pass)
+    if "total_queries" in data:
+        try:
+            n = int(data.get("total_queries") or 0)
+        except (TypeError, ValueError):
+            n = 0
+        if n < 1:
+            print(f"total_queries={n} — refusing empty validation report", file=sys.stderr)
+            return 1
+
     thresholds = {}
     for part in args.threshold.split(","):
         part = part.strip()

@@ -2,10 +2,11 @@
 # Полная настройка автозапуска корпорации ATRA на Mac Studio
 # Запускать один раз: bash scripts/setup_complete_autostart.sh
 
-set -e
+set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+SETUP_FAIL=0
 
 echo "=============================================="
 echo "🚀 Полная настройка автозапуска корпорации ATRA"
@@ -19,8 +20,12 @@ if [ "$DOCKER_AUTOSTART" = "1" ]; then
     echo "   ✅ Docker Desktop автозапуск уже настроен"
 else
     echo "   ⚠️  Настраиваю Docker Desktop автозапуск..."
-    defaults write com.docker.docker 'StartAtLogin' -bool true
-    echo "   ✅ Docker Desktop автозапуск настроен"
+    if defaults write com.docker.docker 'StartAtLogin' -bool true 2>/dev/null; then
+        echo "   ✅ Docker Desktop автозапуск настроен"
+    else
+        echo "   ❌ Не удалось настроить Docker Desktop автозапуск"
+        SETUP_FAIL=1
+    fi
 fi
 echo ""
 
@@ -32,9 +37,15 @@ if [ -f "$COMPOSE_FILE" ]; then
     RESTART_UNLESS_STOPPED=$(grep -c "restart: unless-stopped" "$COMPOSE_FILE" || echo "0")
     echo "   ✅ Контейнеры с 'restart: always': $RESTART_ALWAYS"
     echo "   ✅ Контейнеры с 'restart: unless-stopped': $RESTART_UNLESS_STOPPED"
-    echo "   ✅ Контейнеры будут запускаться автоматически при старте Docker"
+    if [ "${RESTART_ALWAYS:-0}" = "0" ] && [ "${RESTART_UNLESS_STOPPED:-0}" = "0" ]; then
+        echo "   ❌ Нет restart policy в compose"
+        SETUP_FAIL=1
+    else
+        echo "   ✅ Контейнеры будут запускаться автоматически при старте Docker"
+    fi
 else
-    echo "   ⚠️  docker-compose.yml не найден"
+    echo "   ❌ docker-compose.yml не найден"
+    SETUP_FAIL=1
 fi
 echo ""
 
@@ -47,12 +58,13 @@ if command -v brew >/dev/null 2>&1; then
             echo "   ✅ Ollama уже запущен через brew services"
         else
             echo "   ⚠️  Запускаю Ollama через brew services..."
-            brew services start ollama 2>/dev/null || echo "   ⚠️  Не удалось запустить через brew, проверьте установку Ollama"
+            if ! brew services start ollama 2>/dev/null; then
+                echo "   ❌ Не удалось запустить Ollama через brew"
+                SETUP_FAIL=1
+            fi
         fi
     else
-        echo "   ⚠️  Ollama не найден в brew services"
-        echo "   💡 Установите Ollama: brew install ollama"
-        echo "   💡 Или настройте автозапуск вручную"
+        echo "   ⚠️  Ollama не найден в brew services (не блокер, если 11434 уже жив)"
     fi
 else
     echo "   ⚠️  Homebrew не найден, проверьте Ollama автозапуск вручную"
@@ -62,26 +74,37 @@ echo ""
 # 4. Настройка Victoria MCP Server
 echo "[4/5] Настройка Victoria MCP Server автозапуска..."
 if [ -f "scripts/victoria/quick_victoria_autostart.sh" ]; then
-    bash scripts/victoria/quick_victoria_autostart.sh
-    echo "   ✅ Victoria MCP Server настроен на автозапуск"
+    if bash scripts/victoria/quick_victoria_autostart.sh; then
+        echo "   ✅ Victoria MCP Server настроен на автозапуск"
+    else
+        echo "   ❌ Victoria MCP autostart failed"
+        SETUP_FAIL=1
+    fi
 else
-    echo "   ⚠️  Скрипт quick_victoria_autostart.sh не найден"
+    echo "   ⚠️  Скрипт quick_victoria_autostart.sh не найден (не блокер)"
 fi
 echo ""
 
-# 5. Настройка SSH Reverse Tunnel для Headscale (НОВОЕ)
+# 5. Настройка SSH Reverse Tunnel для Headscale
 echo "[5/7] Настройка SSH Reverse Tunnel автозапуска..."
 if [ -f "scripts/setup_ssh_tunnel_for_headscale.sh" ]; then
-    bash scripts/setup_ssh_tunnel_for_headscale.sh 2>&1 | grep -E "(✅|⚠️|❌|📊|🌐)" || true
-    echo "   ✅ SSH Reverse Tunnel настроен на автозапуск"
+    if bash scripts/setup_ssh_tunnel_for_headscale.sh 2>&1 | grep -E "(✅|⚠️|❌|📊|🌐)" || true; then
+        :
+    fi
+    if launchctl list 2>/dev/null | grep -q "com.atra.ssh-tunnel-headscale"; then
+        echo "   ✅ SSH Reverse Tunnel настроен на автозапуск"
+    else
+        echo "   ⚠️  SSH Reverse Tunnel не подтверждён в launchctl (не блокер)"
+    fi
 else
     echo "   ⚠️  Скрипт setup_ssh_tunnel_for_headscale.sh не найден"
 fi
 echo ""
 
-# 6. Настройка Self-Check System автозапуска (НОВОЕ)
+# 6. Настройка Self-Check System автозапуска
 echo "[6/7] Настройка Self-Check System автозапуска..."
 LAUNCHD_SELFCHECK="${HOME}/Library/LaunchAgents/com.atra.self-check.plist"
+mkdir -p "${HOME}/Library/LaunchAgents"
 cat > "$LAUNCHD_SELFCHECK" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -117,11 +140,12 @@ launchctl load "$LAUNCHD_SELFCHECK" 2>/dev/null || true
 if launchctl list 2>/dev/null | grep -q "com.atra.self-check"; then
     echo "   ✅ Self-Check System автозапуск настроен через launchd"
 else
-    echo "   ⚠️  Self-Check System не настроен (проверьте вручную)"
+    echo "   ❌ Self-Check System не настроен"
+    SETUP_FAIL=1
 fi
 echo ""
 
-# 7. Настройка Model Tracker автозапуска (НОВОЕ)
+# 7. Настройка Model Tracker автозапуска
 echo "[7/8] Настройка Model Tracker автозапуска..."
 LAUNCHD_MODELTRACKER="${HOME}/Library/LaunchAgents/com.atra.model-tracker.plist"
 cat > "$LAUNCHD_MODELTRACKER" << EOF
@@ -159,15 +183,19 @@ launchctl load "$LAUNCHD_MODELTRACKER" 2>/dev/null || true
 if launchctl list 2>/dev/null | grep -q "com.atra.model-tracker"; then
     echo "   ✅ Model Tracker автозапуск настроен через launchd"
 else
-    echo "   ⚠️  Model Tracker не настроен (проверьте вручную)"
+    echo "   ❌ Model Tracker не настроен"
+    SETUP_FAIL=1
 fi
 echo ""
 
-# 8. Настройка автозапуска MLX API Server (мозг Виктории на хосте)
+# 8. Настройка автозапуска MLX API Server (запасной слой; live brain = Ollama 11434)
 echo "[8/10] Настройка автозапуска MLX API Server..."
 if [ -f "scripts/setup_mlx_autostart.sh" ]; then
-    bash scripts/setup_mlx_autostart.sh
-    echo "   ✅ MLX API Server настроен на автозапуск при входе (мозг Виктории)"
+    if bash scripts/setup_mlx_autostart.sh; then
+        echo "   ✅ MLX API Server настроен на автозапуск при входе"
+    else
+        echo "   ⚠️  MLX autostart failed (не блокер: live brain = Ollama 11434)"
+    fi
 else
     echo "   ⚠️  setup_mlx_autostart.sh не найден"
 fi
@@ -176,31 +204,54 @@ echo ""
 # 9. Настройка системы самовосстановления
 echo "[9/10] Настройка системы самовосстановления..."
 if [ -f "scripts/setup_system_auto_recovery.sh" ]; then
-    bash scripts/setup_system_auto_recovery.sh
+    if bash scripts/setup_system_auto_recovery.sh; then
+        echo "   ✅ System auto-recovery настроен"
+    else
+        echo "   ❌ setup_system_auto_recovery.sh failed"
+        SETUP_FAIL=1
+    fi
 else
-    echo "   ⚠️  setup_system_auto_recovery.sh не найден"
+    echo "   ❌ setup_system_auto_recovery.sh не найден"
+    SETUP_FAIL=1
 fi
 echo ""
 
 # 10. Настройка автономных систем
 echo "[10/10] Настройка автономных систем..."
-if [ -f "scripts/start_autonomous_systems.sh" ]; then
-    echo "   📝 Запускаю настройку автономных систем..."
-    bash scripts/start_autonomous_systems.sh || echo "   ⚠️  Не удалось настроить автономные системы"
+if [ -f "scripts/ensure_autonomous_systems.sh" ]; then
+    echo "   📝 Запускаю ensure_autonomous_systems..."
+    if bash scripts/ensure_autonomous_systems.sh; then
+        echo "   ✅ Автономные системы обеспечены"
+    else
+        echo "   ❌ ensure_autonomous_systems failed"
+        SETUP_FAIL=1
+    fi
+elif [ -f "scripts/start_autonomous_systems.sh" ]; then
+    echo "   📝 Fallback: start_autonomous_systems.sh..."
+    if bash scripts/start_autonomous_systems.sh; then
+        echo "   ✅ Автономные системы запущены"
+    else
+        echo "   ❌ start_autonomous_systems failed"
+        SETUP_FAIL=1
+    fi
 else
-    echo "   ⚠️  Скрипт start_autonomous_systems.sh не найден"
+    echo "   ❌ Нет ensure/start_autonomous_systems.sh"
+    SETUP_FAIL=1
 fi
 echo ""
 
 # Финальная проверка
 echo "=============================================="
-echo "✅ НАСТРОЙКА ЗАВЕРШЕНА"
+if [ "$SETUP_FAIL" -eq 0 ]; then
+    echo "✅ НАСТРОЙКА ЗАВЕРШЕНА"
+else
+    echo "⚠️ НАСТРОЙКА ЗАВЕРШЕНА С ОШИБКАМИ"
+fi
 echo "=============================================="
 echo ""
 echo "📊 Статус автозапуска:"
 echo ""
-echo "✅ Docker Desktop: автозапуск включен"
-echo "✅ Docker контейнеры: restart policy настроена"
+echo "Docker Desktop StartAtLogin: $DOCKER_AUTOSTART"
 echo ""
 
 # Проверка Ollama
@@ -215,11 +266,11 @@ else
     echo "⚠️  Ollama: проверьте автозапуск вручную"
 fi
 
-# Проверка MLX API Server (мозг Виктории)
+# Проверка MLX API Server (запас)
 if launchctl list 2>/dev/null | grep -q "com.atra.mlx-api-server"; then
-    echo "✅ MLX API Server (мозг Виктории): настроен на автозапуск при входе"
+    echo "✅ MLX API Server: настроен на автозапуск при входе"
 else
-    echo "⚠️  MLX API Server: не настроен (запустите: bash scripts/setup_mlx_autostart.sh)"
+    echo "⚠️  MLX API Server: не настроен (live brain = Ollama 11434)"
 fi
 
 # Проверка Victoria MCP
@@ -229,46 +280,32 @@ else
     echo "⚠️  Victoria MCP Server: не настроен"
 fi
 
-# Проверка Self-Check System (НОВОЕ)
+# Проверка Self-Check System
 if launchctl list 2>/dev/null | grep -q "com.atra.self-check"; then
-    echo "✅ Self-Check System: настроен на автозапуск (НОВОЕ)"
+    echo "✅ Self-Check System: настроен на автозапуск"
 else
     echo "⚠️  Self-Check System: не настроен"
+    SETUP_FAIL=1
 fi
 
-# Проверка SSH Reverse Tunnel (НОВОЕ)
+# Проверка SSH Reverse Tunnel
 if launchctl list 2>/dev/null | grep -q "com.atra.ssh-tunnel-headscale"; then
-    echo "✅ SSH Reverse Tunnel: настроен на автозапуск (НОВОЕ)"
+    echo "✅ SSH Reverse Tunnel: настроен на автозапуск"
 else
     echo "⚠️  SSH Reverse Tunnel: не настроен"
 fi
 
-# Проверка Model Tracker (НОВОЕ)
+# Проверка Model Tracker
 if launchctl list 2>/dev/null | grep -q "com.atra.model-tracker"; then
-    echo "✅ Model Tracker: настроен на автозапуск (НОВОЕ)"
+    echo "✅ Model Tracker: настроен на автозапуск"
 else
     echo "⚠️  Model Tracker: не настроен"
+    SETUP_FAIL=1
 fi
 
 echo ""
-echo "🔄 После перезагрузки Mac Studio или MacBook:"
-echo "   1. Docker Desktop запустится автоматически"
-echo "   2. Все Docker контейнеры запустятся автоматически (в т.ч. Victoria, Open WebUI :3005)"
-echo "   3. Ollama запустится автоматически (если настроен)"
-echo "   4. MLX API Server (мозг Виктории) запустится автоматически при входе (launchd) ✅"
-echo "   5. Victoria MCP Server запустится автоматически (если настроен)"
-echo "   6. Self-Check System запустится автоматически ✅"
-echo "   7. SSH Reverse Tunnel запустится автоматически ✅"
-echo "   8. Model Tracker запустится автоматически ✅"
-echo "   9. Автономные системы запустятся автоматически (если настроены)"
+echo "🔄 После перезагрузки: bash scripts/verify_mac_studio_self_recovery.sh"
+echo "📝 Live brain: curl -s http://localhost:11434/api/tags"
+echo "📝 Victoria:   curl -s http://localhost:8010/health"
 echo ""
-echo "📝 Проверка после перезагрузки:"
-echo "   bash scripts/verify_mac_studio_self_recovery.sh"
-echo "   launchctl list | grep atra"
-echo "   tail -f ~/Library/Logs/atra-self-check.log"
-echo "   tail -f ~/Library/Logs/ssh-tunnel-headscale.log"
-echo ""
-echo "🌐 Проверка удаленного доступа:"
-echo "   curl -s http://185.177.216.15:8080 >/dev/null && echo '✅ Headscale доступен' || echo '⚠️ Headscale недоступен'"
-echo "   curl -s http://185.177.216.15:8010/health >/dev/null && echo '✅ Victoria доступна' || echo '⚠️ Victoria недоступна'"
-echo ""
+exit "$SETUP_FAIL"

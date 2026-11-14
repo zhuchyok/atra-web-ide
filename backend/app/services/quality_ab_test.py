@@ -103,10 +103,10 @@ class QualityABTest:
             self.results[key]["users"].append(user_id)
         self._save_results()
 
-    def get_winner(self, experiment: str, primary_metric: str = "relevance") -> str:
-        """Определение победившего варианта."""
+    def get_winner(self, experiment: str, primary_metric: str = "relevance") -> Optional[str]:
+        """Победитель только при наличии samples; иначе None (fail-closed, не 'control')."""
         if experiment not in self.experiments:
-            return "control"
+            return None
         best_variant = None
         best_score = -1.0
         for variant in self.experiments[experiment]["variants"]:
@@ -118,7 +118,7 @@ class QualityABTest:
                 if avg > best_score:
                     best_score = avg
                     best_variant = variant
-        return best_variant or "control"
+        return best_variant
 
     def get_summary(self, experiment: str) -> Dict[str, Any]:
         """Сводка по эксперименту."""
