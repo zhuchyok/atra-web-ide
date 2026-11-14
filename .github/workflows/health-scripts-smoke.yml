@@ -33,6 +33,12 @@ jobs:
           bash -n scripts/QUICK_SERVER_SETUP.sh
           bash -n scripts/system_auto_recovery.sh
           bash -n scripts/check_ready.sh
+          bash -n scripts/do_everything_setup.sh
+          bash -n scripts/auto_start_mac_studio.sh
+          bash -n scripts/start_mac_studio_full.sh
+          bash -n scripts/start_all_on_mac_studio.sh
+          bash -n scripts/ensure_autonomous_systems.sh
+          bash -n scripts/setup_system_auto_recovery.sh
 
       - name: Python syntax check
         run: |
@@ -75,6 +81,8 @@ jobs:
               "scripts/check_services.sh": [
                   "STRICT_CHECK_SERVICES",
                   "FAILURES=0",
+                  "8002",
+                  "CHECK_LEGACY_MCP",
               ],
               "scripts/check_phase2.sh": [
                   "set -e",
@@ -99,6 +107,13 @@ jobs:
               "scripts/auto_setup_server.sh": [
                   "SETUP_FAIL",
                   "exit \"$SETUP_FAIL\"",
+                  "8002",
+                  "8010",
+                  "8011",
+                  "9091",
+                  "3002",
+                  "knowledge_postgres",
+                  "knowledge_nightly",
               ],
               "scripts/QUICK_SERVER_SETUP.sh": [
                   "SETUP_FAIL",
@@ -112,6 +127,29 @@ jobs:
                   "exit 1",
               ],
               "scripts/do_everything_setup.sh": [
+                  "SETUP_FAIL",
+                  "exit \"$SETUP_FAIL\"",
+              ],
+              "scripts/auto_start_mac_studio.sh": [
+                  "compose_rc",
+                  "exit $FAIL",
+              ],
+              "scripts/start_mac_studio_full.sh": [
+                  "SETUP_FAIL",
+                  "8002",
+                  "exit \"$SETUP_FAIL\"",
+              ],
+              "scripts/start_all_on_mac_studio.sh": [
+                  "8002",
+                  "EXIT_CODE",
+                  "exit \"$EXIT_CODE\"",
+              ],
+              "scripts/ensure_autonomous_systems.sh": [
+                  "HARD_FAIL",
+                  "knowledge_os_redis",
+                  "exit \"$HARD_FAIL\"",
+              ],
+              "scripts/setup_system_auto_recovery.sh": [
                   "SETUP_FAIL",
                   "exit \"$SETUP_FAIL\"",
               ],

@@ -165,6 +165,9 @@ def main():
         }, f, indent=2, ensure_ascii=False)
     print(f"\n✅ Сохранено: {out}")
 
+    if p95 >= 300 and not args.no_fail:
+        print("❌ P95 SLA failed (>= 300ms)", file=sys.stderr)
+        return 1
     return 0
 
 

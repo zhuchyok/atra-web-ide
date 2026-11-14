@@ -11,6 +11,7 @@ echo "=============================================="
 echo "🔄 НАСТРОЙКА СИСТЕМЫ САМОВОССТАНОВЛЕНИЯ"
 echo "=============================================="
 echo ""
+SETUP_FAIL=0
 
 # 0. Лаунчер для Recovery Listener (порт 9099) — вне Documents, чтобы launchd мог запустить
 ATRA_SUPPORT="${HOME}/Library/Application Support/Atra"
@@ -85,6 +86,7 @@ if launchctl list 2>/dev/null | grep -q "com.atra.auto-recovery"; then
     echo "✅ Система самовосстановления загружена в launchd"
 else
     echo "⚠️ Система не загружена (проверьте вручную)"
+    SETUP_FAIL=1
 fi
 echo ""
 
@@ -135,6 +137,7 @@ if launchctl list 2>/dev/null | grep -q "com.atra.mlx-monitor"; then
     echo "   ✅ Мониторинг MLX API Server настроен через launchd"
 else
     echo "   ⚠️ Мониторинг MLX не настроен (проверьте вручную)"
+    SETUP_FAIL=1
 fi
 echo ""
 
@@ -186,17 +189,25 @@ else
         echo "   ✅ Recovery Listener загружен (user domain)"
     else
         echo "   ⚠️ Recovery Listener не загружен. Вручную: python3 scripts/host_recovery_listener.py"
+        SETUP_FAIL=1
     fi
 fi
 echo ""
 
 # 5. Первый запуск для проверки
 echo "[5/5] Первый запуск для проверки..."
-bash scripts/system_auto_recovery.sh
+if ! bash scripts/system_auto_recovery.sh; then
+    echo "⚠️ Первый прогон system_auto_recovery завершился с ошибкой"
+    SETUP_FAIL=1
+fi
 echo ""
 
 echo "=============================================="
-echo "✅ НАСТРОЙКА ЗАВЕРШЕНА"
+if [ "$SETUP_FAIL" -eq 0 ]; then
+    echo "✅ НАСТРОЙКА ЗАВЕРШЕНА"
+else
+    echo "⚠️ НАСТРОЙКА ЗАВЕРШЕНА С ОШИБКАМИ"
+fi
 echo "=============================================="
 echo ""
 echo "📋 Система самовосстановления будет:"
@@ -216,3 +227,5 @@ echo "📡 Recovery Listener (порт 9099): запускается автом�
 echo "   При падении MLX/Ollama оркестратор (Виктория) шлёт POST на host:9099/recover → MLX поднимается без ваших действий."
 echo "   Статус: launchctl list | grep recovery-listener"
 echo ""
+
+exit "$SETUP_FAIL"

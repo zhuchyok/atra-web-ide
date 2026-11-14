@@ -122,27 +122,32 @@ check_service() {
 }
 
 SERVICES_OK=0
-check_service "Victoria (8010)" "http://localhost:8010/health" && SERVICES_OK=$((SERVICES_OK + 1))
-check_service "Veronica (8011)" "http://localhost:8011/health" && SERVICES_OK=$((SERVICES_OK + 1))
-check_service "Victoria MCP (8012)" "http://localhost:8012/sse" && SERVICES_OK=$((SERVICES_OK + 1))
-check_service "Ollama/MLX (11434)" "http://localhost:11434/api/tags" && SERVICES_OK=$((SERVICES_OK + 1))
-check_service "Knowledge OS (8000)" "http://localhost:8000/health" && SERVICES_OK=$((SERVICES_OK + 1))
+REQUIRED_SERVICES=4
+check_service "Victoria (8010)" "http://localhost:8010/health" && SERVICES_OK=$((SERVICES_OK + 1)) || true
+check_service "Veronica (8011)" "http://localhost:8011/health" && SERVICES_OK=$((SERVICES_OK + 1)) || true
+check_service "Ollama brain (11434)" "http://localhost:11434/api/tags" && SERVICES_OK=$((SERVICES_OK + 1)) || true
+check_service "Knowledge OS REST (8002)" "http://localhost:8002/health" && SERVICES_OK=$((SERVICES_OK + 1)) || true
+if [ "${CHECK_LEGACY_MCP:-false}" = "true" ]; then
+    REQUIRED_SERVICES=$((REQUIRED_SERVICES + 1))
+    check_service "Victoria MCP (8012)" "http://localhost:8012/sse" && SERVICES_OK=$((SERVICES_OK + 1)) || true
+fi
 
 echo ""
 echo "=============================================="
-if [ $SERVICES_OK -eq 5 ]; then
+EXIT_CODE=0
+if [ "$SERVICES_OK" -ge "$REQUIRED_SERVICES" ]; then
     echo "✅ ВСЕ СЕРВИСЫ ЗАПУЩЕНЫ И РАБОТАЮТ!"
 else
-    echo "⚠️  НЕКОТОРЫЕ СЕРВИСЫ НЕДОСТУПНЫ ($SERVICES_OK/5)"
+    echo "⚠️  НЕКОТОРЫЕ СЕРВИСЫ НЕДОСТУПНЫ ($SERVICES_OK/$REQUIRED_SERVICES)"
+    EXIT_CODE=1
 fi
 echo "=============================================="
 echo ""
 echo "📋 Доступные сервисы:"
 echo "   - Victoria: http://localhost:8010"
 echo "   - Veronica: http://localhost:8011"
-echo "   - Victoria MCP: http://localhost:8012/sse"
-echo "   - Ollama/MLX: http://localhost:11434"
-echo "   - Knowledge OS: http://localhost:8000"
+echo "   - Ollama brain: http://localhost:11434"
+echo "   - Knowledge OS REST: http://localhost:8002"
 echo ""
 echo "🌐 Доступ с MacBook:"
 echo "   - Victoria: http://192.168.1.64:8010"
@@ -157,3 +162,4 @@ echo ""
 echo "📊 Просмотр логов:"
 echo "   docker-compose -f knowledge_os/docker-compose.yml logs -f [service_name]"
 echo ""
+exit "$EXIT_CODE"

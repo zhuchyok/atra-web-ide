@@ -44,8 +44,8 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
     compose_rc=${PIPESTATUS[0]}
     set -o pipefail
     set -e
-    if [ "\$compose_rc" -ne 0 ]; then
-        echo "   ❌ docker-compose up failed (rc=\$compose_rc)"
+    if [ "$compose_rc" -ne 0 ]; then
+        echo "   ❌ docker-compose up failed (rc=$compose_rc)"
         exit 1
     fi
     echo "   ⏳ Ожидание запуска (20 секунд)..."
@@ -74,7 +74,7 @@ else
     echo " - Veronica не отвечает"
     FAIL=1
 fi
-exit \$FAIL
+exit $FAIL
 ENDSSH
     remote_rc=$?
     set -e

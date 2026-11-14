@@ -36,8 +36,10 @@ check_service "Ollama Coder (11436)" "http://localhost:11436/api/tags" || FAILUR
 check_service "Ollama Hands (11437)" "http://localhost:11437/api/tags" || FAILURES=$((FAILURES + 1))
 check_service "Victoria Agent" "http://localhost:8010/health" || FAILURES=$((FAILURES + 1))
 check_service "Veronica Agent" "http://localhost:8011/health" || FAILURES=$((FAILURES + 1))
-check_service "Victoria MCP" "http://localhost:8012/sse" || FAILURES=$((FAILURES + 1))
-check_service "Knowledge OS API" "http://localhost:8000/health" || FAILURES=$((FAILURES + 1))
+if [ "${CHECK_LEGACY_MCP:-false}" = "true" ]; then
+    check_service "Victoria MCP" "http://localhost:8012/sse" || FAILURES=$((FAILURES + 1))
+fi
+check_service "Knowledge OS REST" "http://localhost:8002/health" || FAILURES=$((FAILURES + 1))
 check_service "VectorCore" "http://localhost:8001/health" || FAILURES=$((FAILURES + 1))
 
 echo ""

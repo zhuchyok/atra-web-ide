@@ -122,18 +122,30 @@ jobs:
           fi
           python scripts/check_quality_thresholds.py backend/validation_report.json --threshold faithfulness:0.8,relevance:0.85,coherence:0.7
 
-      - name: Latency benchmark (optional)
+      - name: Latency benchmark
         env:
           DATABASE_URL: postgresql://admin:secret@localhost:5432/knowledge_os
           EMBEDDING_FALLBACK_ENABLED: "true"
         run: |
+          set -euo pipefail
           export PYTHONPATH="$PWD/backend:$PWD"
-          python scripts/benchmark_latency.py --no-fail 2>&1 | tee backend/latency_output.txt || true
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            python scripts/benchmark_latency.py --no-fail 2>&1 | tee backend/latency_output.txt || true
+          else
+            python scripts/benchmark_latency.py 2>&1 | tee backend/latency_output.txt
+          fi
           if [ -f latency_benchmark.json ]; then
             echo "Latency results:"
             python3 -c "import json; d=json.load(open('latency_benchmark.json')); print('  P95:', d.get('p95_ms','?'), 'ms'); print('  P50:', d.get('p50_ms','?'), 'ms')"
+            test -s latency_benchmark.json
+            python3 -c 'import json; d=json.load(open("latency_benchmark.json")); assert "p95_ms" in d or d=={}'
           else
-            echo '{}' > latency_benchmark.json
+            if [ "${{ github.event_name }}" = "schedule" ]; then
+              echo '{}' > latency_benchmark.json
+            else
+              echo "latency_benchmark.json missing after benchmark"
+              exit 1
+            fi
           fi
 
       - name: Upload latency report
