@@ -83,11 +83,7 @@ jobs:
         run: |
           export PYTHONPATH="$PWD/backend:$PWD"
           if [ ! -f data/validation_queries.json ]; then
-            if [ "${{ github.event_name }}" = "schedule" ]; then
-              echo "No dataset for scheduled run, skipping validation"
-              echo '{"avg_metrics":{},"skipped":true}' > backend/validation_report.json
-              exit 0
-            fi
+            # Fail-closed even on schedule: empty/skipped stub must not green the job
             echo "validation dataset missing for ${{ github.event_name }}: data/validation_queries.json"
             exit 1
           fi
@@ -113,11 +109,7 @@ jobs:
           test -f scripts/check_quality_thresholds.py
           test -f backend/validation_report.json
           if python3 -c 'import json,sys; sys.exit(0 if json.load(open("backend/validation_report.json")).get("skipped") is True else 1)'; then
-            if [ "${{ github.event_name }}" = "schedule" ]; then
-              echo "Scheduled run skipped validation (no dataset); threshold check skipped"
-              exit 0
-            fi
-            echo "Skipped report is not allowed on pull_request/push"
+            echo "Skipped report is not allowed (fail-closed for all events including schedule)"
             exit 1
           fi
           python scripts/check_quality_thresholds.py backend/validation_report.json --threshold faithfulness:0.8,relevance:0.85,coherence:0.7

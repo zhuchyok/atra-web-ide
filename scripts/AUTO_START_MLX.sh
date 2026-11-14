@@ -55,13 +55,17 @@ PID=$!
 sleep 4
 
 if ps -p "$PID" >/dev/null 2>&1; then
-  if curl -s http://localhost:${MLX_PORT}/ >/dev/null 2>&1; then
+  # Fail-closed: process alone is not enough — require HTTP response
+  if curl -sf --connect-timeout 3 "http://localhost:${MLX_PORT}/" >/dev/null 2>&1 \
+    || curl -sf --connect-timeout 3 "http://localhost:${MLX_PORT}/api/tags" >/dev/null 2>&1 \
+    || curl -sf --connect-timeout 3 "http://localhost:${MLX_PORT}/health" >/dev/null 2>&1; then
     echo "✅ MLX API Server работает! (PID: $PID)"
     echo "🌐 http://localhost:${MLX_PORT}"
-  else
-    echo "⚠️  Запускается... (PID: $PID)"
-    echo "📊 Логи: tail -f ~/Library/Logs/atra/mlx_api_server.log"
+    exit 0
   fi
+  echo "❌ Процесс жив, но HTTP на ${MLX_PORT} не отвечает"
+  echo "📊 Логи: tail -f ~/Library/Logs/atra/mlx_api_server.log"
+  exit 1
 else
   echo "❌ Ошибка запуска:"
   tail -15 ~/Library/Logs/atra/mlx_api_server.log 2>/dev/null | grep -i error || tail -10 ~/Library/Logs/atra/mlx_api_server.log

@@ -2,10 +2,11 @@
 # Применение изменений на Mac Studio
 # Проверка и синхронизация всех изменений из этого чата
 
-set -e
+set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+HARD_FAIL=0
 
 MAC_STUDIO_IP="192.168.1.64"
 MAC_STUDIO_USER="bikos"
@@ -19,27 +20,10 @@ echo ""
 # Проверка SSH доступа
 echo "[1/5] Проверка SSH доступа к Mac Studio..."
 if ! ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} "echo 'OK'" 2>/dev/null; then
-    echo "   ⚠️  SSH недоступен к Mac Studio"
-    echo "   💡 Это нормально, если Mac Studio не в сети или SSH не включен"
-    echo "   📝 Инструкция для применения изменений вручную:"
-    echo "      См. файл: APPLY_CHANGES_ON_MAC_STUDIO.md"
-    echo ""
-    echo "   🔄 Продолжаем с локальными изменениями..."
-    echo ""
-
-    # Применяем изменения локально
-    echo "   🔧 Применение изменений локально в chat.py..."
-    if grep -q "Victoria Enhanced: всегда используем Victoria Enhanced" backend/app/routers/chat.py 2>/dev/null; then
-        echo "      ✅ Изменение уже применено локально"
-    else
-        echo "      🔧 Применяем изменение..."
-        cp backend/app/routers/chat.py backend/app/routers/chat.py.bak
-        sed -i.bak2 's/# Умный роутинг: простые сообщения -> Ollama, сложные -> Victoria/# Victoria Enhanced: всегда используем Victoria Enhanced, если use_victoria=True/' backend/app/routers/chat.py
-        sed -i.bak3 's/use_ollama_direct = is_simple_message(message.content) or not message.use_victoria/use_ollama_direct = not message.use_victoria/' backend/app/routers/chat.py
-        echo "      ✅ Изменение применено локально"
-    fi
-    echo ""
-    exit 0
+    echo "   ❌ SSH недоступен к Mac Studio — remote apply невозможен"
+    echo "   📝 Инструкция: APPLY_CHANGES_ON_MAC_STUDIO.md"
+    echo "   💡 Локальный fallback без SSH не считается успешным remote apply"
+    exit 1
 fi
 echo "   ✅ SSH доступен"
 echo ""
@@ -68,30 +52,36 @@ scp -o StrictHostKeyChecking=no \
 echo "   ✅ Файлы синхронизированы"
 echo ""
 
-# Проверка статуса сервисов на Mac Studio
+# Проверка статуса сервисов на Mac Studio (live ports)
 echo "[3/5] Проверка статуса сервисов на Mac Studio..."
-ssh ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} << 'EOF'
-    echo "   Проверка Victoria..."
+HARD_FAIL=0
+REMOTE_STATUS=$(ssh ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} << 'EOF'
+    FAIL=0
+    echo "   Проверка Victoria (8010)..."
     if curl -s -f http://localhost:8010/health >/dev/null 2>&1; then
         echo "      ✅ Victoria работает"
     else
         echo "      ❌ Victoria не работает"
+        FAIL=1
     fi
-
-    echo "   Проверка MCP сервера..."
-    if curl -s -f http://localhost:8012/sse >/dev/null 2>&1; then
-        echo "      ✅ MCP сервер работает"
+    echo "   Проверка Ollama brain (11434)..."
+    if curl -s -f http://localhost:11434/api/tags >/dev/null 2>&1; then
+        echo "      ✅ Ollama brain работает"
     else
-        echo "      ❌ MCP сервер не работает"
+        echo "      ❌ Ollama brain не работает"
+        FAIL=1
     fi
-
-    echo "   Проверка Docker контейнеров..."
-    if docker ps | grep -q victoria-agent; then
+    echo "   Проверка Docker victoria-agent..."
+    if docker ps --format '{{.Names}}' | grep -q '^victoria-agent$'; then
         echo "      ✅ Victoria контейнер запущен"
     else
         echo "      ❌ Victoria контейнер не запущен"
+        FAIL=1
     fi
+    exit $FAIL
 EOF
+) || HARD_FAIL=1
+echo "$REMOTE_STATUS"
 echo ""
 
 # Применение изменений в chat.py (если нужно)
@@ -144,10 +134,15 @@ EOF
 echo ""
 
 echo "=============================================="
-echo "✅ ИЗМЕНЕНИЯ ПРИМЕНЕНЫ НА MAC STUDIO"
+if [ "${HARD_FAIL:-0}" -eq 0 ]; then
+    echo "✅ ИЗМЕНЕНИЯ ПРИМЕНЕНЫ НА MAC STUDIO"
+else
+    echo "⚠️ ПРИМЕНЕНИЕ ЗАВЕРШЕНО С ОШИБКАМИ"
+fi
 echo "=============================================="
 echo ""
 echo "📋 Проверка:"
 echo "   curl http://192.168.1.64:8010/health"
-echo "   curl http://192.168.1.64:8012/sse"
+echo "   curl http://192.168.1.64:11434/api/tags"
 echo ""
+exit "${HARD_FAIL:-0}"

@@ -50,6 +50,13 @@ jobs:
           bash -n scripts/start_autonomous_systems.sh
           bash -n scripts/install_quality_cron.sh
           bash -n scripts/execute_all_tasks_on_mac_studio.sh
+          bash -n scripts/final_victoria_setup.sh
+          bash -n scripts/victoria/do_all_victoria_setup.sh
+          bash -n scripts/victoria/victoria_auto_connect.sh
+          bash -n scripts/setup_backup_launchd.sh
+          bash -n scripts/AUTO_START_MLX.sh
+          bash -n scripts/setup_router_port_forwarding.sh
+          bash -n scripts/apply_changes_to_mac_studio.sh
 
       - name: Python syntax check
         run: |
@@ -225,6 +232,34 @@ jobs:
               "scripts/nightly_routing_quality_guard.py": [
                   "hard_fail",
                   "return 2",
+              ],
+              "scripts/final_victoria_setup.sh": [
+                  "SETUP_FAIL",
+                  "exit \"$SETUP_FAIL\"",
+                  "8010",
+              ],
+              "scripts/victoria/do_all_victoria_setup.sh": [
+                  "SETUP_FAIL",
+                  "exit \"$SETUP_FAIL\"",
+                  "8010",
+              ],
+              "scripts/victoria/victoria_auto_connect.sh": [
+                  "HARD_FAIL",
+                  "exit \"$HARD_FAIL\"",
+                  "8010",
+              ],
+              "scripts/setup_backup_launchd.sh": [
+                  "SETUP_FAIL",
+                  "exit \"$SETUP_FAIL\"",
+              ],
+              "scripts/AUTO_START_MLX.sh": [
+                  "curl -sf",
+                  "exit 1",
+              ],
+              "scripts/apply_changes_to_mac_studio.sh": [
+                  "HARD_FAIL",
+                  "11434",
+                  "exit \"${HARD_FAIL:-0}\"",
               ],
           }
 

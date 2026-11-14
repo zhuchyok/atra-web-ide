@@ -48,11 +48,21 @@ cat > "$PLIST_PATH" << EOF
 EOF
 
 # Загрузка
+SETUP_FAIL=0
 launchctl unload "$PLIST_PATH" 2>/dev/null || true
-launchctl load "$PLIST_PATH"
+if ! launchctl load "$PLIST_PATH" 2>/dev/null; then
+  echo "❌ Не удалось загрузить LaunchAgent"
+  SETUP_FAIL=1
+fi
 
-echo "✅ LaunchAgent создан: $PLIST_PATH"
+if launchctl list 2>/dev/null | grep -q "${PLIST_NAME}"; then
+  echo "✅ LaunchAgent создан и загружен: $PLIST_PATH"
+else
+  echo "❌ LaunchAgent не виден в launchctl list"
+  SETUP_FAIL=1
+fi
 echo "   Бэкап запускается ежедневно в 02:00"
 echo "   Лог: $LOG_FILE"
 echo ""
 echo "Проверка: launchctl list | grep ${PLIST_NAME}"
+exit "$SETUP_FAIL"
