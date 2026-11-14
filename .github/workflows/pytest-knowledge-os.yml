@@ -22,12 +22,15 @@ jobs:
       - name: Get changed .py files
         id: changed
         run: |
+          set -euo pipefail
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASE="${{ github.event.pull_request.base.sha }}"
           else
             BASE="${{ github.event.before || 'HEAD~1' }}"
           fi
-          git diff --name-only "$BASE" ${{ github.sha }} -- backend/ knowledge_os/app/ knowledge_os/tests/ src/ | grep -E '\.py$' || true > changed_py.txt
+          git cat-file -e "$BASE^{commit}"
+          git diff --name-only "$BASE" ${{ github.sha }} -- backend/ knowledge_os/app/ knowledge_os/tests/ src/ > changed_all.txt
+          grep -E '\.py$' changed_all.txt > changed_py.txt || true
           echo "count=$(wc -l < changed_py.txt | tr -d ' ')" >> $GITHUB_OUTPUT
 
       - name: Set up Python

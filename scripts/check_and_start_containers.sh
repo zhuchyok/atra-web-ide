@@ -2,13 +2,22 @@
 # Проверка и запуск всех контейнеров на Mac Studio
 # Запускать на Mac Studio: bash scripts/check_and_start_containers.sh
 
-set -e
+set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 # Настройка PATH для Docker Desktop на Mac
 export PATH="/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
+HARD_FAIL=0
+
+run_compose_filtered() {
+    local output
+    output=$("$@" 2>&1)
+    local rc=$?
+    printf '%s\n' "$output" | grep -v "level=warning" || true
+    return $rc
+}
 
 echo "=============================================="
 echo "🔍 ПРОВЕРКА И ЗАПУСК КОНТЕЙНЕРОВ"
@@ -45,13 +54,16 @@ echo ""
 echo "[3/5] Проверка статуса контейнеров..."
 if [ -f "knowledge_os/docker-compose.yml" ]; then
     echo "   Текущий статус:"
-    docker-compose -f knowledge_os/docker-compose.yml ps 2>&1 | grep -v "level=warning" || true
+    run_compose_filtered docker-compose -f knowledge_os/docker-compose.yml ps || true
     echo ""
 
     # Singularity 15.0: Open WebUI (ask_victoria → Victoria) — поднимаем вместе с Victoria
     if ! docker ps --format "{{.Names}}" | grep -q "^open-webui$"; then
         echo "   🚀 Запуск Open WebUI (Singularity 15.0)..."
-        docker-compose -f knowledge_os/docker-compose.yml up -d db redis victoria-agent open-webui 2>&1 | grep -v "level=warning" || true
+        if ! run_compose_filtered docker-compose -f knowledge_os/docker-compose.yml up -d db redis victoria-agent open-webui; then
+            echo "   ❌ Не удалось поднять Open WebUI/Victoria stack"
+            HARD_FAIL=1
+        fi
         echo "   ⏳ Ожидание Victoria (10 сек)..."
         sleep 10
     fi
@@ -59,7 +71,10 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
     if ! docker ps --format "{{.Names}}" | grep -q "^victoria-agent$"; then
         echo "   ⚠️  Victoria (victoria-agent) не запущена!"
         echo "   🚀 Запуск Victoria..."
-        docker-compose -f knowledge_os/docker-compose.yml up -d victoria-agent 2>&1 | grep -v "level=warning" || true
+        if ! run_compose_filtered docker-compose -f knowledge_os/docker-compose.yml up -d victoria-agent; then
+            echo "   ❌ Не удалось поднять victoria-agent"
+            HARD_FAIL=1
+        fi
         echo "   ⏳ Ожидание Victoria (10 сек)..."
         sleep 10
     fi
@@ -70,7 +85,10 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
     if [ "$NOT_RUNNING" -gt 0 ]; then
         echo "   ⚠️  Найдено не запущенных контейнеров: $NOT_RUNNING"
         echo "   🚀 Запуск контейнеров..."
-        docker-compose -f knowledge_os/docker-compose.yml up -d 2>&1 | grep -v "level=warning" || true
+        if ! run_compose_filtered docker-compose -f knowledge_os/docker-compose.yml up -d; then
+            echo "   ❌ Не удалось поднять часть контейнеров"
+            HARD_FAIL=1
+        fi
         echo "   ⏳ Ожидание запуска (20 секунд)..."
         sleep 20
     else
@@ -83,7 +101,10 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
     if ! docker ps --format '{{.Names}}' | grep -q '^knowledge_nightly$'; then
         if [ "$ENABLE_NIGHTLY_AUTOSTART" = "true" ]; then
             echo "   ⚠️  Nightly Learner не запущен — поднимаю (ENABLE_NIGHTLY_AUTOSTART=true)..."
-            docker-compose -f knowledge_os/docker-compose.yml up -d knowledge_nightly 2>&1 | grep -v "level=warning" || true
+            if ! run_compose_filtered docker-compose -f knowledge_os/docker-compose.yml up -d knowledge_nightly; then
+                echo "   ❌ Не удалось поднять knowledge_nightly"
+                HARD_FAIL=1
+            fi
             sleep 3
         else
             echo "   ⏭️  Nightly Learner отключен автозапуском (ENABLE_NIGHTLY_AUTOSTART=false)"
@@ -91,7 +112,10 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
     fi
     if ! docker ps --format '{{.Names}}' | grep -q '^knowledge_os_orchestrator$'; then
         echo "   ⚠️  Orchestrator не запущен — поднимаю..."
-        docker-compose -f knowledge_os/docker-compose.yml up -d knowledge_os_orchestrator 2>&1 | grep -v "level=warning" || true
+        if ! run_compose_filtered docker-compose -f knowledge_os/docker-compose.yml up -d knowledge_os_orchestrator; then
+            echo "   ❌ Не удалось поднять knowledge_os_orchestrator"
+            HARD_FAIL=1
+        fi
         sleep 3
     fi
 else
@@ -102,7 +126,10 @@ echo ""
 
 # 3.5 Drift guard for Open WebUI ask_victoria valves (must stay proxy-safe)
 echo "   🔧 Проверка drift у ask_victoria valves..."
-python3 scripts/ensure_openwebui_ask_victoria_valves.py || echo "   ⚠️ Не удалось автоисправить valves (проверьте open-webui/webui.db)"
+if ! python3 scripts/ensure_openwebui_ask_victoria_valves.py; then
+    echo "   ❌ Не удалось автоисправить valves (проверьте open-webui/webui.db)"
+    HARD_FAIL=1
+fi
 echo "   🧭 Проверка policy Victoria (маршрутизация access/path запросов через ask_victoria)..."
 python3 scripts/ensure_openwebui_victoria_policy.py || echo "   ⚠️ Не удалось автоисправить policy модели Victoria"
 echo "   🧪 Проверка утечки reasoning-блоков без tool-call..."
@@ -157,13 +184,14 @@ except Exception:
 SERVICES_OK=0
 VICTORIA_OK=0
 VERONICA_OK=0
-HARD_FAIL=0
 check_service "Victoria (8010)" "http://localhost:8010/health" && { SERVICES_OK=$((SERVICES_OK + 1)); VICTORIA_OK=1; }
 check_service "Veronica (8011)" "http://localhost:8011/health" && { SERVICES_OK=$((SERVICES_OK + 1)); VERONICA_OK=1; }
 check_service "Ollama/MLX (11434)" "http://localhost:11434/api/tags" && SERVICES_OK=$((SERVICES_OK + 1))
 # Knowledge OS REST API слушает порт 8002 (не 8000 — тот только внутри контейнеров)
 check_service "Knowledge REST (8002)" "http://localhost:8002/health" && SERVICES_OK=$((SERVICES_OK + 1))
-check_service "Open WebUI (3005)" "http://localhost:3005" || true
+if ! check_service "Open WebUI (3005)" "http://localhost:3005"; then
+    HARD_FAIL=1
+fi
 
 # 5. Автоперезапуск Victoria/Veronica при сбое; проверка трёх уровней Victoria
 echo ""
@@ -171,7 +199,10 @@ echo "[5/5] Автоперезапуск при сбое и проверка Vic
 if [ -f "knowledge_os/docker-compose.yml" ]; then
     if [ "$VICTORIA_OK" -eq 0 ]; then
         echo "   ⚠️ Victoria не отвечает — перезапускаю victoria-agent..."
-        docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent 2>&1 | grep -v "level=warning" || true
+        if ! run_compose_filtered docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent; then
+            echo "   ❌ Ошибка перезапуска victoria-agent"
+            HARD_FAIL=1
+        fi
         sleep 10
         if check_service "Victoria (8010)" "http://localhost:8010/health"; then
             SERVICES_OK=$((SERVICES_OK + 1))
@@ -181,7 +212,10 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
         # Initiative (Event Bus) поднимается асинхронно через 15–30 с после старта; при первом прогоне после загрузки системы даём время
         if ! check_victoria_levels; then
             echo "   ⚠️ Victoria: не все три уровня (agent/enhanced/initiative) активны — перезапускаю victoria-agent..."
-            docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent 2>&1 | grep -v "level=warning" || true
+            if ! run_compose_filtered docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent; then
+                echo "   ❌ Ошибка перезапуска victoria-agent"
+                HARD_FAIL=1
+            fi
             sleep 30
             if check_victoria_levels; then
                 echo "   ✅ Victoria: все три уровня запущены после перезапуска"
@@ -195,7 +229,10 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
     fi
     if [ "$VERONICA_OK" -eq 0 ]; then
         echo "   ⚠️ Veronica не отвечает — перезапускаю veronica-agent..."
-        docker-compose -f knowledge_os/docker-compose.yml restart veronica-agent 2>&1 | grep -v "level=warning" || true
+        if ! run_compose_filtered docker-compose -f knowledge_os/docker-compose.yml restart veronica-agent; then
+            echo "   ❌ Ошибка перезапуска veronica-agent"
+            HARD_FAIL=1
+        fi
         sleep 10
         if check_service "Veronica (8011)" "http://localhost:8011/health"; then
             SERVICES_OK=$((SERVICES_OK + 1))
@@ -219,7 +256,7 @@ fi
 echo "=============================================="
 echo ""
 echo "📊 Финальный статус контейнеров:"
-docker-compose -f knowledge_os/docker-compose.yml ps 2>&1 | grep -v "level=warning" || true
+run_compose_filtered docker-compose -f knowledge_os/docker-compose.yml ps || true
 echo ""
 echo "🌐 Доступные сервисы:"
 echo "   - Victoria: http://localhost:8010"

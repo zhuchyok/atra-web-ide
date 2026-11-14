@@ -36,6 +36,7 @@ jobs:
             echo "Empty BASE SHA for change detection"
             exit 1
           fi
+          git cat-file -e "$BASE^{commit}"
           RESULT=$(python scripts/task_hash.py changed "$BASE")
           echo "packages=$(echo $RESULT | jq -c '.changed_packages')" >> $GITHUB_OUTPUT
           echo "tasks=$(echo $RESULT | jq -c '.affected_tasks')" >> $GITHUB_OUTPUT

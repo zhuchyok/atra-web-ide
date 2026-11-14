@@ -2,7 +2,7 @@
 # Проверка Prometheus метрик (День 5)
 # Запуск: ./scripts/check_prometheus.sh
 
-set -e
+set -euo pipefail
 
 echo "📊 Проверка Prometheus метрик (День 5)"
 
@@ -13,7 +13,8 @@ echo ""
 
 # 2. Проверяем эндпоинт метрик
 echo "2. Проверка /metrics:"
-curl -sf http://localhost:8080/metrics | head -30
+metrics_payload="$(curl -sf http://localhost:8080/metrics)"
+printf '%s\n' "$metrics_payload" | head -30
 echo ""
 
 # 3. Проверяем сводку метрик

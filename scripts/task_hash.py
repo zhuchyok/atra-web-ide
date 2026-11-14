@@ -136,6 +136,18 @@ def hash_files(patterns: List[str], base_dir: str = ".") -> str:
     return hasher.hexdigest()[:16]
 
 
+def _assert_git_ref_exists(base_ref: str) -> None:
+    """Ensure git reference exists before computing diffs."""
+    check = subprocess.run(
+        ["git", "cat-file", "-e", f"{base_ref}^{{commit}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if check.returncode != 0:
+        raise RuntimeError(f"Base git ref does not exist: {base_ref}")
+
+
 def detect_changed_files(base_ref: str = "main") -> List[str]:
     """
     Get list of changed files using git diff.
@@ -146,30 +158,20 @@ def detect_changed_files(base_ref: str = "main") -> List[str]:
     Returns:
         List of changed file paths
     """
-    try:
-        result = subprocess.run(
-            ["git", "diff", f"{base_ref}...HEAD", "--name-only"],
-            capture_output=True,
-            text=True,
-            check=True
+    _assert_git_ref_exists(base_ref)
+    result = subprocess.run(
+        ["git", "diff", f"{base_ref}...HEAD", "--name-only"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        raise RuntimeError(
+            f"git diff failed for base ref {base_ref}: {stderr or 'unknown error'}"
         )
-
-        files = result.stdout.strip().split("\n")
-        return [f for f in files if f]  # Filter empty strings
-
-    except subprocess.CalledProcessError:
-        # Fallback: compare with HEAD if base_ref doesn't exist
-        try:
-            result = subprocess.run(
-                ["git", "diff", "HEAD", "--name-only"],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            files = result.stdout.strip().split("\n")
-            return [f for f in files if f]
-        except:
-            return []
+    files = result.stdout.strip().split("\n")
+    return [f for f in files if f]  # Filter empty strings
 
 
 def map_files_to_packages(files: List[str]) -> Set[str]:
@@ -284,7 +286,11 @@ def main():
         elif command == "changed":
             # Detect changed packages
             base_ref = sys.argv[2] if len(sys.argv) > 2 else "main"
-            changed_files = detect_changed_files(base_ref)
+            try:
+                changed_files = detect_changed_files(base_ref)
+            except RuntimeError as exc:
+                print(str(exc), file=sys.stderr)
+                sys.exit(2)
             changed_packages = map_files_to_packages(changed_files)
             affected_tasks = get_affected_tasks(changed_packages)
 
