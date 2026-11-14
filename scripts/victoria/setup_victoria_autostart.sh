@@ -135,38 +135,53 @@ cat > "$CHECK_PLIST" << EOF
 </plist>
 EOF
 
+SETUP_FAIL=0
 launchctl unload "$CHECK_PLIST" 2>/dev/null || true
-launchctl load "$CHECK_PLIST" 2>/dev/null || true
-
-echo "      ✅ Скрипт проверки Victoria настроен"
+if ! launchctl load "$CHECK_PLIST" 2>/dev/null; then
+  echo "      ❌ Не удалось загрузить victoria-check launchd"
+  SETUP_FAIL=1
+else
+  echo "      ✅ Скрипт проверки Victoria настроен"
+fi
 
 # 4. Запуск сейчас
 echo ""
 echo "[4/4] Запуск сервисов сейчас..."
-bash "$STARTUP_SCRIPT"
+bash "$STARTUP_SCRIPT" || true
 sleep 3
 
 if curl -sf --connect-timeout 2 http://localhost:8010/health >/dev/null 2>&1; then
   echo "      ✅ Victoria работает"
 else
-  echo "      ⚠️  Victoria не запустилась (проверь Docker)"
+  echo "      ❌ Victoria не запустилась (проверь Docker)"
+  SETUP_FAIL=1
 fi
 
-if curl -sf --connect-timeout 2 http://localhost:8012/sse >/dev/null 2>&1; then
-  echo "      ✅ MCP сервер работает"
+# MCP 8012 optional when CHECK_LEGACY_MCP!=true
+if [ "${CHECK_LEGACY_MCP:-false}" = "true" ]; then
+  if curl -sf --connect-timeout 2 http://localhost:8012/sse >/dev/null 2>&1; then
+    echo "      ✅ MCP сервер работает"
+  else
+    echo "      ❌ MCP сервер не запустился"
+    SETUP_FAIL=1
+  fi
 else
-  echo "      ⚠️  MCP сервер не запустился (проверь логи: ~/Library/Logs/victoria-mcp.log)"
+  echo "      ℹ️  MCP 8012 skip (CHECK_LEGACY_MCP!=true); live brain=11434 / agent=8010"
 fi
 
 echo ""
 echo "=============================================="
-echo "✅ ГОТОВО! Victoria будет запускаться автоматически."
+if [ "$SETUP_FAIL" -eq 0 ]; then
+  echo "✅ ГОТОВО! Victoria будет запускаться автоматически."
+else
+  echo "⚠️ НАСТРОЙКА ЗАВЕРШЕНА С ОШИБКАМИ"
+fi
 echo ""
 echo "📝 Что настроено:"
-echo "   1. ✅ MCP сервер — автозапуск через launchd"
-echo "   2. ✅ Victoria — проверка и запуск при старте Mac"
-echo "   3. ✅ Периодическая проверка (каждые 5 минут)"
+echo "   1. MCP сервер — автозапуск через launchd (legacy optional)"
+echo "   2. Victoria — проверка и запуск при старте Mac"
+echo "   3. Периодическая проверка (каждые 5 минут)"
 echo ""
 echo "🔄 Перезагрузи Mac или перезапусти Cursor."
-echo "   Victoria будет доступна сразу!"
 echo "=============================================="
+exit "$SETUP_FAIL"

@@ -218,6 +218,11 @@ def main() -> int:
     md_path.write_text(to_markdown(report), encoding="utf-8")
 
     print(json.dumps(report, ensure_ascii=False))
+    # Fail-closed: hard_fail must not green CI/cron; soft canary stays 0 unless --strict-soft
+    if decision.get("hard_fail"):
+        return 2
+    if args.apply and decision.get("action") == "rollback":
+        return 2
     return 0
 
 

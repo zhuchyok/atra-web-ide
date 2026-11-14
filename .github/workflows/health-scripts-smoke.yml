@@ -47,6 +47,9 @@ jobs:
           bash -n scripts/verify_full_recovery_readiness.sh
           bash -n scripts/verify_mac_studio_self_recovery.sh
           bash -n scripts/create_mac_studio_autostart.sh
+          bash -n scripts/start_autonomous_systems.sh
+          bash -n scripts/install_quality_cron.sh
+          bash -n scripts/execute_all_tasks_on_mac_studio.sh
 
       - name: Python syntax check
         run: |
@@ -202,6 +205,26 @@ jobs:
               "scripts/create_mac_studio_autostart.sh": [
                   "SETUP_FAIL",
                   "exit \"$SETUP_FAIL\"",
+              ],
+              "scripts/start_autonomous_systems.sh": [
+                  "HARD_FAIL",
+                  "exit \"$HARD_FAIL\"",
+                  "knowledge_os_orchestrator",
+              ],
+              "scripts/install_quality_cron.sh": [
+                  "SETUP_FAIL",
+                  "exit \"$SETUP_FAIL\"",
+                  "CRON_MARKER",
+              ],
+              "scripts/execute_all_tasks_on_mac_studio.sh": [
+                  "HARD_FAIL",
+                  "8002",
+                  "11434",
+                  "exit \"$HARD_FAIL\"",
+              ],
+              "scripts/nightly_routing_quality_guard.py": [
+                  "hard_fail",
+                  "return 2",
               ],
           }
 
@@ -563,3 +586,41 @@ jobs:
           assert ab.get_winner("reranking_method") == "hybrid"
           print("ab winner fail-closed ok")
           PY
+
+      - name: Runtime smoke - start_autonomous_systems fail-closed without docker
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOCK_DIR="$(mktemp -d)"
+          mkdir -p "$MOCK_DIR/bin"
+          cat > "$MOCK_DIR/bin/docker" <<'EOF'
+          #!/usr/bin/env bash
+          exit 1
+          EOF
+          chmod +x "$MOCK_DIR/bin/docker"
+          out="$(mktemp)"
+          set +e
+          env PATH="$MOCK_DIR/bin:/bin:/usr/bin" /bin/bash scripts/start_autonomous_systems.sh >"$out" 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -Eqi 'Docker|не запущен' "$out"
+
+      - name: Runtime smoke - install_quality_cron fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOCK_DIR="$(mktemp -d)"
+          mkdir -p "$MOCK_DIR/bin"
+          cat > "$MOCK_DIR/bin/crontab" <<'EOF'
+          #!/usr/bin/env bash
+          exit 1
+          EOF
+          chmod +x "$MOCK_DIR/bin/crontab"
+          out="$(mktemp)"
+          set +e
+          env PATH="$MOCK_DIR/bin:/bin:/usr/bin" /bin/bash scripts/install_quality_cron.sh >"$out" 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -Eqi 'crontab|Не удалось' "$out"

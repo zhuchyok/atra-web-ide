@@ -2,10 +2,11 @@
 # Выполнение всех задач на Mac Studio
 # Запускать на Mac Studio: bash scripts/execute_all_tasks_on_mac_studio.sh
 
-set -e
+set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+HARD_FAIL=0
 
 export PATH="/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
 
@@ -16,12 +17,25 @@ echo ""
 
 # 1. Запуск всех контейнеров
 echo "[1/10] Запуск всех контейнеров Knowledge OS..."
-docker-compose -f knowledge_os/docker-compose.yml up -d 2>&1 | grep -v "level=warning" || true
-sleep 20
-echo "   ✅ Контейнеры запущены"
+if ! docker info >/dev/null 2>&1; then
+    echo "   ❌ Docker daemon недоступен"
+    exit 1
+fi
+COMPOSE_OUT="$(mktemp)"
+if docker-compose -f knowledge_os/docker-compose.yml up -d >"$COMPOSE_OUT" 2>&1; then
+    grep -v "level=warning" "$COMPOSE_OUT" || true
+else
+    echo "   ❌ compose up failed"
+    cat "$COMPOSE_OUT" || true
+    HARD_FAIL=1
+fi
+rm -f "$COMPOSE_OUT"
+WAIT_SEC="${ATRA_SETUP_WAIT_SEC:-20}"
+sleep "$WAIT_SEC"
+echo "   ✅ compose up выдан (wait=${WAIT_SEC}s)"
 echo ""
 
-# 2. Проверка доступности сервисов
+# 2. Проверка доступности сервисов (live ports)
 echo "[2/10] Проверка доступности сервисов..."
 check_service() {
     local name=$1
@@ -30,19 +44,20 @@ check_service() {
         echo "   ✅ $name: работает"
         return 0
     else
-        echo "   ⚠️  $name: не отвечает"
+        echo "   ❌ $name: не отвечает"
         return 1
     fi
 }
 
-check_service "Victoria (8010)" "http://localhost:8010/health"
-check_service "Veronica (8011)" "http://localhost:8011/health"
-check_service "Knowledge OS API (8003)" "http://localhost:8003/health" || check_service "Knowledge OS API (8000)" "http://localhost:8000/health"
-check_service "Elasticsearch (9200)" "http://localhost:9200/_cluster/health"
-check_service "Kibana (5601)" "http://localhost:5601/api/status"
-check_service "Prometheus (9090)" "http://localhost:9090/-/healthy"
-check_service "Grafana (3001)" "http://localhost:3001/api/health"
-check_service "Ollama/MLX (11434)" "http://localhost:11434/api/tags"
+CORE_OK=0
+check_service "Victoria (8010)" "http://localhost:8010/health" && CORE_OK=$((CORE_OK + 1)) || HARD_FAIL=1
+check_service "Veronica (8011)" "http://localhost:8011/health" && CORE_OK=$((CORE_OK + 1)) || HARD_FAIL=1
+check_service "Knowledge OS REST (8002)" "http://localhost:8002/health" && CORE_OK=$((CORE_OK + 1)) || HARD_FAIL=1
+check_service "Ollama brain (11434)" "http://localhost:11434/api/tags" && CORE_OK=$((CORE_OK + 1)) || HARD_FAIL=1
+# Live monitoring (optional warn)
+check_service "Prometheus (9091)" "http://localhost:9091/-/healthy" || true
+check_service "Grafana (3002)" "http://localhost:3002/api/health" || true
+echo "   Core OK: $CORE_OK/4"
 echo ""
 
 # 3. Проверка доступности с MacBook
@@ -56,10 +71,15 @@ echo ""
 # 4. Настройка автозапуска
 echo "[4/10] Настройка автозапуска..."
 if [ -f "scripts/create_mac_studio_autostart.sh" ]; then
-    bash scripts/create_mac_studio_autostart.sh
-    echo "   ✅ Автозапуск настроен"
+    if bash scripts/create_mac_studio_autostart.sh; then
+        echo "   ✅ Автозапуск настроен"
+    else
+        echo "   ❌ Автозапуск failed"
+        HARD_FAIL=1
+    fi
 else
-    echo "   ⚠️  Скрипт автозапуска не найден"
+    echo "   ❌ Скрипт автозапуска не найден"
+    HARD_FAIL=1
 fi
 echo ""
 
@@ -234,9 +254,15 @@ echo "   ✅ Полный цикл протестирован"
 echo ""
 
 echo "=============================================="
-echo "✅ ВСЕ 10 ЗАДАЧ ВЫПОЛНЕНЫ!"
+if [ "$HARD_FAIL" -eq 0 ] && [ "$CORE_OK" -ge 4 ]; then
+    echo "✅ ВСЕ 10 ЗАДАЧ ВЫПОЛНЕНЫ!"
+else
+    echo "⚠️ ЗАДАЧИ ЗАВЕРШЕНЫ С ОШИБКАМИ (core=$CORE_OK/4 hard_fail=$HARD_FAIL)"
+    HARD_FAIL=1
+fi
 echo "=============================================="
 echo ""
 echo "📊 Финальный статус контейнеров:"
 docker-compose -f knowledge_os/docker-compose.yml ps 2>&1 | grep -v "level=warning" || true
 echo ""
+exit "$HARD_FAIL"

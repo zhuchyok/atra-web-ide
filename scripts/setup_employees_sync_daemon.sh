@@ -74,10 +74,15 @@ cat > "$PLIST_PATH" << EOF
 EOF
 
 echo "✅ Создан $PLIST_PATH"
+SETUP_FAIL=0
 
 # Загружаем сервис
-launchctl load "$PLIST_PATH"
-echo "✅ Сервис загружен и запущен"
+if launchctl load "$PLIST_PATH" 2>/dev/null; then
+    echo "✅ Сервис загружен"
+else
+    echo "❌ Не удалось загрузить launchctl"
+    SETUP_FAIL=1
+fi
 
 # Проверяем статус
 sleep 2
@@ -92,6 +97,8 @@ if launchctl list | grep -q "$PLIST_NAME"; then
     echo "Логи:"
     echo "  tail -f $LOG_DIR/employees-sync-daemon.log"
 else
-    echo "⚠️ Демон не запустился. Проверьте логи:"
+    echo "❌ Демон не запустился. Проверьте логи:"
     echo "  cat $LOG_DIR/employees-sync-daemon.error.log"
+    SETUP_FAIL=1
 fi
+exit "$SETUP_FAIL"
