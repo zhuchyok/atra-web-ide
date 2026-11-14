@@ -496,6 +496,7 @@ log "📊 ИТОГОВЫЙ СТАТУС"
 log "=============================================="
 log "Работающих сервисов: $FINAL_SERVICES_OK/$TOTAL_SERVICES"
 log ""
+REQUIRED_FINAL_SERVICES=5
 
     # 10. Самопроверка — полная верификация (система проверяет сама себя)
     log "[10/10] Самопроверка (verify_mac_studio_self_recovery)..."
@@ -527,7 +528,7 @@ log ""
     fi
     log ""
 
-    if [ $FINAL_SERVICES_OK -ge 3 ]; then
+    if [ "$FINAL_SERVICES_OK" -ge "$REQUIRED_FINAL_SERVICES" ]; then
     log "✅ СИСТЕМА В РАБОЧЕМ СОСТОЯНИИ"
     log ""
     log "🌐 Доступные сервисы:"

@@ -50,7 +50,9 @@ if curl -s -f "http://localhost:11434/" >/dev/null 2>&1; then
 else
   echo "❌ Офлайн"
   echo "      💡 Запусти: bash scripts/setup_mlx_instead_ollama.sh"
-  # Не увеличиваем ERRORS, так как это не критично для Docker сервисов
+  if [ "${ALLOW_MODEL_BACKEND_DOWN:-false}" != "true" ]; then
+    ERRORS=$((ERRORS + 1))
+  fi
 fi
 
 # Knowledge OS сервисы

@@ -30,7 +30,7 @@ jobs:
           RESULT=$(python scripts/task_hash.py changed origin/main)
           echo "packages=$(echo $RESULT | jq -c '.changed_packages')" >> $GITHUB_OUTPUT
           echo "tasks=$(echo $RESULT | jq -c '.affected_tasks')" >> $GITHUB_OUTPUT
-          
+
           echo "Changed packages: $(echo $RESULT | jq -r '.changed_packages | join(", ")')"
           echo "Affected tasks: $(echo $RESULT | jq -r '.affected_tasks | join(", ")')"
 
@@ -40,12 +40,47 @@ jobs:
     if: needs.detect-changes.outputs.changed_packages != '[]'
     steps:
       - uses: actions/checkout@v4
-      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Run affected tasks
         run: |
           TASKS='${{ needs.detect-changes.outputs.affected_tasks }}'
+          # Fail fast on unknown task ids to avoid false-green no-op runs.
           for task in $(echo $TASKS | jq -r '.[]'); do
             echo "Running task: $task"
-            # Здесь логика запуска конкретных задач на основе их ID
-            # Например: if [ "$task" == "rust_core:test" ]; then cd rust_core && cargo test; fi
+            case "$task" in
+              rust_core:build)
+                cargo build --workspace
+                ;;
+              rust_core:test)
+                cargo test --workspace --no-run
+                ;;
+              knowledge_os:lint)
+                python -m pip install -r knowledge_os/requirements.txt
+                ruff check knowledge_os/
+                ;;
+              knowledge_os:test)
+                python -m pip install -r knowledge_os/requirements.txt
+                python -m pytest knowledge_os/tests/ -q
+                ;;
+              frontend:build)
+                cd frontend && npm ci && npm run build && cd ..
+                ;;
+              frontend:test)
+                cd frontend && npm ci && npm run test -- --run && cd ..
+                ;;
+              *)
+                echo "Unknown affected task: $task"
+                exit 1
+                ;;
+            esac
           done

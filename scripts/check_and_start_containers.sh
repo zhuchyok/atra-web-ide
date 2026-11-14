@@ -157,6 +157,7 @@ except Exception:
 SERVICES_OK=0
 VICTORIA_OK=0
 VERONICA_OK=0
+HARD_FAIL=0
 check_service "Victoria (8010)" "http://localhost:8010/health" && { SERVICES_OK=$((SERVICES_OK + 1)); VICTORIA_OK=1; }
 check_service "Veronica (8011)" "http://localhost:8011/health" && { SERVICES_OK=$((SERVICES_OK + 1)); VERONICA_OK=1; }
 check_service "Ollama/MLX (11434)" "http://localhost:11434/api/tags" && SERVICES_OK=$((SERVICES_OK + 1))
@@ -186,6 +187,7 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
                 echo "   ✅ Victoria: все три уровня запущены после перезапуска"
             else
                 echo "   ⚠️ Victoria: Enhanced/Initiative не поднялись (см. docker logs victoria-agent)"
+                HARD_FAIL=1
             fi
         else
             echo "   ✅ Victoria: все три уровня (Agent, Enhanced, Initiative) активны"
@@ -204,13 +206,15 @@ fi
 
 echo ""
 echo "=============================================="
-if [ $SERVICES_OK -eq 4 ]; then
+if [ $SERVICES_OK -eq 4 ] && [ $HARD_FAIL -eq 0 ]; then
     echo "✅ ВСЕ СЕРВИСЫ РАБОТАЮТ!"
+    EXIT_CODE=0
 else
     echo "⚠️  НЕКОТОРЫЕ СЕРВИСЫ НЕДОСТУПНЫ ($SERVICES_OK/4)"
     echo ""
     echo "💡 Проверьте логи:"
     echo "   docker-compose -f knowledge_os/docker-compose.yml logs [service_name]"
+    EXIT_CODE=1
 fi
 echo "=============================================="
 echo ""
@@ -224,3 +228,4 @@ echo "   - Ollama/MLX: http://localhost:11434"
 echo "   - Knowledge REST: http://localhost:8002"
 echo "   - Open WebUI (Singularity 15.0): http://localhost:3005"
 echo ""
+exit $EXIT_CODE
