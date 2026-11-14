@@ -1447,14 +1447,18 @@ DESC: {task_description}
                         "deferred_to_human": True,
                         "execution_mode": "minimal_response",
                         "board_escalated": True,
+                        "quality_degraded": True,
+                        "failed_requires_intervention": True,
+                        "kpi_success": False,
+                        "auto_fallback_reason": "agent_error_escalated",
+                        "manual_cancel_reason": "agent_error_escalated",
                     }
                 )
                 async with pool.acquire() as conn:
                     await conn.execute(
                         """
                         UPDATE tasks
-                        SET status = 'completed', result = $2, updated_at = NOW(),
-                            completed_at = COALESCE(completed_at, NOW()),
+                        SET status = 'cancelled', result = $2, updated_at = NOW(),
                             metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
                                 || jsonb_build_object(
                                     'task_contract_version', 'smart_worker_v1',
@@ -1467,7 +1471,7 @@ DESC: {task_description}
                         meta_escalation,
                     )
                 logger.info(
-                    f"[{datetime.now()}] ✅ Task {task_id} completed with board escalation (attempt {attempt_count})"
+                    f"[{datetime.now()}] ⚠️ Task {task_id} cancelled with board escalation (attempt {attempt_count})"
                 )
                 return
             # attempt_count < 3 и не LLM unavailable: retry
@@ -1575,8 +1579,8 @@ DESC: {task_description}
                 )
             return  # НЕ помечаем как completed!
 
-            # Оптимальная архитектура: проверка результата перед отметкой completed (аналог manager_review в цепочке БД)
-            # Неуспешная валидация считается попыткой; после MAX_ATTEMPTS — эскалация в Совет Директоров
+        if not is_error:
+            # Проверка качества результата до финальной отметки completed.
             try:
                 try:
                     from task_result_validator import validate_task_result
@@ -1630,13 +1634,17 @@ DESC: {task_description}
                                 "validation_score": float(score),
                                 "board_escalated": True,
                                 "deferred_to_human": True,
+                                "quality_degraded": True,
+                                "failed_requires_intervention": True,
+                                "kpi_success": False,
+                                "auto_fallback_reason": "validation_failed_escalated",
+                                "manual_cancel_reason": "validation_failed_escalated",
                             }
                         )
                         async with pool.acquire() as conn:
                             await conn.execute(
                                 """
-                                UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(),
-                                    completed_at = COALESCE(completed_at, NOW()),
+                                UPDATE tasks SET status = 'cancelled', result = $2, updated_at = NOW(),
                                     metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
                                         || jsonb_build_object(
                                             'task_contract_version', 'smart_worker_v1',
@@ -1649,7 +1657,7 @@ DESC: {task_description}
                                 meta_v,
                             )
                         logger.info(
-                            f"[{datetime.now()}] ✅ Task {task_id} completed with board escalation after validation failure (attempt {v_attempt_count})"
+                            f"[{datetime.now()}] ⚠️ Task {task_id} cancelled with board escalation after validation failure (attempt {v_attempt_count})"
                         )
                     else:
                         async with pool.acquire() as conn:
@@ -1675,7 +1683,6 @@ DESC: {task_description}
                 # TODO: Convert f-string to %s formatting for performance
                 logger.debug(f"Validation skip for task {task_id}: {e}")
 
-        if not is_error:
             # [FIX] Мark task as completed in the success path (was dead code inside if is_error:)
             async with pool.acquire() as conn:
                 await conn.execute(
@@ -1758,6 +1765,7 @@ DESC: {task_description}
         except Exception as j_err:
             # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Journaling failed for failure {task_id}: {j_err}")
+        return
     finally:
         # Очищаем предпочтительный источник и модель
         if router_instance:

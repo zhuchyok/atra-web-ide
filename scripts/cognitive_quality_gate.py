@@ -157,27 +157,111 @@ def _contract_flags_match_policy(contract: dict[str, Any], routing: dict[str, An
     r_ok = bool(routing.get("ok", False))
     sufficient = bool(routing.get("sufficient_data", False))
 
-    expected_rollout = sufficient and r_ok and r_status == "evaluated"
+    if not sufficient:
+        # Недостаточно данных по routing_quality: не считаем enforce drift-ом.
+        return True
+
+    expected_rollout = r_ok and r_status == "evaluated"
     if expected_rollout:
         return mode == "enforce" and enforce == "1"
     return mode == "shadow" and enforce == "0"
 
 
 def queue_health() -> dict[str, Any]:
-    cmd = (
-        "docker exec knowledge_os_redis redis-cli -s /data/redis.sock "
-        "XINFO GROUPS stream:expert_tasks:overflow"
-    )
-    code, out, err = run(cmd)
-    if code != 0 or not out:
-        return {"ok": False, "error": err or out}
-    lines = [x.strip() for x in out.splitlines() if x.strip()]
-    kv = dict(zip(lines[::2], lines[1::2]))
-    lag = int(kv.get("lag", "0") or 0)
-    pending = int(kv.get("pending", "0") or 0)
-    consumers = int(kv.get("consumers", "0") or 0)
-    ok = lag == 0 and pending == 0 and consumers >= 1
-    return {"ok": ok, "lag": lag, "pending": pending, "consumers": consumers}
+    def _to_int(v: str, default: int = 0) -> int:
+        try:
+            return int(v)
+        except Exception:
+            return default
+
+    def _parse_xinfo_groups(raw: str) -> list[dict[str, str]]:
+        lines = [x.strip() for x in (raw or "").splitlines() if x.strip()]
+        groups: list[dict[str, str]] = []
+        current: dict[str, str] = {}
+        for i in range(0, len(lines) - 1, 2):
+            key = lines[i]
+            value = lines[i + 1]
+            if key == "name" and current:
+                groups.append(current)
+                current = {}
+            current[key] = value
+        if current:
+            groups.append(current)
+        # Filter empty artifacts from malformed outputs.
+        return [g for g in groups if g]
+
+    streams = ["expert_tasks:overflow", "expert_tasks"]
+    if os.getenv("EXPERT_STREAM_DEDICATED", "1").lower() in ("1", "true", "yes"):
+        dedicated = [
+            x.strip()
+            for x in os.getenv("EXPERT_DEDICATED_WORKERS", "Анна,Виктория,heavy").split(",")
+            if x.strip()
+        ]
+        streams.extend([f"expert_tasks:{name}" for name in dedicated])
+
+    details: list[dict[str, Any]] = []
+    overall_ok = True
+
+    for stream in streams:
+        xinfo_cmd = (
+            "docker exec knowledge_os_redis redis-cli -s /data/redis.sock "
+            f"XINFO GROUPS stream:{stream}"
+        )
+        code, out, err = run(xinfo_cmd)
+        if code != 0:
+            details.append({"stream": stream, "ok": False, "error": err or out or "xinfo_failed"})
+            overall_ok = False
+            continue
+
+        groups = _parse_xinfo_groups(out)
+        target = next((g for g in groups if g.get("name") == "expert_workers"), None)
+        if target is None:
+            xlen_cmd = (
+                "docker exec knowledge_os_redis redis-cli -s /data/redis.sock "
+                f"XLEN stream:{stream}"
+            )
+            c2, out2, err2 = run(xlen_cmd)
+            xlen = _to_int(out2 or "0", default=0) if c2 == 0 else 0
+            ok = c2 == 0 and xlen == 0
+            details.append(
+                {
+                    "stream": stream,
+                    "ok": ok,
+                    "missing_group": True,
+                    "xlen": xlen,
+                    "error": None if ok else (err2 or out2 or "missing_group_with_backlog"),
+                }
+            )
+            overall_ok = overall_ok and ok
+            continue
+
+        lag = _to_int(target.get("lag", "0"))
+        pending = _to_int(target.get("pending", "0"))
+        consumers = _to_int(target.get("consumers", "0"))
+        ok = lag == 0 and pending == 0 and consumers >= 1
+        details.append(
+            {
+                "stream": stream,
+                "group": "expert_workers",
+                "ok": ok,
+                "lag": lag,
+                "pending": pending,
+                "consumers": consumers,
+            }
+        )
+        overall_ok = overall_ok and ok
+
+    # Keep top-level compatibility for dashboards expecting scalar queue metrics.
+    lag_sum = sum(int(d.get("lag", 0) or 0) for d in details)
+    pending_sum = sum(int(d.get("pending", 0) or 0) for d in details)
+    consumers_min = min([int(d.get("consumers", 0) or 0) for d in details if "consumers" in d] or [0])
+    return {
+        "ok": overall_ok,
+        "lag": lag_sum,
+        "pending": pending_sum,
+        "consumers": consumers_min,
+        "streams": details,
+    }
 
 
 def routing_quality() -> dict[str, Any]:
