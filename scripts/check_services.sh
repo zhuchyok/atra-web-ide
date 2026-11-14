@@ -2,6 +2,7 @@
 # ============================================================================
 # Проверка всех сервисов ATRA
 # ============================================================================
+set -u -o pipefail
 
 echo "🔍 ATRA Services Check"
 echo "======================"
@@ -12,6 +13,8 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
+FAILURES=0
+STRICT_CHECK_SERVICES="${STRICT_CHECK_SERVICES:-false}"
 
 check_service() {
     local name="$1"
@@ -28,25 +31,25 @@ check_service() {
 }
 
 echo "📡 Локальные сервисы:"
-check_service "Ollama (local)" "http://localhost:11434/api/tags"
-check_service "Ollama Coder (11436)" "http://localhost:11436/api/tags"
-check_service "Ollama Hands (11437)" "http://localhost:11437/api/tags"
-check_service "Victoria Agent" "http://localhost:8010/health"
-check_service "Veronica Agent" "http://localhost:8011/health"
-check_service "Victoria MCP" "http://localhost:8012/sse"
-check_service "Knowledge OS API" "http://localhost:8000/health"
-check_service "VectorCore" "http://localhost:8001/health"
+check_service "Ollama (local)" "http://localhost:11434/api/tags" || FAILURES=$((FAILURES + 1))
+check_service "Ollama Coder (11436)" "http://localhost:11436/api/tags" || FAILURES=$((FAILURES + 1))
+check_service "Ollama Hands (11437)" "http://localhost:11437/api/tags" || FAILURES=$((FAILURES + 1))
+check_service "Victoria Agent" "http://localhost:8010/health" || FAILURES=$((FAILURES + 1))
+check_service "Veronica Agent" "http://localhost:8011/health" || FAILURES=$((FAILURES + 1))
+check_service "Victoria MCP" "http://localhost:8012/sse" || FAILURES=$((FAILURES + 1))
+check_service "Knowledge OS API" "http://localhost:8000/health" || FAILURES=$((FAILURES + 1))
+check_service "VectorCore" "http://localhost:8001/health" || FAILURES=$((FAILURES + 1))
 
 echo ""
 echo "🖥️  Mac Studio (192.168.1.64):"
-check_service "Ollama (Mac Studio)" "http://192.168.1.64:11434/api/tags"
-check_service "Victoria (Mac Studio)" "http://192.168.1.64:8010/health"
-check_service "Veronica (Mac Studio)" "http://192.168.1.64:8011/health"
+check_service "Ollama (Mac Studio)" "http://192.168.1.64:11434/api/tags" || FAILURES=$((FAILURES + 1))
+check_service "Victoria (Mac Studio)" "http://192.168.1.64:8010/health" || FAILURES=$((FAILURES + 1))
+check_service "Veronica (Mac Studio)" "http://192.168.1.64:8011/health" || FAILURES=$((FAILURES + 1))
 
 echo ""
 echo "🌐 Серверы корпорации:"
-check_service "Server 1 (185.177.216.15)" "http://185.177.216.15:11434/api/tags" 5
-check_service "Server 2 (46.149.66.170)" "http://46.149.66.170:8000/health" 5
+check_service "Server 1 (185.177.216.15)" "http://185.177.216.15:11434/api/tags" 5 || FAILURES=$((FAILURES + 1))
+check_service "Server 2 (46.149.66.170)" "http://46.149.66.170:8000/health" 5 || FAILURES=$((FAILURES + 1))
 
 echo ""
 echo "📊 Docker контейнеры:"
@@ -92,3 +95,10 @@ except:
 else
     echo "  Ollama недоступен"
 fi
+
+echo ""
+echo "Итог: FAILURES=$FAILURES (STRICT_CHECK_SERVICES=$STRICT_CHECK_SERVICES)"
+if [ "$FAILURES" -gt 0 ] && [ "$STRICT_CHECK_SERVICES" = "true" ]; then
+    exit 1
+fi
+exit 0

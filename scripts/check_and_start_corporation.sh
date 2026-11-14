@@ -2,7 +2,7 @@
 # Умный скрипт: проверяет Docker и запускает корпорацию если нужно
 # Можно запускать каждый раз - безопасно (идемпотентно)
 
-set -e
+set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -11,6 +11,7 @@ echo "=============================================="
 echo "🔍 Проверка и запуск корпорации ATRA"
 echo "=============================================="
 echo ""
+ERRORS=0
 
 # 1. Проверка Docker
 if ! docker info >/dev/null 2>&1; then
@@ -67,6 +68,9 @@ if ! pgrep -f "start_orchestrator.sh" > /dev/null; then
     echo "⚠️ Orchestrator не запущен"
     echo "   Запускаю..."
     bash scripts/start_autonomous_systems.sh
+    if ! pgrep -f "start_orchestrator.sh" > /dev/null; then
+        ERRORS=$((ERRORS + 1))
+    fi
 else
     echo "✅ Orchestrator запущен"
 fi
@@ -75,6 +79,9 @@ if ! pgrep -f "start_nightly_learner.sh" > /dev/null; then
     echo "⚠️ Nightly Learner не запущен"
     echo "   Запускаю..."
     bash scripts/start_autonomous_systems.sh
+    if ! pgrep -f "start_nightly_learner.sh" > /dev/null; then
+        ERRORS=$((ERRORS + 1))
+    fi
 else
     echo "✅ Nightly Learner запущен"
 fi
@@ -90,12 +97,14 @@ if curl -sf http://localhost:8010/health >/dev/null 2>&1; then
     echo "✅ Victoria Agent: работает"
 else
     echo "❌ Victoria Agent: не работает"
+    ERRORS=$((ERRORS + 1))
 fi
 
 if curl -sf http://localhost:8011/health >/dev/null 2>&1; then
     echo "✅ Veronica Agent: работает"
 else
     echo "❌ Veronica Agent: не работает"
+    ERRORS=$((ERRORS + 1))
 fi
 
 # Проверка БД
@@ -103,8 +112,14 @@ if docker ps | grep -qE "(knowledge.*db|atra.*db)"; then
     echo "✅ Knowledge OS DB: работает"
 else
     echo "❌ Knowledge OS DB: не работает"
+    ERRORS=$((ERRORS + 1))
 fi
 
 echo ""
-echo "✅ Готово! Корпорация работает."
+if [ "$ERRORS" -eq 0 ]; then
+    echo "✅ Готово! Корпорация работает."
+    exit 0
+fi
+echo "❌ Обнаружены проблемы: $ERRORS"
+exit 1
 echo ""

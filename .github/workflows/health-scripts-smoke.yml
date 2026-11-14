@@ -1,0 +1,67 @@
+name: Health Scripts Smoke
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  smoke:
+    name: Script Contracts Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Shell syntax check
+        run: |
+          bash -n scripts/check_all_services.sh
+          bash -n scripts/check_prometheus.sh
+          bash -n scripts/check_ready.sh
+          bash -n scripts/check_services.sh
+
+      - name: Python syntax check
+        run: python -m py_compile scripts/task_hash.py
+
+      - name: Script contract assertions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          checks = {
+              "scripts/check_all_services.sh": [
+                  "set -euo pipefail",
+                  "ERRORS=0",
+                  "exit 1",
+              ],
+              "scripts/check_prometheus.sh": [
+                  "python -c \"import pytest\"",
+                  "python -m pytest app/tests/test_prometheus_metrics.py",
+              ],
+              "scripts/check_ready.sh": [
+                  "STRICT_READY_DB",
+                  "exit 1",
+              ],
+              "scripts/check_services.sh": [
+                  "STRICT_CHECK_SERVICES",
+                  "FAILURES=0",
+              ],
+          }
+
+          for path, needles in checks.items():
+              text = Path(path).read_text(encoding="utf-8")
+              for needle in needles:
+                  if needle not in text:
+                      raise SystemExit(f"Missing contract marker '{needle}' in {path}")
+          print("contract assertions passed")
+          PY
+
+      - name: task_hash smoke
+        run: |
+          python scripts/task_hash.py hash backend:test
+          python scripts/task_hash.py changed HEAD
