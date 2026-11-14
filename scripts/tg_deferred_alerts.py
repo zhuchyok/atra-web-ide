@@ -8,6 +8,8 @@ Deferred + async TTC alerts → Telegram (polling-монитор).
 Разово:  python scripts/tg_deferred_alerts.py --once
 Тест:    python scripts/tg_deferred_alerts.py --test
 """
+from __future__ import annotations
+
 import argparse
 import asyncio
 import os
