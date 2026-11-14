@@ -88,7 +88,7 @@ jobs:
       - name: Check quality thresholds
         run: |
           if [ -f scripts/check_quality_thresholds.py ] && [ -f backend/validation_report.json ]; then
-            python scripts/check_quality_thresholds.py backend/validation_report.json --threshold faithfulness:0.8,relevance:0.85,coherence:0.7 || true
+            python scripts/check_quality_thresholds.py backend/validation_report.json --threshold faithfulness:0.8,relevance:0.85,coherence:0.7
           fi
 
       - name: Latency benchmark (optional)
