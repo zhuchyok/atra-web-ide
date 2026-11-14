@@ -361,7 +361,16 @@ def distillation_progress_snapshot() -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="ATRA runtime preflight guard")
-    parser.add_argument("--strict", action="store_true", help="Fail on any non-green check.")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail on any non-green check (default behavior; kept for compatibility).",
+    )
+    parser.add_argument(
+        "--soft",
+        action="store_true",
+        help="Report-only: always exit 0 (do not use in CI/cron).",
+    )
     parser.add_argument("--output", default="", help="Optional path for JSON report.")
     args = parser.parse_args()
 
@@ -436,7 +445,9 @@ def main() -> int:
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(payload + "\n", encoding="utf-8")
 
-    if args.strict and not report["ok"]:
+    if args.soft:
+        return 0
+    if not report["ok"]:
         return 2
     return 0
 

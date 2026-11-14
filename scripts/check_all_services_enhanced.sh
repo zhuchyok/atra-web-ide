@@ -80,9 +80,25 @@ fi
 check_service_any "Knowledge OS REST" "http://localhost:8002/health" "http://localhost:8002/"
 check_service_any "Knowledge OS Vector Core" "http://localhost:8001/health" "http://localhost:8001/"
 
-# Мониторинг (live ports: Prometheus 9091, Grafana 3002)
-check_service_any "Prometheus" "http://localhost:9091/-/healthy" "http://localhost:9090/-/healthy"
-check_service_any "Grafana" "http://localhost:3002/api/health" "http://localhost:3001/api/health"
+# Мониторинг — live ports only (legacy 9090/3001 warn-only)
+if curl -s -f "http://localhost:9091/-/healthy" >/dev/null 2>&1; then
+  echo "   ✅ Prometheus: Онлайн (:9091)"
+else
+  echo "   ❌ Prometheus: Офлайн (:9091)"
+  ERRORS=$((ERRORS + 1))
+  if [ "${CHECK_LEGACY_MONITORING:-false}" = "true" ] && curl -s -f "http://localhost:9090/-/healthy" >/dev/null 2>&1; then
+    echo "   ⚠️  Legacy Prometheus :9090 up (not counted as live pass)"
+  fi
+fi
+if curl -s -f "http://localhost:3002/api/health" >/dev/null 2>&1; then
+  echo "   ✅ Grafana: Онлайн (:3002)"
+else
+  echo "   ❌ Grafana: Офлайн (:3002)"
+  ERRORS=$((ERRORS + 1))
+  if [ "${CHECK_LEGACY_MONITORING:-false}" = "true" ] && curl -s -f "http://localhost:3001/api/health" >/dev/null 2>&1; then
+    echo "   ⚠️  Legacy Grafana :3001 up (not counted as live pass)"
+  fi
+fi
 
 # Агенты
 check_service_any "Victoria Agent" "http://localhost:8010/health" "http://localhost:8010/"

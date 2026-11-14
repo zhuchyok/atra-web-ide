@@ -121,13 +121,8 @@ jobs:
         run: |
           set -euo pipefail
           export PYTHONPATH="$PWD/backend:$PWD"
-          # Always fail-closed on missing/empty latency artifact (schedule included).
-          # SLA soft: schedule may use --no-fail for threshold flakiness, but JSON must exist with p95_ms.
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            python scripts/benchmark_latency.py --no-fail 2>&1 | tee backend/latency_output.txt || true
-          else
-            python scripts/benchmark_latency.py 2>&1 | tee backend/latency_output.txt
-          fi
+          # Fail-closed for all events (incl. schedule): no --no-fail, no || true.
+          python scripts/benchmark_latency.py 2>&1 | tee backend/latency_output.txt
           if [ ! -f latency_benchmark.json ] || [ ! -s latency_benchmark.json ]; then
             echo "latency_benchmark.json missing or empty after benchmark"
             exit 1

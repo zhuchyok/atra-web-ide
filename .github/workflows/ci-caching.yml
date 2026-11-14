@@ -73,7 +73,7 @@ jobs:
                 cargo build --workspace
                 ;;
               rust_core:test)
-                cargo test --workspace --no-run
+                cargo test --workspace
                 ;;
               knowledge_os:lint)
                 python -m pip install -r knowledge_os/requirements.txt

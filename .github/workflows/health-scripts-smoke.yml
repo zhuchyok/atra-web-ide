@@ -62,6 +62,9 @@ jobs:
         run: |
           python -m py_compile scripts/task_hash.py
           python -m py_compile scripts/check_quality_thresholds.py
+          python -m py_compile scripts/check_quality_alerts.py
+          python -m py_compile scripts/cognitive_quality_gate.py
+          python -m py_compile scripts/preflight_runtime_guard.py
 
       - name: Script contract assertions
         run: |
@@ -82,14 +85,17 @@ jobs:
               "scripts/check_all_services_enhanced.sh": [
                   "check_service_any",
                   "CHECK_LEGACY_MCP",
-                  "victoria-agent",
-                  "veronica-agent",
+                  "CHECK_LEGACY_MONITORING",
                   "9091",
+                  "3002",
               ],
               "scripts/check_prometheus.sh": [
                   "python -c \"import pytest\"",
                   "python -m pytest app/tests/test_prometheus_metrics.py",
                   "set -euo pipefail",
+                  "FAIL=0",
+                  "exit \"$FAIL\"",
+                  "9091",
               ],
               "scripts/check_ready.sh": [
                   "STRICT_READY_DB",
@@ -659,3 +665,57 @@ jobs:
           set -e
           test "$rc" -ne 0
           grep -Eqi 'crontab|Не удалось' "$out"
+
+      - name: Runtime smoke - check_quality_alerts fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          python3 scripts/check_quality_alerts.py --report /tmp/atra_missing_report_round16.json
+          rc=$?
+          set -e
+          test "$rc" -eq 1
+          tmp="$(mktemp)"
+          echo '{"avg_metrics":{"faithfulness":0.9,"relevance":0.9},"skipped":true}' >"$tmp"
+          set +e
+          python3 scripts/check_quality_alerts.py --report "$tmp"
+          rc=$?
+          set -e
+          test "$rc" -eq 1
+          echo '{"avg_metrics":{"faithfulness":0.9,"relevance":0.9}}' >"$tmp"
+          # report path relative to REPO_ROOT — copy into backend/
+          cp "$tmp" backend/validation_report_smoke_r16.json
+          python3 scripts/check_quality_alerts.py --report backend/validation_report_smoke_r16.json --threshold faithfulness:0.8,relevance:0.8
+          rm -f backend/validation_report_smoke_r16.json
+
+      - name: Runtime smoke - check_prometheus fail-closed without live prom
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOCK_DIR="$(mktemp -d)"
+          mkdir -p "$MOCK_DIR/bin"
+          cat > "$MOCK_DIR/bin/curl" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          url="${@: -1}"
+          case "$url" in
+            http://localhost:8080/health) echo '{"status":"ok"}' ;;
+            http://localhost:8080/metrics) echo 'requests_total 42' ;;
+            http://localhost:8080/metrics/summary) echo '{"total":42}' ;;
+            *) exit 22 ;;
+          esac
+          EOF
+          cat > "$MOCK_DIR/bin/python" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          if [[ "${1:-}" == "-c" ]]; then exit 1; fi
+          exec python3 "$@"
+          EOF
+          chmod +x "$MOCK_DIR/bin/curl" "$MOCK_DIR/bin/python"
+          out="$(mktemp)"
+          set +e
+          env PATH="$MOCK_DIR/bin:/bin:/usr/bin" /bin/bash scripts/check_prometheus.sh >"$out" 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -Eqi 'Prometheus|Grafana|ОШИБК' "$out"

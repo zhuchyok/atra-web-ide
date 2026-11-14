@@ -86,30 +86,34 @@ if ! launchctl bootstrap "$GUI_DOMAIN" "$LAUNCHD_MLX" 2>/dev/null; then
     launchctl load "$LAUNCHD_MLX" 2>/dev/null || true
 fi
 
+SETUP_FAIL=0
 sleep 2
 if launchctl list "$GUI_DOMAIN" 2>/dev/null | grep -q "com.atra.mlx-api-server"; then
     echo "✅ MLX API Server загружен в launchd ($GUI_DOMAIN)"
 elif launchctl list 2>/dev/null | grep -q "com.atra.mlx-api-server"; then
     echo "✅ MLX API Server загружен в launchd"
 else
-    echo "⚠️ MLX API Server не загружен. Проверьте: launchctl list | grep mlx"
+    echo "❌ MLX API Server не загружен. Проверьте: launchctl list | grep mlx"
     echo "   Логи: tail ~/Library/Logs/atra-mlx-api-server.error.log"
-    echo "   Если «Operation not permitted» — проект в Documents; запустите setup из Терминала после входа в систему."
+    SETUP_FAIL=1
 fi
 echo ""
 
-# 3. Проверка монитора
+# 3. Проверка монитора (optional spare; live brain = Ollama 11434)
 echo "[3/3] Проверка монитора MLX API Server..."
 if launchctl list 2>/dev/null | grep -q "com.atra.mlx-monitor"; then
     echo "✅ Монитор MLX API Server уже настроен"
 else
-    echo "⚠️ Монитор не настроен. Запустите:"
-    echo "   bash scripts/setup_system_auto_recovery.sh"
+    echo "⚠️ Монитор не настроен (не блокер: live brain = Ollama 11434)"
 fi
 echo ""
 
 echo "=============================================="
-echo "✅ НАСТРОЙКА ЗАВЕРШЕНА"
+if [ "$SETUP_FAIL" -eq 0 ]; then
+    echo "✅ НАСТРОЙКА ЗАВЕРШЕНА"
+else
+    echo "⚠️ НАСТРОЙКА ЗАВЕРШЕНА С ОШИБКАМИ"
+fi
 echo "=============================================="
 echo ""
 echo "📋 Команды:"
@@ -118,5 +122,6 @@ echo "   Запуск:     launchctl start com.atra.mlx-api-server"
 echo "   Остановка:  launchctl stop com.atra.mlx-api-server"
 echo "   Логи:       tail -f ~/Library/Logs/atra-mlx-api-server.log"
 echo ""
-echo "📌 Если MLX не поднялся: оркестратор (Виктория) шлёт POST на host:9099/recover → recovery listener запускает восстановление (без ваших действий). См. docs/MLX_CRASH_ACCOUNTABILITY.md §5.1"
+echo "📌 Live brain: curl -s http://localhost:11434/api/tags"
 echo ""
+exit "$SETUP_FAIL"

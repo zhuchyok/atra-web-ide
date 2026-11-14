@@ -27,12 +27,20 @@ def main() -> int:
     path = REPO_ROOT / args.report
     if not path.exists():
         print(f"Report not found: {path}", file=sys.stderr)
-        return 0
+        return 1
 
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
+    if data.get("skipped") is True:
+        print("Report marked skipped=true; refusing to green-pass alerts", file=sys.stderr)
+        return 1
+
     avg = data.get("avg_metrics", data.get("avg", {}))
+    if not avg:
+        print("No avg_metrics in report", file=sys.stderr)
+        return 1
+
     thresholds = {}
     for part in args.threshold.split(","):
         part = part.strip()
@@ -43,8 +51,19 @@ def main() -> int:
     alerts = []
     for name, th in thresholds.items():
         val = avg.get(name)
-        if val is not None and val < th:
-            alerts.append(f"{name}={val:.3f} < {th}")
+        if val is None:
+            alerts.append(f"{name}=missing")
+            continue
+        try:
+            fval = float(val)
+        except (TypeError, ValueError):
+            alerts.append(f"{name}=non-numeric")
+            continue
+        if fval != fval:  # NaN
+            alerts.append(f"{name}=nan")
+            continue
+        if fval < th:
+            alerts.append(f"{name}={fval:.3f} < {th}")
 
     if alerts:
         print("ALERTS: " + "; ".join(alerts), file=sys.stderr)
