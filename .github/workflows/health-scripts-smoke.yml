@@ -24,6 +24,8 @@ jobs:
           bash -n scripts/check_prometheus.sh
           bash -n scripts/check_ready.sh
           bash -n scripts/check_services.sh
+          bash -n scripts/check_phase2.sh
+          bash -n scripts/check_macbook_connection.sh
 
       - name: Python syntax check
         run: python -m py_compile scripts/task_hash.py
@@ -50,6 +52,13 @@ jobs:
               "scripts/check_services.sh": [
                   "STRICT_CHECK_SERVICES",
                   "FAILURES=0",
+              ],
+              "scripts/check_phase2.sh": [
+                  "set -e",
+                  "grep -q",
+              ],
+              "scripts/check_macbook_connection.sh": [
+                  "exit 1",
               ],
           }
 

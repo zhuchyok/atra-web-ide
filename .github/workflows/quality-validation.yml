@@ -61,8 +61,12 @@ jobs:
         run: |
           export PYTHONPATH="$PWD/backend:$PWD"
           if [ ! -f data/validation_queries.json ]; then
-            echo "No dataset, skipping validation"
-            echo '{"avg_metrics":{"faithfulness":0.8,"relevance":0.8,"coherence":0.8}}' > backend/validation_report.json
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              echo "validation dataset missing for pull_request: data/validation_queries.json"
+              exit 1
+            fi
+            echo "No dataset for scheduled run, skipping validation"
+            echo '{"avg_metrics":{"faithfulness":0.8,"relevance":0.8,"coherence":0.8},"skipped":true}' > backend/validation_report.json
             exit 0
           fi
           python scripts/evaluate_rag_quality.py \
@@ -71,9 +75,7 @@ jobs:
             --output backend/validation_report.json \
             --timeout-per-query 5 \
             --verbose 2>&1 | tee backend/validation_output.txt
-          if [ ! -f backend/validation_report.json ]; then
-            echo '{"avg_metrics":{"faithfulness":0.8,"relevance":0.8,"coherence":0.8},"passed":true}' > backend/validation_report.json
-          fi
+          test -f backend/validation_report.json
 
       - name: Upload validation report
         uses: actions/upload-artifact@v4
@@ -86,9 +88,9 @@ jobs:
 
       - name: Check quality thresholds
         run: |
-          if [ -f scripts/check_quality_thresholds.py ] && [ -f backend/validation_report.json ]; then
-            python scripts/check_quality_thresholds.py backend/validation_report.json --threshold faithfulness:0.8,relevance:0.85,coherence:0.7
-          fi
+          test -f scripts/check_quality_thresholds.py
+          test -f backend/validation_report.json
+          python scripts/check_quality_thresholds.py backend/validation_report.json --threshold faithfulness:0.8,relevance:0.85,coherence:0.7
 
       - name: Latency benchmark (optional)
         env:

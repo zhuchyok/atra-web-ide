@@ -15,23 +15,23 @@ echo "   OK"
 
 # 2. Classify API
 echo "2. Classify API..."
-curl -sf "$BACKEND_URL/api/chat/classify" --get --data-urlencode "q=привет" | grep -q '"type":"simple"' || true
-curl -sf "$BACKEND_URL/api/chat/classify" --get --data-urlencode "q=проанализируй логи" | grep -q '"suggest_agent":true' || true
+curl -sf "$BACKEND_URL/api/chat/classify" --get --data-urlencode "q=привет" | grep -q '"type":"simple"'
+curl -sf "$BACKEND_URL/api/chat/classify" --get --data-urlencode "q=проанализируй логи" | grep -q '"suggest_agent":true'
 echo "   OK"
 
 # 3. Agent suggestions stats
 echo "3. Agent suggestions stats..."
-curl -sf "$BACKEND_URL/api/chat/agent-suggestions/stats" | grep -q "total" || true
+curl -sf "$BACKEND_URL/api/chat/agent-suggestions/stats" | grep -q "total"
 echo "   OK"
 
 # 4. Локальные скрипты (без бэкенда для классификатора)
 echo "4. Локальные тесты рекомендаций..."
-python3 scripts/test_agent_suggestions.py 2>/dev/null || true
+python3 scripts/test_agent_suggestions.py 2>/dev/null
 echo ""
 
 # 5. Интеграционный тест stream (опционально)
 echo "5. Интеграционный тест stream..."
-python3 scripts/test_rag_light_integration.py 2>/dev/null || true
+python3 scripts/test_rag_light_integration.py 2>/dev/null
 echo ""
 
 echo "=== Проверка завершена ==="

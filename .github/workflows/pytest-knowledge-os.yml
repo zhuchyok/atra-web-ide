@@ -141,7 +141,7 @@ jobs:
           DATABASE_URL: postgresql://admin:secret@localhost:5432/knowledge_os
           PYTHONPATH: ${{ github.workspace }}/knowledge_os
         run: |
-          python knowledge_os/scripts/verify_hnsw_index.py || (echo "::warning::HNSW index missing — run apply_migrations or add_hnsw migration"; exit 0)
+          python knowledge_os/scripts/verify_hnsw_index.py
 
       - name: Run pytest (with DB) with coverage
         env:

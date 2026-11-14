@@ -26,11 +26,21 @@ jobs:
       - name: Check changed packages and tasks
         id: check
         run: |
-          # Используем наш новый скрипт для определения изменений
-          RESULT=$(python scripts/task_hash.py changed origin/main)
+          # Динамическая база сравнения: PR base SHA или push before SHA.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+          if [ -z "$BASE" ]; then
+            echo "Empty BASE SHA for change detection"
+            exit 1
+          fi
+          RESULT=$(python scripts/task_hash.py changed "$BASE")
           echo "packages=$(echo $RESULT | jq -c '.changed_packages')" >> $GITHUB_OUTPUT
           echo "tasks=$(echo $RESULT | jq -c '.affected_tasks')" >> $GITHUB_OUTPUT
 
+          echo "Base SHA: $BASE"
           echo "Changed packages: $(echo $RESULT | jq -r '.changed_packages | join(", ")')"
           echo "Affected tasks: $(echo $RESULT | jq -r '.affected_tasks | join(", ")')"
 

@@ -48,3 +48,4 @@ echo "  1. MacBook включен и в той же сети"
 echo "  2. PostgreSQL запущен на MacBook"
 echo "  3. Порт 5432 открыт"
 echo "  4. Пароль: secret, пользователь: admin"
+exit 1
