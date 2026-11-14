@@ -3,7 +3,7 @@
 # Запуск: порт 8081, нужны DATABASE_URL, VICTORIA_URL, OLLAMA_URL (в Docker: host.docker.internal:11434)
 
 # --- Stage 1: Builder ---
-FROM rust:1.93-slim-bookworm AS builder
+FROM rust:1-slim-bookworm AS builder
 
 WORKDIR /build
 

@@ -17,14 +17,17 @@ impl Type<Postgres> for Vector {
 }
 
 impl<'q> Encode<'q, Postgres> for Vector {
-    fn encode_by_ref(&self, buf: &mut sqlx::postgres::PgArgumentBuffer) -> sqlx::encode::IsNull {
+    fn encode_by_ref(
+        &self,
+        buf: &mut sqlx::postgres::PgArgumentBuffer,
+    ) -> Result<sqlx::encode::IsNull, Box<dyn std::error::Error + Send + Sync>> {
         let dim = self.0.len() as u16;
         buf.extend_from_slice(&dim.to_be_bytes());
         buf.extend_from_slice(&0u16.to_be_bytes()); // unused
         for &f in &self.0 {
             buf.extend_from_slice(&f.to_be_bytes());
         }
-        sqlx::encode::IsNull::No
+        Ok(sqlx::encode::IsNull::No)
     }
 }
 

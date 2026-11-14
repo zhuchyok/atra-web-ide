@@ -1,27 +1,16 @@
 [advisories]
 # Осознанные игноры: cargo audit --deny warnings в CI требует нуля уязвимостей.
-# Каждая запись — осознанное решение с обоснованием и планом. Убирать по мере миграции.
+# После миграции sqlx 0.8 sqlx/rustls/sqlite-цепочка очищена; оставляем только актуальное.
 ignore = [
-    # rsa (через sqlx 0.7): Marvin Attack — тайминг-атака на RSA-расшифровку.
-    # Фикса нет upstream. Мы не используем RSA-расшифровку в runtime. Уйдёт с миграцией sqlx 0.8.
+    # sqlx 0.8 currently resolves rsa 0.9.x transitively.
+    # Fix requires upstream dependency graph move to rsa >= 0.10.
     "RUSTSEC-2023-0071",
-    # rustls 0.21 (через sqlx 0.7 runtime-tokio-rustls): TLS-секреты в Debug, downgrade.
-    # Локальный трафик внутри Docker-сети. Уйдёт с миграцией sqlx 0.8 → rustls 0.23.
-    "RUSTSEC-2026-0346",
-    "RUSTSEC-2026-0349",
-    "RUSTSEC-2026-0098",
-    "RUSTSEC-2026-0099",
-    "RUSTSEC-2026-0104",
-    "RUSTSEC-2026-0381",
-    "RUSTSEC-2026-0382",
-    # rustls-webpki / webpki-roots (тот же граф sqlx 0.7)
+    # sqlx 0.8 currently resolves libsqlite3-sys 0.30.x.
+    # Fixed in >= 0.39, which requires newer sqlx chain (tracked separately).
+    "RUSTSEC-2026-0459",
+    # Transitive unmaintained crates currently required by dependency graph.
     "RUSTSEC-2025-0057",
     "RUSTSEC-2025-0134",
-    "RUSTSEC-2024-0363",
-    "RUSTSEC-2024-0436",
-    # libsqlite3-sys 0.27 (пин sqlx 0.7): C SQLite CVE-2026-1193. Фикс требует sqlx 0.8 (#62).
-    # Мы не используем SQLite в runtime (только Postgres) — vuln неприменима, уйдёт с #62.
-    "RUSTSEC-2026-0459",
-    # dotenv: unmaintained, замена dotenvy — косметика, в плане
+    # dotenv: unmaintained, замена на dotenvy запланирована отдельно.
     "RUSTSEC-2021-0141",
 ]

@@ -58,7 +58,7 @@ jobs:
 
       - name: Run MyPy (backend)
         run: mypy backend/app --ignore-missing-imports
-        continue-on-error: true  # Not blocking yet
+        continue-on-error: true # Not blocking yet
 
   # Rust: Clippy linting & format check
   rust-lint:
@@ -68,7 +68,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.93.0
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
@@ -98,7 +98,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.93.0
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
