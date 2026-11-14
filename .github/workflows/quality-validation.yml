@@ -13,6 +13,10 @@ on:
       - "backend/app/evaluation/**"
       - "backend/app/services/validation_pipeline.py"
       - "data/validation_queries.json"
+      - "scripts/evaluate_rag_quality.py"
+      - "scripts/check_quality_thresholds.py"
+      - "scripts/benchmark_latency.py"
+      - ".github/workflows/quality-validation.yml"
 
 jobs:
   validate-quality:

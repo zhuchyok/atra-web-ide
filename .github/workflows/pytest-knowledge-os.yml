@@ -30,7 +30,17 @@ jobs:
           fi
           git cat-file -e "$BASE^{commit}"
           git diff --name-only "$BASE" ${{ github.sha }} -- backend/ knowledge_os/app/ knowledge_os/tests/ src/ > changed_all.txt
-          grep -E '\.py$' changed_all.txt > changed_py.txt || true
+          if grep -E '\.py$' changed_all.txt > changed_py.txt; then
+            true
+          else
+            rc=$?
+            if [ "$rc" -eq 1 ]; then
+              : > changed_py.txt
+            else
+              echo "grep failed with rc=$rc"
+              exit "$rc"
+            fi
+          fi
           echo "count=$(wc -l < changed_py.txt | tr -d ' ')" >> $GITHUB_OUTPUT
 
       - name: Set up Python

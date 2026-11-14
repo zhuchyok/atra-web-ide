@@ -74,3 +74,128 @@ jobs:
         run: |
           python scripts/task_hash.py hash backend:test
           python scripts/task_hash.py changed HEAD
+
+      - name: Runtime smoke - check_services exit contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOCK_DIR="$(mktemp -d)"
+          mkdir -p "$MOCK_DIR/bin"
+          export PATH="$MOCK_DIR/bin:$PATH"
+
+          cat > "$MOCK_DIR/bin/curl" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          url="${@: -1}"
+          if [[ "${MOCK_FAIL_ONE:-0}" == "1" && "$url" == *"8011/health"* ]]; then
+            exit 22
+          fi
+          if [[ "$url" == *"/api/tags"* ]]; then
+            echo '{"models":[{"name":"mock-model","size":1000000000}]}'
+          else
+            echo "ok"
+          fi
+          exit 0
+          EOF
+
+          cat > "$MOCK_DIR/bin/docker" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          if [[ "${1:-}" == "ps" ]]; then
+            echo "NAMES STATUS PORTS"
+            exit 0
+          fi
+          exit 0
+          EOF
+
+          chmod +x "$MOCK_DIR/bin/curl" "$MOCK_DIR/bin/docker"
+
+          out_ok="$(mktemp)"
+          STRICT_CHECK_SERVICES=true bash scripts/check_services.sh >"$out_ok" 2>&1
+          grep -q "FAILURES=0" "$out_ok"
+
+          out_fail="$(mktemp)"
+          set +e
+          MOCK_FAIL_ONE=1 STRICT_CHECK_SERVICES=true bash scripts/check_services.sh >"$out_fail" 2>&1
+          rc=$?
+          set -e
+          test "$rc" -eq 1
+          grep -q "FAILURES=" "$out_fail"
+
+      - name: Runtime smoke - check_prometheus contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOCK_DIR="$(mktemp -d)"
+          mkdir -p "$MOCK_DIR/bin"
+          export PATH="$MOCK_DIR/bin:$PATH"
+
+          cat > "$MOCK_DIR/bin/curl" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          url="${@: -1}"
+
+          if [[ "${PROM_FAIL_HEALTH:-0}" == "1" && "$url" == "http://localhost:8080/health" ]]; then
+            exit 22
+          fi
+
+          case "$url" in
+            http://localhost:8080/health)
+              echo '{"status":"ok"}'
+              ;;
+            http://localhost:8080/metrics)
+              echo 'requests_total 42'
+              ;;
+            http://localhost:8080/metrics/summary)
+              echo '{"total":42}'
+              ;;
+            http://localhost:9091/api/v1/targets)
+              echo '{"status":"success","data":{"activeTargets":[{"health":"up"}]}}'
+              ;;
+            http://localhost:3001/api/health)
+              echo '{"database":"ok"}'
+              ;;
+            *)
+              echo "ok"
+              ;;
+          esac
+          EOF
+
+          # Force deterministic branch where pytest is skipped.
+          cat > "$MOCK_DIR/bin/python" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          if [[ "${1:-}" == "-c" ]]; then
+            exit 1
+          fi
+          exec python3 "$@"
+          EOF
+
+          chmod +x "$MOCK_DIR/bin/curl" "$MOCK_DIR/bin/python"
+
+          out_ok="$(mktemp)"
+          bash scripts/check_prometheus.sh >"$out_ok" 2>&1
+          grep -q "Проверка завершена" "$out_ok"
+
+          out_fail="$(mktemp)"
+          set +e
+          PROM_FAIL_HEALTH=1 bash scripts/check_prometheus.sh >"$out_fail" 2>&1
+          rc=$?
+          set -e
+          test "$rc" -eq 1
+          grep -q "Backend not running on 8080" "$out_fail"
+
+      - name: Runtime smoke - task_hash exit contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          out_ok="$(python scripts/task_hash.py hash backend:test)"
+          echo "$out_ok" | grep -q '"task_id": "backend:test"'
+          echo "$out_ok" | grep -q '"hash":'
+
+          set +e
+          err="$(python scripts/task_hash.py changed __missing_ref__ 2>&1 >/dev/null)"
+          rc=$?
+          set -e
+          test "$rc" -eq 2
+          echo "$err" | grep -q "Base git ref does not exist"
