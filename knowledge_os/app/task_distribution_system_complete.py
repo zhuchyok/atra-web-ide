@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 _VICTORIA_ENHANCED_SINGLETON = None
 _CORP_REFRESH_LAST_TS = 0.0
 _CORP_REFRESH_LOCK = asyncio.Lock()
+_TASK_PARSER_WRAP_MARK = "Проанализируй следующий промпт"
+_TASK_PARSER_RECURSE_MARK = "Veronica и извлеки все задачи"
 
 
 def _get_victoria_enhanced_singleton():
@@ -34,6 +36,12 @@ def _json_serial(obj: Any) -> Any:
     if isinstance(obj, datetime):
         return obj.isoformat()
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
+def _is_task_parser_wrapper_text(text: str) -> bool:
+    """Reject parser wrapper text to prevent task->parser->task recursion loops."""
+    inner = text or ""
+    return _TASK_PARSER_WRAP_MARK in inner or _TASK_PARSER_RECURSE_MARK in inner
 
 
 # Резолвер имён — централизованно в expert_aliases
@@ -258,24 +266,21 @@ class TaskDistributionSystem:
             # распределение → обёртки вкладывались десятки раз (экспоненциальный
             # рост, OOM Виктории 17.10). Уже обёрнутый/извлечённый текст не
             # оборачиваем повторно и режем вложенность до первой обёртки.
-            _WRAP_MARK = "Проанализируй следующий промпт"
-            _RECURSE_MARK = "Veronica и извлеки все задачи"
             _inner = prompt or ""
-            # [v150.18] ЖЁСТКИЙ СТОП: осадки рекурсии самокормились после
-            # лёгкого guard'а — два и более вложения = паразитный цикл,
-            # топлива не даём вообще (пустая выборка задач).
-            if _inner.count(_RECURSE_MARK) >= 2:
+            # [v183] Hard stop for parser-wrapper content:
+            # wrapper text must never become executable task payload.
+            if _inner.count(_TASK_PARSER_RECURSE_MARK) >= 2:
                 logger.warning(
                     "TaskDistribution: RECURSION-STOP — %d вложений в промпте, задач не извлекаем",
-                    _inner.count(_RECURSE_MARK),
+                    _inner.count(_TASK_PARSER_RECURSE_MARK),
                 )
                 return []
-            if _WRAP_MARK in _inner:
-                _inner = _inner.split(_WRAP_MARK, 1)[1].strip() or _inner
+            if _is_task_parser_wrapper_text(_inner):
                 logger.warning(
-                    "TaskDistribution: WRAP-GUARD — повторное оборачивание пресечено (длина %d)",
+                    "TaskDistribution: WRAP-GUARD — parser wrapper text rejected (len=%d)",
                     len(prompt or ""),
                 )
+                return []
             prompt = _inner
             parse_prompt = f"""
             Проанализируй следующий промпт Veronica и извлеки все задачи:
@@ -349,28 +354,13 @@ class TaskDistributionSystem:
                 tasks = json.loads(json_match.group())
                 return tasks
 
-            # Если JSON не найден, создаем задачу из всего промпта (уже кириллица)
-            return [
-                {
-                    "subtask": prompt,
-                    "employee": "Вероника",
-                    "department": (organizational_structure.get("departments") or [{}])[0].get(
-                        "name", "General"
-                    ),
-                    "correlation_id": f"auto_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-                }
-            ]
+            # [v183] No fallback-to-prompt: this creates recursive task loops.
+            logger.warning("TaskDistribution: parse returned no JSON, dropping task extraction.")
+            return []
         except Exception as e:
             # TODO: Convert f-string to %s formatting for performance
             logger.error(f"❌ Ошибка парсинга промпта: {e}", exc_info=True)
-            return [
-                {
-                    "subtask": prompt,
-                    "employee": "Вероника",
-                    "department": "General",
-                    "correlation_id": f"fallback_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-                }
-            ]
+            return []
 
     async def execute_task_assignment(
         self, assignment: TaskAssignment, project_context: Optional[str] = None
