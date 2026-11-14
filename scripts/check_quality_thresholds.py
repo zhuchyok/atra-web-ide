@@ -33,6 +33,10 @@ def main() -> int:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
+    if data.get("skipped") is True:
+        print("Report marked skipped=true; refusing to green-pass thresholds", file=sys.stderr)
+        return 1
+
     avg = data.get("avg_metrics", data.get("avg", {}))
     if not avg:
         print("No avg_metrics in report", file=sys.stderr)
@@ -47,8 +51,11 @@ def main() -> int:
 
     failed = []
     for name, th in thresholds.items():
-        val = avg.get(name)
-        if val is not None and val < th:
+        if name not in avg or avg.get(name) is None:
+            failed.append(f"{name}=missing (required >= {th})")
+            continue
+        val = float(avg[name])
+        if val < th:
             failed.append(f"{name}={val:.3f} < {th}")
 
     if failed:

@@ -7,16 +7,42 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-# Настройка PATH для Docker Desktop на Mac
-export PATH="/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
+# Prefer real Docker Desktop binaries over any temporary mock PATH (CI/local smoke).
+# ATRA_FORCE_PATH is a test-only override for deterministic fail-closed smoke.
+if [ -n "${ATRA_FORCE_PATH:-}" ]; then
+    export PATH="$ATRA_FORCE_PATH"
+else
+    export PATH="/usr/local/bin:/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:/usr/bin:/bin:$PATH"
+fi
 HARD_FAIL=0
 
 run_compose_filtered() {
     local output
+    set +e
     output=$("$@" 2>&1)
     local rc=$?
+    set -e
     printf '%s\n' "$output" | grep -v "level=warning" || true
     return $rc
+}
+
+ensure_docker_network() {
+    local name="$1"
+    if docker network inspect "$name" >/dev/null 2>&1; then
+        echo "   ✅ Сеть $name уже существует"
+        return 0
+    fi
+    if docker network create "$name" >/dev/null 2>&1; then
+        echo "   ✅ Сеть $name создана"
+        return 0
+    fi
+    # Race: another process created it between inspect and create.
+    if docker network inspect "$name" >/dev/null 2>&1; then
+        echo "   ✅ Сеть $name уже существует"
+        return 0
+    fi
+    echo "   ❌ Не удалось создать сеть $name"
+    return 1
 }
 
 echo "=============================================="
@@ -42,11 +68,9 @@ echo ""
 
 # 2. Проверка сети
 echo "[2/5] Проверка Docker сети..."
-if ! docker network ls | grep -q atra-network; then
-    docker network create atra-network
-    echo "   ✅ Сеть atra-network создана"
-else
-    echo "   ✅ Сеть atra-network уже существует"
+if ! ensure_docker_network "atra-network"; then
+    HARD_FAIL=1
+    exit 1
 fi
 echo ""
 
@@ -79,8 +103,14 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
         sleep 10
     fi
 
-    # Проверка, какие контейнеры не запущены (up -d поднимает остановленные)
-    NOT_RUNNING=$(docker-compose -f knowledge_os/docker-compose.yml ps 2>&1 | grep -E "Exit|Created|Stopped" | wc -l || echo "0")
+    # Проверка, какие контейнеры не запущены (up -d поднимает остановленные).
+    # Avoid grep|wc||echo under pipefail (empty grep would corrupt the count).
+    NOT_RUNNING=$(
+      docker-compose -f knowledge_os/docker-compose.yml ps -a --status exited --status created 2>/dev/null \
+        | wc -l \
+        | tr -d '[:space:]'
+    )
+    NOT_RUNNING=${NOT_RUNNING:-0}
 
     if [ "$NOT_RUNNING" -gt 0 ]; then
         echo "   ⚠️  Найдено не запущенных контейнеров: $NOT_RUNNING"

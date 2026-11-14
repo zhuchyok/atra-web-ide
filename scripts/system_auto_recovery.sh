@@ -116,11 +116,14 @@ fi
 # 2. Проверка и создание Docker сети
 log ""
 log "[2/10] Проверка Docker сети..."
-if ! docker network ls | grep -q atra-network; then
-    docker network create atra-network 2>/dev/null || true
-    log "✅ Сеть atra-network создана"
-else
+if docker network inspect atra-network >/dev/null 2>&1; then
     log "✅ Сеть atra-network существует"
+elif docker network create atra-network >/dev/null 2>&1; then
+    log "✅ Сеть atra-network создана"
+elif docker network inspect atra-network >/dev/null 2>&1; then
+    log "✅ Сеть atra-network существует"
+else
+    log "❌ Не удалось обеспечить сеть atra-network"
 fi
 
 # 3. Запуск Knowledge OS сервисов (db, redis, Victoria, Veronica, и т.д.)

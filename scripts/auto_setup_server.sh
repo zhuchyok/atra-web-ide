@@ -10,6 +10,7 @@ cd "$ROOT_DIR"
 echo "🚀 Автоматическая настройка сервера Mac Studio"
 echo "=============================================="
 echo ""
+SETUP_FAIL=0
 
 # Определяем путь к репозиторию
 if [[ ! -f "docker-compose.yml" ]]; then
@@ -151,27 +152,42 @@ echo ""
 echo "[5/6] Проверка сервисов..."
 if docker info >/dev/null 2>&1; then
   if [[ -f "scripts/check_all_services_enhanced.sh" ]]; then
-    bash scripts/check_all_services_enhanced.sh || echo "⚠️  Есть проблемы с сервисами"
+    if ! bash scripts/check_all_services_enhanced.sh; then
+      echo "⚠️  Есть проблемы с сервисами"
+      SETUP_FAIL=1
+    fi
   else
     echo "📊 Статус контейнеров:"
-    docker-compose ps 2>/dev/null || echo "⚠️  Не удалось получить статус"
+    if ! docker-compose ps; then
+      echo "⚠️  Не удалось получить статус"
+      SETUP_FAIL=1
+    fi
   fi
 else
   echo "⚠️  Docker не запущен, пропускаю проверку сервисов"
+  SETUP_FAIL=1
 fi
 echo ""
 
 # 6. Проверка бэкапов
 echo "[6/6] Проверка системы бэкапов..."
 if [[ -f "scripts/check_backups_health.sh" ]]; then
-  bash scripts/check_backups_health.sh || echo "⚠️  Есть проблемы с бэкапами"
+  if ! bash scripts/check_backups_health.sh; then
+    echo "⚠️  Есть проблемы с бэкапами"
+    SETUP_FAIL=1
+  fi
 else
   echo "⚠️  Скрипт проверки бэкапов не найден"
+  SETUP_FAIL=1
 fi
 echo ""
 
 echo "=============================================="
-echo "✅ Автоматическая настройка завершена!"
+if [[ "$SETUP_FAIL" -eq 0 ]]; then
+  echo "✅ Автоматическая настройка завершена!"
+else
+  echo "⚠️ Автоматическая настройка завершена с ошибками"
+fi
 echo ""
 echo "📋 Что настроено:"
 echo "   ✅ Скрипт проверки алертов: $HOME/bin/atra_check_alerts.sh"
@@ -187,3 +203,4 @@ echo ""
 echo "🔍 Проверка сервисов:"
 echo "   bash scripts/check_all_services_enhanced.sh"
 echo ""
+exit "$SETUP_FAIL"

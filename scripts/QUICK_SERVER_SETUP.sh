@@ -10,6 +10,7 @@ cd "$ROOT_DIR"
 echo "🚀 Быстрая настройка сервера Mac Studio"
 echo "========================================"
 echo ""
+SETUP_FAIL=0
 
 # 1. Проверка Docker
 echo "[1/4] Проверка Docker..."
@@ -42,17 +43,26 @@ echo ""
 # 4. Проверка бэкапов
 echo "[4/4] Проверка системы бэкапов..."
 if [[ -f "scripts/check_backups_health.sh" ]]; then
-  bash scripts/check_backups_health.sh || echo "⚠️  Есть проблемы с бэкапами"
+  if ! bash scripts/check_backups_health.sh; then
+    echo "⚠️  Есть проблемы с бэкапами"
+    SETUP_FAIL=1
+  fi
 else
   echo "⚠️  Скрипт проверки бэкапов не найден"
+  SETUP_FAIL=1
 fi
 echo ""
 
 echo "========================================"
-echo "✅ Настройка завершена!"
+if [[ "$SETUP_FAIL" -eq 0 ]]; then
+  echo "✅ Настройка завершена!"
+else
+  echo "⚠️ Настройка завершена с ошибками"
+fi
 echo ""
 echo "📋 Следующие шаги:"
 echo "   1. Проверьте статус: bash scripts/check_all_services_enhanced.sh"
 echo "   2. Просмотрите алерты: tail -f ~/Library/Logs/atra/alerts.log"
 echo "   3. Миграция данных (когда будете готовы): python3 scripts/migration/migrate_to_mac_studio.py"
 echo ""
+exit "$SETUP_FAIL"

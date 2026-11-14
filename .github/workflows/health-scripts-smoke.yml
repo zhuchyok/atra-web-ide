@@ -21,14 +21,21 @@ jobs:
       - name: Shell syntax check
         run: |
           bash -n scripts/check_all_services.sh
+          bash -n scripts/check_all_services_enhanced.sh
           bash -n scripts/check_prometheus.sh
           bash -n scripts/check_ready.sh
           bash -n scripts/check_services.sh
           bash -n scripts/check_phase2.sh
           bash -n scripts/check_macbook_connection.sh
+          bash -n scripts/check_and_start_containers.sh
+          bash -n scripts/auto_start_containers.sh
+          bash -n scripts/auto_setup_server.sh
+          bash -n scripts/QUICK_SERVER_SETUP.sh
 
       - name: Python syntax check
-        run: python -m py_compile scripts/task_hash.py
+        run: |
+          python -m py_compile scripts/task_hash.py
+          python -m py_compile scripts/check_quality_thresholds.py
 
       - name: Script contract assertions
         run: |
@@ -41,9 +48,16 @@ jobs:
                   "ERRORS=0",
                   "exit 1",
               ],
+              "scripts/check_all_services_enhanced.sh": [
+                  "check_service_any",
+                  "victoria-agent",
+                  "veronica-agent",
+                  "9091",
+              ],
               "scripts/check_prometheus.sh": [
                   "python -c \"import pytest\"",
                   "python -m pytest app/tests/test_prometheus_metrics.py",
+                  "set -euo pipefail",
               ],
               "scripts/check_ready.sh": [
                   "STRICT_READY_DB",
@@ -59,6 +73,21 @@ jobs:
               ],
               "scripts/check_macbook_connection.sh": [
                   "exit 1",
+              ],
+              "scripts/check_and_start_containers.sh": [
+                  "HARD_FAIL",
+                  "ensure_docker_network",
+                  "ENABLE_NIGHTLY_AUTOSTART",
+                  "ATRA_FORCE_PATH",
+                  "exit $EXIT_CODE",
+              ],
+              "scripts/auto_setup_server.sh": [
+                  "SETUP_FAIL",
+                  "exit \"$SETUP_FAIL\"",
+              ],
+              "scripts/QUICK_SERVER_SETUP.sh": [
+                  "SETUP_FAIL",
+                  "exit \"$SETUP_FAIL\"",
               ],
           }
 
@@ -175,7 +204,9 @@ jobs:
 
           out_ok="$(mktemp)"
           bash scripts/check_prometheus.sh >"$out_ok" 2>&1
+          grep -q "requests_total 42" "$out_ok"
           grep -q "Проверка завершена" "$out_ok"
+          grep -q "pytest not run" "$out_ok"
 
           out_fail="$(mktemp)"
           set +e
@@ -199,3 +230,45 @@ jobs:
           set -e
           test "$rc" -eq 2
           echo "$err" | grep -q "Base git ref does not exist"
+
+      - name: Runtime smoke - quality thresholds fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp)"
+          echo '{"avg_metrics":{"faithfulness":0.9},"skipped":true}' >"$tmp"
+          set +e
+          python scripts/check_quality_thresholds.py "$tmp" --threshold faithfulness:0.8,relevance:0.85,coherence:0.7
+          rc=$?
+          set -e
+          test "$rc" -eq 1
+
+          echo '{"avg_metrics":{"faithfulness":0.9}}' >"$tmp"
+          set +e
+          python scripts/check_quality_thresholds.py "$tmp" --threshold faithfulness:0.8,relevance:0.85,coherence:0.7
+          rc=$?
+          set -e
+          test "$rc" -eq 1
+
+          echo '{"avg_metrics":{"faithfulness":0.9,"relevance":0.9,"coherence":0.8}}' >"$tmp"
+          python scripts/check_quality_thresholds.py "$tmp" --threshold faithfulness:0.8,relevance:0.85,coherence:0.7
+
+      - name: Runtime smoke - check_and_start_containers fail-closed without docker
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOCK_DIR="$(mktemp -d)"
+          mkdir -p "$MOCK_DIR/bin"
+          cat > "$MOCK_DIR/bin/docker" <<'EOF'
+          #!/usr/bin/env bash
+          exit 127
+          EOF
+          chmod +x "$MOCK_DIR/bin/docker"
+          # Force test PATH so script does not prepend real Docker Desktop bins.
+          out="$(mktemp)"
+          set +e
+          ATRA_FORCE_PATH="$MOCK_DIR/bin:/bin:/usr/bin" /bin/bash scripts/check_and_start_containers.sh >"$out" 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -Eqi 'Docker|daemon|не найден|не запущен' "$out"

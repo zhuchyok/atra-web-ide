@@ -38,6 +38,24 @@ check_service() {
   fi
 }
 
+# Try primary URL, then fallback, but count at most one failure per logical service.
+check_service_any() {
+  local name=$1
+  local primary=$2
+  local fallback=$3
+  if curl -s -f "$primary" >/dev/null 2>&1; then
+    echo "   ✅ $name: Онлайн"
+    return 0
+  fi
+  if curl -s -f "$fallback" >/dev/null 2>&1; then
+    echo "   ✅ $name: Онлайн"
+    return 0
+  fi
+  echo "   ❌ $name: Офлайн"
+  ERRORS=$((ERRORS + 1))
+  return 1
+}
+
 # MLX API Server или Ollama (порт 11434)
 echo -n "   MLX API Server / Ollama (порт 11434): "
 if curl -s -f "http://localhost:11434/" >/dev/null 2>&1; then
@@ -56,17 +74,17 @@ else
 fi
 
 # Knowledge OS сервисы
-check_service "Knowledge OS MCP" "http://localhost:8000/health" || check_service "Knowledge OS MCP" "http://localhost:8000/"
-check_service "Knowledge OS REST" "http://localhost:8002/health" || check_service "Knowledge OS REST" "http://localhost:8002/"
-check_service "Knowledge OS Vector Core" "http://localhost:8001/health" || check_service "Knowledge OS Vector Core" "http://localhost:8001/"
+check_service_any "Knowledge OS MCP" "http://localhost:8000/health" "http://localhost:8000/"
+check_service_any "Knowledge OS REST" "http://localhost:8002/health" "http://localhost:8002/"
+check_service_any "Knowledge OS Vector Core" "http://localhost:8001/health" "http://localhost:8001/"
 
-# Мониторинг
-check_service "Prometheus" "http://localhost:9090/-/healthy"
-check_service "Grafana" "http://localhost:3000/api/health"
+# Мониторинг (live ports: Prometheus 9091, Grafana 3002)
+check_service_any "Prometheus" "http://localhost:9091/-/healthy" "http://localhost:9090/-/healthy"
+check_service_any "Grafana" "http://localhost:3002/api/health" "http://localhost:3001/api/health"
 
 # Агенты
-check_service "Victoria Agent" "http://localhost:8010/health" || check_service "Victoria Agent" "http://localhost:8010/"
-check_service "Veronica Agent" "http://localhost:8011/health" || check_service "Veronica Agent" "http://localhost:8011/"
+check_service_any "Victoria Agent" "http://localhost:8010/health" "http://localhost:8010/"
+check_service_any "Veronica Agent" "http://localhost:8011/health" "http://localhost:8011/"
 
 echo ""
 echo "🗄️  База данных:"
@@ -81,9 +99,9 @@ fi
 
 echo ""
 echo "🤖 Агенты (статус контейнеров):"
-AGENTS=("victoria_agent" "veronica_agent" "knowledge_nightly")
+AGENTS=("victoria-agent" "veronica-agent" "knowledge_nightly")
 for agent in "${AGENTS[@]}"; do
-  if docker-compose ps "$agent" 2>/dev/null | grep -q "Up"; then
+  if docker-compose -f knowledge_os/docker-compose.yml ps "$agent" 2>/dev/null | grep -q "Up"; then
     echo "   ✅ $agent: Запущен"
   else
     echo "   ❌ $agent: Не запущен"
@@ -93,7 +111,9 @@ done
 
 echo ""
 echo "💻 Использование ресурсов:"
-docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}" | head -n 10
+set +o pipefail
+docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}" | head -n 10 || true
+set -o pipefail
 
 echo ""
 echo "💾 Использование диска:"

@@ -10,6 +10,11 @@ on:
       - "backend/app/services/reranking.py"
       - "backend/app/services/query_rewriter.py"
       - "backend/app/services/query_expansion.py"
+      - "backend/app/services/knowledge_os.py"
+      - "backend/app/services/embedding_fallback.py"
+      - "backend/app/services/embedding_batch.py"
+      - "backend/app/services/rag_light_prefetch.py"
+      - "backend/app/config.py"
       - "backend/app/evaluation/**"
       - "backend/app/services/validation_pipeline.py"
       - "data/validation_queries.json"
@@ -70,7 +75,7 @@ jobs:
               exit 1
             fi
             echo "No dataset for scheduled run, skipping validation"
-            echo '{"avg_metrics":{"faithfulness":0.8,"relevance":0.8,"coherence":0.8},"skipped":true}' > backend/validation_report.json
+            echo '{"avg_metrics":{},"skipped":true}' > backend/validation_report.json
             exit 0
           fi
           python scripts/evaluate_rag_quality.py \
@@ -94,6 +99,14 @@ jobs:
         run: |
           test -f scripts/check_quality_thresholds.py
           test -f backend/validation_report.json
+          if python3 -c 'import json,sys; sys.exit(0 if json.load(open("backend/validation_report.json")).get("skipped") is True else 1)'; then
+            if [ "${{ github.event_name }}" = "schedule" ]; then
+              echo "Scheduled run skipped validation (no dataset); threshold check skipped"
+              exit 0
+            fi
+            echo "Skipped report is not allowed on pull_request/push"
+            exit 1
+          fi
           python scripts/check_quality_thresholds.py backend/validation_report.json --threshold faithfulness:0.8,relevance:0.85,coherence:0.7
 
       - name: Latency benchmark (optional)
