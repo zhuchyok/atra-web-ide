@@ -49,12 +49,15 @@ jobs:
                   "set -euo pipefail",
                   "ERRORS=0",
                   "8002",
+                  "8010",
+                  "8011",
                   "9091",
                   "3002",
                   "exit 1",
               ],
               "scripts/check_all_services_enhanced.sh": [
                   "check_service_any",
+                  "CHECK_LEGACY_MCP",
                   "victoria-agent",
                   "veronica-agent",
                   "9091",
@@ -105,6 +108,12 @@ jobs:
                   "RECOVERY_HARD_FAIL",
                   "compose_rc",
                   "verify_rc",
+                  "run_compose_tracked",
+                  "exit 1",
+              ],
+              "scripts/do_everything_setup.sh": [
+                  "SETUP_FAIL",
+                  "exit \"$SETUP_FAIL\"",
               ],
           }
 
@@ -198,7 +207,7 @@ jobs:
             http://localhost:9091/api/v1/targets)
               echo '{"status":"success","data":{"activeTargets":[{"health":"up"}]}}'
               ;;
-            http://localhost:3001/api/health)
+            http://localhost:3002/api/health|http://localhost:3001/api/health)
               echo '{"database":"ok"}'
               ;;
             *)
@@ -309,6 +318,67 @@ jobs:
           set -e
           test "$rc" -ne 0
           grep -Eqi 'Docker|daemon|не запущен' "$out"
+
+      - name: Runtime smoke - check_all_services fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOCK_DIR="$(mktemp -d)"
+          mkdir -p "$MOCK_DIR/bin"
+          cat > "$MOCK_DIR/bin/curl" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          url="${@: -1}"
+          if [[ "$url" == *"8002"* ]]; then
+            exit 22
+          fi
+          echo ok
+          exit 0
+          EOF
+          cat > "$MOCK_DIR/bin/docker-compose" <<'EOF'
+          #!/usr/bin/env bash
+          if [[ "${1:-}" == "ps" ]]; then
+            echo "NAME STATUS"
+            exit 0
+          fi
+          if [[ "${1:-}" == "logs" ]]; then
+            exit 0
+          fi
+          exit 0
+          EOF
+          chmod +x "$MOCK_DIR/bin/curl" "$MOCK_DIR/bin/docker-compose"
+          out="$(mktemp)"
+          set +e
+          env PATH="$MOCK_DIR/bin:/bin:/usr/bin" /bin/bash scripts/check_all_services.sh >"$out" 2>&1
+          rc=$?
+          set -e
+          test "$rc" -eq 1
+          grep -q "Найдено проблем" "$out"
+
+      - name: Runtime smoke - auto_setup_server fail-closed without docker
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOCK_DIR="$(mktemp -d)"
+          mkdir -p "$MOCK_DIR/bin" "$MOCK_DIR/home/bin"
+          cat > "$MOCK_DIR/bin/docker" <<'EOF'
+          #!/usr/bin/env bash
+          exit 1
+          EOF
+          cat > "$MOCK_DIR/bin/crontab" <<'EOF'
+          #!/usr/bin/env bash
+          exit 0
+          EOF
+          chmod +x "$MOCK_DIR/bin/docker" "$MOCK_DIR/bin/crontab"
+          # auto_setup needs docker-compose.yml at ROOT; repo has it.
+          out="$(mktemp)"
+          set +e
+          env PATH="$MOCK_DIR/bin:/bin:/usr/bin" HOME="$MOCK_DIR/home" \
+            /bin/bash scripts/auto_setup_server.sh >"$out" 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -Eqi 'Docker|daemon|ошибк' "$out"
 
       - name: Runtime smoke - check_and_start_containers fail-closed without docker
         shell: bash

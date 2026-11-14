@@ -126,15 +126,20 @@ jobs:
           pip install pytest pytest-asyncio orjson httpx
           pip install -r knowledge_os/requirements.txt
 
-      - name: Wait for Postgres
-        run: |
-          for i in $(seq 1 30); do
-            pg_isready -h localhost -p 5432 -U admin -d knowledge_os && break
-            sleep 2
-          done
-
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Wait for Postgres
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            if pg_isready -h localhost -p 5432 -U admin -d knowledge_os; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Postgres did not become ready"
+          exit 1
 
       - name: Init schema (experts, domains, tasks, knowledge_nodes)
         env:

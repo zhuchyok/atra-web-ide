@@ -23,6 +23,7 @@ if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no ${MAC_STUDIO_USER}@${MAC_
     echo ""
     echo "🚀 Запуск контейнеров..."
 
+    set +e
     ssh ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} << 'ENDSSH'
 cd ~/Documents/atra-web-ide
 export PATH="/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
@@ -37,7 +38,16 @@ echo "   ✅ Docker готов"
 echo ""
 echo "[2/3] Запуск контейнеров..."
 if [ -f "knowledge_os/docker-compose.yml" ]; then
-    docker-compose -f knowledge_os/docker-compose.yml up -d 2>&1 | grep -v "level=warning" || true
+    set +e
+    set +o pipefail
+    docker-compose -f knowledge_os/docker-compose.yml up -d 2>&1 | grep -v "level=warning"
+    compose_rc=${PIPESTATUS[0]}
+    set -o pipefail
+    set -e
+    if [ "\$compose_rc" -ne 0 ]; then
+        echo "   ❌ docker-compose up failed (rc=\$compose_rc)"
+        exit 1
+    fi
     echo "   ⏳ Ожидание запуска (20 секунд)..."
     sleep 20
 else
@@ -51,11 +61,24 @@ docker-compose -f knowledge_os/docker-compose.yml ps 2>&1 | grep -v "level=warni
 
 echo ""
 echo "✅ Проверка сервисов:"
-curl -s http://localhost:8010/health 2>&1 && echo " - Victoria OK" || echo " - Victoria не отвечает"
-curl -s http://localhost:8011/health 2>&1 && echo " - Veronica OK" || echo " - Veronica не отвечает"
+FAIL=0
+if curl -sf http://localhost:8010/health >/dev/null 2>&1; then
+    echo " - Victoria OK"
+else
+    echo " - Victoria не отвечает"
+    FAIL=1
+fi
+if curl -sf http://localhost:8011/health >/dev/null 2>&1; then
+    echo " - Veronica OK"
+else
+    echo " - Veronica не отвечает"
+    FAIL=1
+fi
+exit \$FAIL
 ENDSSH
-
-    if [ $? -eq 0 ]; then
+    remote_rc=$?
+    set -e
+    if [ "$remote_rc" -eq 0 ]; then
         echo ""
         echo "=============================================="
         echo "✅ КОНТЕЙНЕРЫ ЗАПУЩЕНЫ"
@@ -63,7 +86,7 @@ ENDSSH
         exit 0
     else
         echo ""
-        echo "❌ Ошибка при запуске"
+        echo "❌ Ошибка при запуске (remote rc=$remote_rc)"
         exit 1
     fi
 else

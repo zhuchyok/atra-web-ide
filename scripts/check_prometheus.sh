@@ -44,12 +44,14 @@ else
     echo "⚠️  Prometheus not running (docker-compose up -d prometheus, порт 9091)"
 fi
 
-# 6. Проверяем Grafana (если запущена)
+# 6. Проверяем Grafana (если запущена; live host :3002)
 echo "6. Проверка Grafana:"
-if curl -sf http://localhost:3001/api/health 2>/dev/null | grep -q "ok"; then
-    echo "✅ Grafana running on :3001"
+if curl -sf http://localhost:3002/api/health 2>/dev/null | grep -q "ok"; then
+    echo "✅ Grafana running on :3002"
+elif curl -sf http://localhost:3001/api/health 2>/dev/null | grep -q "ok"; then
+    echo "✅ Grafana running on :3001 (legacy)"
 else
-    echo "⚠️  Grafana not running (docker-compose up -d grafana). Port 3001 (frontend on 3000)."
+    echo "⚠️  Grafana not running (docker-compose up -d grafana). Port 3002 (frontend on 3000)."
 fi
 
 echo ""

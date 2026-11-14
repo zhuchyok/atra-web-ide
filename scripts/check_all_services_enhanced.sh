@@ -73,8 +73,10 @@ else
   fi
 fi
 
-# Knowledge OS сервисы
-check_service_any "Knowledge OS MCP" "http://localhost:8000/health" "http://localhost:8000/"
+# Knowledge OS сервисы (host REST is 8002; legacy :8000 only if CHECK_LEGACY_MCP=true)
+if [ "${CHECK_LEGACY_MCP:-false}" = "true" ]; then
+  check_service_any "Knowledge OS MCP (legacy 8000)" "http://localhost:8000/health" "http://localhost:8000/"
+fi
 check_service_any "Knowledge OS REST" "http://localhost:8002/health" "http://localhost:8002/"
 check_service_any "Knowledge OS Vector Core" "http://localhost:8001/health" "http://localhost:8001/"
 

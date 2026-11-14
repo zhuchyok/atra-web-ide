@@ -62,9 +62,10 @@ cat > "$HOME/bin/atra_check_alerts.sh" << 'ALERT_SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="${ATRA_ROOT:-$HOME/Documents/dev/atra}"
+ROOT_DIR="${ATRA_ROOT:-$HOME/Documents/atra-web-ide}"
 cd "$ROOT_DIR" 2>/dev/null || exit 1
 
+COMPOSE_KO=(-f knowledge_os/docker-compose.yml)
 LOG_DIR="$HOME/Library/Logs/atra"
 ALERTS=()
 
@@ -84,16 +85,20 @@ check_service() {
   fi
 }
 
-check_service "Knowledge OS API" "http://localhost:8000/health" || check_service "Knowledge OS API" "http://localhost:8000/"
-check_service "MLX API Server" "http://localhost:11434/"
+check_service "Knowledge OS REST" "http://localhost:8002/health"
+check_service "Victoria Agent" "http://localhost:8010/health"
+check_service "Veronica Agent" "http://localhost:8011/health"
+check_service "Ollama brain" "http://localhost:11434/api/tags"
+check_service "Prometheus" "http://localhost:9091/-/healthy"
+check_service "Grafana" "http://localhost:3002/api/health"
 
-if ! docker-compose exec -T knowledge-os-db pg_isready -U admin -d knowledge_os >/dev/null 2>&1; then
+if ! docker-compose "${COMPOSE_KO[@]}" exec -T knowledge_postgres pg_isready -U admin -d knowledge_os >/dev/null 2>&1; then
   add_alert "❌ PostgreSQL база данных недоступна"
 fi
 
-AGENTS=("victoria-agent" "veronica-agent" "nightly-learner")
+AGENTS=("victoria-agent" "veronica-agent" "knowledge_nightly")
 for agent in "${AGENTS[@]}"; do
-  if ! docker-compose ps "$agent" 2>/dev/null | grep -q "Up"; then
+  if ! docker-compose "${COMPOSE_KO[@]}" ps "$agent" 2>/dev/null | grep -q "Up"; then
     add_alert "❌ Агент $agent не запущен"
   fi
 done

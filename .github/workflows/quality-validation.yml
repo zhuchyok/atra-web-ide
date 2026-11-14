@@ -17,6 +17,7 @@ on:
       - "backend/app/services/rag_light_prefetch.py"
       - "backend/app/services/rag_context_cache.py"
       - "backend/app/services/query_classifier.py"
+      - "backend/app/services/latency_tracer.py"
       - "backend/app/config.py"
       - "backend/app/evaluation/**"
       - "backend/app/services/validation_pipeline.py"

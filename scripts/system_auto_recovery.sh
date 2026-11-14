@@ -409,67 +409,98 @@ except Exception:
 " 2>/dev/null || return 1
 }
 
+run_compose_tracked() {
+    set +e
+    set +o pipefail
+    "$@" 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE"
+    local rc=${PIPESTATUS[0]}
+    set -o pipefail
+    set -e
+    if [ "$rc" -ne 0 ]; then
+        RECOVERY_HARD_FAIL=1
+        log_error "compose command failed (rc=$rc): $*"
+    fi
+    return "$rc"
+}
+
 # Перезапуск Victoria/Veronica, если health check не прошёл (контейнер может быть up, но не отвечать)
 if [ -f "knowledge_os/docker-compose.yml" ]; then
     if [ "${VICTORIA_HEALTH_OK:-0}" -eq 0 ]; then
         log "⚠️ Victoria Agent не отвечает на /health — перезапускаю victoria-agent..."
-        docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
+        run_compose_tracked docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent || true
         sleep 10
         if curl -s -f --connect-timeout 5 "http://localhost:8010/health" >/dev/null 2>&1; then
             log "   ✅ Victoria Agent поднялась после перезапуска"
         else
             log_error "   Victoria Agent всё ещё недоступна после перезапуска"
+            RECOVERY_HARD_FAIL=1
         fi
     else
         # Victoria отвечает на /health — проверяем, что все три уровня (Agent, Enhanced, Initiative) включены
         if ! check_victoria_levels; then
             log "⚠️ Victoria: не все три уровня активны (agent/enhanced/initiative) — перезапускаю victoria-agent..."
-            docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
+            run_compose_tracked docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent || true
             sleep 25
             if check_victoria_levels; then
                 log "   ✅ Victoria: все три уровня запущены после перезапуска"
             else
                 log_error "   Victoria: Enhanced/Initiative всё ещё не активны (см. логи контейнера)"
+                RECOVERY_HARD_FAIL=1
             fi
         fi
     fi
     if [ "${VERONICA_HEALTH_OK:-0}" -eq 0 ]; then
         log "⚠️ Veronica Agent не отвечает на /health — перезапускаю veronica-agent..."
-        docker-compose -f knowledge_os/docker-compose.yml restart veronica-agent 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
+        run_compose_tracked docker-compose -f knowledge_os/docker-compose.yml restart veronica-agent || true
         sleep 10
         if curl -s -f --connect-timeout 5 "http://localhost:8011/health" >/dev/null 2>&1; then
             log "   ✅ Veronica Agent поднялась после перезапуска"
         else
             log_error "   Veronica Agent всё ещё недоступна после перезапуска"
+            RECOVERY_HARD_FAIL=1
         fi
     fi
     # Перезапуск упавших контейнеров: up -d поднимает остановленные (restart только перезапускает уже работающие)
-    NOT_RUNNING=$(docker-compose -f knowledge_os/docker-compose.yml ps 2>&1 | grep -E "Exit|Created|Stopped" | wc -l | tr -d ' \n' || echo "0")
+    NOT_RUNNING=$(
+      docker-compose -f knowledge_os/docker-compose.yml ps -a --status exited --status created 2>/dev/null \
+        | wc -l | tr -d '[:space:]'
+    )
     NOT_RUNNING=${NOT_RUNNING:-0}
     if [ "$NOT_RUNNING" -gt 0 ]; then
         log "⚠️ Найдено $NOT_RUNNING не запущенных контейнеров Knowledge OS — поднимаю (up -d)..."
-        docker-compose -f knowledge_os/docker-compose.yml up -d 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
+        run_compose_tracked docker-compose -f knowledge_os/docker-compose.yml up -d || true
         sleep 5
     fi
     # Явный контроль оркестратора и Nightly Learner: без них не создаются задачи и не идёт обучение
     if ! docker ps --format '{{.Names}}' | grep -q '^knowledge_nightly$'; then
         log "⚠️ Nightly Learner (knowledge_nightly) не запущен — поднимаю..."
-        docker-compose -f knowledge_os/docker-compose.yml up -d knowledge_nightly 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
+        run_compose_tracked docker-compose -f knowledge_os/docker-compose.yml up -d knowledge_nightly || true
         sleep 3
+        if ! docker ps --format '{{.Names}}' | grep -q '^knowledge_nightly$'; then
+            log_error "knowledge_nightly still not Up"
+            RECOVERY_HARD_FAIL=1
+        fi
     fi
     if ! docker ps --format '{{.Names}}' | grep -q '^knowledge_os_orchestrator$'; then
         log "⚠️ Orchestrator (knowledge_os_orchestrator) не запущен — поднимаю..."
-        docker-compose -f knowledge_os/docker-compose.yml up -d knowledge_os_orchestrator 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
+        run_compose_tracked docker-compose -f knowledge_os/docker-compose.yml up -d knowledge_os_orchestrator || true
         sleep 3
+        if ! docker ps --format '{{.Names}}' | grep -q '^knowledge_os_orchestrator$'; then
+            log_error "knowledge_os_orchestrator still not Up"
+            RECOVERY_HARD_FAIL=1
+        fi
     fi
 fi
 
 if [ -f "docker-compose.yml" ]; then
-    NOT_RUNNING=$(docker-compose ps 2>&1 | grep -E "Exit|Created|Stopped" | wc -l | tr -d ' \n' || echo "0")
+    NOT_RUNNING=$(
+      docker-compose ps -a --status exited --status created 2>/dev/null \
+        | wc -l | tr -d '[:space:]'
+    )
     NOT_RUNNING=${NOT_RUNNING:-0}
     if [ "$NOT_RUNNING" -gt 0 ]; then
         log "⚠️ Найдено $NOT_RUNNING не запущенных контейнеров ATRA Web IDE — поднимаю (up -d)..."
-        docker-compose up -d 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
+        run_compose_tracked docker-compose up -d || true
         sleep 5
     fi
 fi
