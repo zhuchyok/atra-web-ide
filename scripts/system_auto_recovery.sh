@@ -35,6 +35,7 @@ log "=============================================="
 log "🔄 СИСТЕМА САМОВОССТАНОВЛЕНИЯ ATRA"
 log "=============================================="
 log ""
+RECOVERY_HARD_FAIL=0
 
 # 0. Проверка и переподключение Wi-Fi
 log "[0/10] Проверка и переподключение Wi-Fi..."
@@ -124,28 +125,51 @@ elif docker network inspect atra-network >/dev/null 2>&1; then
     log "✅ Сеть atra-network существует"
 else
     log "❌ Не удалось обеспечить сеть atra-network"
+    RECOVERY_HARD_FAIL=1
 fi
 
 # 3. Запуск Knowledge OS сервисов (db, redis, Victoria, Veronica, и т.д.)
 log ""
 log "[3/10] Запуск Knowledge OS сервисов..."
 if [ -f "knowledge_os/docker-compose.yml" ]; then
-    docker-compose -f knowledge_os/docker-compose.yml up -d 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
-    log "✅ Knowledge OS сервисы запущены"
+    set +e
+    set +o pipefail
+    docker-compose -f knowledge_os/docker-compose.yml up -d 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE"
+    compose_rc=${PIPESTATUS[0]}
+    set -o pipefail
+    set -e
+    if [ "$compose_rc" -eq 0 ]; then
+        log "✅ Knowledge OS сервисы запущены"
+    else
+        log_error "Knowledge OS compose up failed (rc=$compose_rc)"
+        RECOVERY_HARD_FAIL=1
+    fi
     sleep 5  # Даем время на запуск
 else
     log_error "knowledge_os/docker-compose.yml не найден"
+    RECOVERY_HARD_FAIL=1
 fi
 
 # 4. Запуск ATRA Web IDE сервисов (frontend, backend)
 log ""
 log "[4/10] Запуск ATRA Web IDE сервисов..."
 if [ -f "docker-compose.yml" ]; then
-    docker-compose up -d 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
-    log "✅ ATRA Web IDE сервисы запущены"
+    set +e
+    set +o pipefail
+    docker-compose up -d 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE"
+    compose_rc=${PIPESTATUS[0]}
+    set -o pipefail
+    set -e
+    if [ "$compose_rc" -eq 0 ]; then
+        log "✅ ATRA Web IDE сервисы запущены"
+    else
+        log_error "ATRA Web IDE compose up failed (rc=$compose_rc)"
+        RECOVERY_HARD_FAIL=1
+    fi
     sleep 5  # Даем время на запуск
 else
     log_error "docker-compose.yml не найден"
+    RECOVERY_HARD_FAIL=1
 fi
 
 # 4.5. Проверка Ollama
@@ -505,8 +529,17 @@ REQUIRED_FINAL_SERVICES=5
     log "[10/10] Самопроверка (verify_mac_studio_self_recovery)..."
     if [ -f "scripts/verify_mac_studio_self_recovery.sh" ]; then
         log "--- Результат самопроверки ---"
-        bash scripts/verify_mac_studio_self_recovery.sh 2>&1 | tee -a "$LOG_FILE" || true
+        set +e
+        set +o pipefail
+        bash scripts/verify_mac_studio_self_recovery.sh 2>&1 | tee -a "$LOG_FILE"
+        verify_rc=${PIPESTATUS[0]}
+        set -o pipefail
+        set -e
         log "--- Конец самопроверки ---"
+        if [ "$verify_rc" -ne 0 ]; then
+            log_error "verify_mac_studio_self_recovery failed (rc=$verify_rc)"
+            RECOVERY_HARD_FAIL=1
+        fi
     else
         log "⚠️ Скрипт verify_mac_studio_self_recovery.sh не найден"
     fi
@@ -531,18 +564,19 @@ REQUIRED_FINAL_SERVICES=5
     fi
     log ""
 
-    if [ "$FINAL_SERVICES_OK" -ge "$REQUIRED_FINAL_SERVICES" ]; then
+    if [ "$FINAL_SERVICES_OK" -ge "$REQUIRED_FINAL_SERVICES" ] && [ "$RECOVERY_HARD_FAIL" -eq 0 ]; then
     log "✅ СИСТЕМА В РАБОЧЕМ СОСТОЯНИИ"
     log ""
     log "🌐 Доступные сервисы:"
     log "   - Victoria: http://localhost:8010"
     log "   - Veronica: http://localhost:8011"
-    log "   - ATRA Web IDE: http://localhost:3002"
+    log "   - ATRA Web IDE Frontend: http://localhost:3000"
+    log "   - Grafana: http://localhost:3002"
     log "   - Backend API: http://localhost:8080"
     log "   - API Docs: http://localhost:8080/docs"
     exit 0
 else
-    log "⚠️ НЕКОТОРЫЕ СЕРВИСЫ НЕ РАБОТАЮТ"
+    log "⚠️ НЕКОТОРЫЕ СЕРВИСЫ НЕ РАБОТАЮТ (services=$FINAL_SERVICES_OK/$REQUIRED_FINAL_SERVICES hard_fail=$RECOVERY_HARD_FAIL)"
     log "Проверьте логи:"
     log "   tail -f $LOG_FILE"
     log "   tail -f $ERROR_LOG"

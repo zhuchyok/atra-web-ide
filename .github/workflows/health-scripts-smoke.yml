@@ -31,6 +31,8 @@ jobs:
           bash -n scripts/auto_start_containers.sh
           bash -n scripts/auto_setup_server.sh
           bash -n scripts/QUICK_SERVER_SETUP.sh
+          bash -n scripts/system_auto_recovery.sh
+          bash -n scripts/check_ready.sh
 
       - name: Python syntax check
         run: |
@@ -46,6 +48,9 @@ jobs:
               "scripts/check_all_services.sh": [
                   "set -euo pipefail",
                   "ERRORS=0",
+                  "8002",
+                  "9091",
+                  "3002",
                   "exit 1",
               ],
               "scripts/check_all_services_enhanced.sh": [
@@ -61,6 +66,7 @@ jobs:
               ],
               "scripts/check_ready.sh": [
                   "STRICT_READY_DB",
+                  "MOONDREAM_AVAILABLE",
                   "exit 1",
               ],
               "scripts/check_services.sh": [
@@ -81,6 +87,12 @@ jobs:
                   "ATRA_FORCE_PATH",
                   "exit $EXIT_CODE",
               ],
+              "scripts/auto_start_containers.sh": [
+                  "ensure_docker_network",
+                  "knowledge_os_worker",
+                  "knowledge_postgres",
+                  "FAIL=0",
+              ],
               "scripts/auto_setup_server.sh": [
                   "SETUP_FAIL",
                   "exit \"$SETUP_FAIL\"",
@@ -88,6 +100,11 @@ jobs:
               "scripts/QUICK_SERVER_SETUP.sh": [
                   "SETUP_FAIL",
                   "exit \"$SETUP_FAIL\"",
+              ],
+              "scripts/system_auto_recovery.sh": [
+                  "RECOVERY_HARD_FAIL",
+                  "compose_rc",
+                  "verify_rc",
               ],
           }
 
@@ -252,6 +269,46 @@ jobs:
 
           echo '{"avg_metrics":{"faithfulness":0.9,"relevance":0.9,"coherence":0.8}}' >"$tmp"
           python scripts/check_quality_thresholds.py "$tmp" --threshold faithfulness:0.8,relevance:0.85,coherence:0.7
+
+          python - <<'PY'
+          import json, math, os, subprocess, tempfile
+          fd, path = tempfile.mkstemp(suffix=".json")
+          os.close(fd)
+          with open(path, "w", encoding="utf-8") as fh:
+              json.dump(
+                  {
+                      "avg_metrics": {
+                          "faithfulness": float("nan"),
+                          "relevance": 0.9,
+                          "coherence": 0.8,
+                      }
+                  },
+                  fh,
+              )
+          rc = subprocess.call(["python", "scripts/check_quality_thresholds.py", path])
+          os.unlink(path)
+          assert rc == 1, rc
+          print("nan rejected")
+          PY
+
+      - name: Runtime smoke - QUICK_SERVER_SETUP fail-closed without docker
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOCK_DIR="$(mktemp -d)"
+          mkdir -p "$MOCK_DIR/bin"
+          cat > "$MOCK_DIR/bin/docker" <<'EOF'
+          #!/usr/bin/env bash
+          exit 1
+          EOF
+          chmod +x "$MOCK_DIR/bin/docker"
+          out="$(mktemp)"
+          set +e
+          env PATH="$MOCK_DIR/bin:/bin:/usr/bin" /bin/bash scripts/QUICK_SERVER_SETUP.sh >"$out" 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -Eqi 'Docker|daemon|не запущен' "$out"
 
       - name: Runtime smoke - check_and_start_containers fail-closed without docker
         shell: bash

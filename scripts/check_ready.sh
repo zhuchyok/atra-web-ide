@@ -20,19 +20,23 @@ echo "✅ venv: $VENV"
 
 # 2. Импорты (из app)
 cd "$APP_DIR" || exit 1
-if ! "$VENV" -c "
+IMPORT_OUT="$("$VENV" -c "
 import sys
 sys.path.insert(0, '.')
 from nightly_learner import nightly_learning_cycle
 from enhanced_orchestrator import run_enhanced_orchestration_cycle
 import vision_processor
-assert getattr(vision_processor, 'MOONDREAM_AVAILABLE', False) or True
+md = bool(getattr(vision_processor, 'MOONDREAM_AVAILABLE', False))
 print('OK')
-" 2>/dev/null; then
+print('MOONDREAM_AVAILABLE=' + str(md))
+" 2>/dev/null)" || {
     echo "❌ Ошибка импорта. Запустите: bash scripts/setup_knowledge_os_venv.sh"
     exit 1
-fi
+}
 echo "✅ Импорты: nightly_learner, enhanced_orchestrator, vision_processor"
+if echo "$IMPORT_OUT" | grep -q 'MOONDREAM_AVAILABLE=False'; then
+    echo "⚠️  Moondream недоступен (vision optional; импорты OK)"
+fi
 
 # 3. БД (опционально)
 if [ -f "$PROJECT_ROOT/.env" ]; then

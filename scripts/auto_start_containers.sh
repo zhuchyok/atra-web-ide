@@ -48,7 +48,7 @@ if ! docker ps --format '{{.Names}}' | grep -q '^atra-redis$'; then
 fi
 
 FAIL=0
-for name in victoria-agent veronica-agent; do
+for name in victoria-agent veronica-agent knowledge_os_worker knowledge_postgres; do
     if ! docker ps --format '{{.Names}}' | grep -q "^${name}$"; then
         echo "❌ Контейнер не Up: $name"
         FAIL=1

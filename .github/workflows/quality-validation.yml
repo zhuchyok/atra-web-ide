@@ -4,8 +4,9 @@ name: Quality Validation
 on:
   schedule:
     - cron: "0 2 * * *" # Каждый день в 2:00 UTC
-  pull_request:
-    paths:
+  push:
+    branches: [main]
+    paths: &quality_paths
       - "backend/app/services/rag_light.py"
       - "backend/app/services/reranking.py"
       - "backend/app/services/query_rewriter.py"
@@ -14,6 +15,8 @@ on:
       - "backend/app/services/embedding_fallback.py"
       - "backend/app/services/embedding_batch.py"
       - "backend/app/services/rag_light_prefetch.py"
+      - "backend/app/services/rag_context_cache.py"
+      - "backend/app/services/query_classifier.py"
       - "backend/app/config.py"
       - "backend/app/evaluation/**"
       - "backend/app/services/validation_pipeline.py"
@@ -22,6 +25,8 @@ on:
       - "scripts/check_quality_thresholds.py"
       - "scripts/benchmark_latency.py"
       - ".github/workflows/quality-validation.yml"
+  pull_request:
+    paths: *quality_paths
 
 jobs:
   validate-quality:
@@ -58,10 +63,17 @@ jobs:
 
       - name: Wait for Postgres
         run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
           for i in $(seq 1 30); do
-            pg_isready -h localhost -p 5432 -U admin && break
+            if pg_isready -h localhost -p 5432 -U admin; then
+              exit 0
+            fi
             sleep 2
           done
+          echo "Postgres did not become ready"
+          exit 1
 
       - name: Run quality validation
         env:
@@ -70,13 +82,13 @@ jobs:
         run: |
           export PYTHONPATH="$PWD/backend:$PWD"
           if [ ! -f data/validation_queries.json ]; then
-            if [ "${{ github.event_name }}" = "pull_request" ]; then
-              echo "validation dataset missing for pull_request: data/validation_queries.json"
-              exit 1
+            if [ "${{ github.event_name }}" = "schedule" ]; then
+              echo "No dataset for scheduled run, skipping validation"
+              echo '{"avg_metrics":{},"skipped":true}' > backend/validation_report.json
+              exit 0
             fi
-            echo "No dataset for scheduled run, skipping validation"
-            echo '{"avg_metrics":{},"skipped":true}' > backend/validation_report.json
-            exit 0
+            echo "validation dataset missing for ${{ github.event_name }}: data/validation_queries.json"
+            exit 1
           fi
           python scripts/evaluate_rag_quality.py \
             --dataset data/validation_queries.json \

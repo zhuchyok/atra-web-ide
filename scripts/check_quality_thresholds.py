@@ -54,7 +54,14 @@ def main() -> int:
         if name not in avg or avg.get(name) is None:
             failed.append(f"{name}=missing (required >= {th})")
             continue
-        val = float(avg[name])
+        try:
+            val = float(avg[name])
+        except (TypeError, ValueError):
+            failed.append(f"{name}=non-numeric ({avg[name]!r})")
+            continue
+        if val != val:  # NaN
+            failed.append(f"{name}=nan (required >= {th})")
+            continue
         if val < th:
             failed.append(f"{name}={val:.3f} < {th}")
 

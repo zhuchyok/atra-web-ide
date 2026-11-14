@@ -25,27 +25,43 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
-# Knowledge OS API
-echo -n "   Knowledge OS API: "
-if curl -s -f http://localhost:8000/ > /dev/null; then
+# Knowledge OS REST (host publish is 8002)
+echo -n "   Knowledge OS REST (8002): "
+if curl -s -f http://localhost:8002/health > /dev/null; then
     echo "✅ Онлайн"
 else
     echo "❌ Офлайн"
     ERRORS=$((ERRORS + 1))
 fi
 
-# Prometheus
-echo -n "   Prometheus: "
-if curl -s -f http://localhost:9090/-/healthy > /dev/null; then
+# Victoria / Veronica
+echo -n "   Victoria Agent (8010): "
+if curl -s -f http://localhost:8010/health > /dev/null; then
+    echo "✅ Онлайн"
+else
+    echo "❌ Офлайн"
+    ERRORS=$((ERRORS + 1))
+fi
+echo -n "   Veronica Agent (8011): "
+if curl -s -f http://localhost:8011/health > /dev/null; then
     echo "✅ Онлайн"
 else
     echo "❌ Офлайн"
     ERRORS=$((ERRORS + 1))
 fi
 
-# Grafana
-echo -n "   Grafana: "
-if curl -s -f http://localhost:3000/api/health > /dev/null; then
+# Prometheus (live host 9091)
+echo -n "   Prometheus (9091): "
+if curl -s -f http://localhost:9091/-/healthy > /dev/null; then
+    echo "✅ Онлайн"
+else
+    echo "❌ Офлайн"
+    ERRORS=$((ERRORS + 1))
+fi
+
+# Grafana (live host 3002; :3000 is frontend)
+echo -n "   Grafana (3002): "
+if curl -s -f http://localhost:3002/api/health > /dev/null; then
     echo "✅ Онлайн"
 else
     echo "❌ Офлайн"
