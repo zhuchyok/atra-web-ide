@@ -41,6 +41,7 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
   set +a
 fi
 export DATABASE_URL="${DATABASE_URL:-postgresql://admin:secret@localhost:5432/knowledge_os}"
+STRICT_READY_DB="${STRICT_READY_DB:-true}"
 if "$VENV" -c "
 import sys
 sys.path.insert(0, '.')
@@ -60,6 +61,9 @@ exit(0 if r else 1)
     echo "✅ БД: доступна"
 else
     echo "⚠️  БД: недоступна (запустите PostgreSQL; для обучения и оркестратора нужна БД)"
+    if [ "$STRICT_READY_DB" = "true" ]; then
+      exit 1
+    fi
 fi
 
 echo ""

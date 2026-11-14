@@ -1,5 +1,8 @@
 #!/bin/bash
 # Скрипт проверки всех сервисов
+set -euo pipefail
+
+ERRORS=0
 
 echo "🔍 Проверка всех сервисов Mac Studio M4 Max"
 echo ""
@@ -19,6 +22,7 @@ if curl -s -f http://localhost:${MLX_PORT}/ > /dev/null; then
     echo "✅ Онлайн"
 else
     echo "❌ Офлайн"
+    ERRORS=$((ERRORS + 1))
 fi
 
 # Knowledge OS API
@@ -27,6 +31,7 @@ if curl -s -f http://localhost:8000/ > /dev/null; then
     echo "✅ Онлайн"
 else
     echo "❌ Офлайн"
+    ERRORS=$((ERRORS + 1))
 fi
 
 # Prometheus
@@ -35,6 +40,7 @@ if curl -s -f http://localhost:9090/-/healthy > /dev/null; then
     echo "✅ Онлайн"
 else
     echo "❌ Офлайн"
+    ERRORS=$((ERRORS + 1))
 fi
 
 # Grafana
@@ -43,6 +49,7 @@ if curl -s -f http://localhost:3000/api/health > /dev/null; then
     echo "✅ Онлайн"
 else
     echo "❌ Офлайн"
+    ERRORS=$((ERRORS + 1))
 fi
 
 echo ""
@@ -54,3 +61,8 @@ for service in mlx-api-server knowledge-os-api victoria-agent veronica-agent; do
     docker-compose logs --tail=10 $service 2>/dev/null || echo "  (нет логов)"
     echo ""
 done
+
+if [ "$ERRORS" -gt 0 ]; then
+    echo "❌ Найдено проблем: $ERRORS"
+    exit 1
+fi

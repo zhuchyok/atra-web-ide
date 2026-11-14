@@ -78,6 +78,10 @@ jobs:
               frontend:test)
                 cd frontend && npm ci && npm run test -- --run && cd ..
                 ;;
+              backend:test)
+                python -m pip install -r backend/requirements-dev.txt
+                cd backend && python -m pytest app/tests -q && cd ..
+                ;;
               *)
                 echo "Unknown affected task: $task"
                 exit 1

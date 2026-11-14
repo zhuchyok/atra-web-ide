@@ -75,6 +75,16 @@ TASKS = {
         ],
         "outputs": [],
         "cache": True
+    },
+    "backend:test": {
+        "inputs": [
+            "backend/app/**/*.py",
+            "backend/app/tests/**/*.py",
+            "backend/requirements.txt",
+            "backend/requirements-dev.txt"
+        ],
+        "outputs": [],
+        "cache": True
     }
 }
 
@@ -191,6 +201,8 @@ def map_files_to_packages(files: List[str]) -> Set[str]:
             packages.add("frontend")
         elif file in ["knowledge_os/requirements.txt", "knowledge_os/pyproject.toml"]:
             packages.add("knowledge_os")
+        elif file in ["backend/requirements.txt", "backend/requirements-dev.txt"]:
+            packages.add("backend")
 
     return packages
 

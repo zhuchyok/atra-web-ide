@@ -23,7 +23,12 @@ echo ""
 
 # 4. Запускаем тесты
 echo "4. Запуск тестов метрик:"
-cd "$(dirname "$0")/../backend" && python -m pytest app/tests/test_prometheus_metrics.py -v --tb=short 2>/dev/null || echo "⚠️  pytest not run (install: pip install pytest pytest-asyncio)"
+cd "$(dirname "$0")/../backend"
+if python -c "import pytest" >/dev/null 2>&1; then
+  python -m pytest app/tests/test_prometheus_metrics.py -v --tb=short
+else
+  echo "⚠️  pytest not run (install: pip install pytest pytest-asyncio)"
+fi
 echo ""
 
 # 5. Проверяем Prometheus (если запущен; наш — порт 9091)
