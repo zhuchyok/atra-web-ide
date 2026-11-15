@@ -202,6 +202,55 @@ async def test_predictive_warmup_triggered_for_non_wisdom():
 
 
 @pytest.mark.asyncio
+async def test_trigger_predictive_warmup_posts_base_phi_not_stable_on_hands():
+    """Hands XOR: warmup must not cold-load phi3.5:3.8b-stable on 11437."""
+    router = LocalAIRouter()
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = MagicMock(status_code=200)
+        await router._trigger_predictive_warmup(
+            "phi3.5:3.8b-stable", "http://localhost:11437", history=[]
+        )
+
+    assert mock_post.called
+    payload = mock_post.call_args.kwargs.get("json") or {}
+    assert payload.get("model") == "phi3.5:3.8b"
+    assert "11437" in str(mock_post.call_args.args[0])
+
+
+@pytest.mark.asyncio
+async def test_predictive_warmup_call_site_normalizes_stable_on_hands_node():
+    """Call site must pass base phi when ollama_nodes[0] is Hands."""
+    router = LocalAIRouter()
+    router._trigger_predictive_warmup = AsyncMock()
+    router._select_model = MagicMock(return_value="phi3.5:3.8b-stable")
+    router.context_mirror = AsyncMock()
+    router.context_mirror.get_context.return_value = []
+    router.check_health = AsyncMock(
+        return_value=[
+            {
+                "name": "Mac Studio (Ollama Hands)",
+                "url": "http://localhost:11437",
+                "priority": 0,
+                "routing_key": "ollama_hands",
+            },
+        ]
+    )
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = MagicMock(status_code=200)
+        mock_post.return_value.json.return_value = {"message": {"content": "Response"}}
+        await router.run_local_llm(
+            "Analyze this", category="reasoning", model="phi3.5:3.8b-stable"
+        )
+
+    router._trigger_predictive_warmup.assert_called_once()
+    warmup_model = router._trigger_predictive_warmup.call_args.args[0]
+    warmup_url = router._trigger_predictive_warmup.call_args.args[1]
+    assert warmup_model == "phi3.5:3.8b"
+    assert "11437" in warmup_url
+
+
+@pytest.mark.asyncio
 async def test_empty_mlx_does_not_fallback_wisdom_to_ollama(mock_context_mirror):
     """MLX empty must not POST victoria-wisdom* to Ollama 11434."""
     router = LocalAIRouter()

@@ -13,6 +13,7 @@ from ollama_wisdom_guard import (
     _should_pin_phi,
     _should_pin_stable,
     _should_unload_coder,
+    _should_unload_hands,
 )
 
 
@@ -24,7 +25,22 @@ def test_phi_and_brain_are_stray_on_coder_slot():
 
 def test_coder_models_stay():
     assert _should_unload_coder("qwen3-coder:30b") is False
-    assert _should_unload_coder("qwen2.5-coder:14b") is False
+    assert _should_unload_coder("qwen3-coder:latest") is False
+
+
+def test_qwen25_coder_is_stray_on_11436():
+    """MASTER v173: 11436 allows only qwen3-coder*, not qwen2.5-coder*."""
+    assert _should_unload_coder("qwen2.5-coder:14b") is True
+    assert _should_unload_coder("qwen2.5-coder:32b") is True
+
+
+def test_hands_allow_xor_only_phi_and_nomic():
+    assert _should_unload_hands("phi3.5:3.8b") is False
+    assert _should_unload_hands("nomic-embed-text:latest") is False
+    assert _should_unload_hands("smollm2:360m") is True
+    assert _should_unload_hands("tinyllama:1.1b-chat") is True
+    assert _should_unload_hands("moondream:latest") is True
+    assert _should_unload_hands("victoria-qwen38:latest") is True
 
 
 def test_pin_phi_skipped_when_any_phi_already_loaded():

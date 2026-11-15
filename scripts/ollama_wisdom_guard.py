@@ -139,8 +139,10 @@ def pin_nomic():  # [v150.8] пин на инстансе рук (11437)
     _log(f"pinned nomic-embed-text on {HANDS}")
 
 
-HANDS_ALLOW = ("phi3.5", "nomic", "smollm", "tinyllama", "moondream")
-CODER_ALLOW = ("qwen3-coder", "qwen2.5-coder")
+# [v173] XOR Hands: only one phi + nomic. smollm/tinyllama/moondream = 3rd resident.
+HANDS_ALLOW = ("phi3.5", "nomic")
+# [v173] 11436 ONLY qwen3-coder:30b — qwen2.5-coder* is stray on this slot.
+CODER_ALLOW = ("qwen3-coder",)
 
 
 def unload_hands(model):
@@ -262,7 +264,7 @@ def _should_unload(name: str) -> bool:
 
 
 def _should_unload_coder(name: str) -> bool:
-    """[v150.73] 11436 = только coder. phi/nomic/мозг на этом порту = чужой слот."""
+    """[v173] 11436 = только qwen3-coder*. phi/nomic/мозг/qwen2.5-coder = чужой слот."""
     key = (name or "").lower()
     if not key:
         return False

@@ -1612,9 +1612,14 @@ class LocalAIRouter:
                 current_history = []
                 if session_id:
                     current_history = await self.context_mirror.get_context(session_id) or []
+                # Hands XOR: never cold-load phi3.5:3.8b-stable on 11437 (evicts nomic).
+                warmup_url = str(ollama_nodes[0].get("url", ""))
+                warmup_model = ollama_model
+                if "11437" in warmup_url or ollama_nodes[0].get("routing_key") == "ollama_hands":
+                    warmup_model = normalize_ollama_hands_model(ollama_model)
                 asyncio.create_task(
                     self._trigger_predictive_warmup(
-                        ollama_model, ollama_nodes[0]["url"], history=current_history
+                        warmup_model, warmup_url, history=current_history
                     )
                 )
 
@@ -2969,6 +2974,10 @@ class LocalAIRouter:
     ):
         """Упреждающий прогрев модели в Ollama на случай падения MLX, включая KV-Cache."""
         try:
+            # Hands (11437) MAX_LOADED=2: -stable as second phi cold-load evicts nomic.
+            if "11437" in (node_url or ""):
+                model_name = normalize_ollama_hands_model(model_name)
+
             # Если есть история, используем её для прогрева KV-Cache
             prompt = " "
             if history:
