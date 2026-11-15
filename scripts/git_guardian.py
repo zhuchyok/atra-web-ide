@@ -32,11 +32,19 @@ _redis = (os.getenv("REDIS_URL") or "").strip()
 if (not _redis) or ("localhost:6379" in _redis) or ("127.0.0.1:6379" in _redis):
     os.environ["REDIS_URL"] = "redis://127.0.0.1:6381/0"
 
-# Host Ollama (not Docker DNS host.docker.internal).
-_ollama = (os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_URL") or "").strip()
-if (not _ollama) or ("host.docker.internal" in _ollama):
-    os.environ["OLLAMA_BASE_URL"] = "http://127.0.0.1:11434"
-    os.environ["OLLAMA_URL"] = "http://127.0.0.1:11434"
+# Prefer a dedicated guardian Ollama (not brain 11434) when set.
+# Default GIT_GUARDIAN_MODEL=smollm2:360m still hits OLLAMA_BASE (11434) → brief
+# churn only: scripts/ollama_wisdom_guard._should_unload evicts non-qwen38 from brain.
+_guardian = (os.getenv("OLLAMA_GUARDIAN_URL") or "").strip().rstrip("/")
+if _guardian:
+    os.environ["OLLAMA_BASE_URL"] = _guardian
+    os.environ["OLLAMA_URL"] = _guardian
+else:
+    # Host Ollama (not Docker DNS host.docker.internal).
+    _ollama = (os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_URL") or "").strip()
+    if (not _ollama) or ("host.docker.internal" in _ollama):
+        os.environ["OLLAMA_BASE_URL"] = "http://127.0.0.1:11434"
+        os.environ["OLLAMA_URL"] = "http://127.0.0.1:11434"
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("git_guardian")

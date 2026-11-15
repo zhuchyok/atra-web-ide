@@ -12,9 +12,22 @@ from ollama_wisdom_guard import (
     _should_pin_nomic,
     _should_pin_phi,
     _should_pin_stable,
+    _should_unload,
     _should_unload_coder,
     _should_unload_hands,
 )
+
+
+def test_brain_allowlist_unloads_smollm_and_tinyllama():
+    """11434 = only qwen38; smollm/tinyllama are churn, not sticky (wisdom_guard)."""
+    assert _should_unload("smollm2:360m") is True
+    assert _should_unload("smollm2:latest") is True
+    assert _should_unload("tinyllama:1.1b-chat") is True
+    assert _should_unload("tinyllama") is True
+    assert _should_unload("phi3.5:3.8b") is True
+    assert _should_unload("victoria-qwen38:latest") is False
+    assert _should_unload("qwen3.8:latest") is False
+
 
 
 def test_phi_and_brain_are_stray_on_coder_slot():

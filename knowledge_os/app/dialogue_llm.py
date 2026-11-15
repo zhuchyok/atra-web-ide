@@ -308,6 +308,15 @@ async def _try_ollama(prompt: str, *, model_hint: Optional[str]) -> tuple[str, s
                 "stream": False,
                 "options": {"num_predict": MAX_TOKENS, "temperature": 0.4},
             }
+            # [v173] smollm/tinyllama/moondream on brain 11434: do not pin —
+            # wisdom_guard also unloads them; keep_alive=0 cuts churn window.
+            _mk = (model or "").lower()
+            if ("11434" in base) and any(
+                t in _mk for t in ("smollm", "tinyllama", "moondream")
+            ):
+                body["keep_alive"] = int(
+                    os.getenv("DIALOGUE_BRAIN_STRAY_KEEP_ALIVE_SEC", "0")
+                )
             for attempt in range(1, max_retries + 1):
                 remaining = deadline - time.monotonic()
                 if remaining <= 0.5:

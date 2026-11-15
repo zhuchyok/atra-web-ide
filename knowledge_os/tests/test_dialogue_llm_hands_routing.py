@@ -149,6 +149,7 @@ async def test_try_ollama_keeps_non_hands_on_brain(monkeypatch):
     assert text == "ok-brain"
     assert captured["url"] == "http://localhost:11434/api/generate"
     assert captured["json"]["model"] == "smollm2:360m"
+    assert captured["json"]["keep_alive"] == 0
 
 
 def test_dialogue_llm_source_wires_hands_url():
