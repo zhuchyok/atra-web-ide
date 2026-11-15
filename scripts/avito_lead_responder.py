@@ -360,9 +360,11 @@ def main() -> int:
             print(f"ntfy ERR: {e}")
         finally:
             # пишем всегда после алерта: чат мог быть без текста (фото/вложение)
+            # reply ещё не сгенерирован (ниже template_reply/LLM) — не трогаем NameError
+            # и не затираем прошлый last_reply; запись ответа — после send_reply
             state[chat_id] = {"last_seen_key": seen_key,
                               "item": item_title,
-                              "last_reply": (reply if not via_template else "шаблон:" + reply[:60]),
+                              "last_reply": state.get(chat_id, {}).get("last_reply"),
                               "ts": datetime.now(timezone.utc).isoformat()}
             state_dirty = True
             save_state(state)
