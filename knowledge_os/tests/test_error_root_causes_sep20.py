@@ -65,7 +65,21 @@ def test_inference_warmup_is_phi_not_lfm():
     text = (APP / "inference_optimizer.py").read_text(encoding="utf-8")
     assert "lfm2.5-thinking:1.2b" not in text
     assert 'models_to_preload = ["phi3.5:3.8b"]' in text
+    assert "OLLAMA_HANDS_URL" in text
+    assert "self.hands_url" in text
     assert "logger.error" not in text
+
+
+def test_inference_phi_warmup_routes_to_hands():
+    from inference_optimizer import InferenceOptimizer
+
+    opt = InferenceOptimizer(ollama_url="http://localhost:11434")
+    opt.hands_url = "http://localhost:11437"
+    assert opt._warmup_base_url("phi3.5:3.8b") == "http://localhost:11437"
+    assert (
+        opt._warmup_base_url("phi3.5:3.8b", target_url="http://localhost:11437")
+        == "http://localhost:11437"
+    )
 
 
 def test_wisdom_guard_pins_phi_after_unload():
