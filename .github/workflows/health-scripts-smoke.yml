@@ -57,6 +57,7 @@ jobs:
           bash -n scripts/AUTO_START_MLX.sh
           bash -n scripts/setup_router_port_forwarding.sh
           bash -n scripts/apply_changes_to_mac_studio.sh
+          bash -n scripts/check_ollama_layer_slots.sh
 
       - name: Python syntax check
         run: |
@@ -266,6 +267,14 @@ jobs:
                   "HARD_FAIL",
                   "11434",
                   "exit \"${HARD_FAIL:-0}\"",
+              ],
+              "scripts/check_ollama_layer_slots.sh": [
+                  "11434",
+                  "11437",
+                  "11436",
+                  "XOR",
+                  "qwen3-coder:30b",
+                  "exit \"$FAIL\"",
               ],
           }
 
