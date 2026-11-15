@@ -77,8 +77,9 @@ ALLOWED_TOOLS_HINT = ", ".join(sorted(ALLOWED_TOOLS))
 # === MODEL FALLBACK CONFIGURATION ===
 # Ordered list of fallback models from smallest to largest
 FALLBACK_MODELS_OLLAMA = [
-    "phi3.5:3.8b",  # Fast, stable
-    "tinyllama:1.1b-chat",  # Very small, always works
+    "phi3.5:3.8b",  # Fast, stable — redirected to hands 11437
+    # tinyllama removed: executor base defaults to brain 11434; wisdom_guard
+    # unloads non-qwen38 → load/unload churn. Do not land stray lights on brain.
     "glm-4.7-flash:q8_0",  # Medium, good quality
 ]
 

@@ -25,14 +25,26 @@ def test_pytest_still_handoffs_to_anna():
 
 
 def test_coder_solo_gate_blocks_phi_on_11436():
-    from local_router import is_hands_model, skip_hands_on_coder_slot, url_is_ollama
+    from local_router import (
+        CODER_ALLOW,
+        is_coder_model,
+        is_hands_model,
+        skip_hands_on_coder_slot,
+        url_is_ollama,
+    )
 
+    assert CODER_ALLOW == ("qwen3-coder",)
     assert url_is_ollama("http://host.docker.internal:11436") is True
     assert url_is_ollama("http://host.docker.internal:11437") is True
     assert skip_hands_on_coder_slot("http://host.docker.internal:11436", "phi3.5:3.8b") is True
     assert skip_hands_on_coder_slot("http://host.docker.internal:11436", "qwen3-coder:30b") is False
     assert skip_hands_on_coder_slot("http://host.docker.internal:11437", "phi3.5:3.8b") is False
-    # [v173 XOR] non-residents are not Hands → not forced off coder/brain via hands gates
+    # [v173] any non-qwen3-coder* is rejected on 11436 (CODER_ALLOW)
+    assert skip_hands_on_coder_slot("http://host.docker.internal:11436", "tinyllama:1.1b-chat") is True
+    assert skip_hands_on_coder_slot("http://host.docker.internal:11436", "qwen2.5-coder:14b") is True
+    assert is_coder_model("qwen3-coder:latest") is True
+    assert is_coder_model("qwen2.5-coder:14b") is False
+    # [v173 XOR] non-residents are not Hands markers (BRAIN/HANDS gates separate)
     assert is_hands_model("tinyllama:1.1b-chat") is False
     assert is_hands_model("smollm2:360m") is False
     assert is_hands_model("moondream:latest") is False

@@ -40,6 +40,8 @@ except ImportError:
 # dialogue_llm / git_guardian may stay on 11434; vision_processor uses OLLAMA_VISION_URL
 # (fail-closed if unset — never invent brain :11434 for minicpm/moondream).
 _HANDS_MODEL_MARKERS = ("phi3.5", "nomic")
+# Align with scripts/ollama_wisdom_guard.CODER_ALLOW — 11436 = qwen3-coder* only.
+CODER_ALLOW = ("qwen3-coder",)
 
 
 def url_is_ollama(url: str) -> bool:
@@ -52,8 +54,22 @@ def is_hands_model(model: Optional[str]) -> bool:
     return any(t in key for t in _HANDS_MODEL_MARKERS)
 
 
+def is_coder_model(model: Optional[str]) -> bool:
+    key = (model or "").lower()
+    return any(a in key for a in CODER_ALLOW)
+
+
 def skip_hands_on_coder_slot(url: str, model: Optional[str]) -> bool:
-    return "11436" in (url or "") and is_hands_model(model)
+    """True = do not send this model to coder slot 11436.
+
+    Rejects ANY non-qwen3-coder* (not only phi/nomic) — same contract as
+    wisdom_guard._should_unload_coder / CODER_ALLOW.
+    """
+    if "11436" not in (url or ""):
+        return False
+    if not model:
+        return False
+    return not is_coder_model(model)
 
 
 # Load Balancer
@@ -2045,9 +2061,9 @@ class LocalAIRouter:
                     )
                     continue
 
-            # [v149.25] Node 11436 (coder-ollama) не знает qwen38 — 404 вместо ответа.
-            # Мозг-контракт: qwen38 живёт на 11434 — узел-исполнитель пропускаем.
-            if "11436" in node_url_base and "qwen38" in (model or "").lower():
+            # [v149.25]/[v173] 11436 = только qwen3-coder* (CODER_ALLOW).
+            # Раньше гейт ловил лишь qwen38; phi/tinyllama/qwen2.5-coder тоже stray.
+            if "11436" in node_url_base and model and not is_coder_model(model):
                 logger.info("🚦 [EXECUTOR-GATE] %s не на 11436 — узел пропущен", model)
                 continue
 
@@ -2073,10 +2089,10 @@ class LocalAIRouter:
                 )
                 continue
 
-            # [v150.75] 11436 = только coder. 11437 busy больше не сливает phi на coder.
+            # [v150.75]/[v173] 11436 = только qwen3-coder* (не только руки).
             if skip_hands_on_coder_slot(node_url_base, model):
                 logger.info(
-                    "🚦 [CODER-SOLO-GATE] руки (%s) не на 11436 — ждёт hands-узел",
+                    "🚦 [CODER-SOLO-GATE] %s не на 11436 (только qwen3-coder*)",
                     model,
                 )
                 continue
@@ -2872,8 +2888,7 @@ class LocalAIRouter:
 
         # Hands XOR: never POST phi3.5:3.8b-stable to 11437 (evicts nomic).
         if node and (
-            "11437" in str(node.get("url", ""))
-            or node.get("routing_key") == "ollama_hands"
+            "11437" in str(node.get("url", "")) or node.get("routing_key") == "ollama_hands"
         ):
             model = normalize_ollama_hands_model(model)
 

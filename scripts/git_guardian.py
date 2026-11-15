@@ -35,6 +35,8 @@ if (not _redis) or ("localhost:6379" in _redis) or ("127.0.0.1:6379" in _redis):
 # Prefer a dedicated guardian Ollama (not brain 11434) when set.
 # Default GIT_GUARDIAN_MODEL=smollm2:360m still hits OLLAMA_BASE (11434) → brief
 # churn only: scripts/ollama_wisdom_guard._should_unload evicts non-qwen38 from brain.
+# dialogue_llm._try_ollama sets keep_alive=0 for smollm/tinyllama/moondream on 11434
+# (DIALOGUE_BRAIN_STRAY_KEEP_ALIVE_SEC) — do not pin stray guardian on brain.
 _guardian = (os.getenv("OLLAMA_GUARDIAN_URL") or "").strip().rstrip("/")
 if _guardian:
     os.environ["OLLAMA_BASE_URL"] = _guardian
@@ -53,13 +55,19 @@ logger = logging.getLogger("git_guardian")
 def _parse_status(response: str) -> bool:
     """
     True = allow commit.
-    Only explicit STATUS/СТАТУС: REJECTED blocks; ambiguous output allows.
+    Prefer the last explicit STATUS/СТАТУС line (models often dump a stub
+    REJECTED then a real APPROVED). No STATUS line → allow (fail-open).
     """
     text = str(response or "")
-    if re.search(r"(СТАТУС|STATUS)\s*:\s*REJECTED", text, flags=re.IGNORECASE):
-        return False
-    if re.search(r"(СТАТУС|STATUS)\s*:\s*APPROVED", text, flags=re.IGNORECASE):
-        return True
+    matches = list(
+        re.finditer(
+            r"(СТАТУС|STATUS)\s*:\s*(APPROVED|REJECTED)",
+            text,
+            flags=re.IGNORECASE,
+        )
+    )
+    if matches:
+        return matches[-1].group(2).upper() == "APPROVED"
     upper = text.upper()
     if "REJECTED" in upper and "APPROVED" not in upper:
         logger.warning("⚠️ Git Guardian: ambiguous REJECTED without STATUS line — allowing commit")

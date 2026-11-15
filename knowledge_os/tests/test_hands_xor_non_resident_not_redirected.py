@@ -46,13 +46,20 @@ def test_hands_markers_xor_only_phi_and_nomic():
         assert is_hands_model(name) is False, name
 
 
-def test_coder_solo_gate_does_not_treat_light_non_hands_as_hands():
-    from local_router import skip_hands_on_coder_slot
+def test_coder_solo_gate_rejects_any_non_qwen3_coder_on_11436():
+    """CODER_ALLOW: 11436 rejects ALL non-qwen3-coder* (not only hands phi/nomic)."""
+    from local_router import is_coder_model, is_hands_model, skip_hands_on_coder_slot
 
-    assert skip_hands_on_coder_slot("http://localhost:11436", "tinyllama:1.1b-chat") is False
-    assert skip_hands_on_coder_slot("http://localhost:11436", "smollm2:360m") is False
-    assert skip_hands_on_coder_slot("http://localhost:11436", "moondream:latest") is False
+    # Still not Hands markers (XOR) — but coder slot must skip them anyway.
+    for name in ("smollm2:360m", "tinyllama:1.1b-chat", "moondream:latest"):
+        assert is_hands_model(name) is False, name
+        assert is_coder_model(name) is False, name
+        assert skip_hands_on_coder_slot("http://localhost:11436", name) is True, name
     assert skip_hands_on_coder_slot("http://localhost:11436", "phi3.5:3.8b") is True
+    assert skip_hands_on_coder_slot("http://localhost:11436", "qwen2.5-coder:14b") is True
+    assert skip_hands_on_coder_slot("http://localhost:11436", "victoria-qwen38:latest") is True
+    assert skip_hands_on_coder_slot("http://localhost:11436", "qwen3-coder:30b") is False
+    assert is_coder_model("qwen3-coder:30b") is True
 
 
 def test_executor_redirect_leaves_non_resident_on_11434(monkeypatch):
