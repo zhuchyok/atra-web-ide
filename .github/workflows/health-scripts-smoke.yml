@@ -58,6 +58,7 @@ jobs:
           bash -n scripts/setup_router_port_forwarding.sh
           bash -n scripts/apply_changes_to_mac_studio.sh
           bash -n scripts/check_ollama_layer_slots.sh
+          bash -n scripts/ollama_runner_watchdog.sh
 
       - name: Python syntax check
         run: |
@@ -275,6 +276,11 @@ jobs:
                   "XOR",
                   "qwen3-coder:30b",
                   "exit \"$FAIL\"",
+              ],
+              "scripts/ollama_runner_watchdog.sh": [
+                  "phi3.5:3.8b",
+                  "num_ctx\":8192",
+                  "11437",
               ],
           }
 

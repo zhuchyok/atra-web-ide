@@ -151,12 +151,14 @@ should_restart_after_probe_failure() {
 probe_generate_payload() {
     # [v150.83] 11434 must not send num_ctx=2048: Ollama reloads the 27B runner
     # (native num_ctx change) and plist OLLAMA_KEEP_ALIVE=-1 then stamps expires 2319.
+    # [v173 hands XOR] 11437 probes resident base phi @8192 — never -stable (would
+    # cold-load a second phi and evict nomic under MAX_LOADED_MODELS=2).
     local port="$1"
     local model="$2"
     if [ "$port" = "11434" ]; then
         printf '%s' '{"model":"'"$model"'","prompt":"ok","stream":false,"keep_alive":"24h","options":{"num_predict":1,"num_ctx":16384}}'
     else
-        printf '%s' '{"model":"'"$model"'","prompt":"ok","stream":false,"keep_alive":-1,"options":{"num_predict":1,"num_ctx":2048}}'
+        printf '%s' '{"model":"'"$model"'","prompt":"ok","stream":false,"keep_alive":-1,"options":{"num_predict":1,"num_ctx":8192}}'
     fi
 }
 
@@ -280,7 +282,7 @@ except Exception:
     # [v150.31b] Throttled health probe with hysteresis/cooldown/grace:
     # avoid restart storms from transient 000/slow micro-generations.
     if should_probe_now "$PORT"; then
-        _probe_model="phi3.5:3.8b-stable"
+        _probe_model="phi3.5:3.8b"
         _probe_timeout="$PROBE_TIMEOUT_SEC_HANDS"
         [ "$PORT" = "11434" ] && _probe_model="victoria-qwen38:latest" && _probe_timeout="$PROBE_TIMEOUT_SEC_BRAIN"
         _probe_body="/tmp/ollama_probe_${PORT}.json"
@@ -347,7 +349,7 @@ except Exception:
         _probe=$(curl -s --max-time 5 -o "$_probe_body" -w '%{http_code}' \
             -X POST "http://localhost:${PORT}/api/generate" \
             -H 'Content-Type: application/json' \
-            -d "$(probe_generate_payload "$PORT" "$([ "$PORT" = "11434" ] && echo victoria-qwen38:latest || echo phi3.5:3.8b-stable)")" 2>/dev/null)
+            -d "$(probe_generate_payload "$PORT" "$([ "$PORT" = "11434" ] && echo victoria-qwen38:latest || echo phi3.5:3.8b)")" 2>/dev/null)
         _probe_msg=""
         [ -f "$_probe_body" ] && _probe_msg="$(tr -d '\n' < "$_probe_body" 2>/dev/null || true)"
         if [ "$_probe" = "503" ] || { [ "$_probe" = "500" ] && echo "$_probe_msg" | grep -Eiq 'llama-server process no longer running|unexpected EOF|server disconnected'; }; then
