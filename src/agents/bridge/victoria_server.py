@@ -3835,18 +3835,17 @@ Q: "покажи файлы в текущей директории" → План
             goal_lower = goal.lower()
 
             # Маппинг категорий на модели из PLAN.md
+            # Hands XOR: never nominate phi3.5:3.8b-stable (feeds executor→11437).
             model_map = {
                 "backend": [
                     "qwen3-coder:30b",
                     "phi3.5:3.8b",
                     "qwen2.5:3b",
-                    "phi3.5:3.8b-stable",
                 ],
                 "frontend": [
                     "qwen3-coder:30b",
                     "phi3.5:3.8b",
                     "qwen2.5:3b",
-                    "phi3.5:3.8b-stable",
                 ],
                 "ml": ["victoria-wisdom-24k:latest", "glm-4.7-flash:latest", "phi3.5:3.8b"],
                 "devops": ["glm-4.7-flash:latest", "phi3.5:3.8b", "qwen2.5:3b"],
@@ -3857,7 +3856,6 @@ Q: "покажи файлы в текущей директории" → План
                     "qwen3-coder:30b",
                     "phi3.5:3.8b",
                     "qwen2.5:3b",
-                    "phi3.5:3.8b-stable",
                 ],
             }
 
@@ -4152,11 +4150,12 @@ Q: "покажи файлы в текущей директории" → План
             if not planner_model:
                 # Предпочитаем БЫСТРУЮ лёгкую модель для planner (отзывчивость важнее качества для планирования)
                 # НИКОГДА qwq:32b для planner — это блокирует всю Ollama!
+                # Hands XOR: base phi only (never -stable → 11437).
                 preferred_planner = [
                     "glm-4.7-flash:latest",
                     "victoria-wisdom-24k:latest",
                     "gemma3n:e4b",
-                    "phi3.5:3.8b-stable",
+                    "phi3.5:3.8b",
                 ]
                 for pref in preferred_planner:
                     if pref.lower() in ollama_lower_to_exact:

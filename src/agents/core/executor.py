@@ -158,6 +158,27 @@ def _is_docker_env() -> bool:
     return os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
 
 
+def _normalize_ollama_hands_model(name: Optional[str]) -> str:
+    """Hands XOR: one phi slot — never cold-load 3.8b-stable (evicts nomic)."""
+    try:
+        from available_models_scanner import normalize_ollama_hands_model as _norm
+
+        return _norm(name)
+    except ImportError:
+        try:
+            from knowledge_os.app.available_models_scanner import (  # type: ignore
+                normalize_ollama_hands_model as _norm,
+            )
+
+            return _norm(name)
+        except ImportError:
+
+            key = (name or "").strip()
+            if not key or key.endswith("3.8b-stable") or key == "phi3.5-stable":
+                return "phi3.5:3.8b"
+            return key
+
+
 def _redirect_hands_model(model: Optional[str], base_url: Optional[str]) -> str:
     """[v150.11] Executor ходил за phi/nomic ПРЯМО на 11434 (мимо гейтов
     роутера) → карусель «гард выгружает / executor грузит». Руки-модель при
@@ -693,7 +714,10 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
             )
         model = _normalize_model_for_backend(model, base_url, self._mlx_url)
         # [v150.11] Руки — на свой инстанс (мимо всех гейтов роутера не проскочит)
+        # [v173 XOR] -stable → base before POST to 11437 (second phi evicts nomic)
         base_url = _redirect_hands_model(model, base_url)
+        if "11437" in (base_url or ""):
+            model = _normalize_ollama_hands_model(model)
         url = f"{base_url}/api/chat"
         system_content = system_override or self.system_prompt
         if blocked_tools:
