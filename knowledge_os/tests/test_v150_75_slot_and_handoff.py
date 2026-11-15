@@ -25,13 +25,17 @@ def test_pytest_still_handoffs_to_anna():
 
 
 def test_coder_solo_gate_blocks_phi_on_11436():
-    from local_router import skip_hands_on_coder_slot, url_is_ollama
+    from local_router import is_hands_model, skip_hands_on_coder_slot, url_is_ollama
 
     assert url_is_ollama("http://host.docker.internal:11436") is True
     assert url_is_ollama("http://host.docker.internal:11437") is True
     assert skip_hands_on_coder_slot("http://host.docker.internal:11436", "phi3.5:3.8b") is True
     assert skip_hands_on_coder_slot("http://host.docker.internal:11436", "qwen3-coder:30b") is False
     assert skip_hands_on_coder_slot("http://host.docker.internal:11437", "phi3.5:3.8b") is False
+    # [v173 XOR] non-residents are not Hands → not forced off coder/brain via hands gates
+    assert is_hands_model("tinyllama:1.1b-chat") is False
+    assert is_hands_model("smollm2:360m") is False
+    assert is_hands_model("moondream:latest") is False
 
 
 def test_embed_fallback_default_excludes_coder():

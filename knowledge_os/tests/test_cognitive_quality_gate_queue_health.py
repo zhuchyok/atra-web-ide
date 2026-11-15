@@ -91,6 +91,116 @@ def test_queue_health_missing_group_with_backlog_is_failure(monkeypatch):
     assert shared.get("xlen") == 12
 
 
+def test_queue_health_dedicated_legacy_shared_zero_consumers_empty_ok(monkeypatch):
+    """Bare expert_tasks is optional under dedicated: consumers=0 + empty backlog → OK."""
+
+    def fake_run(cmd: str, timeout: int = 30):
+        if "stream:expert_tasks:overflow" in cmd and "XINFO GROUPS" in cmd:
+            return 0, _xinfo_payload(lag=0, pending=0, consumers=2), ""
+        if "stream:expert_tasks:Анна" in cmd and "XINFO GROUPS" in cmd:
+            return 0, _xinfo_payload(lag=0, pending=0, consumers=1), ""
+        if (
+            "XINFO GROUPS stream:expert_tasks" in cmd
+            and "stream:expert_tasks:" not in cmd
+        ):
+            return 0, _xinfo_payload(lag=0, pending=0, consumers=0), ""
+        if "XLEN stream:expert_tasks" in cmd and "stream:expert_tasks:" not in cmd:
+            return 0, "0", ""
+        return 1, "", "unexpected"
+
+    monkeypatch.setenv("EXPERT_STREAM_DEDICATED", "true")
+    monkeypatch.setenv("EXPERT_DEDICATED_WORKERS", "Анна")
+    monkeypatch.setattr(_mod, "run", fake_run)
+
+    res = _mod.queue_health()
+    assert res["ok"] is True
+    shared = [x for x in res["streams"] if x.get("stream") == "expert_tasks"][0]
+    assert shared.get("optional") is True
+    assert shared.get("consumers") == 0
+    assert shared.get("ok") is True
+
+
+def test_queue_health_dedicated_legacy_shared_missing_ok(monkeypatch):
+    """Bare expert_tasks missing entirely under dedicated mode → OK."""
+
+    def fake_run(cmd: str, timeout: int = 30):
+        if "stream:expert_tasks:overflow" in cmd and "XINFO GROUPS" in cmd:
+            return 0, _xinfo_payload(lag=0, pending=0, consumers=1), ""
+        if "stream:expert_tasks:Анна" in cmd and "XINFO GROUPS" in cmd:
+            return 0, _xinfo_payload(lag=0, pending=0, consumers=1), ""
+        if (
+            "XINFO GROUPS stream:expert_tasks" in cmd
+            and "stream:expert_tasks:" not in cmd
+        ):
+            return 1, "", "ERR no such key"
+        return 1, "", "unexpected"
+
+    monkeypatch.setenv("EXPERT_STREAM_DEDICATED", "true")
+    monkeypatch.setenv("EXPERT_DEDICATED_WORKERS", "Анна")
+    monkeypatch.setattr(_mod, "run", fake_run)
+
+    res = _mod.queue_health()
+    assert res["ok"] is True
+    shared = [x for x in res["streams"] if x.get("stream") == "expert_tasks"][0]
+    assert shared.get("optional") is True
+    assert shared.get("missing") is True
+
+
+def test_queue_health_dedicated_legacy_shared_orphaned_backlog_fails(monkeypatch):
+    """Bare expert_tasks under dedicated fails only when backlog is orphaned."""
+
+    def fake_run(cmd: str, timeout: int = 30):
+        if "stream:expert_tasks:overflow" in cmd and "XINFO GROUPS" in cmd:
+            return 0, _xinfo_payload(lag=0, pending=0, consumers=1), ""
+        if "stream:expert_tasks:Анна" in cmd and "XINFO GROUPS" in cmd:
+            return 0, _xinfo_payload(lag=0, pending=0, consumers=1), ""
+        if (
+            "XINFO GROUPS stream:expert_tasks" in cmd
+            and "stream:expert_tasks:" not in cmd
+        ):
+            return 0, _xinfo_payload(lag=3, pending=0, consumers=0), ""
+        if "XLEN stream:expert_tasks" in cmd and "stream:expert_tasks:" not in cmd:
+            return 0, "3", ""
+        return 1, "", "unexpected"
+
+    monkeypatch.setenv("EXPERT_STREAM_DEDICATED", "true")
+    monkeypatch.setenv("EXPERT_DEDICATED_WORKERS", "Анна")
+    monkeypatch.setattr(_mod, "run", fake_run)
+
+    res = _mod.queue_health()
+    assert res["ok"] is False
+    shared = [x for x in res["streams"] if x.get("stream") == "expert_tasks"][0]
+    assert shared.get("optional") is True
+    assert shared.get("ok") is False
+    assert shared.get("consumers") == 0
+
+
+def test_queue_health_shared_mode_still_requires_consumers(monkeypatch):
+    """When dedicated is off, bare expert_tasks stays strict (consumers >= 1)."""
+
+    def fake_run(cmd: str, timeout: int = 30):
+        if "stream:expert_tasks:overflow" in cmd and "XINFO GROUPS" in cmd:
+            return 0, _xinfo_payload(lag=0, pending=0, consumers=1), ""
+        if (
+            "XINFO GROUPS stream:expert_tasks" in cmd
+            and "stream:expert_tasks:" not in cmd
+        ):
+            return 0, _xinfo_payload(lag=0, pending=0, consumers=0), ""
+        if "XLEN" in cmd:
+            return 0, "0", ""
+        return 1, "", "unexpected"
+
+    monkeypatch.setenv("EXPERT_STREAM_DEDICATED", "false")
+    monkeypatch.setattr(_mod, "run", fake_run)
+
+    res = _mod.queue_health()
+    assert res["ok"] is False
+    shared = [x for x in res["streams"] if x.get("stream") == "expert_tasks"][0]
+    assert shared.get("consumers") == 0
+    assert shared.get("ok") is False
+    assert "optional" not in shared
+
+
 def test_contract_flags_match_policy_allows_insufficient_data_mode():
     contract = {"mode": "enforce", "enforce": "1"}
     routing = {"ok": True, "sufficient_data": False, "status": "insufficient_data"}

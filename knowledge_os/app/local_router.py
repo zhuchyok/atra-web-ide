@@ -35,7 +35,10 @@ except ImportError:
 
 # [v150.75] 11436/11437 — тоже Ollama. Старый детект смотрел только 11434 →
 # 503 на руках открывал CB и phi уезжал на coder.
-_HANDS_MODEL_MARKERS = ("phi3.5", "nomic", "smollm", "tinyllama", "moondream")
+# [v173 XOR] Hands 11437 = только phi3.5 + nomic. smollm/tinyllama/moondream
+# не маркеры рук: иначе BRAIN-SOLO гонит их на 11437 → guard unload churn.
+# Их пути остаются на 11434 (dialogue_llm / git_guardian / vision_processor).
+_HANDS_MODEL_MARKERS = ("phi3.5", "nomic")
 
 
 def url_is_ollama(url: str) -> bool:
@@ -304,7 +307,7 @@ OLLAMA_MODELS_FALLBACK = {
     "reasoning": os.getenv("MODEL_REASONING", "victoria-qwen38:latest"),
     "coding": os.getenv("MODEL_CODER", "phi3.5:3.8b"),
     "chat": "phi3.5:3.8b",
-    "fast": os.getenv("MODEL_FAST", "phi3.5:3.8b-stable"),
+    "fast": os.getenv("MODEL_FAST", "phi3.5:3.8b"),
     "vision": os.getenv("MODEL_VISION", "minicpm-v:latest"),
     "vision_hd": "minicpm-v:latest",
     "vision_pdf": os.getenv("MODEL_VISION_PDF", "minicpm-v:latest"),
@@ -319,7 +322,7 @@ MLX_MODELS_FALLBACK = {
     "reasoning": "victoria-wisdom-24k",
     "coding": "victoria-wisdom-24k",
     "chat": "victoria-wisdom-24k",
-    "fast": "phi3.5:3.8b-stable",
+    "fast": "phi3.5:3.8b",
     "default": "victoria-wisdom-24k",
 }
 
@@ -331,7 +334,7 @@ OLLAMA_MODELS = OLLAMA_MODELS_FALLBACK
 MODEL_MAP = {
     "coding": os.getenv("MODEL_CODING", OLLAMA_MODELS["coding"]),
     "reasoning": os.getenv("MODEL_REASONING", MLX_MODELS["reasoning"]),
-    "fast": "phi3.5:3.8b-stable",
+    "fast": "phi3.5:3.8b",
     "vision": OLLAMA_MODELS["vision"],
     "vision_pdf": OLLAMA_MODELS["vision_pdf"],
     "default": os.getenv("MODEL_DEFAULT", OLLAMA_MODELS["default"]),
@@ -961,11 +964,8 @@ class LocalAIRouter:
         # Используем scanner если доступен, иначе fallback
 
         if is_throttled:
-            # При перегреве форсируем самые легкие модели
-            if node_type == "mlx":
-                return "phi3.5:3.8b-stable"
-            else:
-                return "phi3.5:3.8b-stable"
+            # При перегреве форсируем самые легкие модели (base phi — XOR Hands).
+            return "phi3.5:3.8b"
 
         if _HAS_MODEL_SCANNER and (_cached_mlx_models or _cached_ollama_models):
             # Динамический выбор из реально доступных моделей
@@ -1282,9 +1282,9 @@ class LocalAIRouter:
                 )
                 if is_expert:
                     target_model = (
-                        "phi3.5:3.8b-stable"
+                        "phi3.5:3.8b"
                         if "mlx" in str(getattr(self, "_active_node", {}).get("url", ""))
-                        else "phi3.5:3.8b-stable"
+                        else "phi3.5:3.8b"
                     )
                     logger.warning(
                         f"❄️ [ICE MODE] System pressure detected! Downgrading expert request: {initial_model} -> {target_model}"
@@ -1320,12 +1320,12 @@ class LocalAIRouter:
                     if (
                         avail_gb < 4
                         and initial_model
-                        and "phi3.5:3.8b-stable" not in initial_model.lower()
+                        and "phi3.5:3.8b" not in initial_model.lower()
                     ):
                         logger.warning(
-                            f"📉 [TIERING] RAM critical ({avail_gb:.1f}GB). Downgrading {initial_model} -> phi3.5:3.8b-stable (Chat Priority)"
+                            f"📉 [TIERING] RAM critical ({avail_gb:.1f}GB). Downgrading {initial_model} -> phi3.5:3.8b (Chat Priority)"
                         )
-                        initial_model = "phi3.5:3.8b-stable"
+                        initial_model = "phi3.5:3.8b"
                         model = initial_model
                     elif (
                         avail_gb < 8
@@ -1333,9 +1333,9 @@ class LocalAIRouter:
                         and ("35b" in initial_model.lower() or "32b" in initial_model.lower())
                     ):
                         logger.warning(
-                            f"📉 [TIERING] RAM low ({avail_gb:.1f}GB). Downgrading {initial_model} -> phi3.5:3.8b-stable (Chat Priority)"
+                            f"📉 [TIERING] RAM low ({avail_gb:.1f}GB). Downgrading {initial_model} -> phi3.5:3.8b (Chat Priority)"
                         )
-                        initial_model = "phi3.5:3.8b-stable"
+                        initial_model = "phi3.5:3.8b"
                         model = initial_model
                 else:
                     # For expert tasks, quality is priority. We wait for ModelMemoryManager to free up space.
@@ -2050,23 +2050,22 @@ class LocalAIRouter:
                 logger.info("🚦 [EXECUTOR-GATE] %s не на 11436 — узел пропущен", model)
                 continue
 
-            # [v150.8] Узел РУК (11437) не обслуживает мозг ни при каких тегах-фолбэках
-            # (инстанс физически не знает qwen38 — но страховка для marker-фолбэка).
-            if "11437" in node_url_base and (
-                "qwen38" in (model or "").lower() or "qwen3.8" in (model or "").lower()
-            ):
-                logger.info("🚦 [HANDS-GATE] мозг %s не на руках (11437) — узел пропущен", model)
+            # [v150.8]/[v173 XOR] Узел РУК (11437) = только phi3.5/nomic.
+            # Раньше гейт блокировал лишь мозг; tinyllama/smollm/moondream при
+            # priority=0 всё равно попадали сюда (фолбэк-маркеры) → guard unload.
+            if "11437" in node_url_base and model and not is_hands_model(model):
+                logger.info(
+                    "🚦 [HANDS-GATE] %s не на руках (11437 XOR) — узел пропущен",
+                    model,
+                )
                 continue
 
             # [v150.10] BRAIN-SOLO-GATE: при живом hands-узле модели рук не идут
             # на мозговой узел 11434 — иначе роутер расщеплял трафик рук между
             # инстансами (гард выгружал руки с 11434 — вечная карусель unload/load).
+            # [v173 XOR] только phi3.5/nomic — см. _HANDS_MODEL_MARKERS.
             _hands_node_active = any("11437" in str(n.get("url", "")) for n in self.nodes)
-            _is_hands_model = any(
-                t in (model or "").lower()
-                for t in ("phi3.5", "nomic", "smollm", "tinyllama", "moondream")
-            )
-            if _hands_node_active and _is_hands_model and "11434" in node_url_base:
+            if _hands_node_active and is_hands_model(model) and "11434" in node_url_base:
                 logger.info(
                     "🚦 [BRAIN-SOLO-GATE] руки (%s) не на мозговом узле 11434 — ждёт hands-узел",
                     model,
@@ -2869,6 +2868,13 @@ class LocalAIRouter:
             else:
                 logger.info("🚦 [CODER-SOLO-GATE] skip stream %s on 11436", model)
                 return
+
+        # Hands XOR: never POST phi3.5:3.8b-stable to 11437 (evicts nomic).
+        if node and (
+            "11437" in str(node.get("url", ""))
+            or node.get("routing_key") == "ollama_hands"
+        ):
+            model = normalize_ollama_hands_model(model)
 
         node_url = f"{node['url']}/api/generate"
         # TODO: Convert f-string to %s formatting for performance

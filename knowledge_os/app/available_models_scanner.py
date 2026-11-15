@@ -61,7 +61,9 @@ MLX_BEST_FIRST: List[str] = [
 ]
 
 # Приоритеты Ollama по категории. Wisdom/тяжести скипаются; первый живой light — руки.
-_OLLAMA_LIGHT_HANDS = ["phi3.5:3.8b", "gemma3n:e4b", "tinyllama:1.1b-chat"]
+# [v173 XOR] Hands slot = phi only here. tinyllama is not a Hands resident
+# (dialogue/guardian stay on 11434; do not nominate it into the hands light set).
+_OLLAMA_LIGHT_HANDS = ["phi3.5:3.8b", "gemma3n:e4b"]
 OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
     "fast": ["phi3.5:3.8b", "tinyllama:1.1b-chat", "gemma3n:e4b", "lfm2.5-thinking:1.2b"],
     # [v149.23] Мозг-контракт v149.4: qwen38 первый для умственных категорий

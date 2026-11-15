@@ -251,6 +251,75 @@ async def test_predictive_warmup_call_site_normalizes_stable_on_hands_node():
 
 
 @pytest.mark.asyncio
+async def test_stream_path_normalizes_stable_on_hands():
+    """Hands XOR: stream generate must not POST phi3.5:3.8b-stable to 11437."""
+    router = LocalAIRouter()
+    router._select_model = MagicMock(return_value="phi3.5:3.8b-stable")
+    router.check_health = AsyncMock(
+        return_value=[
+            {
+                "name": "Mac Studio (Ollama Hands)",
+                "url": "http://localhost:11437",
+                "priority": 0,
+                "routing_key": "ollama_hands",
+            },
+        ]
+    )
+
+    captured = {}
+
+    class _Resp:
+        status_code = 200
+
+        async def aiter_lines(self):
+            yield '{"response":"ok","done":true}'
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+    class _Client:
+        def __init__(self, *a, **k):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        def stream(self, method, url, json=None, headers=None):
+            captured["url"] = url
+            captured["json"] = json
+            return _Resp()
+
+    with patch("httpx.AsyncClient", _Client):
+        chunks = []
+        async for c in router.run_local_llm_streaming(
+            "hi", model="phi3.5:3.8b-stable", category="fast"
+        ):
+            chunks.append(c)
+
+    assert "11437" in captured["url"]
+    assert captured["json"]["model"] == "phi3.5:3.8b"
+    assert chunks == ["ok"]
+
+
+def test_model_fast_and_map_default_base_phi():
+    """MODEL_FAST / MODEL_MAP fast defaults feed Hands — must be base phi, not -stable."""
+    from app.local_router import MODEL_MAP
+
+    assert MODEL_MAP["fast"] == "phi3.5:3.8b"
+    src_path = os.path.join(_app_root, "local_router.py")
+    with open(src_path, encoding="utf-8") as f:
+        src = f.read()
+    assert 'os.getenv("MODEL_FAST", "phi3.5:3.8b")' in src
+    assert 'Downgrading {initial_model} -> phi3.5:3.8b (Chat Priority)' in src
+
+
+@pytest.mark.asyncio
 async def test_empty_mlx_does_not_fallback_wisdom_to_ollama(mock_context_mirror):
     """MLX empty must not POST victoria-wisdom* to Ollama 11434."""
     router = LocalAIRouter()

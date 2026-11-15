@@ -190,8 +190,9 @@ def queue_health() -> dict[str, Any]:
         # Filter empty artifacts from malformed outputs.
         return [g for g in groups if g]
 
+    dedicated_mode = os.getenv("EXPERT_STREAM_DEDICATED", "1").lower() in ("1", "true", "yes")
     streams = ["expert_tasks:overflow", "expert_tasks"]
-    if os.getenv("EXPERT_STREAM_DEDICATED", "1").lower() in ("1", "true", "yes"):
+    if dedicated_mode:
         dedicated = [
             x.strip()
             for x in os.getenv("EXPERT_DEDICATED_WORKERS", "Анна,Виктория,heavy").split(",")
@@ -203,12 +204,26 @@ def queue_health() -> dict[str, Any]:
     overall_ok = True
 
     for stream in streams:
+        # Bare expert_tasks is legacy under dedicated routing; overflow+dedicated are live.
+        legacy_shared = dedicated_mode and stream == "expert_tasks"
         xinfo_cmd = (
             "docker exec knowledge_os_redis redis-cli -s /data/redis.sock "
             f"XINFO GROUPS stream:{stream}"
         )
         code, out, err = run(xinfo_cmd)
         if code != 0:
+            if legacy_shared:
+                # Missing legacy stream is fine when dedicated mode is on.
+                details.append(
+                    {
+                        "stream": stream,
+                        "ok": True,
+                        "optional": True,
+                        "missing": True,
+                        "error": None,
+                    }
+                )
+                continue
             details.append({"stream": stream, "ok": False, "error": err or out or "xinfo_failed"})
             overall_ok = False
             continue
@@ -222,39 +237,74 @@ def queue_health() -> dict[str, Any]:
             )
             c2, out2, err2 = run(xlen_cmd)
             xlen = _to_int(out2 or "0", default=0) if c2 == 0 else 0
+            # Empty = OK (legacy optional or unused); backlog without group = orphaned → FAIL.
             ok = c2 == 0 and xlen == 0
-            details.append(
-                {
-                    "stream": stream,
-                    "ok": ok,
-                    "missing_group": True,
-                    "xlen": xlen,
-                    "error": None if ok else (err2 or out2 or "missing_group_with_backlog"),
-                }
-            )
+            entry: dict[str, Any] = {
+                "stream": stream,
+                "ok": ok,
+                "missing_group": True,
+                "xlen": xlen,
+                "error": None if ok else (err2 or out2 or "missing_group_with_backlog"),
+            }
+            if legacy_shared:
+                entry["optional"] = True
+            details.append(entry)
             overall_ok = overall_ok and ok
             continue
 
         lag = _to_int(target.get("lag", "0"))
         pending = _to_int(target.get("pending", "0"))
         consumers = _to_int(target.get("consumers", "0"))
-        ok = lag == 0 and pending == 0 and consumers >= 1
-        details.append(
-            {
-                "stream": stream,
-                "group": "expert_workers",
-                "ok": ok,
-                "lag": lag,
-                "pending": pending,
-                "consumers": consumers,
-            }
-        )
+        if legacy_shared:
+            # Optional: consumers=0 OK when backlog empty; FAIL only on orphaned backlog.
+            xlen = 0
+            if consumers < 1:
+                xlen_cmd = (
+                    "docker exec knowledge_os_redis redis-cli -s /data/redis.sock "
+                    f"XLEN stream:{stream}"
+                )
+                c2, out2, _err2 = run(xlen_cmd)
+                xlen = _to_int(out2 or "0", default=0) if c2 == 0 else 0
+            empty_backlog = lag == 0 and pending == 0 and xlen == 0
+            ok = empty_backlog if consumers < 1 else (lag == 0 and pending == 0)
+            details.append(
+                {
+                    "stream": stream,
+                    "group": "expert_workers",
+                    "ok": ok,
+                    "optional": True,
+                    "lag": lag,
+                    "pending": pending,
+                    "consumers": consumers,
+                    "xlen": xlen,
+                }
+            )
+        else:
+            ok = lag == 0 and pending == 0 and consumers >= 1
+            details.append(
+                {
+                    "stream": stream,
+                    "group": "expert_workers",
+                    "ok": ok,
+                    "lag": lag,
+                    "pending": pending,
+                    "consumers": consumers,
+                }
+            )
         overall_ok = overall_ok and ok
 
     # Keep top-level compatibility for dashboards expecting scalar queue metrics.
     lag_sum = sum(int(d.get("lag", 0) or 0) for d in details)
     pending_sum = sum(int(d.get("pending", 0) or 0) for d in details)
-    consumers_min = min([int(d.get("consumers", 0) or 0) for d in details if "consumers" in d] or [0])
+    # Exclude optional legacy shared stream so consumers_min reflects live streams only.
+    consumers_min = min(
+        [
+            int(d.get("consumers", 0) or 0)
+            for d in details
+            if "consumers" in d and not d.get("optional")
+        ]
+        or [0]
+    )
     return {
         "ok": overall_ok,
         "lag": lag_sum,

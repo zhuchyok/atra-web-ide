@@ -159,15 +159,16 @@ def _is_docker_env() -> bool:
 
 
 def _redirect_hands_model(model: Optional[str], base_url: Optional[str]) -> str:
-    """[v150.11] Executor ходил за phi/nomic/smollm ПРЯМО на 11434 (мимо гейтов
+    """[v150.11] Executor ходил за phi/nomic ПРЯМО на 11434 (мимо гейтов
     роутера) → карусель «гард выгружает / executor грузит». Руки-модель при
-    живом hands-инстансе → база 11437 (свой планировщик)."""
+    живом hands-инстансе → база 11437 (свой планировщик).
+    [v173 XOR] только phi3.5/nomic; smollm/tinyllama/moondream остаются на 11434."""
     try:
         base = (base_url or "").rstrip("/")
         if "11434" not in base:
             return base_url or ""
         m = (model or "").lower()
-        if not any(t in m for t in ("phi3.5", "nomic", "smollm", "tinyllama", "moondream")):
+        if not any(t in m for t in ("phi3.5", "nomic")):
             return base_url or ""
         hands = _ollama_hands_base_url()
         return hands or (base_url or "")
