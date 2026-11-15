@@ -278,9 +278,19 @@ jobs:
                   "exit \"$FAIL\"",
               ],
               "scripts/ollama_runner_watchdog.sh": [
-                  "phi3.5:3.8b",
+                  '_probe_model="phi3.5:3.8b"',
                   "num_ctx\":8192",
                   "11437",
+              ],
+              "scripts/ollama_wisdom_guard.py": [
+                  "return False",
+                  'f"pin_stable skipped (XOR Hands) on {HANDS}"',
+              ],
+          }
+
+          forbidden = {
+              "scripts/ollama_runner_watchdog.sh": [
+                  "phi3.5:3.8b-stable",
               ],
           }
 
@@ -289,6 +299,15 @@ jobs:
               for needle in needles:
                   if needle not in text:
                       raise SystemExit(f"Missing contract marker '{needle}' in {path}")
+          for path, bad in forbidden.items():
+              text = Path(path).read_text(encoding="utf-8")
+              for needle in bad:
+                  if needle in text:
+                      raise SystemExit(f"Forbidden marker '{needle}' in {path}")
+          # wisdom_guard must not cold-load -stable via generate body
+          wg = Path("scripts/ollama_wisdom_guard.py").read_text(encoding="utf-8")
+          if '"model": "phi3.5:3.8b-stable"' in wg:
+              raise SystemExit("wisdom_guard still cold-loads phi3.5:3.8b-stable")
           print("contract assertions passed")
           PY
 

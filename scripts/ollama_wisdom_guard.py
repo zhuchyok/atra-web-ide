@@ -86,37 +86,19 @@ def pin_phi():  # [v150.8] пин на инстансе рук (11437)
 
 
 def _should_pin_stable(loaded) -> bool:
-    """[v150.73] Второй phi (stable) не грузим, если на руках уже есть базовый.
-    Иначе pin_stable держит гвард 120с, не доходит до гигиены 11436 и давит мозг."""
-    names = loaded or []
-    if not names:
-        return False
-    if any(n.startswith("phi3.5:3.8b-stable") for n in names):
-        return False
-    if any("phi3.5" in (n or "") for n in names):
-        return False
-    return True
+    """[v173 XOR] Никогда не cold-load -stable на 11437.
+
+    MAX_LOADED=2 = один phi + nomic. pin_phi держит base@8192; fact-fast-track
+    берёт resident phi через ollama_slot_pin. Исторический pin_stable после
+    pin_nomic/timeout гонял второй тег и выселял nomic.
+    """
+    return False
 
 
-def pin_stable():  # [v150.10] факт-полоса: -stable — отдельный раннер, никто
-    # кроме факт-фаст-трека её не занимает; без пина выселялась при рестартах
-    # инстанса → факты теряли свои 4-9с. Лёгкая аллокация: ctx 2048.
-    loaded = _ps(HANDS)
-    if not _should_pin_stable(loaded):
+def pin_stable():  # [v173] no-op: XOR Hands = base phi@8192 + nomic only
+    if not _should_pin_stable(_ps(HANDS)):
         return
-    body = {
-        "model": "phi3.5:3.8b-stable",
-        "prompt": "ok",
-        "stream": False,
-        "keep_alive": -1,
-        "options": {"num_ctx": 2048, "num_predict": 1},
-    }
-    data = json.dumps(body).encode()
-    req = urllib.request.Request(
-        f"{HANDS}/api/generate", data=data, headers={"Content-Type": "application/json"}
-    )
-    urllib.request.urlopen(req, timeout=120).read()
-    _log(f"pinned phi3.5:3.8b-stable (факт-полоса) on {HANDS}")
+    _log(f"pin_stable skipped (XOR Hands) on {HANDS}")
 
 
 _PIN_NOMIC_FAIL_AT = 0.0
@@ -312,14 +294,13 @@ def _enforce_hands_slot():
             (pin_brain, "pin_brain"),
             (pin_nomic, "pin_nomic"),
             (pin_phi, "pin_phi"),
-            (pin_stable, "pin_stable"),
         ):
             try:
                 fn()
             except Exception as e:
                 _log(f"{label} skip: {e}")
     left = _ps()
-        # [v150.13] гигиена 11437: не-руки (например мозг-утечка) — выгрузить
+    # [v150.13] гигиена 11437: не-руки (например мозг-утечка) — выгрузить
     try:
         _stray = [n for n in _ps(HANDS) if _should_unload_hands(n)]
         if _stray:

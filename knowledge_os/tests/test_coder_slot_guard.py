@@ -39,9 +39,10 @@ def test_pin_stable_skipped_when_base_phi_already_loaded():
     assert _should_pin_stable(["phi3.5:3.8b-stable", "nomic-embed-text:latest"]) is False
 
 
-def test_pin_stable_only_when_hands_have_nomic_and_no_phi():
-    assert _should_pin_stable(["nomic-embed-text:latest"]) is True
+def test_pin_stable_never_cold_loads_under_xor_contract():
+    assert _should_pin_stable(["nomic-embed-text:latest"]) is False
     assert _should_pin_stable([]) is False
+    assert _should_pin_stable(["phi3.5:3.8b"]) is False
 
 
 def test_pin_brain_when_11434_empty():
