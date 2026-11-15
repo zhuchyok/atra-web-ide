@@ -2777,9 +2777,9 @@ Use HANDOFF only if delegation genuinely improves the result.
 
     # [SINGULARITY 20.0] Load hybrid models from .env
     # Strategist = Victoria wisdom (plan); Executor = coder only when coding path needs it.
-    # Both defaulting to qwen2.5-coder:14b kept a 14B model resident and starved board/MLX.
+    # Stale qwen2.5-coder:14b default kept a 14B resident and starved board/MLX; live coder is qwen3-coder:30b @11436.
     strategist_model = os.getenv("VICTORIA_STRATEGIST_MODEL", "victoria-wisdom-24k:latest")
-    executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "qwen2.5-coder:14b")
+    executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "qwen3-coder:30b")
 
     # [SINGULARITY 30.6] Local-First Orchestration: Force local strategist if ice_mode is off
     # [SINGULARITY 30.7] Temporarily disabled for R&D/Distillation VRAM offloading

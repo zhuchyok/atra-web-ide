@@ -1713,7 +1713,8 @@ def _ollama_url_for_model(model: str, default_url: Optional[str] = None) -> str:
     executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k:latest")
     if "wisdom" not in str(executor_model).lower() and _same_model_alias(model, executor_model):
         return os.getenv("OLLAMA_EXECUTOR_BASE_URL", base_default).rstrip("/")
-    if model and "coder" in str(model).lower():
+    # Dedicated 11436 slot is qwen3-coder only (not any *coder* alias).
+    if model and "qwen3-coder" in str(model).lower():
         return os.getenv("OLLAMA_EXECUTOR_BASE_URL", base_default).rstrip("/")
     return base_default.rstrip("/")
 

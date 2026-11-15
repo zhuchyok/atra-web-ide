@@ -14,7 +14,15 @@ def test_victoria_warmup_has_executor_channel_routing():
     assert "OLLAMA_EXECUTOR_BASE_URL" in text
     assert "model_ollama_url = _ollama_url_for_model(model, default_url=ollama_url)" in text
     assert 'if model and "wisdom" in str(model).lower():' in text
+    assert 'if model and "qwen3-coder" in str(model).lower():' in text
+    assert 'if model and "coder" in str(model).lower():' not in text
     assert "Deferred warmup skipped for %s: мозг только в MLX" in text
+
+
+def test_ai_core_executor_default_is_qwen3_coder():
+    text = (ROOT / "knowledge_os" / "app" / "ai_core.py").read_text(encoding="utf-8")
+    assert 'os.getenv("VICTORIA_EXECUTOR_MODEL", "qwen3-coder:30b")' in text
+    assert 'os.getenv("VICTORIA_EXECUTOR_MODEL", "qwen2.5-coder:14b")' not in text
 
 
 def test_execution_phase_preload_supports_executor_channel():

@@ -36,6 +36,9 @@ def _strip_model_artifacts(text: str) -> str:
 
 MLX_BASE = os.getenv("MLX_BASE_URL", "http://host.docker.internal:11435").rstrip("/")
 OLLAMA_BASE = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434").rstrip("/")
+OLLAMA_HANDS_BASE = (
+    os.getenv("OLLAMA_HANDS_URL") or "http://host.docker.internal:11437"
+).rstrip("/")
 DEFAULT_OLLAMA_MODEL = os.getenv("DIALOGUE_OLLAMA_MODEL", "phi3.5:3.8b")
 DEFAULT_MLX_MODEL = os.getenv("DIALOGUE_MLX_MODEL", "victoria-wisdom-24k")
 HTTP_TIMEOUT = float(os.getenv("DIALOGUE_LLM_TIMEOUT_SEC", "90"))
@@ -54,6 +57,36 @@ _FALLBACK_MODELS = [
     "tinyllama:1.1b-chat",
     "victoria-wisdom-24k:latest",
 ]
+# [v173 XOR] Hands 11437 = только phi3.5 + nomic (не smollm/tinyllama).
+_HANDS_MODEL_MARKERS = ("phi3.5", "nomic")
+
+try:
+    from available_models_scanner import normalize_ollama_hands_model
+except ImportError:  # pragma: no cover
+    try:
+        from knowledge_os.app.available_models_scanner import (  # type: ignore
+            normalize_ollama_hands_model,
+        )
+    except ImportError:
+
+        def normalize_ollama_hands_model(name):  # type: ignore[misc]
+            key = (name or "").strip()
+            if not key or key.endswith("3.8b-stable") or key == "phi3.5-stable":
+                return "phi3.5:3.8b"
+            return key
+
+
+def is_hands_dialogue_model(name: Optional[str]) -> bool:
+    """True when model belongs on OLLAMA_HANDS_URL (11437), not brain 11434."""
+    key = (name or "").lower()
+    return any(t in key for t in _HANDS_MODEL_MARKERS)
+
+
+def ollama_base_for_dialogue_model(name: Optional[str]) -> str:
+    """Route hands phi/nomic to 11437; everything else stays on OLLAMA_BASE."""
+    if is_hands_dialogue_model(name):
+        return (os.getenv("OLLAMA_HANDS_URL") or OLLAMA_HANDS_BASE).rstrip("/")
+    return OLLAMA_BASE
 
 INCOMPLETE_MARKER = "[INCOMPLETE]"
 
@@ -151,10 +184,13 @@ async def _resolve_ollama_model(model_hint: Optional[str]) -> str:
     hint = (model_hint or "").strip()
     if hint in ("", "fast", "reasoning", "default"):
         hint = DEFAULT_OLLAMA_MODEL
+    if is_hands_dialogue_model(hint):
+        hint = normalize_ollama_hands_model(hint)
+    tags_base = ollama_base_for_dialogue_model(hint)
     available: list[str] = []
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(f"{OLLAMA_BASE}/api/tags")
+            resp = await client.get(f"{tags_base}/api/tags")
             if resp.status_code == 200:
                 available = [m.get("name", "") for m in resp.json().get("models", [])]
     except Exception as e:
@@ -166,12 +202,33 @@ async def _resolve_ollama_model(model_hint: Optional[str]) -> str:
         if name == hint or name.startswith(base + ":"):
             return name
     for cand in _FALLBACK_MODELS:
-        if cand in available:
-            return cand
+        # Do not pick a hands candidate when resolving against brain tags (and vice versa).
+        if is_hands_dialogue_model(cand) != is_hands_dialogue_model(hint):
+            continue
+        resolved_cand = (
+            normalize_ollama_hands_model(cand) if is_hands_dialogue_model(cand) else cand
+        )
+        if resolved_cand in available:
+            return resolved_cand
         for name in available:
-            if name.startswith(cand.split(":")[0] + ":") or name == cand:
-                return name
-    return available[0] if available else DEFAULT_OLLAMA_MODEL
+            if name.startswith(resolved_cand.split(":")[0] + ":") or name == resolved_cand:
+                return (
+                    normalize_ollama_hands_model(name)
+                    if is_hands_dialogue_model(name)
+                    else name
+                )
+    if available:
+        pick = available[0]
+        return (
+            normalize_ollama_hands_model(pick)
+            if is_hands_dialogue_model(pick)
+            else pick
+        )
+    return (
+        normalize_ollama_hands_model(DEFAULT_OLLAMA_MODEL)
+        if is_hands_dialogue_model(DEFAULT_OLLAMA_MODEL)
+        else DEFAULT_OLLAMA_MODEL
+    )
 
 
 async def _try_mlx(prompt: str, *, model_hint: Optional[str]) -> tuple[str, str]:
@@ -234,13 +291,17 @@ async def _try_ollama(prompt: str, *, model_hint: Optional[str]) -> tuple[str, s
     for cand in _FALLBACK_MODELS:
         if cand not in candidates:
             candidates.append(cand)
-    url = f"{OLLAMA_BASE}/api/generate"
     max_retries = max(1, int(os.getenv("DIALOGUE_OLLAMA_BUSY_RETRIES", "6")))
     busy_sleep = float(os.getenv("DIALOGUE_OLLAMA_BUSY_SLEEP_SEC", "8"))
     deadline = time.monotonic() + HTTP_TIMEOUT
     saw_busy = False
     async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
         for model in candidates[:OLLAMA_MAX_CANDIDATES]:
+            # [v173 XOR] Never POST phi/nomic to brain 11434; normalize -stable→base.
+            if is_hands_dialogue_model(model):
+                model = normalize_ollama_hands_model(model)
+            base = ollama_base_for_dialogue_model(model)
+            url = f"{base}/api/generate"
             body = {
                 "model": model,
                 "prompt": prompt[:4000],

@@ -79,7 +79,7 @@ def run_cursor_agent(prompt: str):
     return generate_local_sync(prompt, category="reasoning", expert_name="ExpertEvolver")
 
 
-async def run_local_mutation_agent(prompt: str, model: str = "qwen2.5-coder:14b"):
+async def run_local_mutation_agent(prompt: str, model: str = "qwen3-coder:30b"):
     """
     [SINGULARITY 14.0] Mutation generation using local model (no Cursor CLI).
     """

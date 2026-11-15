@@ -32,10 +32,35 @@ logger = logging.getLogger(__name__)
 # Config
 MOONDREAM_STATION_URL = os.getenv("MOONDREAM_STATION_URL", "http://host.docker.internal:2020")
 MOONDREAM_STATION_ENABLED = os.getenv("MOONDREAM_STATION_ENABLED", "true").lower() == "true"
-# Fallback на Ollama (старый способ)
-MAC_LLM_URL = os.getenv("MAC_LLM_URL", "http://localhost:11434")
-SERVER_LLM_URL = os.getenv("SERVER_LLM_URL", "http://localhost:11434")
+# MASTER (v173): brain :11434 = victoria-qwen38* only. Never default vision Ollama to
+# :11434 (minicpm/moondream would displace the brain). Hands :11437 XOR = phi+nomic
+# only — vision models are not allowed there either. Choice (c): require explicit
+# OLLAMA_VISION_URL; if unset, Ollama vision paths fail-closed (Moondream Station may still run).
 VISION_MODEL = os.getenv("VISION_MODEL", "moondream")
+
+
+def _resolve_ollama_vision_base() -> Optional[str]:
+    """Dedicated vision Ollama base URL, or None (fail-closed). Never invents :11434.
+
+    Reads OLLAMA_VISION_URL at call time (tests may monkeypatch). MASTER: brain
+    :11434 is qwen38-only; do not fall back to hands :11437 (XOR phi+nomic).
+    """
+    url = (os.getenv("OLLAMA_VISION_URL") or "").strip().rstrip("/") or None
+    if not url:
+        return None
+    if ":11434" in url:
+        logger.warning(
+            "[VISION] OLLAMA_VISION_URL points at :11434 (brain). "
+            "Prefer a dedicated vision instance — brain must stay qwen38-only."
+        )
+    return url
+
+
+# Legacy aliases — no brain :11434 default (import-compatible; prefer OLLAMA_VISION_URL).
+MAC_LLM_URL = (os.getenv("MAC_LLM_URL") or "").strip().rstrip("/") or None
+SERVER_LLM_URL = (os.getenv("SERVER_LLM_URL") or "").strip().rstrip("/") or None
+# Module-level snapshot for docs/grep; runtime uses _resolve_ollama_vision_base().
+OLLAMA_VISION_URL = _resolve_ollama_vision_base()
 
 # Попытка импортировать moondream (клиент для Moondream Station).
 # Зависимости устанавливаются на этапе setup, не в рантайме (12-Factor, reproducible builds).
@@ -74,14 +99,22 @@ class VisionProcessor:
             logger.info("🐳 [VISION] Running in Docker, prioritizing Ollama over Moondream Station")
             self.moondream_station_enabled = False
 
-        # Fallback узлы (Ollama на Mac Studio)
-        self.fallback_nodes = [
-            {
-                "name": "Mac Studio (Ollama)",
-                "url": "http://host.docker.internal:11434",
-                "priority": 1,
-            }
-        ]
+        # Ollama vision nodes — only when OLLAMA_VISION_URL is set (never brain :11434).
+        _vision_base = _resolve_ollama_vision_base()
+        self.fallback_nodes: List[Dict[str, Any]] = []
+        if _vision_base:
+            self.fallback_nodes = [
+                {
+                    "name": "Ollama Vision (OLLAMA_VISION_URL)",
+                    "url": _vision_base,
+                    "priority": 1,
+                }
+            ]
+        else:
+            logger.info(
+                "[VISION] OLLAMA_VISION_URL unset — Ollama vision fail-closed "
+                "(brain :11434 protected; Moondream Station may still be used)"
+            )
         self.model = VISION_MODEL
         self._last_failure_log_ts: Dict[str, float] = {}
         self._failure_counts: Dict[str, int] = {}
@@ -178,24 +211,25 @@ class VisionProcessor:
             image.save(buffered, format="JPEG")
             img_str = base64.b64encode(buffered.getvalue()).decode()
 
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                # Используем host.docker.internal для Ollama
-                ollama_url = "http://host.docker.internal:11434/api/generate"
-                response = await client.post(
-                    ollama_url,
-                    json={
-                        "model": "moondream:latest",
-                        "prompt": prompt,
-                        "images": [img_str],
-                        "stream": False,
-                    },
-                )
-                if response.status_code == 200:
-                    res_json = response.json()
-                    answer = res_json.get("response")
-                    if answer:
-                        logger.info("✅ [VISION] Processed with Ollama (moondream:latest)")
-                        return str(answer)
+            vision_base = _resolve_ollama_vision_base()
+            if vision_base:
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    ollama_url = f"{vision_base}/api/generate"
+                    response = await client.post(
+                        ollama_url,
+                        json={
+                            "model": "moondream:latest",
+                            "prompt": prompt,
+                            "images": [img_str],
+                            "stream": False,
+                        },
+                    )
+                    if response.status_code == 200:
+                        res_json = response.json()
+                        answer = res_json.get("response")
+                        if answer:
+                            logger.info("✅ [VISION] Processed with Ollama (moondream:latest)")
+                            return str(answer)
         except Exception as e:
             # TODO: Convert f-string to %s formatting for performance
             logger.debug(f"Ollama vision failed: {e}")
@@ -339,38 +373,39 @@ class VisionProcessor:
             logger.debug("[VISION] Skipping vision call: no image payload")
             return None
 
-        # [SINGULARITY 21.10] Приоритет 1: Ollama (moondream:latest) через host.docker.internal
-        # Это самый надежный способ из контейнера.
-        try:
-            logger.debug("🔄 [VISION] Attempting Ollama vision on host.docker.internal...")
-            buffered = io.BytesIO()
-            image.save(buffered, format="JPEG")
-            img_str = base64.b64encode(buffered.getvalue()).decode()
+        # Приоритет 1: Ollama vision only via OLLAMA_VISION_URL (never invent :11434).
+        vision_base = _resolve_ollama_vision_base()
+        if vision_base:
+            try:
+                logger.debug("🔄 [VISION] Attempting Ollama vision at %s...", vision_base)
+                buffered = io.BytesIO()
+                image.save(buffered, format="JPEG")
+                img_str = base64.b64encode(buffered.getvalue()).decode()
 
-            async with httpx.AsyncClient(timeout=120.0) as client:  # Увеличен таймаут
-                ollama_url = "http://host.docker.internal:11434/api/generate"
-                response = await client.post(
-                    ollama_url,
-                    json={
-                        "model": "moondream:latest",
-                        "prompt": prompt,
-                        "images": [img_str],
-                        "stream": False,
-                    },
-                )
-                if response.status_code == 200:
-                    res_json = response.json()
-                    answer = res_json.get("response")
-                    if answer:
-                        logger.info("✅ [VISION] Processed with Ollama (moondream:latest)")
-                        return str(answer)
-                else:
-                    logger.debug(
-                        f"Ollama vision returned status {response.status_code}: {response.text}"
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    ollama_url = f"{vision_base}/api/generate"
+                    response = await client.post(
+                        ollama_url,
+                        json={
+                            "model": "moondream:latest",
+                            "prompt": prompt,
+                            "images": [img_str],
+                            "stream": False,
+                        },
                     )
-        except Exception as e:
-            # TODO: Convert f-string to %s formatting for performance
-            logger.debug(f"Ollama vision failed: {e} (Type: {type(e).__name__})")
+                    if response.status_code == 200:
+                        res_json = response.json()
+                        answer = res_json.get("response")
+                        if answer:
+                            logger.info("✅ [VISION] Processed with Ollama (moondream:latest)")
+                            return str(answer)
+                    else:
+                        logger.debug(
+                            f"Ollama vision returned status {response.status_code}: {response.text}"
+                        )
+            except Exception as e:
+                # TODO: Convert f-string to %s formatting for performance
+                logger.debug(f"Ollama vision failed: {e} (Type: {type(e).__name__})")
 
         # Приоритет 2: Moondream Station (MLX) - прямой клиент
         if self.moondream_client:

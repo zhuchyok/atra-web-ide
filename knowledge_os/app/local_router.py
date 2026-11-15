@@ -37,7 +37,8 @@ except ImportError:
 # 503 на руках открывал CB и phi уезжал на coder.
 # [v173 XOR] Hands 11437 = только phi3.5 + nomic. smollm/tinyllama/moondream
 # не маркеры рук: иначе BRAIN-SOLO гонит их на 11437 → guard unload churn.
-# Их пути остаются на 11434 (dialogue_llm / git_guardian / vision_processor).
+# dialogue_llm / git_guardian may stay on 11434; vision_processor uses OLLAMA_VISION_URL
+# (fail-closed if unset — never invent brain :11434 for minicpm/moondream).
 _HANDS_MODEL_MARKERS = ("phi3.5", "nomic")
 
 

@@ -75,14 +75,19 @@ def test_ollama_light_hands_excludes_tinyllama():
     assert "moondream" not in joined
 
 
-def test_dialogue_llm_and_vision_still_default_to_11434():
-    """Intentional 11434 paths must remain (do not break guardian/vision)."""
+def test_dialogue_llm_still_defaults_to_11434_vision_does_not():
+    """Guardian/dialogue may stay on 11434; vision must not invent brain URL."""
     dialogue = (APP / "dialogue_llm.py").read_text(encoding="utf-8")
     vision = (APP / "vision_processor.py").read_text(encoding="utf-8")
     assert "11434" in dialogue
     assert "smollm2:360m" in dialogue
-    assert 'MAC_LLM_URL = os.getenv("MAC_LLM_URL", "http://localhost:11434")' in vision
+    # Hands phi must be routed to 11437 (not posted to brain).
+    assert "OLLAMA_HANDS_URL" in dialogue
+    assert "11437" in dialogue
     assert 'VISION_MODEL = os.getenv("VISION_MODEL", "moondream")' in vision
+    assert "OLLAMA_VISION_URL" in vision
+    assert "host.docker.internal:11434" not in vision
+    assert 'os.getenv("MAC_LLM_URL", "http://localhost:11434")' not in vision
 
 
 def test_extended_thinking_source_does_not_redirect_non_resident_to_hands():
