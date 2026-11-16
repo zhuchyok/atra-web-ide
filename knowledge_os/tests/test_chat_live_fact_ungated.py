@@ -36,3 +36,10 @@ def test_pair_script_prefers_run_async():
     assert "run?async_mode=true" in text
     assert "def run_victoria_async" in text
     assert "prefer_async" in text
+
+
+def test_chat_early_async_for_heavy_goals_in_source():
+    text = VICTORIA_SERVER.read_text(encoding="utf-8")
+    assert "VICTORIA_CHAT_EARLY_ASYNC" in text
+    assert "early async for heavy chat goal" in text
+    assert "_early_async_chat" in text

@@ -13348,27 +13348,54 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 "📚 [OPENAI-API] Full pipeline forced for docs/bible request: %s",
                 _user_msg_text[:80],
             )
-        try:
-            result = await asyncio.wait_for(
-                run_task(task_req, req, async_mode=False),
-                timeout=openai_chat_timeout_sec,
-            )
-        except asyncio.TimeoutError:
-            logger.warning(
-                "[OPENAI-API] run_task timed out for goal: %s — converting to async handoff",
-                goal[:50],
+        # Heavy exec/analysis: skip sync wait_for — go async+poll immediately
+        # (gap-scan P0: avoid burning 35–90s then stub if BG still unfinished).
+        _early_async_chat = os.getenv("VICTORIA_CHAT_EARLY_ASYNC", "true").lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        ) and (
+            _is_execution_task
+            or _force_full_for_docs
+            or _is_analysis_heavy_goal(_user_msg_text)
+        )
+        if _early_async_chat:
+            logger.info(
+                "[OPENAI-API] early async for heavy chat goal: %s",
+                _user_msg_text[:80],
             )
             try:
                 result = await run_task(task_req, req, async_mode=True)
-            except Exception as _to_async_err:
-                logger.warning(
-                    "[OPENAI-API] async handoff after timeout failed: %s", _to_async_err
-                )
+            except Exception as _early_err:
+                logger.warning("[OPENAI-API] early async failed: %s", _early_err)
                 output_text = (
                     "⏳ Задача требует больше времени для анализа. "
                     "Пожалуйста, отправьте запрос через /run с async_mode=true "
                     "для фонового выполнения."
                 )
+        else:
+            try:
+                result = await asyncio.wait_for(
+                    run_task(task_req, req, async_mode=False),
+                    timeout=openai_chat_timeout_sec,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "[OPENAI-API] run_task timed out for goal: %s — converting to async handoff",
+                    goal[:50],
+                )
+                try:
+                    result = await run_task(task_req, req, async_mode=True)
+                except Exception as _to_async_err:
+                    logger.warning(
+                        "[OPENAI-API] async handoff after timeout failed: %s", _to_async_err
+                    )
+                    output_text = (
+                        "⏳ Задача требует больше времени для анализа. "
+                        "Пожалуйста, отправьте запрос через /run с async_mode=true "
+                        "для фонового выполнения."
+                    )
 
     if result is not None:
         if isinstance(result, JSONResponse):
