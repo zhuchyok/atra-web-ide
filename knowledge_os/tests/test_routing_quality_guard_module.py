@@ -67,3 +67,23 @@ def test_evaluate_guard_action_hard_fail():
         GuardThresholds(min_events=10),
     )
     assert d["action"] == "rollback"
+
+
+def test_module_default_p95_aligned_with_cognitive_gate():
+    th = GuardThresholds()
+    assert th.max_p95_ms == 450000.0
+    assert th.max_p95_ms_rollback == 600000.0
+
+
+def test_p95_between_old_and_new_thresholds_not_rollback():
+    d = evaluate_guard_action(
+        {
+            "events_total_window": 100,
+            "routing_win_rate": 1.0,
+            "decision_regret_rate": 0.0,
+            "latency_p95_ms": 40000.0,
+        },
+        GuardThresholds(),
+    )
+    assert d["hard_fail"] is False
+    assert d["action"] == "rollout"

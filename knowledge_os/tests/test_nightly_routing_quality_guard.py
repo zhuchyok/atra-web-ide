@@ -65,3 +65,33 @@ def test_guard_green_goes_rollout():
         th,
     )
     assert d["action"] == "rollout"
+
+
+def test_default_p95_thresholds_match_cognitive_gate():
+    th = GuardThresholds()
+    assert th.max_p95_ms == 450000.0
+    assert th.max_p95_ms_rollback == 600000.0
+
+
+def test_p95_above_old_35s_with_perfect_win_is_not_hard_fail():
+    # Regression: continuous guard used 20s/35s and false-ntfy rollback at win=1 regret=0.
+    th = GuardThresholds()
+    d = evaluate_action(
+        {
+            "events_total_window": 100,
+            "routing_win_rate": 1.0,
+            "decision_regret_rate": 0.0,
+            "latency_p95_ms": 40000.0,
+        },
+        th,
+    )
+    assert d["hard_fail"] is False
+    assert d["action"] == "rollout"
+
+
+def test_nightly_learner_p95_env_defaults_aligned():
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    path = os.path.join(root, "app", "nightly_learner.py")
+    text = open(path, encoding="utf-8").read()
+    assert 'os.getenv("NIGHTLY_ROUTING_GUARD_MAX_P95_MS", "450000")' in text
+    assert 'os.getenv("NIGHTLY_ROUTING_GUARD_MAX_P95_MS_ROLLBACK", "600000")' in text
