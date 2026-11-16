@@ -447,6 +447,36 @@ def _extract_goal_file_path(goal: str) -> Optional[Path]:
     return Path(raw)
 
 
+# Same meta-check mask as victoria_server / #65 (quoted `"needle" in` / `not in`).
+_MEMBERSHIP_NEEDLE_RE = re.compile(
+    r"""(?P<q>['"])(?P<body>(?:(?!(?P=q)).)*)(?P=q)\s+(?:not\s+)?in\b""",
+    re.IGNORECASE,
+)
+
+
+def _mask_membership_needles(line: str) -> str:
+    """Replace `"needle" in` / `"needle" not in` with spaces so meta-checks do not match."""
+    return _MEMBERSHIP_NEEDLE_RE.sub(" ", line or "")
+
+
+def _line_has_runtime_pip_install(line: str) -> bool:
+    """True only for likely runtime pip execution, not for detector text itself."""
+    lowered = (line or "").lower()
+    if "pip" not in lowered or "install" not in lowered:
+        return False
+    for m in _MEMBERSHIP_NEEDLE_RE.finditer(line or ""):
+        body = m.group("body").lower()
+        if "pip" in body and "install" in body:
+            return False
+    if "not in text" in lowered or "not in normalized" in lowered:
+        return False
+    if "subprocess." in lowered:
+        return True
+    if "os.system(" in lowered:
+        return True
+    return False
+
+
 def _local_fallback_for_goal(goal: str, correlation_id: Optional[str]) -> Optional[dict]:
     low = (goal or "").lower()
     path = _extract_goal_file_path(goal)
@@ -470,15 +500,9 @@ def _local_fallback_for_goal(goal: str, correlation_id: Optional[str]) -> Option
     path_label = f"/app/{path.relative_to(ROOT)}"
 
     if "pip install в рантайме" in low:
-        markers = (
-            "pip install",
-            "python -m pip install",
-            "python3 -m pip install",
-        )
         hits = []
         for idx, line in enumerate(lines, 1):
-            norm = line.lower()
-            if any(marker in norm for marker in markers):
+            if _line_has_runtime_pip_install(line):
                 hits.append((idx, line.strip()))
         if hits:
             body = "\n".join(f"- L{n}: {s}" for n, s in hits[:8])
@@ -549,14 +573,15 @@ def _local_fallback_for_goal(goal: str, correlation_id: Optional[str]) -> Option
         findings = []
         for i, ln in enumerate(lines, 1):
             s = ln.strip()
-            l = s.lower()
-            if "subprocess." in l or "popen(" in l:
+            masked = _mask_membership_needles(ln)
+            masked_l = masked.lower()
+            if "subprocess." in masked_l or "popen(" in masked_l:
                 findings.append(f"- subprocess: L{i}: {s}")
-            if re.search(r"https?://", s):
+            if re.search(r"https?://", masked):
                 findings.append(f"- hardcoded_url: L{i}: {s}")
-            if "eval(" in l:
+            if re.search(r"\beval\s*\(", masked_l):
                 findings.append(f"- eval: L{i}: {s}")
-            if re.search(r"\bexec\(", l):
+            if re.search(r"\bexec\s*\(", masked_l):
                 findings.append(f"- exec: L{i}: {s}")
         if findings:
             output = (
