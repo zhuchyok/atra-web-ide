@@ -979,6 +979,9 @@ _TTC_EXCLUDED_STRATEGIES = frozenset(
     {
         "fact_live_probe",
         "fast_action_file_check",
+        "fact_fast_track",
+        "quick_tools_direct",
+        "quick_answer",
         "absolute_fast_track",
         "short_prompt_fast_path",
     }
@@ -1013,9 +1016,10 @@ def _exclude_from_async_ttc(
     strat = str(strategy or "").strip().lower()
     if strat in _TTC_EXCLUDED_STRATEGIES:
         return True
+    # Sub-second completions are usually probes/cache hits — not thick /run p95.
     if duration is not None:
         try:
-            if float(duration) < 0.05:
+            if float(duration) < 0.5:
                 return True
         except (TypeError, ValueError):
             pass
@@ -13034,32 +13038,42 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 logger.error(f"❌ [OPENAI-API] Memory error: {e}")
 
         # [SINGULARITY 16.0] Omni-RAG Integration for Open WebUI
-        # Подтягиваем релевантные знания через Hybrid Search v2 перед отправкой в Victoria
-        if "victoria" in str(request.model).lower():
+        # Skip RAG for file-check / concrete exec — they have deterministic paths.
+        _skip_omni_rag = bool(
+            _FILE_CHECK_RE.match((goal or "").strip()[:_FILE_CHECK_MAX_PREFIX])
+        ) or any(
+            m in (goal or "").lower()
+            for m in ("исправь", "напиши код", "создай файл", "pytest ")
+        )
+        if "victoria" in str(request.model).lower() and not _skip_omni_rag:
             try:
-                from app.enhanced_search import SearchMode, enhanced_search_knowledge
+                from app.enhanced_search import (
+                    SearchMode,
+                    enhanced_search_knowledge,
+                    rag_context_usable,
+                )
 
                 logger.info("🔍 [OPENAI-API] Omni-RAG: Searching knowledge for goal...")
                 rag_res = await enhanced_search_knowledge(
                     query=goal, mode=SearchMode.HYBRID, limit=3
                 )
-                if rag_res and rag_res.get("results"):
+                # Quality gate: skip empty / placeholder / weak filtered hits.
+                if rag_context_usable(rag_res):
                     knowledge_text = rag_res.get("result_text", "")
+                    # Очищаем RAG от внутренних монологов (<think>/<thought> блоков)
+                    knowledge_text = re.sub(
+                        r"<think>.*?</think>|<thought>.*?</thought>",
+                        "",
+                        knowledge_text,
+                        flags=re.DOTALL,
+                    )
+                    knowledge_text = knowledge_text.strip()
                     if knowledge_text:
-                        # Очищаем RAG от внутренних монологов (<think>/<thought> блоков)
-                        knowledge_text = re.sub(
-                            r"<think>.*?</think>|<thought>.*?</thought>",
-                            "",
-                            knowledge_text,
-                            flags=re.DOTALL,
+                        logger.info(
+                            f"📚 [OPENAI-API] Omni-RAG: Found {len(rag_res['results'])} relevant nodes"
                         )
-                        knowledge_text = knowledge_text.strip()
-                        if knowledge_text:
-                            logger.info(
-                                f"📚 [OPENAI-API] Omni-RAG: Found {len(rag_res['results'])} relevant nodes"
-                            )
-                            # Внедряем знания в начало запроса
-                            task_req.goal = f"КОНТЕКСТ ИЗ БАЗЫ ЗНАНИЙ (Omni-RAG):\n{knowledge_text}\n\nЗАПРОС ПОЛЬЗОВАТЕЛЯ: {task_req.goal}"
+                        # Внедряем знания в начало запроса
+                        task_req.goal = f"КОНТЕКСТ ИЗ БАЗЫ ЗНАНИЙ (Omni-RAG):\n{knowledge_text}\n\nЗАПРОС ПОЛЬЗОВАТЕЛЯ: {task_req.goal}"
             except Exception as e:
                 logger.warning(f"⚠️ [OPENAI-API] Omni-RAG search failed: {e}")
     else:
@@ -13376,13 +13390,17 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
             _rag_context = ""
             if not _is_planning_goal:
                 try:
-                    from app.enhanced_search import SearchMode, enhanced_search_knowledge
+                    from app.enhanced_search import (
+                        SearchMode,
+                        enhanced_search_knowledge,
+                        rag_context_usable,
+                    )
 
                     _rag_res = await enhanced_search_knowledge(
                         query=_user_msg_text, mode=SearchMode.HYBRID, limit=2
                     )
-                    if _rag_res and _rag_res.get("result_text"):
-                        _rag_context = _rag_res["result_text"][:1500]
+                    if rag_context_usable(_rag_res):
+                        _rag_context = (_rag_res.get("result_text") or "")[:1500]
                 except Exception:
                     pass
 
@@ -13396,8 +13414,12 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     _prompt = f"Контекст из базы знаний:\n{_rag_context}\n\nВопрос: {task_req.goal}"
                 _system_prompt = (
                     "Ты — Виктория, Lead-разработчик ATRA. "
-                    "У тебя есть контекст из базы знаний. "
-                    "Отвечай кратко, по существу, без лишних предисловий."
+                    + (
+                        "У тебя есть контекст из базы знаний. "
+                        if _rag_context
+                        else "Если фактов нет — не выдумывай. "
+                    )
+                    + "Отвечай кратко, по существу, без лишних предисловий."
                 )
                 if _is_planning_goal:
                     _system_prompt = (
