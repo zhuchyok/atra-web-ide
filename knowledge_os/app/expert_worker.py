@@ -853,6 +853,7 @@ async def process_task(task_data: dict):
     task_id = str(task_data["task_id"])
     expert_name = task_data["expert_name"]
     description = task_data["description"]
+    _task_goal_for_exp = str(description or "")
     queue_name = task_data.get("queue_name", STREAM_NAME)
     metadata = task_data.get("metadata", {}) or {}
     contract = task_data.get("contract", {}) or {}
@@ -905,6 +906,29 @@ async def process_task(task_data: dict):
                 _dept or "-",
                 len(_expert_skills_context),
             )
+        # [SKILL-LOOP] READ: top-3 experience lessons relevant to task goal
+        try:
+            try:
+                from app.skill_experience_loop import (
+                    append_experience_lessons,
+                    fetch_experience_lessons,
+                )
+            except ImportError:
+                from skill_experience_loop import (
+                    append_experience_lessons,
+                    fetch_experience_lessons,
+                )
+
+            _exp_lessons = await fetch_experience_lessons(_task_goal_for_exp, 3)
+            if _exp_lessons:
+                description = append_experience_lessons(description, _exp_lessons)
+                logger.info(
+                    "🧠 [SKILL-LOOP] Injected %s experience lesson(s) for %s",
+                    len(_exp_lessons),
+                    expert_name,
+                )
+        except Exception as _exp_read_err:
+            logger.debug("[SKILL-LOOP] experience read skipped: %s", _exp_read_err)
     except Exception as _sk_err:
         logger.warning("[SKILLS] Not available for %s: %s", expert_name, _sk_err)
 
@@ -2776,6 +2800,41 @@ async def process_task(task_data: dict):
                         )
                     except Exception as j_err:
                         logger.debug("Journaling skipped for success %s: %s", task_id, j_err)
+
+                    # [SKILL-LOOP] WRITE: compact experience on successful completion
+                    if _finish_status == "completed":
+                        try:
+                            try:
+                                from app.skill_experience_loop import (
+                                    maybe_commit_expert_experience,
+                                )
+                            except ImportError:
+                                from skill_experience_loop import (
+                                    maybe_commit_expert_experience,
+                                )
+
+                            _goal_for_exp = ""
+                            if isinstance(metadata, dict):
+                                _goal_for_exp = str(
+                                    metadata.get("goal")
+                                    or metadata.get("title")
+                                    or metadata.get("original_description")
+                                    or ""
+                                ).strip()
+                            if not _goal_for_exp:
+                                _goal_for_exp = str(_task_goal_for_exp or task_id or "")[:300]
+                            await maybe_commit_expert_experience(
+                                goal=_goal_for_exp,
+                                result=str(report_text or "")[:400],
+                                expert_name=str(expert_name or ""),
+                                outcome="passed",
+                            )
+                        except Exception as _exp_write_err:
+                            logger.debug(
+                                "[SKILL-LOOP] experience write skipped for %s: %s",
+                                task_id,
+                                _exp_write_err,
+                            )
 
                 # [SINGULARITY 26.3] Extract reasoning_trace and store in task metadata
                 if "<reasoning_trace>" in report_text and is_valid_uuid:
