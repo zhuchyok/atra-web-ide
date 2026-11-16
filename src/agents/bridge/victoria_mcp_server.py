@@ -101,6 +101,62 @@ def _is_victoria_stub(text: str, status: Optional[str] = None) -> bool:
     return is_victoria_stub(text, status=status)
 
 
+def _prefer_run_async(message: str) -> bool:
+    """Heavy/curator/file/fact goals prefer /run async+poll (pair/curator path).
+
+    Short identity/greetings stay on /v1/chat/completions.
+    """
+    g = (message or "").strip().lower()
+    if not g:
+        return False
+    short_ok = (
+        "привет",
+        "здравствуй",
+        "кто ты",
+        "ты кто",
+        "что умеешь",
+        "hello",
+        "hi ",
+        "who are you",
+    )
+    if len(g) < 48 and any(s in g for s in short_ok):
+        return False
+    markers = (
+        "проверь файл",
+        "прочитай файл",
+        "curator",
+        "по фактам",
+        "/health",
+        "11434",
+        "11437",
+        "11436",
+        "/api/ps",
+        "исправ",
+        "аудит",
+        "pytest",
+        "docker",
+        "миграц",
+        "напиши",
+        "создай",
+        "разработай",
+        "проанализ",
+        "разбери",
+        "grep",
+        "read_file",
+        "pending",
+        "in_progress",
+        "pip install",
+        "eval()",
+        "exec()",
+        "hardcoded",
+        "секрет",
+    )
+    if any(m in g for m in markers):
+        return True
+    min_chars = int(os.getenv("VICTORIA_MCP_CHAT_RUN_MIN_CHARS", "120"))
+    return len(g) >= min_chars
+
+
 def _parse_run_result(result: dict) -> str:
     """Разбор ответа /run: поддержка goal→output, chat completions и task_id."""
     return format_run_result(result)
@@ -226,10 +282,26 @@ async def victoria_chat(
                     history = parsed
             except json.JSONDecodeError:
                 pass
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        # Dialogue turns with history stay on chat; single-shot heavy → /run async.
+        prefer_run = _prefer_run_async(message) and not history
+        timeout_sec = 300.0 if prefer_run else 120.0
+        async with httpx.AsyncClient(timeout=timeout_sec) as client:
+            if prefer_run:
+                wait_sec = float(os.getenv("VICTORIA_MCP_CHAT_RUN_WAIT_SEC", "180"))
+                logger.info(
+                    "[victoria_chat] routing to /run async (len=%s wait=%.0fs)",
+                    len(message or ""),
+                    wait_sec,
+                )
+                return await _run_async_and_poll(
+                    client, message, max_steps=120, wait_sec=wait_sec
+                )
             return await _chat_completions(client, message, history)
     except httpx.TimeoutException:
-        return "⏱️ Таймаут: Victoria не ответила за 120 с. Упрости запрос."
+        return (
+            "⏱️ Таймаут канала Victoria. Для длинных задач опроси victoria_task_status "
+            "или повтори через victoria_run."
+        )
     except httpx.RequestError as e:
         return f"❌ Ошибка связи с Victoria: {e}"
     except Exception as e:

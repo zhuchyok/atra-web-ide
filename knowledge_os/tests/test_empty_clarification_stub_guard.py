@@ -24,20 +24,27 @@ PAIR_GOAL = (
 
 
 def _load_helpers():
+    import re
+
     td_ns: dict = {}
     exec(compile(TASK_DETECTOR.read_text(encoding="utf-8"), str(TASK_DETECTOR), "exec"), td_ns)
 
     text = VICTORIA_SERVER.read_text(encoding="utf-8")
+    # File-check constants used by clarify override.
+    fc_start = text.index("_FILE_CHECK_RE = re.compile(")
+    fc_end = text.index("\ndef _line_has_runtime_pip_install(")
     start = text.index("def _override_need_clarification_strategy(")
     end = text.index("\ndef _has_explicit_tool_directive(")
     ns: dict = {
         "Any": Any,
         "Dict": Dict,
         "List": List,
+        "re": re,
         "is_introspection_goal": td_ns["is_introspection_goal"],
         "is_curator_standard_goal": td_ns["is_curator_standard_goal"],
         "is_fact_seeking_question": td_ns["is_fact_seeking_question"],
     }
+    exec(compile(text[fc_start:fc_end], str(VICTORIA_SERVER), "exec"), ns)
     exec(compile(text[start:end], str(VICTORIA_SERVER), "exec"), ns)
     return ns
 
@@ -73,3 +80,16 @@ def test_non_fact_goal_keeps_clarification(helpers):
         {"strategy": "need_clarification", "reason": "ambiguous", "confidence": 0.6},
     )
     assert out["strategy"] == "need_clarification"
+
+
+def test_file_check_goal_overrides_need_clarification(helpers):
+    goal = (
+        "проверь файл /app/knowledge_os/app/expert_worker.py — есть ли там "
+        "pip install в рантайме? Ответь: ОК или ПРОБЛЕМА + цитата"
+    )
+    out = helpers["_override_need_clarification_strategy"](
+        goal,
+        {"strategy": "need_clarification", "reason": "ambiguous", "confidence": 0.7},
+    )
+    assert out["strategy"] == "deep_analysis"
+    assert out["reason"] == "file_check_goal_no_clarify"

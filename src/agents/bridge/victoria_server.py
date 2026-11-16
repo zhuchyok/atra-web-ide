@@ -6184,6 +6184,14 @@ def _override_need_clarification_strategy(
             "reason": "fact_seeking_no_clarify",
             "confidence": 0.95,
         }
+    # «проверь/прочитай файл …» — never soft-clarify; fast path or deep read.
+    _fc_prefix = (goal or "").strip()[:_FILE_CHECK_MAX_PREFIX]
+    if _FILE_CHECK_RE.match(_fc_prefix):
+        return {
+            "strategy": "deep_analysis",
+            "reason": "file_check_goal_no_clarify",
+            "confidence": 0.95,
+        }
     return strategy_result
 
 
@@ -12709,7 +12717,10 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
             }
         )
     live_fact = await _build_live_fact_answer_for_run(goal)
-    if deterministic_chat_enabled and live_fact:
+    # Live facts must ship on chat even when VICTORIA_DETERMINISTIC_CHAT=false.
+    # That flag gates identity/bible shortcuts; gating fact-probe behind it forced
+    # curator/health/slots questions into full run_task → 35s static handoff stub.
+    if live_fact:
         logger.info("[VICTORIA_FACT] chat completions live fact preview=%s", live_fact[:120])
         return JSONResponse(
             content={
@@ -12721,6 +12732,32 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     {
                         "index": 0,
                         "message": {"role": "assistant", "content": live_fact},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    # Same for FAST_ACTION file-check («проверь файл …» → ОК/ПРОБЛЕМА + цитата).
+    try:
+        _file_check = await _try_file_check_reply(goal)
+    except Exception:
+        _file_check = None
+    if _file_check and _file_check.get("output"):
+        _fc_out = _normalize_output_for_user(_file_check["output"])
+        logger.info(
+            "[VICTORIA_FILE_CHECK] chat completions preview=%s", (_fc_out or "")[:120]
+        )
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _fc_out},
                         "finish_reason": "stop",
                     }
                 ],
@@ -13097,13 +13134,19 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     openai_chat_timeout_sec = OPENAI_SYNC_EXEC_TIMEOUT_SEC
     if _force_full_for_docs or _is_execution_task or _is_analysis_heavy_goal(_user_msg_text):
         openai_chat_timeout_sec = OPENAI_COMPLEX_EXEC_TIMEOUT_SEC
+    if _is_fact_q or is_curator_standard_goal(_user_msg_text):
+        openai_chat_timeout_sec = max(
+            openai_chat_timeout_sec,
+            float(os.getenv("OPENAI_FACT_CHAT_TIMEOUT_SEC", "90")),
+        )
     logger.info(
-        "⏱ [OPENAI-API] selected timeout=%.1fs simple=%s exec=%s planning=%s force_docs=%s",
+        "⏱ [OPENAI-API] selected timeout=%.1fs simple=%s exec=%s planning=%s force_docs=%s fact=%s",
         openai_chat_timeout_sec,
         _is_simple_q,
         _is_execution_task,
         _is_planning_goal,
         _force_full_for_docs,
+        _is_fact_q,
     )
     # Keep simple chat responsive by default; can be disabled via env if needed.
     shortcuts_enabled = os.getenv("VICTORIA_SIMPLE_SHORTCUTS", "true").lower() in (
@@ -13201,8 +13244,21 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     timeout=openai_chat_timeout_sec,
                 )
             except asyncio.TimeoutError:
-                logger.warning(f"[OPENAI-API] run_task timed out for goal: {_user_msg_text[:50]}")
-                output_text = "⏳ Задача требует больше времени для анализа. Пожалуйста, отправьте запрос через /run с async_mode=true для фонового выполнения."
+                logger.warning(
+                    "[OPENAI-API] run_task timed out for goal: %s — converting to async handoff",
+                    _user_msg_text[:50],
+                )
+                try:
+                    result = await run_task(task_req, req, async_mode=True)
+                except Exception as _to_async_err:
+                    logger.warning(
+                        "[OPENAI-API] async handoff after timeout failed: %s", _to_async_err
+                    )
+                    output_text = (
+                        "⏳ Задача требует больше времени для анализа. "
+                        "Пожалуйста, отправьте запрос через /run с async_mode=true "
+                        "для фонового выполнения."
+                    )
     else:
         if _force_full_for_docs:
             logger.info(
@@ -13215,8 +13271,21 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 timeout=openai_chat_timeout_sec,
             )
         except asyncio.TimeoutError:
-            logger.warning(f"[OPENAI-API] run_task timed out for goal: {goal[:50]}")
-            output_text = "⏳ Задача требует больше времени для анализа. Пожалуйста, отправьте запрос через /run с async_mode=true для фонового выполнения."
+            logger.warning(
+                "[OPENAI-API] run_task timed out for goal: %s — converting to async handoff",
+                goal[:50],
+            )
+            try:
+                result = await run_task(task_req, req, async_mode=True)
+            except Exception as _to_async_err:
+                logger.warning(
+                    "[OPENAI-API] async handoff after timeout failed: %s", _to_async_err
+                )
+                output_text = (
+                    "⏳ Задача требует больше времени для анализа. "
+                    "Пожалуйста, отправьте запрос через /run с async_mode=true "
+                    "для фонового выполнения."
+                )
 
     if result is not None:
         if isinstance(result, JSONResponse):
@@ -13244,7 +13313,14 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                         "output", body_data.get("message", "")
                     )
             else:
-                output_text = body_data.get("output", body_data.get("message", str(body_data)))
+                _out = body_data.get("output") or body_data.get("message")
+                if _out:
+                    output_text = _out
+                elif body_data.get("task_id"):
+                    # Preserve handoff payload so chat can poll /run/status.
+                    output_text = json.dumps(body_data, ensure_ascii=False)
+                else:
+                    output_text = str(body_data)
         elif isinstance(result, TaskResponse):
             output_text = result.output
         elif hasattr(result, "output"):
@@ -13255,8 +13331,14 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     # If sync path handed off to async mode, briefly poll final result for chat UX.
     _async_task_id = _extract_async_task_id(output_text)
     if _async_task_id:
-        _wait_sec = int(os.getenv("OPENAI_ASYNC_HANDOFF_WAIT_SEC", "20"))
-        _resolved = await _await_async_handoff_result_for_chat(_async_task_id, max_wait_sec=_wait_sec)
+        _wait_sec = int(os.getenv("OPENAI_ASYNC_HANDOFF_WAIT_SEC", "90"))
+        if _is_fact_q or is_curator_standard_goal(_user_msg_text):
+            _wait_sec = max(
+                _wait_sec, int(os.getenv("OPENAI_FACT_HANDOFF_WAIT_SEC", "120"))
+            )
+        _resolved = await _await_async_handoff_result_for_chat(
+            _async_task_id, max_wait_sec=_wait_sec
+        )
         if _resolved:
             output_text = _resolved
         else:
