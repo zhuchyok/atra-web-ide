@@ -8,7 +8,12 @@ APP = os.path.join(ROOT, "knowledge_os", "app")
 if APP not in sys.path:
     sys.path.insert(0, APP)
 
-from source_guard import guard_workspace_write, resolve_workspace_write_path  # noqa: E402
+from source_guard import (  # noqa: E402
+    PROTECTED_SOURCE_PREFIXES,
+    guard_file_write,
+    guard_workspace_write,
+    resolve_workspace_write_path,
+)
 
 
 def test_relative_core_path_refused(tmp_path):
@@ -80,3 +85,48 @@ def test_autonomous_code_calls_workspace_guard():
     assert "guard_workspace_write" in fn
     assert "SOURCE_GUARD" in fn
     assert "source_guard unavailable" in fn
+
+
+def test_scripts_prefix_in_protected_list():
+    assert "scripts/" in PROTECTED_SOURCE_PREFIXES
+    assert "knowledge_os/scripts/" in PROTECTED_SOURCE_PREFIXES
+
+
+def test_scripts_avito_lead_responder_refused(tmp_path, monkeypatch):
+    monkeypatch.delenv("ATRA_ALLOW_SOURCE_WRITE", raising=False)
+    ws = str(tmp_path)
+    os.makedirs(os.path.join(ws, "scripts"), exist_ok=True)
+    code = "print('should not write')\n"
+    ok, reason, _resolved = guard_workspace_write(
+        ws, "scripts/avito_lead_responder.py", code, overwrite_check=False
+    )
+    assert ok is False
+    assert "protected source path" in reason
+    assert "scripts/" in reason
+
+    allowed, g_reason = guard_file_write(
+        os.path.join(ws, "scripts", "avito_lead_responder.py"), code, overwrite_check=False
+    )
+    assert allowed is False
+    assert "protected source path" in g_reason
+
+
+def test_non_protected_tmp_probe_allowed(tmp_path, monkeypatch):
+    monkeypatch.delenv("ATRA_ALLOW_SOURCE_WRITE", raising=False)
+    ws = str(tmp_path)
+    os.makedirs(os.path.join(ws, "tmp"), exist_ok=True)
+    code = "def ping():\n    return 1\n"
+    ok, reason, resolved = guard_workspace_write(ws, "tmp/safe_probe.py", code)
+    assert ok is True, reason
+    assert reason == "ok"
+    assert resolved.endswith("tmp/safe_probe.py")
+
+
+def test_react_agent_write_file_calls_source_guard():
+    src = (
+        __import__("pathlib").Path(ROOT) / "knowledge_os" / "app" / "react_agent.py"
+    ).read_text(encoding="utf-8")
+    assert "_source_guard_write_error" in src
+    assert "guard_file_write" in src
+    # Both create_file/write_file branches must call the guard helper
+    assert src.count("self._source_guard_write_error(") >= 2

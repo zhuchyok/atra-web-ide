@@ -1148,6 +1148,24 @@ class ReActAgent:
             return "finish", {"output": response_clean}
         return "finish", {"output": f"Ошибка парсинга ответа модели. Ответ: {response_clean[:500]}"}
 
+    @staticmethod
+    def _source_guard_write_error(file_path: str, content: str) -> Optional[str]:
+        """SOURCE_GUARD before create_file/write_file. Error string or None if allowed."""
+        try:
+            from source_guard import guard_file_write
+        except ImportError:
+            try:
+                from app.source_guard import guard_file_write
+            except ImportError:
+                return (
+                    "Error: write rejected by SOURCE_GUARD (source_guard unavailable). "
+                    f"Файл: {file_path}"
+                )
+        allowed, reason = guard_file_write(file_path, content)
+        if not allowed:
+            return f"Error: write rejected by SOURCE_GUARD ({reason}). Файл: {file_path}"
+        return None
+
     async def _execute_action(self, action: str, action_input: Dict) -> Any:
         """Выполнить действие с реальными инструментами"""
         # TODO: Convert f-string to %s formatting for performance
@@ -1253,6 +1271,9 @@ class ReActAgent:
             content = action_input.get("content", "")
             if not file_path:
                 return "Error: file_path не указан"
+            guard_err = self._source_guard_write_error(file_path, content)
+            if guard_err:
+                return guard_err
             try:
                 os.makedirs(os.path.dirname(file_path), exist_ok=True) if os.path.dirname(
                     file_path
@@ -1415,6 +1436,9 @@ class ReActAgent:
                 content = action_input.get("content", "")
                 if not file_path:
                     return "Error: file_path не указан"
+                guard_err = self._source_guard_write_error(file_path, content)
+                if guard_err:
+                    return guard_err
                 os.makedirs(os.path.dirname(file_path), exist_ok=True) if os.path.dirname(
                     file_path
                 ) else None

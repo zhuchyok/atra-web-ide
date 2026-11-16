@@ -31,6 +31,7 @@ PROTECTED_SOURCE_PREFIXES = (
     "src/core/",
     "src/middleware/",
     "knowledge_os/scripts/",
+    "scripts/",
 )
 
 _ENV_OVERRIDE = "ATRA_ALLOW_SOURCE_WRITE"

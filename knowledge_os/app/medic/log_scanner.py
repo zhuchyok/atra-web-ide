@@ -210,6 +210,7 @@ except ImportError:  # pragma: no cover — same prefixes as source_guard
         "src/core/",
         "src/middleware/",
         "knowledge_os/scripts/",
+        "scripts/",
     )
 
 _FILE_IN_LOG = re.compile(
