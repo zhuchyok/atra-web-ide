@@ -25,10 +25,7 @@ else
   python3 "$CURATOR_SCRIPT" --file "$TASKS_FILE" --async --max-wait "$MAX_WAIT"
 fi
 
-# Ежедневный самоаудит Виктории (интенсивный режим доводки; SELF_AUDIT=0 — отключить,
-# когда система станет стабильной вернём к понедельникам: DOW="$(date +%u)"; [ "$DOW" = "1" ])
-SELF_AUDIT_FILE="$ROOT/scripts/curator_self_audit_tasks.txt"
-if [ "${SELF_AUDIT:-1}" != "0" ] && [ -f "$SELF_AUDIT_FILE" ]; then
-  echo "=== Самоаудит Виктории ($(date '+%F %T')) ==="
-  python3 "$CURATOR_SCRIPT" --file "$SELF_AUDIT_FILE" --async --max-wait "$MAX_WAIT"
-fi
+# Самоаудит НЕ вызываем здесь: отдельная launchd-джоба com.atra.victoria-self-audit
+# в 09:20 (stagger от curator 09:00), ProgramArguments → scripts/send_self_audit_chat.py.
+# Дублирующий вызов через curator_send_tasks_to_victoria.py убран 2026-11-16.
+# SELF_AUDIT=0 / curator_self_audit_tasks.txt оставлены для ручного прогона при необходимости.
