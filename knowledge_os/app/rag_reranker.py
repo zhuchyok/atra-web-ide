@@ -29,7 +29,8 @@ class RAGReranker:
         if self.model is not None or self._load_attempted:
             return
         self._load_attempted = True
-        if os.getenv("RAG_RERANKER_ENABLED", "true").lower() in ("false", "0", "no"):
+        # Default OFF (align victoria RAG_RERANK_ENABLED=false); opt-in via env.
+        if os.getenv("RAG_RERANKER_ENABLED", "false").lower() in ("false", "0", "no", ""):
             logger.info("[RERANKER] Отключён (RAG_RERANKER_ENABLED=false)")
             return
         if not HAS_CROSS_ENCODER:

@@ -1549,10 +1549,12 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                         # [SINGULARITY 29.6] Skip reranking for R&D to save memory
                         if is_rd_query:
                             reranked_nodes = rows[:5]
-                        elif os.getenv("RAG_RERANKER_ENABLED", "true").lower() in (
+                        # Default OFF (align victoria RAG_RERANK_ENABLED=false); opt-in via env.
+                        elif os.getenv("RAG_RERANKER_ENABLED", "false").lower() in (
                             "false",
                             "0",
                             "no",
+                            "",
                         ):
                             reranked_nodes = rows[:5]
                         else:

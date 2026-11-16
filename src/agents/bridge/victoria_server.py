@@ -6204,6 +6204,22 @@ def _is_analysis_heavy_goal(goal: str) -> bool:
     return any(m in g for m in markers) and len(g) >= 20
 
 
+def _early_async_preamble_shortcut(
+    handoff_reason: Optional[str], goal: str
+) -> tuple[Optional[str], Optional[Dict[str, Any]]]:
+    """Skip _select_strategy + _understand_goal when early_async already classified analysis-heavy.
+
+    Returns (restated_goal, strategy_result). Both None means: run normal BG preamble.
+    """
+    if str(handoff_reason or "") != "early_async_analysis":
+        return None, None
+    return (goal or ""), {
+        "strategy": "deep_analysis",
+        "reason": "early_async_analysis_skip_preamble",
+        "confidence": 0.9,
+    }
+
+
 def _is_planning_guidance_goal(goal: str) -> bool:
     """Planning/help requests should not be treated as execution tasks."""
     g = (goal or "").lower()
@@ -10716,6 +10732,8 @@ async def run_task(
         # Всегда сохраняем в локальный store для фонового процесса _run_task_background
         _run_task_store[task_id] = task_data
         _max_steps = body.max_steps if body.max_steps is not None else DEFAULT_MAX_STEPS
+        # early_async_analysis: goal already classified analysis-heavy — skip strategy/understand LLM.
+        _restated_goal, _strategy_result = _early_async_preamble_shortcut(reason, goal)
         task_coro = _run_task_background(
             task_id=task_id,
             goal=goal,
@@ -10729,8 +10747,8 @@ async def run_task(
             session_id=body.session_id,
             expert_name=getattr(body, "expert_name", None) or "Виктория",
             verbose=bool(body.verbose),
-            restated_goal=None,
-            strategy_result=None,
+            restated_goal=_restated_goal,
+            strategy_result=_strategy_result,
             scanner_class=getattr(body, "scanner_class", None),
         )
 

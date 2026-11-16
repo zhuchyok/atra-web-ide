@@ -28,7 +28,8 @@ _RERANKER_MODEL = None
 
 
 def _reranker_enabled() -> bool:
-    return os.getenv("RAG_RERANKER_ENABLED", "true").lower() in ("1", "true", "yes")
+    # Default OFF (p95 KISS; align victoria RAG_RERANK_ENABLED=false). Opt-in: true/1/yes.
+    return os.getenv("RAG_RERANKER_ENABLED", "false").lower() in ("1", "true", "yes")
 
 
 def get_reranker():
