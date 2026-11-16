@@ -8,10 +8,12 @@ import pytest
 class TestSelfCheckConfig:
     """Test configuration parsing and URL building."""
 
-    def test_ollama_url_from_env(self):
+    def test_ollama_url_from_env(self, monkeypatch):
         """Ollama URL should use OLLAMA_BASE_URL from env, not hardcoded localhost."""
         import os
 
+        # изоляция от env-загрязнения: другие тесты ставят OLLAMA_BASE_URL на 11437
+        monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
         url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         assert url.startswith("http")
         assert "11434" in url
