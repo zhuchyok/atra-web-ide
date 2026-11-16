@@ -1150,7 +1150,7 @@ class ReActAgent:
 
     @staticmethod
     def _source_guard_write_error(file_path: str, content: str) -> Optional[str]:
-        """SOURCE_GUARD before create_file/write_file. Error string or None if allowed."""
+        """SOURCE_GUARD before create_file/write_file/smart-patch. Error string or None if allowed."""
         try:
             from source_guard import guard_file_write
         except ImportError:
@@ -1291,6 +1291,11 @@ class ReActAgent:
             if not file_path or not patch_content:
                 return "Error: file_path и patch_content обязательны"
 
+            # Fail-closed path check before any disk mutation (same SOURCE_GUARD as write_file)
+            guard_err = self._source_guard_write_error(file_path, "pass\n")
+            if guard_err:
+                return guard_err
+
             try:
                 import re
 
@@ -1329,6 +1334,9 @@ class ReActAgent:
                             logger.warning(f"⚠️ Блок SEARCH не найден в {file_path}")
 
                 if applied_count > 0:
+                    guard_err = self._source_guard_write_error(file_path, new_content)
+                    if guard_err:
+                        return guard_err
                     with open(file_path, "w", encoding="utf-8") as f:
                         f.write(new_content)
                     return f"Успешно применено {applied_count} патчей к {file_path}"

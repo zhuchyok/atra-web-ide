@@ -128,5 +128,38 @@ def test_react_agent_write_file_calls_source_guard():
     ).read_text(encoding="utf-8")
     assert "_source_guard_write_error" in src
     assert "guard_file_write" in src
-    # Both create_file/write_file branches must call the guard helper
-    assert src.count("self._source_guard_write_error(") >= 2
+    # create_file/write_file + smart-patch/patch_file must call the guard helper
+    assert src.count("self._source_guard_write_error(") >= 3
+    assert 'action == "smart-patch" or action == "patch_file"' in src
+
+
+def test_react_smart_patch_refuses_scripts_avito(tmp_path, monkeypatch):
+    """smart-patch must refuse scripts/avito_lead_responder.py via SOURCE_GUARD."""
+    import asyncio
+
+    monkeypatch.delenv("ATRA_ALLOW_SOURCE_WRITE", raising=False)
+    scripts_dir = tmp_path / "scripts"
+    scripts_dir.mkdir(parents=True)
+    target = scripts_dir / "avito_lead_responder.py"
+    original = "def ping():\n    return 1\n"
+    target.write_text(original, encoding="utf-8")
+
+    from react_agent import ReActAgent
+
+    agent = ReActAgent(agent_name="test-guard", max_iterations=1)
+    patch = (
+        "<<<<<<< SEARCH\n"
+        "def ping():\n    return 1\n"
+        "=======\n"
+        "def ping():\n    return 2\n"
+        ">>>>>>> REPLACE"
+    )
+    result = asyncio.run(
+        agent._execute_action(
+            "smart-patch",
+            {"file_path": str(target), "patch_content": patch},
+        )
+    )
+    assert "SOURCE_GUARD" in str(result)
+    assert "protected source path" in str(result) or "scripts/" in str(result)
+    assert target.read_text(encoding="utf-8") == original

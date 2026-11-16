@@ -13,6 +13,7 @@ This runbook defines what is explicitly in-scope for the curator hardening task 
 - Do not delete files automatically.
 - Do not use broad cleanup commands (`git clean`, mass deletes).
 - Only review files with an explicit whitelist decision.
+- Never git checkout/restore/reset --hard on intentional dirty fixes (esp. scripts/) without git diff review + explicit keep/revert.
 
 ## Keep (in-scope, required)
 
