@@ -327,7 +327,7 @@ mod tests {
     #[tokio::test]
     async fn test_query_logic_structure() {
         // This is a basic test to verify the structure and compilation
-        dotenv::dotenv().ok();
+        dotenvy::dotenv().ok();
         let database_url =
             env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://localhost/test".to_string());
 

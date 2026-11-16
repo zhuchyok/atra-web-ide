@@ -11,6 +11,4 @@ ignore = [
     # Transitive unmaintained crates currently required by dependency graph.
     "RUSTSEC-2025-0057",
     "RUSTSEC-2025-0134",
-    # dotenv: unmaintained, замена на dotenvy запланирована отдельно.
-    "RUSTSEC-2021-0141",
 ]

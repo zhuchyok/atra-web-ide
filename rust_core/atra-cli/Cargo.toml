@@ -17,7 +17,7 @@ tokio = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-dotenv = { workspace = true }
+dotenvy = { workspace = true }
 
 # Project-specific dependencies
 clap = { version = "4.4", features = ["derive", "color"] }

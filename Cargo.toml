@@ -28,7 +28,7 @@ reqwest = { version = "0.12", features = ["json", "stream"] }
 # Utilities
 uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
-dotenv = "0.15"
+dotenvy = "0.15"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 anyhow = "1.0"

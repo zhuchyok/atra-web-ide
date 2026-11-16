@@ -1,29 +1,29 @@
 use axum::{
+    Json, Router,
     body::Body,
     extract::{
-        ws::{Message, WebSocket},
         Path, Query, State, WebSocketUpgrade,
+        ws::{Message, WebSocket},
     },
-    http::{header, HeaderMap, Method, StatusCode},
+    http::{HeaderMap, Method, StatusCode, header},
     response::{Html, IntoResponse, Response},
     routing::{delete, get, post},
-    Json, Router,
 };
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use futures_util::StreamExt;
-use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sqlx::FromRow;
 use sqlx::types::chrono;
 use sqlx::types::uuid::Uuid;
-use sqlx::FromRow;
 use std::env;
 use std::io::{Read, Write};
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use sysinfo::System;
 use tokio::fs;
