@@ -83,3 +83,11 @@ def test_expert_worker_wires_skill_loop_read_and_write():
     assert "fetch_experience_lessons" in src
     assert "append_experience_lessons" in src
     assert "maybe_commit_expert_experience" in src
+
+
+def test_fetch_sql_uses_russian_tsquery_matching_trigger():
+    """Trigger indexes with russian; simple query config breaks same-goal retrieval."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    src = open(os.path.join(root, "app", "skill_experience_loop.py"), encoding="utf-8").read()
+    assert "plainto_tsquery('russian'" in src
+    assert "plainto_tsquery('simple'" not in src

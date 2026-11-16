@@ -56,11 +56,14 @@ async def fetch_experience_lessons(
     try:
         conn = await asyncpg.connect(dsn=dsn or _DEFAULT_DSN)
         try:
+            # content_tsvector is filled by trigger to_tsvector('russian', ...);
+            # 'simple' query config never matches stemmed EN tokens → always
+            # fell through to newest-only fallback (skill-loop value loss).
             rows = await conn.fetch(
                 """SELECT content FROM knowledge_nodes
                    WHERE metadata @> '{"kind":"experience"}'::jsonb
-                     AND content_tsvector @@ plainto_tsquery('simple', $1)
-                   ORDER BY ts_rank(content_tsvector, plainto_tsquery('simple', $1)) DESC,
+                     AND content_tsvector @@ plainto_tsquery('russian', $1)
+                   ORDER BY ts_rank(content_tsvector, plainto_tsquery('russian', $1)) DESC,
                             created_at DESC
                    LIMIT $2""",
                 goal[:400],

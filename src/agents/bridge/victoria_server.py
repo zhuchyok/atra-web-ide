@@ -14089,11 +14089,13 @@ async def _fetch_experience_lessons(goal_text: str, limit: int = 3) -> list:
         dsn = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
         conn = await asyncpg.connect(dsn=dsn)
         try:
+            # Match knowledge_nodes_tsvector_trigger (to_tsvector('russian', ...)).
+            # 'simple' query config misses stemmed tokens and skips to newest fallback.
             rows = await conn.fetch(
                 """SELECT content FROM knowledge_nodes
                    WHERE metadata @> '{"kind":"experience"}'::jsonb
-                     AND content_tsvector @@ plainto_tsquery('simple', $1)
-                   ORDER BY ts_rank(content_tsvector, plainto_tsquery('simple', $1)) DESC, created_at DESC
+                     AND content_tsvector @@ plainto_tsquery('russian', $1)
+                   ORDER BY ts_rank(content_tsvector, plainto_tsquery('russian', $1)) DESC, created_at DESC
                    LIMIT $2""",
                 goal_text[:400],
                 limit,
