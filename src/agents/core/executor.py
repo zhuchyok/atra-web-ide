@@ -74,6 +74,29 @@ ALLOWED_TOOLS = {
 }
 ALLOWED_TOOLS_HINT = ", ".join(sorted(ALLOWED_TOOLS))
 
+# p95: thinking tokens dominate brain generate. Keep ON only for hard categories;
+# chat/fast/code default OFF (EXECUTOR_ENABLE_THINKING opt-in).
+_THINKING_ON_CATEGORIES = frozenset({"reasoning", "vip", "complex"})
+
+
+def executor_enable_thinking(category: Optional[str] = None) -> bool:
+    """Category-gated enable_thinking for Ollama options payload."""
+    cat = (category or "").strip().lower()
+    if cat in _THINKING_ON_CATEGORIES:
+        return True
+    raw = (os.getenv("EXECUTOR_ENABLE_THINKING", "false") or "false").strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
+
+def build_executor_options(category: Optional[str] = None) -> dict[str, Any]:
+    """Default /api/chat options; expose for unit tests (before/after payload)."""
+    return {
+        "temperature": 0.1,
+        "enable_thinking": executor_enable_thinking(category),
+        "num_predict": int(os.getenv("EXECUTOR_NUM_PREDICT_CAP", "1200")),
+    }
+
+
 # === MODEL FALLBACK CONFIGURATION ===
 # Ordered list of fallback models from smallest to largest
 FALLBACK_MODELS_OLLAMA = [
@@ -467,6 +490,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
         model: Optional[str] = None,
         system: Optional[str] = None,
         expert_name: str = "Виктория",
+        category: Optional[str] = None,
     ) -> Any:
         """
         Send request to LLM with automatic fallback on model crash.
@@ -475,6 +499,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
         model: переопределить модель для этого запроса.
         system: переопределить системный промпт.
         expert_name: имя эксперта для семантического кэша.
+        category: reasoning/vip/complex → thinking ON; else OFF (env opt-in).
         """
         req_model = model or self.model
         disable_victoria_qwen_semantic_cache = (
@@ -550,6 +575,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                     phase=phase,
                     blocked_tools=blocked_tools,
                     system_override=system,
+                    category=category,
                 )
             except asyncio.CancelledError:
                 logger.warning("[ADAPTIVE] Task cancelled — semaphore slot released")
@@ -691,6 +717,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
         phase: Optional[str] = None,
         blocked_tools: Optional[list[str]] = None,
         system_override: Optional[str] = None,
+        category: Optional[str] = None,
     ) -> Any:
         """Internal method with fallback support"""
         await _exec_backoff_gate()
@@ -712,6 +739,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                 phase=phase,
                 blocked_tools=blocked_tools,
                 system_override=system_override,
+                category=category,
             )
         model = _normalize_model_for_backend(model, base_url, self._mlx_url)
         # [v150.11] Руки — на свой инстанс (мимо всех гейтов роутера не проскочит)
@@ -735,19 +763,22 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
         # keep_alive: политика из ollama_keep_alive_policy
         # При живом MLX → 60с (руки), при падении MLX → -1 (immortal fallback)
 
+        # [v150.23] Слот-монополия: без капа мозг (np=1) генерил 2700+ токенов
+        # = 6 мин за задачу, очередь не дышала. 1200 ток ≈ 2.5 мин — компромисс
+        # «медленно, но верно»: каждый вызов уступает слот следующим.
+        # [p95] enable_thinking gated: ON only for reasoning/vip/complex.
+        _options = build_executor_options(category)
         payload = {
             "model": model,
             "messages": messages,
             "stream": False,
-            # [v150.23] Слот-монополия: без капа мозг (np=1) генерил 2700+ токенов
-            # = 6 мин за задачу, очередь не дышала. 1200 ток ≈ 2.5 мин — компромисс
-            # «медленно, но верно»: каждый вызов уступает слот следующим.
-            "options": {
-                "temperature": 0.1,
-                "enable_thinking": True,
-                "num_predict": int(os.getenv("EXECUTOR_NUM_PREDICT_CAP", "1200")),
-            },
+            "options": _options,
         }
+        logger.info(
+            "[LLM_OPTIONS] enable_thinking=%s category=%s",
+            _options.get("enable_thinking"),
+            category or "-",
+        )
 
         # Адаптивный keep_alive на основе веса модели (Singularity 10.0)
         # [v149.19] Единая политика — источник истины (мозг qwen38 бессмертен там);
@@ -854,6 +885,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                                     phase=phase,
                                     blocked_tools=blocked_tools,
                                     system_override=system_override,
+                                    category=category,
                                 )
                             return content  # No fallback available, return empty
 
@@ -903,6 +935,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                                         phase=phase,
                                         blocked_tools=blocked_tools,
                                         system_override=system_override,
+                                        category=category,
                                     )
 
                         is_crash = any(
@@ -932,6 +965,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                                     phase=phase,
                                     blocked_tools=blocked_tools,
                                     system_override=system_override,
+                                    category=category,
                                 )
 
                         return {"error": f"Ollama HTTP {response.status}: {error_body[:200]}"}
@@ -970,6 +1004,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                             is_retry=True,
                             phase=phase,
                             blocked_tools=blocked_tools,
+                            category=category,
                         )
 
                 # Timeout on large model - try fallback (legacy path)
@@ -991,6 +1026,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                             is_retry=True,
                             phase=phase,
                             blocked_tools=blocked_tools,
+                            category=category,
                         )
 
                 return {"error": f"Timeout: модель {model} не ответила за {int(_exec_timeout)} с"}
@@ -1012,6 +1048,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
                             is_retry=True,
                             phase=phase,
                             blocked_tools=blocked_tools,
+                            category=category,
                         )
 
                 return {"error": f"Connection failed to {url}: {e}"}

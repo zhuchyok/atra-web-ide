@@ -1414,7 +1414,7 @@ from src.agents.bridge.task_detector import (
     should_use_enhanced,
 )
 from src.agents.core.base_agent import AtraBaseAgent as BaseAgent
-from src.agents.core.executor import OllamaExecutor, _ollama_base_url
+from src.agents.core.executor import OllamaExecutor, _ollama_base_url, build_executor_options
 from src.agents.tools.system_tools import SystemTools, WebTools, DataTools, GitTools
 
 
@@ -7561,8 +7561,11 @@ async def _run_task_background(
         prompt: str,
         model: str,
         timeout_sec: Optional[float] = None,
+        category: Optional[str] = None,
     ) -> tuple[str, str]:
         _timeout = timeout_sec or VICTORIA_SYNC_SAFE_TIMEOUT_SEC
+        _replay = store.get("replay") if isinstance(store.get("replay"), dict) else {}
+        _cat = category or _replay.get("category") or store.get("category")
         try:
             return await asyncio.wait_for(
                 _generate_via_mlx_or_ollama(
@@ -7570,6 +7573,7 @@ async def _run_task_background(
                     model,
                     max_retries=1,
                     raw_response=True,
+                    category=_cat,
                 ),
                 timeout=_timeout,
             )
@@ -9166,6 +9170,7 @@ async def _generate_via_mlx_or_ollama(
     max_retries: int = 1,
     raw_response: bool = False,
     stop: Optional[List[str]] = None,
+    category: Optional[str] = None,
 ) -> tuple:
     """Цепочка выбора: MLX → Ollama. Возвращает (content, source) или (None, None).
 
@@ -9256,7 +9261,11 @@ async def _generate_via_mlx_or_ollama(
             )
             # [SINGULARITY 10.24] ФИКС: executor.ask не поддерживает stop, передаем только в прямой API
             res = await agent.executor.ask(
-                full_prompt, system=system, model=ideal_model, raw_response=raw_response
+                full_prompt,
+                system=system,
+                model=ideal_model,
+                raw_response=raw_response,
+                category=category,
             )
             if res:
                 # [SINGULARITY 10.22] ФИКС: Если вернулся не текст (например, AgentFinish), извлекаем output
@@ -9290,6 +9299,7 @@ async def _generate_via_mlx_or_ollama(
                         {"role": "user", "content": full_prompt},
                     ],
                     "stream": False,
+                    "options": build_executor_options(category),
                 }
                 if stop:
                     payload["stop"] = stop
@@ -9495,9 +9505,17 @@ async def run_task_stream(body: TaskRequest, request: Request):
                     system=system_msg,
                     raw_response=True,
                     stop=["**User**:", "**Technical Support**:", "User:", "Technical Support:"],
+                    category=getattr(body, "category", None) or "reasoning",
                 )
             else:
-                content, source = await _generate_via_mlx_or_ollama(prompt_for_gen, ideal_model)
+                _stream_cat = (
+                    "vip"
+                    if is_vip
+                    else (getattr(body, "category", None) or ("fast" if is_fast_track else "chat"))
+                )
+                content, source = await _generate_via_mlx_or_ollama(
+                    prompt_for_gen, ideal_model, category=_stream_cat
+                )
 
             if content:
                 # [SINGULARITY 29.4] ФИКС: Если контент слишком длинный (галлюцинации или повторы),
@@ -10193,6 +10211,7 @@ async def run_task(
                     max_retries=2,
                     raw_response=True,
                     stop=["**User**:", "**Technical Support**:", "User:", "Technical Support:"],
+                    category=getattr(body, "category", None) or "reasoning",
                 ),
                 timeout=300.0,
             )
@@ -10217,6 +10236,7 @@ async def run_task(
                 max_retries=1,
                 raw_response=True,
                 stop=["**User**:", "**Technical Support**:", "User:", "Technical Support:"],
+                category=getattr(body, "category", None) or "reasoning",
             )
             logger.info(
                 "[VICTORIA_CYCLE] Fallback generation completed. Source: %s, Content length: %d",
@@ -10571,7 +10591,17 @@ async def run_task(
         )
 
         ideal_model = _select_model_for_chat(goal)
-        content, source = await _generate_via_mlx_or_ollama(goal, ideal_model)
+        _fast_cat = (
+            "vip"
+            if is_vip
+            else (
+                getattr(body, "category", None)
+                or ("fast" if is_fast_track else "chat")
+            )
+        )
+        content, source = await _generate_via_mlx_or_ollama(
+            goal, ideal_model, category=_fast_cat
+        )
 
         # Fallback для приветствий, если LLM зависла
         if not content and is_fast_track:
@@ -10723,6 +10753,7 @@ async def run_task(
                 "verbose": bool(body.verbose),
                 "scanner_class": getattr(body, "scanner_class", None),
                 "source": getattr(body, "source", None),
+                "category": getattr(body, "category", None),
             },
         }
 
