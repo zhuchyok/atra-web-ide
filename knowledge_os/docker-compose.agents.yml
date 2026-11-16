@@ -264,10 +264,10 @@ services:
       # [v149.11] Тяжёлые задачи qwen38 идут 4-6 мин; потолок 240с гасил их на полпути
       VICTORIA_BACKGROUND_AGENT_RUN_TIMEOUT_SEC: "600"
       VICTORIA_BACKGROUND_AGENT_RUN_TIMEOUT_OPERATIONAL_SEC: "600"
-      # [p95] 480/900 раздували thick /run TTC хвост (outlier ~660с). Deep stages
-      # всё ещё получают extend до hard cap. Preamble skip снимает ENGLISH-hang.
-      VICTORIA_ASYNC_WATCHDOG_SEC: "300"
-      VICTORIA_ASYNC_HARD_TIMEOUT_SEC: "600"
+      # Quality-first: лучше долгий успешный /run, чем silent-kill на 300с.
+      # p95 чистим exclude probe/resume (код), не урезая hard cap. Deep → extend.
+      VICTORIA_ASYNC_WATCHDOG_SEC: "480"
+      VICTORIA_ASYNC_HARD_TIMEOUT_SEC: "900"
       UVICORN_WORKERS: "2"
       UVICORN_TIMEOUT_KEEP_ALIVE: "75"
       DOCKER_HOST: "tcp://docker-proxy:2376"

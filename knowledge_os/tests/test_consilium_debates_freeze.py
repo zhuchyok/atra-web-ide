@@ -25,8 +25,11 @@ def test_compose_keeps_hypothesis_debates_false():
     assert 'HYPOTHESIS_DEBATES_ENABLED: "false"' in text
 
 
-def test_compose_ttc_timeouts_not_raised_above_contract():
+def test_compose_async_timeouts_quality_first():
+    """Allow long thick /run; do not raise the SLA alert threshold (420)."""
     text = COMPOSE.read_text(encoding="utf-8")
-    assert 'VICTORIA_ASYNC_WATCHDOG_SEC: "300"' in text
-    assert 'VICTORIA_ASYNC_HARD_TIMEOUT_SEC: "600"' in text
-    assert 'VICTORIA_ASYNC_HARD_TIMEOUT_SEC: "900"' not in text
+    assert 'VICTORIA_ASYNC_WATCHDOG_SEC: "480"' in text
+    assert 'VICTORIA_ASYNC_HARD_TIMEOUT_SEC: "900"' in text
+    # Alert threshold lives elsewhere — compose must not invent a higher SLA.
+    assert "VICTORIA_ASYNC_TTC_P95_THRESHOLD" not in text
+    assert 'VICTORIA_ASYNC_HARD_TIMEOUT_SEC: "1200"' not in text
