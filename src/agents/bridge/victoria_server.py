@@ -962,6 +962,28 @@ _DNA_EVAL_GOAL_MARKERS = (
     "баланс между автономией роя",
 )
 
+# Probe/noise sources and resume wall-clock must not inflate thick /run TTC p95.
+_TTC_EXCLUDED_SOURCES = frozenset(
+    {
+        "dna_eval",
+        "dna",
+        "cursor_pair",
+        "curator_pair",
+        "probe",
+        "health_probe",
+        "sla_probe",
+    }
+)
+_TTC_EXCLUDED_HANDOFFS = frozenset({"resumed_after_restart"})
+_TTC_EXCLUDED_STRATEGIES = frozenset(
+    {
+        "fact_live_probe",
+        "fast_action_file_check",
+        "absolute_fast_track",
+        "short_prompt_fast_path",
+    }
+)
+
 
 def _is_dna_eval_run(source: str = "", goal: str = "") -> bool:
     """DNA eval uses battle /run but is not a user hung-task for SLA/inflight."""
@@ -971,6 +993,33 @@ def _is_dna_eval_run(source: str = "", goal: str = "") -> bool:
     if not g.startswith("объясни:"):
         return False
     return any(m in g for m in _DNA_EVAL_GOAL_MARKERS)
+
+
+def _exclude_from_async_ttc(
+    *,
+    source: str = "",
+    goal: str = "",
+    handoff_reason: str = "",
+    strategy: str = "",
+    duration: Optional[float] = None,
+) -> bool:
+    """Skip TTC samples that are probe/noise/resume/fast-path, not thick user /run."""
+    reason = str(handoff_reason or "").strip().lower()
+    if reason in _TTC_EXCLUDED_HANDOFFS:
+        return True
+    src = str(source or "").strip().lower()
+    if src in _TTC_EXCLUDED_SOURCES:
+        return True
+    strat = str(strategy or "").strip().lower()
+    if strat in _TTC_EXCLUDED_STRATEGIES:
+        return True
+    if duration is not None:
+        try:
+            if float(duration) < 0.05:
+                return True
+        except (TypeError, ValueError):
+            pass
+    return _is_dna_eval_run(source=source, goal=goal)
 
 
 def _turn_log():
@@ -1204,9 +1253,22 @@ def _record_async_ttc(store: dict, status_final: str) -> Optional[float]:
     if status_final not in ("completed", "failed", "cancelled"):
         return None
     replay = store.get("replay") if isinstance(store.get("replay"), dict) else {}
-    if _is_dna_eval_run(
+    knowledge = store.get("knowledge") if isinstance(store.get("knowledge"), dict) else {}
+    strategy_name = str(
+        knowledge.get("strategy")
+        or store.get("strategy")
+        or (replay.get("strategy") if isinstance(replay, dict) else "")
+        or ""
+    )
+    duration_hint = _coerce_float(store.get("duration_seconds"))
+    if duration_hint is None:
+        duration_hint = _elapsed_seconds_from_store(store)
+    if _exclude_from_async_ttc(
         source=str(replay.get("source") or store.get("source") or ""),
         goal=str(replay.get("goal") or store.get("goal") or ""),
+        handoff_reason=str(store.get("handoff_reason") or ""),
+        strategy=strategy_name,
+        duration=duration_hint,
     ):
         return None
     if store.get("_sla_ttc_recorded"):
@@ -6282,17 +6344,29 @@ def _is_analysis_heavy_goal(goal: str) -> bool:
 def _early_async_preamble_shortcut(
     handoff_reason: Optional[str], goal: str
 ) -> tuple[Optional[str], Optional[Dict[str, Any]]]:
-    """Skip _select_strategy + _understand_goal when early_async already classified analysis-heavy.
+    """Skip _select_strategy + _understand_goal when route is already known deep.
+
+    early_async_analysis: classified analysis-heavy before 202.
+    request_async_mode: skip wasted preamble when goal is analysis-heavy or force-deep.
 
     Returns (restated_goal, strategy_result). Both None means: run normal BG preamble.
     """
-    if str(handoff_reason or "") != "early_async_analysis":
-        return None, None
-    return (goal or ""), {
-        "strategy": "deep_analysis",
-        "reason": "early_async_analysis_skip_preamble",
-        "confidence": 0.9,
-    }
+    reason = str(handoff_reason or "")
+    if reason == "early_async_analysis":
+        return (goal or ""), {
+            "strategy": "deep_analysis",
+            "reason": "early_async_analysis_skip_preamble",
+            "confidence": 0.9,
+        }
+    if reason == "request_async_mode" and (
+        _is_analysis_heavy_goal(goal) or bool(_force_deep_analysis_reason(goal))
+    ):
+        return (goal or ""), {
+            "strategy": "deep_analysis",
+            "reason": "async_mode_skip_preamble",
+            "confidence": 0.9,
+        }
+    return None, None
 
 
 def _is_planning_guidance_goal(goal: str) -> bool:
