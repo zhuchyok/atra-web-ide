@@ -159,15 +159,8 @@ if [ "${SELF_AUDIT:-1}" != "0" ] && [ -f "$SELF_AUDIT_FILE" ]; then
   echo "=== 8. Самоаудит Виктории с консилиумом ==="
   # [2026-11-10] Виктория stateless: своих прошлых ответов не видит — подкладываем
   # реальные выдержки её ответов за сутки (иначе честно откажется: «выдумывать не буду»)
-  # [2026-11-11, уроки #64 слои 1-5] Рефлексия идёт в мозг НАПРЯМУЮ (Ollama 11434):
-  # /run и /v1/chat/completions прогоняют текст через матчеры и task-машину —
-  # цитаты материала перехватывались (фастпасы, факт-проба, исполнение цитат).
-  $PYTHON_CMD scripts/send_self_audit_chat.py || {
-    echo "⚠️ прямой канал недоступен — фолбэк на /run одной задачей"
-    SA_TASK="$($PYTHON_CMD scripts/build_self_audit_task.py 2>/dev/null | tr '\n' ' ')"
-    [ -z "$SA_TASK" ] && SA_TASK="$(tr '\n' ' ' < "$SELF_AUDIT_FILE")"
-    $PYTHON_CMD scripts/curator_send_tasks_to_victoria.py --tasks "$SA_TASK" --async --max-wait 3600 || true
-  }
+  # [2026-11-16] Самоаудит вынесен в отдельную launchd-джобу com.atra.victoria-self-audit (09:00):
+  # в 06:05 мозг занят очередью кураторских задач ЧАСЫ (1 GPU, np=1), канал никогда не дожимался.
   echo ""
 fi
 
