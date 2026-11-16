@@ -30,6 +30,7 @@ jobs:
           bash -n scripts/check_and_start_containers.sh
           bash -n scripts/auto_start_containers.sh
           bash -n scripts/auto_setup_server.sh
+          bash -n scripts/check_backups_health.sh
           bash -n scripts/QUICK_SERVER_SETUP.sh
           bash -n scripts/system_auto_recovery.sh
           bash -n scripts/check_ready.sh
@@ -548,6 +549,61 @@ jobs:
           test "$rc" -eq 1
           grep -q "Найдено проблем" "$out"
 
+      - name: Runtime smoke - check_backups_health skips ntfy in mktemp HOME
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOCK_DIR="$(mktemp -d)"
+          mkdir -p "$MOCK_DIR/home" "$MOCK_DIR/bin"
+          out="$(mktemp)"
+          # Capture curl to prove ntfy is not contacted (ATRA_FORCE_PATH beats brew prepend).
+          cat > "$MOCK_DIR/bin/curl" <<'EOF'
+          #!/usr/bin/env bash
+          echo "CURL_CALLED $*" >&2
+          exit 0
+          EOF
+          chmod +x "$MOCK_DIR/bin/curl"
+          set +e
+          env ATRA_FORCE_PATH="$MOCK_DIR/bin:/bin:/usr/bin" HOME="$MOCK_DIR/home" \
+            NTFY_URL="https://ntfy.sh/atra_victoria_curator" \
+            /bin/bash scripts/check_backups_health.sh >"$out" 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -E '(/tmp/tmp\.|/T/tmp\.).*/home/atra_backups/knowledge_postgres|локальный бэкап: .*/home/atra_backups' "$out"
+          grep -q 'ntfy пропущен' "$out"
+          grep -q 'sandbox HOME' "$out"
+          ! grep -q 'CURL_CALLED' "$out"
+
+      - name: Runtime smoke - check_backups_health ntfy dedup
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOCK_DIR="$(mktemp -d)"
+          mkdir -p "$MOCK_DIR/bin"
+          # Real-looking HOME so sandbox skip does not trigger; still isolate state.
+          FAKE_HOME="$MOCK_DIR/realhome"
+          mkdir -p "$FAKE_HOME/Library/Logs/atra" "$FAKE_HOME/atra_backups/knowledge_postgres"
+          # No dumps → fail. Mock curl counts posts.
+          cat > "$MOCK_DIR/bin/curl" <<EOF
+          #!/usr/bin/env bash
+          echo CURL_HIT >>"$MOCK_DIR/curl_hits"
+          exit 0
+          EOF
+          chmod +x "$MOCK_DIR/bin/curl"
+          out1="$(mktemp)"; out2="$(mktemp)"
+          : >"$MOCK_DIR/curl_hits"
+          set +e
+          env ATRA_FORCE_PATH="$MOCK_DIR/bin:/bin:/usr/bin" HOME="$FAKE_HOME" \
+            NTFY_URL="https://ntfy.sh/atra_victoria_curator" NTFY_COOLDOWN_SEC=3600 \
+            /bin/bash scripts/check_backups_health.sh >"$out1" 2>&1
+          env ATRA_FORCE_PATH="$MOCK_DIR/bin:/bin:/usr/bin" HOME="$FAKE_HOME" \
+            NTFY_URL="https://ntfy.sh/atra_victoria_curator" NTFY_COOLDOWN_SEC=3600 \
+            /bin/bash scripts/check_backups_health.sh >"$out2" 2>&1
+          set -e
+          test "$(wc -l <"$MOCK_DIR/curl_hits" | tr -d ' ')" = "1"
+          grep -q 'rate-limit/dedup' "$out2"
+
       - name: Runtime smoke - auto_setup_server fail-closed without docker
         shell: bash
         run: |
@@ -566,12 +622,17 @@ jobs:
           # auto_setup needs docker-compose.yml at ROOT; repo has it.
           out="$(mktemp)"
           set +e
+          # HOME under mktemp must not page real ntfy (check_backups_health via auto_setup [6/6]).
           env PATH="$MOCK_DIR/bin:/bin:/usr/bin" HOME="$MOCK_DIR/home" \
+            ATRA_SKIP_NTFY=1 NTFY_URL= \
             /bin/bash scripts/auto_setup_server.sh >"$out" 2>&1
           rc=$?
           set -e
           test "$rc" -ne 0
           grep -Eqi 'Docker|daemon|ошибк' "$out"
+          # Evidence: sandbox path + ntfy suppressed (no live curator spam).
+          grep -E '(/tmp/tmp\.|/T/tmp\.).*/home/atra_backups/knowledge_postgres' "$out"
+          grep -Eq 'ntfy пропущен|sandbox HOME|ATRA_SKIP_NTFY' "$out"
 
       - name: Runtime smoke - check_and_start_containers fail-closed without docker
         shell: bash

@@ -177,6 +177,10 @@ echo ""
 # 6. Проверка бэкапов
 echo "[6/6] Проверка системы бэкапов..."
 if [[ -f "scripts/check_backups_health.sh" ]]; then
+  # CI/mktemp smoke sets fake HOME — never page curator from setup probes.
+  if [[ "${CI:-}" == "true" || "${GITHUB_ACTIONS:-}" == "true" || "${ATRA_SKIP_NTFY:-}" == "1" ]]; then
+    export ATRA_SKIP_NTFY=1
+  fi
   if ! bash scripts/check_backups_health.sh; then
     echo "⚠️  Есть проблемы с бэкапами"
     SETUP_FAIL=1
