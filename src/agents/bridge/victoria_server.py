@@ -6156,6 +6156,48 @@ def _is_explicit_concrete_goal(goal: str) -> bool:
     return _is_code_write_goal(g)
 
 
+def _override_need_clarification_strategy(
+    goal: str, strategy_result: Dict[str, Any]
+) -> Dict[str, Any]:
+    """False need_clarification → deep_analysis for fact/curator/introspection goals.
+
+    Pair incident 2026-11-16_19-11-03: chat fact-check returned empty
+    «Мне нужно уточнить несколько деталей:» with no tools/evidence.
+    """
+    if not strategy_result or strategy_result.get("strategy") != "need_clarification":
+        return strategy_result
+    if is_introspection_goal(goal):
+        return {
+            "strategy": "deep_analysis",
+            "reason": "introspection_goal_no_clarify",
+            "confidence": 0.95,
+        }
+    if is_curator_standard_goal(goal):
+        return {
+            "strategy": "deep_analysis",
+            "reason": "curator_standard_goal_no_clarify",
+            "confidence": 0.95,
+        }
+    if is_fact_seeking_question(goal):
+        return {
+            "strategy": "deep_analysis",
+            "reason": "fact_seeking_no_clarify",
+            "confidence": 0.95,
+        }
+    return strategy_result
+
+
+def _nonempty_clarification_questions(questions: Any) -> List[str]:
+    """Usable clarify questions only; empty means proceed without clarification stub."""
+    if not questions:
+        return []
+    out: List[str] = []
+    for q in questions:
+        if isinstance(q, str) and q.strip():
+            out.append(q.strip())
+    return out
+
+
 _EXPLICIT_TOOL_DIRECTIVES = (
     "web_search",
     "db_query",
@@ -7742,25 +7784,8 @@ async def _run_task_background(
                 "reason": forced_reason,
                 "confidence": max(0.9, float(strategy_result.get("confidence", 0.5))),
             }
-        # Guardrail (v144): уточнения не перебивают кураторские эталоны.
-        # «Какой статус проекта?» и т.п. всегда идут в Enhanced + RAG,
-        # а не в LLM-стратегию, которая локально просит «уточните».
-        if strategy_result.get("strategy") == "need_clarification" and is_introspection_goal(
-            goal
-        ):
-            strategy_result = {
-                "strategy": "deep_analysis",
-                "reason": "introspection_goal_no_clarify",
-                "confidence": 0.95,
-            }
-        if strategy_result.get("strategy") == "need_clarification" and is_curator_standard_goal(
-            goal
-        ):
-            strategy_result = {
-                "strategy": "deep_analysis",
-                "reason": "curator_standard_goal_no_clarify",
-                "confidence": 0.95,
-            }
+        # Guardrail (v144+): fact/curator/introspection never stop at clarify.
+        strategy_result = _override_need_clarification_strategy(goal, strategy_result)
         # Code/write goals must not stay on quick_answer (strategy JSON leak, task_4).
         if strategy_result.get("strategy") == "quick_answer" and _is_code_write_goal(goal):
             strategy_result = {
@@ -7952,31 +7977,42 @@ async def _run_task_background(
                 )
                 return
         if (not _patch_direct) and strategy_result.get("strategy") == "need_clarification":
-            questions = await _generate_clarification_questions(agent, goal, goal)
-            clarification_text = "Victoria уточняет: " + (
-                "; ".join(questions) if questions else "Нужно уточнение."
+            questions = _nonempty_clarification_questions(
+                await _generate_clarification_questions(agent, goal, goal)
             )
-            knowledge = {
-                "needs_clarification": True,
-                "clarification_questions": questions,
-                "strategy": "need_clarification",
-            }
-            _inject_strategy_into_knowledge(knowledge, strategy_result)
-            store["status"] = "completed"
-            store["stage"] = "clarification"
-            store["output"] = clarification_text
-            store["knowledge"] = knowledge
-            store["updated_at"] = datetime.now(timezone.utc).isoformat()
-            if redis_manager:
-                await redis_manager.update_task_status(
-                    task_id,
-                    "completed",
-                    result=clarification_text,
-                    metadata={"knowledge": knowledge, "stage": "clarification"},
+            if not questions:
+                # Same semantics as understand_goal: empty questions → execute.
+                logger.info(
+                    "🟢 [BG] need_clarification but no questions — proceeding deep_analysis"
                 )
-                await _clear_async_inflight(task_id)
-            await _sync_store()
-            return
+                strategy_result = {
+                    "strategy": "deep_analysis",
+                    "reason": "empty_clarification_fallback",
+                    "confidence": max(0.85, float(strategy_result.get("confidence", 0.5) or 0.5)),
+                }
+            else:
+                clarification_text = "Victoria уточняет: " + "; ".join(questions)
+                knowledge = {
+                    "needs_clarification": True,
+                    "clarification_questions": questions,
+                    "strategy": "need_clarification",
+                }
+                _inject_strategy_into_knowledge(knowledge, strategy_result)
+                store["status"] = "completed"
+                store["stage"] = "clarification"
+                store["output"] = clarification_text
+                store["knowledge"] = knowledge
+                store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                if redis_manager:
+                    await redis_manager.update_task_status(
+                        task_id,
+                        "completed",
+                        result=clarification_text,
+                        metadata={"knowledge": knowledge, "stage": "clarification"},
+                    )
+                    await _clear_async_inflight(task_id)
+                await _sync_store()
+                return
         if (not _patch_direct) and strategy_result.get("strategy") == "decline_or_redirect":
             reason = (
                 strategy_result.get("reason")
@@ -11164,6 +11200,8 @@ async def run_task(
             "reason": forced_reason,
             "confidence": max(0.9, float(strategy_result.get("confidence", 0.5))),
         }
+    if not _patch_direct_sync:
+        strategy_result = _override_need_clarification_strategy(goal, strategy_result)
     # Code/write goals must not stay on quick_answer (strategy JSON leak, task_4).
     if (not _patch_direct_sync) and strategy_result.get("strategy") == "quick_answer" and _is_code_write_goal(
         goal
@@ -11174,17 +11212,26 @@ async def run_task(
             "confidence": max(0.9, float(strategy_result.get("confidence", 0.5) or 0.5)),
         }
     if (not _patch_direct_sync) and strategy_result.get("strategy") == "need_clarification":
-        questions = await _generate_clarification_questions(agent, goal, goal)
-        content = {
-            "status": "needs_clarification",
-            "correlation_id": correlation_id,
-            "clarification_questions": questions,
-            "original_goal": goal,
-            "suggested_restatement": goal,
-            "knowledge": {},
+        questions = _nonempty_clarification_questions(
+            await _generate_clarification_questions(agent, goal, goal)
+        )
+        if questions:
+            content = {
+                "status": "needs_clarification",
+                "correlation_id": correlation_id,
+                "clarification_questions": questions,
+                "original_goal": goal,
+                "suggested_restatement": goal,
+                "knowledge": {},
+            }
+            _inject_strategy_into_knowledge(content["knowledge"], strategy_result)
+            return JSONResponse(status_code=200, content=content)
+        logger.info("🟢 [SYNC] need_clarification but no questions — proceeding deep_analysis")
+        strategy_result = {
+            "strategy": "deep_analysis",
+            "reason": "empty_clarification_fallback",
+            "confidence": max(0.85, float(strategy_result.get("confidence", 0.5) or 0.5)),
         }
-        _inject_strategy_into_knowledge(content["knowledge"], strategy_result)
-        return JSONResponse(status_code=200, content=content)
     if (not _patch_direct_sync) and strategy_result.get("strategy") == "decline_or_redirect":
         reason = (
             strategy_result.get("reason")
@@ -12927,10 +12974,17 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                         body_str = body_bytes
                     body_data = json.loads(body_str)
                     if "clarification_questions" in body_data:
-                        questions = body_data["clarification_questions"]
-                        full_response_content = "🤔 Мне нужно уточнить несколько деталей, чтобы выполнить задачу максимально точно:\n\n"
-                        for i, q in enumerate(questions, 1):
-                            full_response_content += f"{i}. {q}\n"
+                        questions = _nonempty_clarification_questions(
+                            body_data.get("clarification_questions")
+                        )
+                        if questions:
+                            full_response_content = "🤔 Мне нужно уточнить несколько деталей, чтобы выполнить задачу максимально точно:\n\n"
+                            for i, q in enumerate(questions, 1):
+                                full_response_content += f"{i}. {q}\n"
+                        else:
+                            full_response_content = body_data.get(
+                                "output", body_data.get("message", "")
+                            )
                     else:
                         full_response_content = body_data.get("output", str(body_data))
                 elif isinstance(result, TaskResponse):
@@ -13176,10 +13230,19 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 body_str = body_bytes
             body_data = json.loads(body_str)
             if "clarification_questions" in body_data:
-                questions = body_data["clarification_questions"]
-                output_text = "🤔 Мне нужно уточнить несколько деталей:\n\n"
-                for i, q in enumerate(questions, 1):
-                    output_text += f"{i}. {q}\n"
+                questions = _nonempty_clarification_questions(
+                    body_data.get("clarification_questions")
+                )
+                if questions:
+                    output_text = "🤔 Мне нужно уточнить несколько деталей:\n\n"
+                    for i, q in enumerate(questions, 1):
+                        output_text += f"{i}. {q}\n"
+                else:
+                    # Empty clarify list must not become a header-only stub
+                    # (pair_2026-11-16_19-11-03).
+                    output_text = body_data.get(
+                        "output", body_data.get("message", "")
+                    )
             else:
                 output_text = body_data.get("output", body_data.get("message", str(body_data)))
         elif isinstance(result, TaskResponse):
