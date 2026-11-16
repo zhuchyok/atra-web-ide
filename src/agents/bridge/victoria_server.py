@@ -4782,8 +4782,9 @@ def _is_direct_tool_reply_candidate(goal: str) -> bool:
     return True
 
 
+# Path may contain hyphens (…/atra-web-ide/…); stop at whitespace before em/en dash.
 _FILE_CHECK_RE = re.compile(
-    r"^\s*(?:проверь|прочитай)\s+файл\s+(?P<path>[^\s—-]+)",
+    r"^\s*(?:проверь|прочитай)\s+файл\s+(?P<path>\S+?)(?=\s+[—\-]\s|\s*$)",
     re.IGNORECASE,
 )
 # Truncated per bible v34: keywords must be within the first 120 chars.
@@ -4934,9 +4935,12 @@ async def _try_file_check_reply(goal: str) -> Optional[Dict[str, Any]]:
     m = _FILE_CHECK_RE.match(prefix)
     if not m:
         return None
+    path = (m.group("path") or "").rstrip(".,;:)")
+    if not path:
+        return None
     # Позиции матча в prefix совпадают с позициями в g (prefix — начало g).
     task_text = g[m.end("path") :][:400]
-    answer = _file_check_scan(m.group("path"), task_text)
+    answer = _file_check_scan(path, task_text)
     if answer is None:
         return None
     return {
@@ -12973,12 +12977,29 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 yield f"data: {json.dumps(initial_chunk)}\n\n"
                 await asyncio.sleep(0.01)
 
-                # 2. Выполняем задачу в фоне; каждые 15с шлём keep-alive (Singularity 15.0 — против TransferEncodingError)
+                # 2. Sync run with heartbeats; on wall timeout → async handoff + poll
+                # (parity with non-stream chat path; OpenWebUI often uses stream=true).
                 run_task_coro = run_task(task_req, req, async_mode=False)
                 task = asyncio.create_task(run_task_coro)
                 heartbeat_sec = int(os.getenv("VICTORIA_STREAM_HEARTBEAT_SEC", "15"))
+                stream_max_sec = float(
+                    os.getenv("VICTORIA_STREAM_MAX_SEC", str(OPENAI_SYNC_EXEC_TIMEOUT_SEC))
+                )
+                stream_deadline = time.monotonic() + max(10.0, stream_max_sec)
+                timed_out = False
                 while not task.done():
-                    done, _ = await asyncio.wait([task], timeout=heartbeat_sec)
+                    remaining = stream_deadline - time.monotonic()
+                    if remaining <= 0:
+                        timed_out = True
+                        task.cancel()
+                        try:
+                            await task
+                        except (asyncio.CancelledError, Exception):
+                            pass
+                        break
+                    done, _ = await asyncio.wait(
+                        [task], timeout=min(heartbeat_sec, max(0.1, remaining))
+                    )
                     if not done:
                         hb_chunk = {
                             "id": f"chatcmpl-{correlation_id}",
@@ -12990,12 +13011,23 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                             ],
                         }
                         yield f"data: {json.dumps(hb_chunk)}\n\n"
-                try:
-                    result = task.result()
-                except Exception as run_err:
-                    logger.exception("[OPENAI-STREAM] run_task failed: %s", run_err)
-                    result = None
-                    full_response_content = f"[Ошибка Victoria]: {str(run_err)}"
+                result = None
+                if timed_out:
+                    logger.warning(
+                        "[OPENAI-STREAM] sync timed out after %.0fs — async handoff",
+                        stream_max_sec,
+                    )
+                    try:
+                        result = await run_task(task_req, req, async_mode=True)
+                    except Exception as run_err:
+                        logger.exception("[OPENAI-STREAM] async handoff failed: %s", run_err)
+                        full_response_content = f"[Ошибка Victoria]: {str(run_err)}"
+                else:
+                    try:
+                        result = task.result()
+                    except Exception as run_err:
+                        logger.exception("[OPENAI-STREAM] run_task failed: %s", run_err)
+                        full_response_content = f"[Ошибка Victoria]: {str(run_err)}"
 
                 # Извлекаем контент
                 if result is None:
@@ -13030,6 +13062,36 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     full_response_content = result.output if result.output is not None else ""
                 else:
                     full_response_content = str(result) if result is not None else ""
+
+                # Async handoff → poll final answer for stream UX.
+                _stream_task_id = _extract_async_task_id(full_response_content)
+                if not _stream_task_id and isinstance(result, JSONResponse):
+                    try:
+                        _raw = result.body
+                        _parsed = json.loads(
+                            bytes(_raw).decode()
+                            if isinstance(_raw, (bytes, memoryview))
+                            else _raw
+                        )
+                        if isinstance(_parsed, dict) and _parsed.get("task_id"):
+                            _stream_task_id = str(_parsed["task_id"])
+                            if not full_response_content:
+                                full_response_content = json.dumps(
+                                    _parsed, ensure_ascii=False
+                                )
+                    except Exception:
+                        pass
+                if _stream_task_id:
+                    _wait = int(os.getenv("OPENAI_ASYNC_HANDOFF_WAIT_SEC", "90"))
+                    _resolved = await _await_async_handoff_result_for_chat(
+                        _stream_task_id, max_wait_sec=_wait
+                    )
+                    if _resolved:
+                        full_response_content = _resolved
+
+                full_response_content = _normalize_output_for_user(
+                    full_response_content or ""
+                )
 
                 # 3. Стримим контент частями
                 if full_response_content:

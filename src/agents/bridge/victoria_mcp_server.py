@@ -242,9 +242,12 @@ async def victoria_run(goal: str, max_steps: Optional[int] = 500) -> str:
         Результат выполнения задачи от Victoria
     """
     try:
-        timeout_sec = min(VICTORIA_MCP_RUN_TIMEOUT_SEC, 120.0)
+        timeout_sec = max(60.0, float(VICTORIA_MCP_RUN_TIMEOUT_SEC))
+        wait_sec = min(timeout_sec, float(os.getenv("VICTORIA_MCP_RUN_WAIT_SEC", "600")))
         async with httpx.AsyncClient(timeout=timeout_sec) as client:
-            return await _run_async_and_poll(client, goal, max_steps, wait_sec=90)
+            return await _run_async_and_poll(
+                client, goal, max_steps, wait_sec=wait_sec
+            )
     except httpx.TimeoutException:
         return (
             f"⏱️ Таймаут канала {int(timeout_sec)} с. "
@@ -282,19 +285,38 @@ async def victoria_chat(
                     history = parsed
             except json.JSONDecodeError:
                 pass
-        # Dialogue turns with history stay on chat; single-shot heavy → /run async.
-        prefer_run = _prefer_run_async(message) and not history
+        # Heavy goals always prefer /run async (even with history).
+        prefer_run = _prefer_run_async(message)
         timeout_sec = 300.0 if prefer_run else 120.0
         async with httpx.AsyncClient(timeout=timeout_sec) as client:
             if prefer_run:
                 wait_sec = float(os.getenv("VICTORIA_MCP_CHAT_RUN_WAIT_SEC", "180"))
+                goal = message
+                if history:
+                    # Fold last turns into goal so /run keeps dialogue context.
+                    bits = []
+                    for turn in history[-4:]:
+                        if not isinstance(turn, dict):
+                            continue
+                        if turn.get("user"):
+                            bits.append(f"user: {turn['user']}")
+                        if turn.get("assistant"):
+                            bits.append(f"assistant: {turn['assistant']}")
+                    if bits:
+                        goal = (
+                            "Dialog context:\n"
+                            + "\n".join(bits)
+                            + "\n\nCurrent request:\n"
+                            + message
+                        )
                 logger.info(
-                    "[victoria_chat] routing to /run async (len=%s wait=%.0fs)",
-                    len(message or ""),
+                    "[victoria_chat] routing to /run async (len=%s wait=%.0fs history=%s)",
+                    len(goal or ""),
                     wait_sec,
+                    bool(history),
                 )
                 return await _run_async_and_poll(
-                    client, message, max_steps=120, wait_sec=wait_sec
+                    client, goal, max_steps=120, wait_sec=wait_sec
                 )
             return await _chat_completions(client, message, history)
     except httpx.TimeoutException:
