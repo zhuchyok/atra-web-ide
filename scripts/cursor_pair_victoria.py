@@ -28,6 +28,7 @@ DATABASE_URL = os.getenv(
 )
 DOMAIN = "cursor_method"
 DEFAULT_MAX_WAIT = float(os.getenv("CURSOR_PAIR_MAX_WAIT_SEC", "300"))
+DEFAULT_MAX_STEPS = int(os.getenv("CURSOR_PAIR_MAX_STEPS", "200"))
 POLL_INTERVAL = float(os.getenv("CURSOR_PAIR_POLL_SEC", "2"))
 
 
@@ -54,14 +55,18 @@ def _http_json(
         return int(exc.code), body
 
 
-def run_victoria_async(goal: str, max_wait: float = DEFAULT_MAX_WAIT) -> str:
+def run_victoria_async(
+    goal: str,
+    max_wait: float = DEFAULT_MAX_WAIT,
+    max_steps: int = DEFAULT_MAX_STEPS,
+) -> str:
     """Designed path: async /run + poll until terminal or timeout."""
     status, data = _http_json(
         "POST",
         f"{VICTORIA_URL}/run?async_mode=true",
         {
             "goal": goal,
-            "max_steps": 50,
+            "max_steps": max_steps,
             "project_context": "atra-web-ide",
             "source": "cursor_pair",
         },
@@ -139,7 +144,13 @@ def ask_victoria(goal: str, prefer_async: bool = True, max_wait: float = DEFAULT
         try:
             return run_victoria_async(goal, max_wait=max_wait)
         except (URLError, TimeoutError, RuntimeError, json.JSONDecodeError) as exc:
-            print(f"WARN /run async failed, fallback chat: {exc}", file=sys.stderr)
+            print(f"WARN /run async failed, retry once: {exc}", file=sys.stderr)
+            try:
+                return run_victoria_async(
+                    goal, max_wait=max(max_wait, 180.0), max_steps=DEFAULT_MAX_STEPS
+                )
+            except (URLError, TimeoutError, RuntimeError, json.JSONDecodeError) as exc2:
+                print(f"WARN /run async retry failed, fallback chat: {exc2}", file=sys.stderr)
     return chat_victoria(goal)
 
 

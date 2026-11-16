@@ -93,3 +93,13 @@ def test_file_check_goal_overrides_need_clarification(helpers):
     )
     assert out["strategy"] == "deep_analysis"
     assert out["reason"] == "file_check_goal_no_clarify"
+
+
+def test_operational_concrete_overrides_need_clarification(helpers):
+    goal = "исправь IndentationError в src/agents/bridge/victoria_server.py"
+    out = helpers["_override_need_clarification_strategy"](
+        goal,
+        {"strategy": "need_clarification", "reason": "ambiguous", "confidence": 0.6},
+    )
+    assert out["strategy"] == "deep_analysis"
+    assert out["reason"] == "operational_concrete_no_clarify"

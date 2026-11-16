@@ -40,6 +40,11 @@ def test_curator_fact_prefers_run():
     assert prefer_run("CURATOR: health 8010 and models on 11434 — short facts only.") is True
 
 
+def test_health_without_slash_prefers_run():
+    prefer_run = _load_prefer_run()
+    assert prefer_run("какой health victoria agent?") is True
+
+
 def test_long_goal_prefers_run():
     prefer_run = _load_prefer_run()
     assert prefer_run("x" * 120) is True

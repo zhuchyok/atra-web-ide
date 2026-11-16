@@ -4865,8 +4865,8 @@ def _file_check_scan(path: str, task_text: str) -> Optional[str]:
     def _cite(idx: int) -> str:
         return f"{path}:{idx + 1}: {view_src[idx].strip()[:200]}"
 
-    # Вариант 1: «есть ли там X» (одно вхождение).
-    m1 = re.search(r"есть\s+ли\s+там\s+(?P<what>[^.?]+)", task_text, re.IGNORECASE)
+    # Вариант 1: «есть ли [там] X» (одно вхождение).
+    m1 = re.search(r"есть\s+ли\s+(?:там\s+)?(?P<what>[^.?]+)", task_text, re.IGNORECASE)
     if m1:
         what = m1.group("what").strip().strip("«»\"'").lower()
         what = re.sub(r"\s*\(.*?\)\s*$", "", what).strip()
@@ -4888,9 +4888,11 @@ def _file_check_scan(path: str, task_text: str) -> Optional[str]:
             return f"ОК: «{what}» в файле {path} не найдено."
         return f"ПРОБЛЕМА: найдено «{what}» ({_cite(hits[0])})"
 
-    # Вариант 2: «найди потенциальные проблемы: a, b, c».
+    # Вариант 2: «найди [потенциальные] проблемы: a, b, c».
     m2 = re.search(
-        r"найди\s+потенциальные\s+проблемы\s*:\s*(?P<list>[^.?]+)", task_text, re.IGNORECASE
+        r"найди\s+(?:потенциальные\s+)?проблемы\s*:\s*(?P<list>[^.?]+)",
+        task_text,
+        re.IGNORECASE,
     )
     if m2:
         items = [x.strip().lower() for x in m2.group("list").split(",") if x.strip()]
@@ -6195,6 +6197,25 @@ def _override_need_clarification_strategy(
             "strategy": "deep_analysis",
             "reason": "file_check_goal_no_clarify",
             "confidence": 0.95,
+        }
+    # Concrete ops (исправь IndentationError in foo.py) — no soft-clarify.
+    _g = (goal or "").lower()
+    _ops = ("исправ", "проверь", "аудит", "миграц", "sql", "контейнер", "fix", "debug")
+    _concrete = (
+        ".py",
+        ".md",
+        "/app/",
+        "traceback",
+        "indentation",
+        "ошибк",
+        "error",
+        "indenterror",
+    )
+    if any(m in _g for m in _ops) and any(t in _g for t in _concrete):
+        return {
+            "strategy": "deep_analysis",
+            "reason": "operational_concrete_no_clarify",
+            "confidence": 0.9,
         }
     return strategy_result
 

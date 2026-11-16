@@ -121,11 +121,37 @@ def _prefer_run_async(message: str) -> bool:
     )
     if len(g) < 48 and any(s in g for s in short_ok):
         return False
+    try:
+        from src.agents.bridge.task_detector import (
+            is_curator_standard_goal,
+            is_fact_seeking_question,
+            is_operational_execution_goal,
+        )
+    except ImportError:
+        try:
+            from task_detector import (  # type: ignore
+                is_curator_standard_goal,
+                is_fact_seeking_question,
+                is_operational_execution_goal,
+            )
+        except ImportError:
+            is_fact_seeking_question = None  # type: ignore
+            is_curator_standard_goal = None  # type: ignore
+            is_operational_execution_goal = None  # type: ignore
+    if is_fact_seeking_question and is_fact_seeking_question(message):
+        return True
+    if is_curator_standard_goal and is_curator_standard_goal(message):
+        return True
+    if is_operational_execution_goal and is_operational_execution_goal(message):
+        return True
     markers = (
         "проверь файл",
         "прочитай файл",
+        "check file",
         "curator",
         "по фактам",
+        "health",
+        "очеред",
         "/health",
         "11434",
         "11437",

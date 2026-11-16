@@ -46,3 +46,24 @@ def test_mcp_prefer_run_with_history_in_source():
     assert "and not history" not in text.split("prefer_run = _prefer_run_async(message)")[1][:200]
     assert "Dialog context:" in text
     assert "min(VICTORIA_MCP_RUN_TIMEOUT_SEC, 120" not in text
+    assert "is_fact_seeking_question" in text
+
+
+def test_file_check_accepts_est_li_without_tam():
+    """«есть ли X» without «там» must still scan."""
+    import os
+    from typing import Optional
+
+    text = VICTORIA_SERVER.read_text(encoding="utf-8")
+    start = text.index("# Quoted membership needles:")
+    end = text.index("\nasync def _try_file_check_reply")
+    ns: dict = {"re": re, "os": os, "Optional": Optional}
+    exec(compile(text[start:end], str(VICTORIA_SERVER), "exec"), ns)
+    path = "/tmp/atra_file_check_phrase.py"
+    Path(path).write_text("print('ok')\n", encoding="utf-8")
+    try:
+        out = ns["_file_check_scan"](path, " — есть ли pip install в рантайме?")
+        assert out is not None
+        assert out.startswith("ОК")
+    finally:
+        Path(path).unlink(missing_ok=True)

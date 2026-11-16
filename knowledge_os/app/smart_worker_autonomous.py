@@ -359,16 +359,18 @@ def _fast_file_check(task_title: str) -> str | None:
     """
     import re as _re
 
+    # Allow hyphens and host paths (…/atra-web-ide/…), not only /app/.
+    _path = r"(\S+\.py)"
     _pip_pattern = _re.compile(
-        r"проверь файл (/app/[\w/._-]+\.py).*pip install.*рантайм",
+        rf"проверь файл {_path}.*pip install.*рантайм",
         _re.IGNORECASE,
     )
     _secret_pattern = _re.compile(
-        r"проверь файл (/app/[\w/._-]+\.py).*hardcoded.*секрет",
+        rf"проверь файл {_path}.*hardcoded.*секрет",
         _re.IGNORECASE,
     )
     _deep_audit_pattern = _re.compile(
-        r"проверь файл (/app/[\w/._-]+\.py).*(subprocess|eval|exec|http[s]?://)",
+        rf"проверь файл {_path}.*(subprocess|eval|exec|http[s]?://)",
         _re.IGNORECASE,
     )
 
