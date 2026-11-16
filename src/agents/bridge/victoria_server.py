@@ -4789,24 +4789,51 @@ _FILE_CHECK_RE = re.compile(
 # Truncated per bible v34: keywords must be within the first 120 chars.
 _FILE_CHECK_MAX_PREFIX = 120
 
+# Quoted membership needles: `"pip install" in x` / `"eval()" not in y` — meta-checks, not use.
+_MEMBERSHIP_NEEDLE_RE = re.compile(
+    r"""(?P<q>['"])(?P<body>(?:(?!(?P=q)).)*)(?P=q)\s+(?:not\s+)?in\b""",
+    re.IGNORECASE,
+)
+
+
+def _mask_membership_needles(line: str) -> str:
+    """Replace `"needle" in` / `"needle" not in` with spaces so meta-checks do not match."""
+    return _MEMBERSHIP_NEEDLE_RE.sub(" ", line or "")
+
+
+def _quoted_membership_bodies(line: str) -> list:
+    return [m.group("body").lower() for m in _MEMBERSHIP_NEEDLE_RE.finditer(line or "")]
+
 
 def _line_has_runtime_pip_install(line: str) -> bool:
     """True only for likely runtime pip execution, not for detector text itself."""
     lowered = (line or "").lower()
     if "pip" not in lowered or "install" not in lowered:
         return False
-    # Guard against prompt/detector text like: if "pip install" not in text
+    # Code that CHECKS for pip install string (incl. condition inversion) is not runtime pip.
+    for body in _quoted_membership_bodies(line):
+        if "pip" in body and "install" in body:
+            return False
     if "not in text" in lowered or "not in normalized" in lowered:
         return False
     if "subprocess." in lowered:
         return True
     if "os.system(" in lowered:
         return True
-    if "python -m pip install" in lowered and ("subprocess." in lowered or "os.system(" in lowered):
-        return True
-    if "python3 -m pip install" in lowered and ("subprocess." in lowered or "os.system(" in lowered):
-        return True
     return False
+
+
+def _line_matches_audit_item(line: str, item: str) -> bool:
+    """Match audit item in real code; ignore quoted membership meta-checks."""
+    item_l = (item or "").strip().lower()
+    if not item_l:
+        return False
+    masked_l = _mask_membership_needles(line).lower()
+    if item_l in ("eval()", "eval"):
+        return bool(re.search(r"\beval\s*\(", masked_l))
+    if item_l in ("exec()", "exec"):
+        return bool(re.search(r"\bexec\s*\(", masked_l))
+    return item_l in masked_l
 
 
 def _file_check_scan(path: str, task_text: str) -> Optional[str]:
@@ -4843,7 +4870,11 @@ def _file_check_scan(path: str, task_text: str) -> Optional[str]:
         if not what:
             return None
         if "pip install" in what:
-            hits = [i for i, ln in enumerate(view) if _line_has_runtime_pip_install(ln)]
+            hits = [
+                i
+                for i, ln in enumerate(view_src)
+                if _line_has_runtime_pip_install(ln)
+            ]
             if not hits:
                 return (
                     f"ОК: runtime pip install через subprocess/os.system в файле {path} не найдено."
@@ -4852,7 +4883,7 @@ def _file_check_scan(path: str, task_text: str) -> Optional[str]:
                 "ПРОБЛЕМА: найден потенциальный runtime pip install "
                 f"(строка {hits[0] + 1}): {_quote(hits[0])}"
             )
-        hits = [i for i, ln in enumerate(view) if what in ln]
+        hits = [i for i, ln in enumerate(view_src) if _line_matches_audit_item(ln, what)]
         if not hits:
             return f"ОК: «{what}» в файле {path} не найдено."
         return f"ПРОБЛЕМА: найдено «{what}» (строка {hits[0] + 1}): {_quote(hits[0])}"
@@ -4869,7 +4900,11 @@ def _file_check_scan(path: str, task_text: str) -> Optional[str]:
         for item in items:
             if "pip install" in item:
                 pip_hit = next(
-                    (i for i, ln in enumerate(view) if _line_has_runtime_pip_install(ln)),
+                    (
+                        i
+                        for i, ln in enumerate(view_src)
+                        if _line_has_runtime_pip_install(ln)
+                    ),
                     None,
                 )
                 if pip_hit is not None:
@@ -4877,8 +4912,8 @@ def _file_check_scan(path: str, task_text: str) -> Optional[str]:
                         f"«runtime pip install» (строка {pip_hit + 1}): {_quote(pip_hit)}"
                     )
                 continue
-            for i, ln in enumerate(view):
-                if item in ln:
+            for i, ln in enumerate(view_src):
+                if _line_matches_audit_item(ln, item):
                     findings.append(f"«{item}» (строка {i + 1}): {_quote(i)}")
                     break
         if not findings:

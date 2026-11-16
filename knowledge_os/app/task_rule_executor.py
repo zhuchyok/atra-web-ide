@@ -212,11 +212,21 @@ def _extract_file_audit_params(title: str, description: str = "") -> tuple[str |
     return file_path, first_lines
 
 
+_MEMBERSHIP_NEEDLE_RE = re.compile(
+    r"""(?P<q>['"])(?P<body>(?:(?!(?P=q)).)*)(?P=q)\s+(?:not\s+)?in\b""",
+    re.IGNORECASE,
+)
+
+
 def _line_has_runtime_pip_install(content: str) -> bool:
     lowered = (content or "").lower()
     if "pip" not in lowered or "install" not in lowered:
         return False
     # Guard conditions in detector code are not runtime installation.
+    for m in _MEMBERSHIP_NEEDLE_RE.finditer(content or ""):
+        body = m.group("body").lower()
+        if "pip" in body and "install" in body:
+            return False
     if "not in text" in lowered or "not in normalized" in lowered:
         return False
     return any(pat.search(content or "") for pat in _PIP_RUNTIME_PATTERNS)

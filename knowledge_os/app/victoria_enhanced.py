@@ -100,21 +100,25 @@ def _resolve_existing_python_path(raw_path: str) -> Optional[str]:
     return None
 
 
+_MEMBERSHIP_NEEDLE_RE = re.compile(
+    r"""(?P<q>['"])(?P<body>(?:(?!(?P=q)).)*)(?P=q)\s+(?:not\s+)?in\b""",
+    re.IGNORECASE,
+)
+
+
 def _line_has_runtime_pip_install(line: str) -> bool:
     lowered = (line or "").lower()
     if "pip" not in lowered or "install" not in lowered:
         return False
+    for m in _MEMBERSHIP_NEEDLE_RE.finditer(line or ""):
+        body = m.group("body").lower()
+        if "pip" in body and "install" in body:
+            return False
     if "not in text" in lowered or "not in normalized" in lowered:
         return False
     if "subprocess." in lowered:
         return True
     if "os.system(" in lowered:
-        return True
-    if "python -m pip install" in lowered and ("subprocess." in lowered or "os.system(" in lowered):
-        return True
-    if "python3 -m pip install" in lowered and (
-        "subprocess." in lowered or "os.system(" in lowered
-    ):
         return True
     return False
 

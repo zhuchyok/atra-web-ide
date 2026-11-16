@@ -388,23 +388,27 @@ def _fast_file_check(task_title: str) -> str | None:
     except OSError as e:
         return f"ПРОБЛЕМА: ошибка чтения {file_path}: {e}"
 
+    _membership_needle_re = _re.compile(
+        r"""(?P<q>['"])(?P<body>(?:(?!(?P=q)).)*)(?P=q)\s+(?:not\s+)?in\b""",
+        _re.IGNORECASE,
+    )
+
+    def _mask_membership_needles(line: str) -> str:
+        return _membership_needle_re.sub(" ", line or "")
+
     def _is_runtime_pip_line(line: str) -> bool:
         lowered = line.lower()
         if "pip" not in lowered or "install" not in lowered:
             return False
+        for m in _membership_needle_re.finditer(line or ""):
+            body = m.group("body").lower()
+            if "pip" in body and "install" in body:
+                return False
         if "not in text" in lowered or "not in normalized" in lowered:
             return False
         if "subprocess." in lowered:
             return True
         if "os.system(" in lowered:
-            return True
-        if "python -m pip install" in lowered and (
-            "subprocess." in lowered or "os.system(" in lowered
-        ):
-            return True
-        if "python3 -m pip install" in lowered and (
-            "subprocess." in lowered or "os.system(" in lowered
-        ):
             return True
         return False
 
@@ -436,6 +440,7 @@ def _fast_file_check(task_title: str) -> str | None:
         import re as _re3
 
         # Ищем опасные паттерны: subprocess.run/call/Popen, eval(, exec(, hardcoded http:// URLs
+        # Mask `"eval()" in x` meta-checks so detectors don't flag themselves.
         _subprocess_re = _re3.compile(r"subprocess\.(run|call|Popen|check_output)", _re3.IGNORECASE)
         _eval_re = _re3.compile(r"\beval\s*\(|\bexec\s*\(")
         _url_re = _re3.compile(r'["\']https?://[^"\']{10,}["\']')
@@ -444,11 +449,12 @@ def _fast_file_check(task_title: str) -> str | None:
             stripped = line.strip()
             if stripped.startswith("#"):
                 continue
-            if _subprocess_re.search(line):
+            masked = _mask_membership_needles(line)
+            if _subprocess_re.search(masked):
                 matches.append(f"строка {i} [subprocess]: {stripped[:100]}")
-            elif _eval_re.search(line):
+            elif _eval_re.search(masked):
                 matches.append(f"строка {i} [eval/exec]: {stripped[:100]}")
-            elif _url_re.search(line):
+            elif _url_re.search(masked):
                 matches.append(f"строка {i} [hardcoded URL]: {stripped[:100]}")
         if matches:
             return "ПРОБЛЕМА: " + "; ".join(matches[:5])

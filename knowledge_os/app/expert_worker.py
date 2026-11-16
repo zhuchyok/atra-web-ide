@@ -275,22 +275,27 @@ def _resolve_existing_python_path(raw_path: str) -> Optional[str]:
     return None
 
 
+_MEMBERSHIP_NEEDLE_RE = re.compile(
+    r"""(?P<q>['"])(?P<body>(?:(?!(?P=q)).)*)(?P=q)\s+(?:not\s+)?in\b""",
+    re.IGNORECASE,
+)
+
+
 def _line_has_runtime_pip_install(line: str) -> bool:
     """Detect runtime pip execution, not checker conditions/prompts."""
     normalized = (line or "").lower()
     if "pip" not in normalized or "install" not in normalized:
         return False
+    # Membership meta-check: code that LOOKS FOR pip install string (incl. not in).
+    for m in _MEMBERSHIP_NEEDLE_RE.finditer(line or ""):
+        body = m.group("body").lower()
+        if "pip" in body and "install" in body:
+            return False
     if "not in text" in normalized or "not in normalized" in normalized:
         return False
     if "subprocess." in normalized:
         return True
     if "os.system(" in normalized:
-        return True
-    if "python -m pip install" in normalized and ("subprocess." in normalized or "os.system(" in normalized):
-        return True
-    if "python3 -m pip install" in normalized and (
-        "subprocess." in normalized or "os.system(" in normalized
-    ):
         return True
     return False
 
