@@ -5049,10 +5049,144 @@ async def _try_corporation_data_quick_response(
     return None
 
 
+_STRATEGY_ENVELOPE_VALUES = frozenset(
+    {
+        "quick_answer",
+        "deep_analysis",
+        "need_clarification",
+        "decline_or_redirect",
+    }
+)
+
+_CODE_WRITE_GOAL_MARKERS = (
+    "напиши код",
+    "напиши скрипт",
+    "напиши функцию",
+    "напиши класс",
+    "напиши модуль",
+    "напиши файл",
+    "напиши python",
+    "строку кода",
+    "строка кода",
+    "код на python",
+    "код на питон",
+    "write code",
+    "write a function",
+    "write a script",
+    "generate code",
+    "создай код",
+    "создай скрипт",
+    "создай функцию",
+)
+
+
+def _is_code_write_goal(goal: str) -> bool:
+    """Code/write goals must never surface raw strategy-JSON as the answer."""
+    g = (goal or "").strip().lower()
+    if not g:
+        return False
+    if any(m in g for m in _CODE_WRITE_GOAL_MARKERS):
+        return True
+    if ("напиши" in g or "создай" in g or "write" in g or "generate" in g) and (
+        " код" in f" {g}" or " code" in f" {g}" or g.endswith("код") or "coding" in g
+    ):
+        return True
+    return False
+
+
+def _parse_json_object_loose(raw: Any) -> Optional[Dict[str, Any]]:
+    """Best-effort parse of a single JSON object from dict/str."""
+    if isinstance(raw, dict):
+        return raw
+    if not isinstance(raw, str):
+        return None
+    s = raw.strip()
+    if not s or "{" not in s:
+        return None
+    try:
+        data = json.loads(s)
+        return data if isinstance(data, dict) else None
+    except Exception:  # noqa: BLE001
+        pass
+    start = s.find("{")
+    end = s.rfind("}") + 1
+    if start < 0 or end <= start:
+        return None
+    try:
+        data = json.loads(s[start:end])
+        return data if isinstance(data, dict) else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _looks_like_strategy_envelope(raw: Any) -> bool:
+    """True if payload is the _select_strategy classifier JSON (not a user answer)."""
+    data = _parse_json_object_loose(raw)
+    if not isinstance(data, dict):
+        return False
+    strat = data.get("strategy")
+    if not isinstance(strat, str):
+        return False
+    if strat.strip().lower() not in _STRATEGY_ENVELOPE_VALUES:
+        return False
+    # Classifier shape: strategy + reason and/or confidence; not a ReAct/tool payload.
+    if "action" in data or "tool" in data or "tool_input" in data or "thought" in data:
+        return False
+    return ("reason" in data) or ("confidence" in data) or ("uncertainty_reason" in data)
+
+
+def _strategy_envelope_user_error(goal: str = "") -> str:
+    if _is_code_write_goal(goal):
+        return (
+            "Ошибка: вместо кода вернулся служебный strategy-JSON. "
+            "Повторите запрос — ожидался код, не envelope выбора стратегии."
+        )
+    return (
+        "Ошибка: служебный strategy-JSON не является ответом пользователю. "
+        "Повторите запрос."
+    )
+
+
+def _guard_code_goal_strategy_envelope(goal: str, output: Any) -> str:
+    """Fail-closed for code/write goals: unwrap nested code or return an honest error.
+
+    Non-code goals pass through unchanged (stringified). Strategy envelopes must never
+    ship as the answer for code goals (curator task_4 2026-11-16).
+    """
+    if isinstance(output, str):
+        text = output
+    elif output is None:
+        text = ""
+    elif isinstance(output, dict):
+        text = json.dumps(output, ensure_ascii=False)
+    else:
+        text = str(output)
+
+    if not _is_code_write_goal(goal):
+        return text
+    if not _looks_like_strategy_envelope(output if isinstance(output, dict) else text):
+        return text
+
+    data = _parse_json_object_loose(output if isinstance(output, dict) else text)
+    if isinstance(data, dict):
+        for key in ("code", "output", "content", "result"):
+            val = data.get(key)
+            if (
+                isinstance(val, str)
+                and val.strip()
+                and not _looks_like_strategy_envelope(val)
+            ):
+                return val.strip()
+    return _strategy_envelope_user_error(goal)
+
+
 def _normalize_output_for_user(raw: Any) -> str:
     """Из сырого ответа агента (dict/str) извлечь текст для пользователя. Избегает вывода {'thought':..., 'tool':...}."""
     if raw is None:
         return ""
+    # Fail-closed: classifier strategy envelope must never reach the user as "the answer".
+    if _looks_like_strategy_envelope(raw):
+        return _strategy_envelope_user_error("")
     # Пустой успех: не отдавать подставную строку (план п.4 — TASK_ARCHITECTURE_WHY_EMPTY_RESULT)
     _s = (raw.get("result") if isinstance(raw, dict) else raw) if raw else ""
     if (
@@ -6017,7 +6151,12 @@ _EXPLICIT_CONCRETE_TASK_INDICATORS = (
 def _is_explicit_concrete_goal(goal: str) -> bool:
     """Явные конкретные задачи (файл/код/SQL/команда) — не требуют LLM-классификации."""
     g = (goal or "").lower()
-    return bool(g) and any(ind in g for ind in _EXPLICIT_CONCRETE_TASK_INDICATORS)
+    if not g:
+        return False
+    if any(ind in g for ind in _EXPLICIT_CONCRETE_TASK_INDICATORS):
+        return True
+    # «напиши одну строку кода…» — code-write, не чат quick_answer (task_4 2026-11-16).
+    return _is_code_write_goal(g)
 
 
 _EXPLICIT_TOOL_DIRECTIVES = (
@@ -7605,6 +7744,13 @@ async def _run_task_background(
                 "reason": "curator_standard_goal_no_clarify",
                 "confidence": 0.95,
             }
+        # Code/write goals must not stay on quick_answer (strategy JSON leak, task_4).
+        if strategy_result.get("strategy") == "quick_answer" and _is_code_write_goal(goal):
+            strategy_result = {
+                "strategy": "deep_analysis",
+                "reason": "code_write_goal_override",
+                "confidence": max(0.9, float(strategy_result.get("confidence", 0.5) or 0.5)),
+            }
 
         # === CONSILIUM ROUTER (план 3.3, v144) ===
         # Категории, где ночные A/B-битвы показали выигрыш дебата над соло
@@ -7719,6 +7865,44 @@ async def _run_task_background(
             quick_source = "strategy_quick_answer"
             quick_text, quick_source = await _bg_try_generate(goal, quick_model)
             if quick_text:
+                # Fail-closed: code goals must never complete with raw strategy envelope.
+                if _is_code_write_goal(goal) and _looks_like_strategy_envelope(quick_text):
+                    _env_out = _guard_code_goal_strategy_envelope(goal, quick_text)
+                    _rejected = _env_out.startswith("Ошибка:")
+                    knowledge = {
+                        "strategy": "quick_answer",
+                        "confidence": strategy_result.get("confidence", 0.8),
+                        "metadata": {
+                            "model_used": quick_model,
+                            "source": quick_source,
+                            "correlation_id": correlation_id,
+                            "rejected_strategy_envelope": _rejected,
+                            "unwrapped_strategy_envelope": not _rejected,
+                        },
+                    }
+                    _inject_strategy_into_knowledge(knowledge, strategy_result)
+                    store["status"] = "failed" if _rejected else "completed"
+                    store["stage"] = "failed" if _rejected else "completed"
+                    if _rejected:
+                        store["error"] = _env_out
+                    store["output"] = _env_out
+                    store["knowledge"] = knowledge
+                    store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    if redis_manager:
+                        await redis_manager.update_task_status(
+                            task_id,
+                            store["status"],
+                            result=_env_out,
+                            metadata={"knowledge": knowledge, "stage": store["stage"]},
+                        )
+                        await _clear_async_inflight(task_id)
+                    await _sync_store()
+                    logger.warning(
+                        "[VICTORIA_CYCLE] background %s task_id=%s reason=strategy_envelope_on_code_goal",
+                        store["status"],
+                        task_id[:8],
+                    )
+                    return
                 knowledge = {
                     "strategy": "quick_answer",
                     "confidence": strategy_result.get("confidence", 0.8),
@@ -7731,14 +7915,16 @@ async def _run_task_background(
                 _inject_strategy_into_knowledge(knowledge, strategy_result)
                 store["status"] = "completed"
                 store["stage"] = "completed"
-                store["output"] = _normalize_output_for_user(quick_text)
+                store["output"] = _guard_code_goal_strategy_envelope(
+                    goal, _normalize_output_for_user(quick_text)
+                )
                 store["knowledge"] = knowledge
                 store["updated_at"] = datetime.now(timezone.utc).isoformat()
                 if redis_manager:
                     await redis_manager.update_task_status(
                         task_id,
                         "completed",
-                        result=quick_text,
+                        result=store["output"],
                         metadata={"knowledge": knowledge, "stage": "completed"},
                     )
                     await _clear_async_inflight(task_id)
@@ -10910,6 +11096,15 @@ async def run_task(
             "reason": forced_reason,
             "confidence": max(0.9, float(strategy_result.get("confidence", 0.5))),
         }
+    # Code/write goals must not stay on quick_answer (strategy JSON leak, task_4).
+    if (not _patch_direct_sync) and strategy_result.get("strategy") == "quick_answer" and _is_code_write_goal(
+        goal
+    ):
+        strategy_result = {
+            "strategy": "deep_analysis",
+            "reason": "code_write_goal_override",
+            "confidence": max(0.9, float(strategy_result.get("confidence", 0.5) or 0.5)),
+        }
     if (not _patch_direct_sync) and strategy_result.get("strategy") == "need_clarification":
         questions = await _generate_clarification_questions(agent, goal, goal)
         content = {
@@ -11877,7 +12072,27 @@ async def run_task(
                     str(result) or "",
                 )
         _inject_strategy_into_knowledge(knowledge, strategy_result)
-        _run_out = _normalize_output_for_user(result)
+        _goal_for_guard = restated_goal or goal
+        if _is_code_write_goal(_goal_for_guard) and _looks_like_strategy_envelope(result):
+            _run_out = _guard_code_goal_strategy_envelope(_goal_for_guard, result)
+            if _run_out.startswith("Ошибка:"):
+                knowledge.setdefault("metadata", {})["rejected_strategy_envelope"] = True
+                return TaskResponse(
+                    status="failed",
+                    output=_run_out,
+                    knowledge=knowledge,
+                    correlation_id=correlation_id,
+                )
+            knowledge.setdefault("metadata", {})["unwrapped_strategy_envelope"] = True
+            return TaskResponse(
+                status="success",
+                output=_run_out,
+                knowledge=knowledge,
+                correlation_id=correlation_id,
+            )
+        _run_out = _guard_code_goal_strategy_envelope(
+            _goal_for_guard, _normalize_output_for_user(result)
+        )
         if _scanner_patch_handoff_rejected(body.scanner_class, _run_out):
             return TaskResponse(
                 status="failed",
