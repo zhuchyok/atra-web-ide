@@ -10495,6 +10495,28 @@ async def run_task(
                 f"📝 [SESSION_INJECTION] Внедрен контекст сессии ({len(session_ctx)} симв.)"
             )
 
+    # Hermes-style USER.md inject (owner profile only — never SOUL.md)
+    try:
+        from src.agents.bridge.user_profile import (
+            format_user_profile_block,
+            load_user_profile,
+            user_profile_inject_enabled,
+        )
+    except ImportError:  # pragma: no cover — container path variants
+        from user_profile import (  # type: ignore
+            format_user_profile_block,
+            load_user_profile,
+            user_profile_inject_enabled,
+        )
+    if user_profile_inject_enabled():
+        _user_profile = load_user_profile(max_chars=1500)
+        if _user_profile:
+            project_prompt += format_user_profile_block(_user_profile)
+            logger.info(
+                "👤 [USER_PROFILE_INJECT] Внедрён USER.md (%s симв.)",
+                len(_user_profile),
+            )
+
     project_prompt += f"""
 🧠 БАЗА ЗНАНИЙ (ВСЕГДА ДОСТУПНА ДЛЯ ВСЕХ ПРОЕКТОВ):
 - ✅ 58+ экспертов Knowledge OS - доступны для ВСЕХ проектов (та же БД, те же эксперты)
