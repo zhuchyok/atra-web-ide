@@ -4839,28 +4839,30 @@ def _line_matches_audit_item(line: str, item: str) -> bool:
 def _file_check_scan(path: str, task_text: str) -> Optional[str]:
     """Deterministic file check: «есть ли X» → substring scan, «найди проблемы: a, b» → per-pattern scan.
 
+    INVARIANT (#65): scan ONLY real file lines from ``path``. ``task_text`` is
+    query/routing only — never concatenate goal+file into the haystack.
+    Citations are ``path:line:`` from the real file.
+
     Возвращает готовый ответ «ОК/ПРОБЛЕМА + цитата» или None, если формат не распознан.
     """
     if not os.path.exists(path) or not os.path.isfile(path):
         return f"ФАЙЛ НЕ НАЙДЕН: {path}"
     try:
         with open(path, "r", encoding="utf-8", errors="replace") as f:
+            # File-only source lines — never prepend/append goal/prompt text.
             lines = f.readlines()
     except OSError as e:
         return f"ОШИБКА ЧТЕНИЯ: {path}: {e}"
-
-    lower_lines = [ln.lower() for ln in lines]
 
     def _limit() -> Optional[int]:
         m = re.search(r"в первых\s+(\d+)\s*строках", task_text, re.IGNORECASE)
         return int(m.group(1)) if m else None
 
     limit = _limit()
-    view = lower_lines[:limit] if limit else lower_lines
-    view_src = lines[: len(view)]
+    view_src = lines[:limit] if limit else lines
 
-    def _quote(idx: int) -> str:
-        return view_src[idx].strip()[:200]
+    def _cite(idx: int) -> str:
+        return f"{path}:{idx + 1}: {view_src[idx].strip()[:200]}"
 
     # Вариант 1: «есть ли там X» (одно вхождение).
     m1 = re.search(r"есть\s+ли\s+там\s+(?P<what>[^.?]+)", task_text, re.IGNORECASE)
@@ -4879,14 +4881,11 @@ def _file_check_scan(path: str, task_text: str) -> Optional[str]:
                 return (
                     f"ОК: runtime pip install через subprocess/os.system в файле {path} не найдено."
                 )
-            return (
-                "ПРОБЛЕМА: найден потенциальный runtime pip install "
-                f"(строка {hits[0] + 1}): {_quote(hits[0])}"
-            )
+            return f"ПРОБЛЕМА: найден потенциальный runtime pip install ({_cite(hits[0])})"
         hits = [i for i, ln in enumerate(view_src) if _line_matches_audit_item(ln, what)]
         if not hits:
             return f"ОК: «{what}» в файле {path} не найдено."
-        return f"ПРОБЛЕМА: найдено «{what}» (строка {hits[0] + 1}): {_quote(hits[0])}"
+        return f"ПРОБЛЕМА: найдено «{what}» ({_cite(hits[0])})"
 
     # Вариант 2: «найди потенциальные проблемы: a, b, c».
     m2 = re.search(
@@ -4908,13 +4907,11 @@ def _file_check_scan(path: str, task_text: str) -> Optional[str]:
                     None,
                 )
                 if pip_hit is not None:
-                    findings.append(
-                        f"«runtime pip install» (строка {pip_hit + 1}): {_quote(pip_hit)}"
-                    )
+                    findings.append(f"«runtime pip install» ({_cite(pip_hit)})")
                 continue
             for i, ln in enumerate(view_src):
                 if _line_matches_audit_item(ln, item):
-                    findings.append(f"«{item}» (строка {i + 1}): {_quote(i)}")
+                    findings.append(f"«{item}» ({_cite(i)})")
                     break
         if not findings:
             return f"ОК: из {len(items)} паттернов ({', '.join(items[:5])}…) в {path} ничего не найдено."

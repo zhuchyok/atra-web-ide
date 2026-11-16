@@ -412,11 +412,12 @@ def _fast_file_check(task_title: str) -> str | None:
             return True
         return False
 
+    # INVARIANT (#65): ``lines`` are file-only from file_path — never goal+file concat.
     if pip_m:
         matches = []
         for i, line in enumerate(lines, 1):
             if _is_runtime_pip_line(line):
-                matches.append(f"строка {i}: {line.strip()[:100]}")
+                matches.append(f"{file_path}:{i}: {line.strip()[:100]}")
         if matches:
             return "ПРОБЛЕМА: " + "; ".join(matches[:3])
         return "ОК"
@@ -431,7 +432,7 @@ def _fast_file_check(task_title: str) -> str | None:
         matches = []
         for i, line in enumerate(lines[:30], 1):
             if secret_re.search(line):
-                matches.append(f"строка {i}: {line.strip()[:100]}")
+                matches.append(f"{file_path}:{i}: {line.strip()[:100]}")
         if matches:
             return "ПРОБЛЕМА: " + "; ".join(matches[:3])
         return "ОК"
@@ -451,11 +452,11 @@ def _fast_file_check(task_title: str) -> str | None:
                 continue
             masked = _mask_membership_needles(line)
             if _subprocess_re.search(masked):
-                matches.append(f"строка {i} [subprocess]: {stripped[:100]}")
+                matches.append(f"{file_path}:{i}: [subprocess] {stripped[:100]}")
             elif _eval_re.search(masked):
-                matches.append(f"строка {i} [eval/exec]: {stripped[:100]}")
+                matches.append(f"{file_path}:{i}: [eval/exec] {stripped[:100]}")
             elif _url_re.search(masked):
-                matches.append(f"строка {i} [hardcoded URL]: {stripped[:100]}")
+                matches.append(f"{file_path}:{i}: [hardcoded URL] {stripped[:100]}")
         if matches:
             return "ПРОБЛЕМА: " + "; ".join(matches[:5])
         return "ОК"

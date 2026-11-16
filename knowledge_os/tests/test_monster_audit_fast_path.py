@@ -17,7 +17,7 @@ def test_monster_fast_audit_detects_runtime_pip(tmp_path, monkeypatch):
 
     assert result is not None
     assert "ПРОБЛЕМА" in result
-    assert "L2:" in result
+    assert f"{target}:2:" in result
 
 
 def test_monster_fast_audit_returns_ok_for_clean_file(tmp_path, monkeypatch):
@@ -101,7 +101,7 @@ def test_monster_secret_header_audit_detects_hardcoded_secret(tmp_path, monkeypa
 
     assert result is not None
     assert "ПРОБЛЕМА" in result
-    assert "L1:" in result
+    assert f"{target}:1:" in result
 
 
 def test_monster_secret_header_audit_ok_for_env_lookup(tmp_path, monkeypatch):

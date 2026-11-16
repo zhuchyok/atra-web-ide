@@ -496,6 +496,7 @@ def _local_fallback_for_goal(goal: str, correlation_id: Optional[str]) -> Option
             "correlation_id": correlation_id,
         }
 
+    # INVARIANT (#65): ``lines`` are file-only from ``path`` — never scan goal/prompt text.
     lines = text.splitlines()
     path_label = f"/app/{path.relative_to(ROOT)}"
 
@@ -505,7 +506,7 @@ def _local_fallback_for_goal(goal: str, correlation_id: Optional[str]) -> Option
             if _line_has_runtime_pip_install(line):
                 hits.append((idx, line.strip()))
         if hits:
-            body = "\n".join(f"- L{n}: {s}" for n, s in hits[:8])
+            body = "\n".join(f"- {path_label}:{n}: {s}" for n, s in hits[:8])
             output = (
                 f"ПРОБЛЕМА\nФайл: {path_label}\n"
                 f"Найдены признаки runtime pip install:\n{body}"
@@ -544,7 +545,7 @@ def _local_fallback_for_goal(goal: str, correlation_id: Optional[str]) -> Option
             if pat.search(ln):
                 bad.append((i, ln.strip()))
         if bad:
-            body = "\n".join(f"- L{n}: {s}" for n, s in bad[:6])
+            body = "\n".join(f"- {path_label}:{n}: {s}" for n, s in bad[:6])
             output = (
                 f"ПРОБЛЕМА\nФайл: {path_label}\n"
                 f"В первых 30 строках найдены потенциальные hardcoded секреты/пароли:\n{body}"
@@ -576,13 +577,13 @@ def _local_fallback_for_goal(goal: str, correlation_id: Optional[str]) -> Option
             masked = _mask_membership_needles(ln)
             masked_l = masked.lower()
             if "subprocess." in masked_l or "popen(" in masked_l:
-                findings.append(f"- subprocess: L{i}: {s}")
+                findings.append(f"- subprocess: {path_label}:{i}: {s}")
             if re.search(r"https?://", masked):
-                findings.append(f"- hardcoded_url: L{i}: {s}")
+                findings.append(f"- hardcoded_url: {path_label}:{i}: {s}")
             if re.search(r"\beval\s*\(", masked_l):
-                findings.append(f"- eval: L{i}: {s}")
+                findings.append(f"- eval: {path_label}:{i}: {s}")
             if re.search(r"\bexec\s*\(", masked_l):
-                findings.append(f"- exec: L{i}: {s}")
+                findings.append(f"- exec: {path_label}:{i}: {s}")
         if findings:
             output = (
                 f"ПРОБЛЕМА\nФайл: {path_label}\n"

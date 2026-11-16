@@ -322,12 +322,13 @@ def _run_monster_pip_runtime_audit(description: str, metadata: Dict) -> Optional
     if not resolved_path:
         return f"ФАЙЛ НЕ НАЙДЕН: {raw_path}"
 
+    # INVARIANT (#65): scan ONLY file lines from resolved_path — never goal/prompt.
     findings: List[str] = []
     try:
         with open(resolved_path, encoding="utf-8", errors="ignore") as f:
             for idx, line in enumerate(f, 1):
                 if _line_has_runtime_pip_install(line):
-                    findings.append(f"L{idx}: {line.strip()[:220]}")
+                    findings.append(f"{resolved_path}:{idx}: {line.strip()[:220]}")
     except Exception as err:
         return f"ПРОБЛЕМА\nФайл: {resolved_path}\nНе удалось провести проверку файла: {err}"
 
@@ -387,7 +388,7 @@ def _run_monster_secret_header_audit(description: str, metadata: Dict) -> Option
                 if any(safe in lowered for safe in safe_markers):
                     continue
                 if re.search(r"=\s*[\"'][^\"']{3,}[\"']", stripped):
-                    suspicious.append(f"L{idx}: {stripped[:220]}")
+                    suspicious.append(f"{resolved_path}:{idx}: {stripped[:220]}")
     except Exception as err:
         return f"ПРОБЛЕМА\nФайл: {resolved_path}\nНе удалось провести проверку файла: {err}"
 

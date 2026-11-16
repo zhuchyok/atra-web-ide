@@ -144,11 +144,12 @@ def _run_fast_security_audit(goal: str) -> Optional[str]:
     except Exception as err:
         return f"ПРОБЛЕМА\nФайл: {resolved_path}\nНе удалось прочитать файл: {err}"
 
+    # INVARIANT (#65): scan ONLY ``lines`` from resolved_path — never goal/prompt text.
     if "pip install" in text:
         findings = []
         for idx, line in enumerate(lines, 1):
             if _line_has_runtime_pip_install(line):
-                findings.append(f"L{idx}: {line.strip()[:220]}")
+                findings.append(f"{resolved_path}:{idx}: {line.strip()[:220]}")
         if findings:
             return (
                 "ПРОБЛЕМА\n"
@@ -178,7 +179,7 @@ def _run_fast_security_audit(goal: str) -> Optional[str]:
                 ):
                     continue
                 if re.search(r"=\s*[\"'][^\"']{3,}[\"']", stripped):
-                    suspicious.append(f"L{idx}: {stripped[:220]}")
+                    suspicious.append(f"{resolved_path}:{idx}: {stripped[:220]}")
         if suspicious:
             return (
                 "ПРОБЛЕМА\n"

@@ -254,6 +254,7 @@ def _execute_file_audit(title: str, description: str = "") -> str:
     patterns = _PIP_RUNTIME_PATTERNS if check_pip else _SECRET_PATTERNS
     issue_kind = "pip install в рантайме" if check_pip else "hardcoded секрет"
 
+    # INVARIANT (#65): ``lines`` are file-only — ``text`` (title+description) is routing only.
     for ln, content in lines:
         # Skip obvious comments for fewer false positives.
         stripped = content.strip()
@@ -265,7 +266,7 @@ def _execute_file_audit(title: str, description: str = "") -> str:
                     "ПРОБЛЕМА\n"
                     f"Файл: {file_path}\n"
                     f"Проверка: {issue_kind} (первые {first_lines} строк)\n"
-                    f"Цитата: L{ln}: {content[:220]}"
+                    f"Цитата: {file_path}:{ln}: {content[:220]}"
                 )
             continue
         for pat in patterns:
@@ -274,7 +275,7 @@ def _execute_file_audit(title: str, description: str = "") -> str:
                     "ПРОБЛЕМА\n"
                     f"Файл: {file_path}\n"
                     f"Проверка: {issue_kind} (первые {first_lines} строк)\n"
-                    f"Цитата: L{ln}: {content[:220]}"
+                    f"Цитата: {file_path}:{ln}: {content[:220]}"
                 )
 
     return (
