@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import re
 import time
 from dataclasses import dataclass
@@ -29,6 +30,11 @@ def _llm_note_failure() -> None:
         )
 
 
+def _llm_note_success() -> None:
+    global _LLM_FAIL_STREAK
+    _LLM_FAIL_STREAK = 0
+
+
 @dataclass
 class Entity:
     name: str
@@ -40,7 +46,7 @@ class Entity:
 class EntityExtractor:
     """
     Извлекает сущности и связи из текста для построения GraphRAG.
-    Использует гибридный подход: регулярные выражения + LLM (через ai_core).
+    Использует гибридный подход: регулярные выражения + LLM (через руки 11437).
     """
 
     def __init__(self):
@@ -79,50 +85,86 @@ class EntityExtractor:
         # 1. Быстрая экстракция (Offloaded)
         entities.extend(await asyncio.to_thread(_extract_regex))
 
-        # 2. Глубокая экстракция через LLM (если текст длинный и важный)
-        # [v149.55] Circuit breaker: при недоступном LLM (стаб/пусто) LLM-фаза
-        # отключается на кулдаун — иначе каждый вызов тащит полный RAG-прогон
-        # впустую (LOOP-BREAKER резал 6+ попыток/10мин в orchestrator/nightly,
-        # 15.10). Regex-сущности извлекаются всегда.
-        if len(content) > 300 and _llm_available():
+        # 2. Глубокая экстракция через LLM на РУКАХ (не мозг Victoria).
+        # Раньше smart-agent Victoria Victoria → LOOP-BREAKER на 11434.
+        # Kill-switch: ENTITY_EXTRACTOR_LLM=false → только regex.
+        llm_on = os.getenv("ENTITY_EXTRACTOR_LLM", "true").lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+        if llm_on and len(content) > 300 and _llm_available():
             try:
-                from app.ai_core import run_smart_agent_async
-
-                prompt = f"""Проанализируй текст и извлеки ключевые сущности (технологии, люди, концепции, файлы).
-Верни ТОЛЬКО JSON список объектов: [{{"name": "...", "type": "...", "confidence": 0.9}}]
-ТЕКСТ:
-{content[:1000]}"""
-
-                # Используем легкую модель для экстракции
-                response = await run_smart_agent_async(
-                    prompt, expert_name="Виктория", category="fast"
-                )
-
-                json_match = re.search(r"\[.*\]", str(response or ""), re.DOTALL)
-                if json_match:
-                    llm_entities = json.loads(json_match.group(0))
-                    for le in llm_entities:
-                        entities.append(
-                            Entity(
-                                name=le["name"],
-                                type=le["type"],
-                                confidence=le.get("confidence", 0.7),
-                                metadata={"source": "llm"},
-                            )
-                        )
-                    _LLM_FAIL_STREAK = 0
+                llm_entities = await self._extract_via_hands(content[:1000])
+                if llm_entities:
+                    entities.extend(llm_entities)
+                    _llm_note_success()
                 else:
-                    # Стаб/не-JSON — LLM не дал сущностей: копим отказ
                     _llm_note_failure()
             except Exception as e:
-                # [v149.58c] исключение (например, loop-breaker) тоже отказ LLM:
-                # иначе цикл живёт на loop-breaker'е, минуя circuit breaker
+                # [v149.58c] исключение тоже отказ LLM — иначе минуем circuit breaker
                 _llm_note_failure()
                 logger.debug(f"LLM Entity Extraction failed: {e}")
 
         # Дедупликация по имени
         unique_entities = {e.name.lower(): e for e in entities}.values()
         return list(unique_entities)
+
+    async def _extract_via_hands(self, text: str) -> List[Entity]:
+        """JSON entity extract on Ollama hands (11437 phi), not Victoria brain."""
+        import httpx
+
+        hands = (
+            os.getenv("OLLAMA_HANDS_URL")
+            or os.getenv("OLLAMA_EMBED_URL")
+            or "http://host.docker.internal:11437"
+        ).rstrip("/")
+        model = os.getenv("ENTITY_EXTRACTOR_MODEL", "phi3.5:3.8b")
+        prompt = (
+            "Извлеки ключевые сущности (технологии, люди, концепции, файлы).\n"
+            'Верни ТОЛЬКО JSON список: [{"name":"...","type":"...","confidence":0.9}]\n'
+            f"ТЕКСТ:\n{text}"
+        )
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            resp = await client.post(
+                f"{hands}/api/chat",
+                json={
+                    "model": model,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "Ты парсер сущностей. Ответь только JSON-массивом.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    "stream": False,
+                    "options": {"temperature": 0, "num_ctx": 2048, "num_predict": 512},
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        raw = ""
+        if isinstance(data, dict):
+            msg = data.get("message") or {}
+            raw = str(msg.get("content") or data.get("response") or "")
+        json_match = re.search(r"\[.*\]", raw, re.DOTALL)
+        if not json_match:
+            return []
+        parsed = json.loads(json_match.group(0))
+        out: List[Entity] = []
+        for le in parsed or []:
+            if not isinstance(le, dict) or not le.get("name"):
+                continue
+            out.append(
+                Entity(
+                    name=str(le["name"]),
+                    type=str(le.get("type") or "concept"),
+                    confidence=float(le.get("confidence", 0.7) or 0.7),
+                    metadata={"source": "llm_hands"},
+                )
+            )
+        return out
 
 
 _extractor = None
