@@ -33,8 +33,11 @@ async def _ntfy_notify(title: str, body: str) -> None:
     if TG_TOKEN and TG_CHAT_ID:
         try:
             tg_url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
+            # Explicit TG_PROXY only — never inherit ALL_PROXY (socksio missing in .venv)
             proxy = os.getenv("TG_PROXY", "")
-            kw = {"proxy": proxy} if proxy else {}
+            kw = {"trust_env": False}
+            if proxy:
+                kw["proxy"] = proxy
             async with httpx.AsyncClient(timeout=10.0, **kw) as c:
                 await c.post(tg_url, json={
                     "chat_id": TG_CHAT_ID,
@@ -103,8 +106,9 @@ async def ask_victoria_to_analyze(report_path: Path):
 """
 
     logger.info("🧠 Отправка отчета Виктории на само-анализ...")
-    # Используем стриминг для предотвращения ReadError при долгой генерации
-    async with httpx.AsyncClient(timeout=300.0) as client:
+    # Local Victoria (127.0.0.1/localhost) — never use ALL_PROXY/SOCKS
+    # (knowledge_os/.venv httpx lacks socksio → ImportError)
+    async with httpx.AsyncClient(timeout=300.0, trust_env=False) as client:
         try:
             async with client.stream(
                 "POST",
