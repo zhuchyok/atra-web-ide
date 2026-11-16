@@ -7837,11 +7837,32 @@ async def _run_task_background(
         else:
             consilium_category = is_consilium_winnable_goal(goal)
         _cons_started = time.monotonic()
-        if consilium_category and os.getenv("CONSILIUM_ROUTING_ENABLED", "true").lower() in (
+        # Quality freeze: do not fan-out debate while HYPOTHESIS_DEBATES_ENABLED=false.
+        # Consilium debate was double work (up to CONSILIUM_ROUTER_TIMEOUT_SEC) then solo.
+        _debates_enabled = os.getenv("HYPOTHESIS_DEBATES_ENABLED", "false").lower() in (
             "1",
             "true",
             "yes",
-        ):
+            "on",
+        )
+        _cons_routing = os.getenv("CONSILIUM_ROUTING_ENABLED", "true").lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+        if consilium_category and _cons_routing and not _debates_enabled:
+            try:
+                VICTORIA_CONSILIUM_ROUTED.labels(
+                    category=consilium_category, outcome="disabled"
+                ).inc()
+            except Exception:  # noqa: BLE001
+                pass
+            logger.info(
+                "[CONSILIUM_ROUTER] skipped (HYPOTHESIS_DEBATES_ENABLED=false) category=%s",
+                consilium_category,
+            )
+        elif consilium_category and _cons_routing and _debates_enabled:
             _dlg_url = os.getenv("EXPERT_DIALOGUE_URL", "http://host.docker.internal:8080")
             _cons_timeout = float(os.getenv("CONSILIUM_ROUTER_TIMEOUT_SEC", "240"))
             _synth, _engine, _degraded = "", "", True

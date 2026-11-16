@@ -94,8 +94,118 @@ class QueryParams:
         return self.params
 
 
+def _min_similarity() -> float:
+    """Align with ai_core RAG_MIN_SIMILARITY (default 0.45). Do not raise TTC."""
+    try:
+        return float(os.getenv("RAG_MIN_SIMILARITY", "0.45"))
+    except (TypeError, ValueError):
+        return 0.45
+
+
+def _finite_sim(value: Any) -> Optional[float]:
+    try:
+        score = float(value)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(score) or math.isinf(score):
+        return None
+    return score
+
+
+def _is_task_artifact(metadata: Any) -> bool:
+    """Worker/task rows in knowledge_nodes bleed into chat RAG as false context."""
+    if not metadata:
+        return False
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except Exception:
+            return False
+    return isinstance(metadata, dict) and ("task_id" in metadata)
+
+
+def filter_search_results(
+    results: list[dict],
+    *,
+    min_sim: Optional[float] = None,
+    apply_min_sim: bool = True,
+) -> list[dict]:
+    """Drop NaN/Inf, task artifacts, and (optionally) below-threshold hits.
+
+    apply_min_sim=False for raw BM25/ts_rank rows — those scores are not cosine-scaled;
+    hybrid_search applies the threshold on the combined 0.7*vector+0.3*bm25 score.
+    """
+    if not results:
+        return []
+    threshold = _min_similarity() if min_sim is None else float(min_sim)
+    out: list[dict] = []
+    for row in results:
+        if _is_task_artifact(row.get("metadata")):
+            continue
+        sim = _finite_sim(row.get("similarity", 0))
+        if sim is None:
+            continue
+        if apply_min_sim and sim < threshold:
+            continue
+        cleaned = dict(row)
+        cleaned["similarity"] = sim
+        out.append(cleaned)
+    return out
+
+
+def format_result_text(
+    mode: str, results: list[dict], snippet_chars: Optional[int] = None
+) -> str:
+    """Build injectable context. Empty string when no usable hits (never a placeholder)."""
+    if not results:
+        return ""
+    if snippet_chars is None:
+        try:
+            snippet_chars = int(os.getenv("RAG_SNIPPET_CHARS", "500"))
+        except (TypeError, ValueError):
+            snippet_chars = 500
+    snippet_chars = max(100, snippet_chars)
+    lines: list[str] = []
+    for row in results:
+        content = (row.get("content") or "").strip()
+        if not content:
+            continue
+        snippet = content[:snippet_chars]
+        if len(content) > snippet_chars:
+            snippet += "..."
+        sim = _finite_sim(row.get("similarity", 0)) or 0.0
+        lines.append(f"[{mode} sim={sim:.2f}] {snippet}")
+    return "\n---\n".join(lines)
+
+
+def rag_context_usable(rag_res: Optional[dict]) -> bool:
+    """True only when search returned real filtered hits (not empty / placeholder)."""
+    if not isinstance(rag_res, dict):
+        return False
+    results = rag_res.get("results") or []
+    if not results:
+        return False
+    text = (rag_res.get("result_text") or "").strip()
+    if not text:
+        return False
+    if text.lower().startswith("no relevant knowledge"):
+        return False
+    return True
+
+
+def _embed_fallback_url() -> str:
+    """nomic on hands 11437 — never default to brain 11434."""
+    explicit = (os.getenv("OLLAMA_EMBED_URL") or "").strip()
+    if explicit:
+        return explicit
+    hands = (os.getenv("OLLAMA_HANDS_URL") or "http://localhost:11437").rstrip("/")
+    if hands.endswith("/api/embeddings"):
+        return hands
+    return f"{hands}/api/embeddings"
+
+
 async def get_embedding(text: str) -> list[float]:
-    """Получение эмбеддинга через Ollama [HYBRID v2]"""
+    """Получение эмбеддинга через Ollama [HYBRID v2]. Hands/nomic on 11437, not brain 11434."""
     try:
         from app.semantic_cache import get_embedding as get_ollama_embedding
 
@@ -106,11 +216,13 @@ async def get_embedding(text: str) -> list[float]:
         # TODO: Convert f-string to %s formatting for performance
         logger.info(f"⚠️ Ошибка получения эмбеддинга через semantic_cache: {e}")
 
-    # Fallback на прямой запрос к Ollama если импорт не сработал
+    # Fallback: nomic lives on hands (11437). Never load embedder onto brain 11434.
+    embed_url = _embed_fallback_url()
+    model = os.getenv("OLLAMA_EMBED_MODEL", os.getenv("OLLAMA_MODEL", "nomic-embed-text"))
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            "http://localhost:11434/api/embeddings",
-            json={"model": "nomic-embed-text", "prompt": text},
+            embed_url,
+            json={"model": model, "prompt": text},
             timeout=30.0,
         )
         response.raise_for_status()
@@ -171,21 +283,24 @@ async def semantic_search(
     qp = QueryParams([str(embedding)])
 
     sql = """
-        SELECT id, content, confidence_score, usage_count,
+        SELECT id, content, confidence_score, usage_count, metadata,
                (1 - (embedding <=> $1::vector)) as similarity,
                created_at, domain_id
         FROM knowledge_nodes
         WHERE confidence_score > 0.3
         AND embedding IS NOT NULL
+        AND NOT (COALESCE(metadata, '{}'::jsonb) ? 'task_id')
     """
 
     if domain:
         sql += f" AND domain_id = (SELECT id FROM domains WHERE name = {qp.add(domain)})"
 
-    sql += f" ORDER BY similarity DESC LIMIT {qp.add(limit)}"
+    # Fetch extra candidates so post-filter min_sim still has a chance of hits.
+    sql += f" ORDER BY similarity DESC LIMIT {qp.add(max(limit * 3, limit))}"
 
     results = await conn.fetch(sql, *qp.get_all())
-    return [dict(r) for r in results]
+    # Cosine similarity is 0..1 — apply min_sim here.
+    return filter_search_results([dict(r) for r in results], apply_min_sim=True)[:limit]
 
 
 async def keyword_search(
@@ -201,22 +316,25 @@ async def keyword_search(
     if not ts_query:
         return []
 
+    # Escape {{}} — this is an f-string; literal jsonb empty object must not interpolate.
     sql = f"""
-        SELECT id, content, confidence_score, usage_count,
+        SELECT id, content, confidence_score, usage_count, metadata,
                ts_rank_cd(content_tsvector, to_tsquery('russian', {qp.add(ts_query)})) as similarity,
                created_at, domain_id
         FROM knowledge_nodes
         WHERE confidence_score > 0.3
         AND content_tsvector @@ to_tsquery('russian', {qp.add(ts_query)})
+        AND NOT (COALESCE(metadata, '{{}}'::jsonb) ? 'task_id')
     """
 
     if domain:
         sql += f" AND domain_id = (SELECT id FROM domains WHERE name = {qp.add(domain)})"
 
-    sql += f" ORDER BY similarity DESC, usage_count DESC LIMIT {qp.add(limit)}"
+    sql += f" ORDER BY similarity DESC, usage_count DESC LIMIT {qp.add(max(limit * 3, limit))}"
 
     results = await conn.fetch(sql, *qp.get_all())
-    return [dict(r) for r in results]
+    # ts_rank is not cosine-scaled — keep poisoned/task filter only.
+    return filter_search_results([dict(r) for r in results], apply_min_sim=False)[:limit]
 
 
 async def metric_search(
@@ -233,6 +351,7 @@ async def metric_search(
                metadata
         FROM knowledge_nodes
         WHERE confidence_score > 0.3
+        AND NOT (COALESCE(metadata, '{}'::jsonb) ? 'task_id')
     """
 
     conditions = []
@@ -294,13 +413,14 @@ async def temporal_search(
         time_condition = "created_at >= NOW() - INTERVAL '7 days'"
 
     sql = f"""
-        SELECT id, content, confidence_score, usage_count,
+        SELECT id, content, confidence_score, usage_count, metadata,
                EXTRACT(EPOCH FROM (NOW() - created_at)) / 3600 as hours_ago,
                1.0 - (EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400 / 30) as similarity,
                created_at, domain_id
         FROM knowledge_nodes
         WHERE confidence_score > 0.3
         AND {time_condition}
+        AND NOT (COALESCE(metadata, '{{}}'::jsonb) ? 'task_id')
     """
 
     if domain:
@@ -309,7 +429,7 @@ async def temporal_search(
     sql += f" ORDER BY created_at DESC LIMIT {qp.add(limit)}"
 
     results = await conn.fetch(sql, *qp.get_all())
-    return [dict(r) for r in results]
+    return filter_search_results([dict(r) for r in results], apply_min_sim=True)[:limit]
 
 
 async def hybrid_search(
@@ -361,14 +481,19 @@ async def hybrid_search(
         k_norm = min(1.0, k)
         combined[node_id]["similarity"] = (v * 0.7) + (k_norm * 0.3)
 
-    sorted_results = sorted(combined.values(), key=lambda x: x.get("similarity", 0), reverse=True)
+    sorted_results = sorted(
+        combined.values(),
+        key=lambda x: _finite_sim(x.get("similarity", 0)) or -1.0,
+        reverse=True,
+    )
+    sorted_results = filter_search_results(sorted_results)
 
     # 4. Cross-Encoder Re-ranking [RERANKER v2] — only if enabled
     candidates = sorted_results[:15]
     if _reranker_enabled() and len(candidates) > 1:
         logger.info("🔍 [RERANKER] Re-ranking %s candidates...", len(candidates))
         reranked = await rerank_results(query, candidates)
-        final_results = reranked + sorted_results[15:]
+        final_results = filter_search_results(reranked + sorted_results[15:])
         return final_results[:limit]
 
     return sorted_results[:limit]
@@ -449,6 +574,10 @@ async def enhanced_search_knowledge(
             )
             results = await rerank_results(query, results)
 
+        # Final quality gate. KEYWORD/METRIC ts_rank is not cosine — skip min_sim.
+        apply_min = mode not in (SearchMode.KEYWORD, SearchMode.METRIC)
+        results = filter_search_results(results, apply_min_sim=apply_min)[:limit]
+
         if results:
             node_ids = [r["id"] for r in results]
             await conn.execute(
@@ -456,16 +585,8 @@ async def enhanced_search_knowledge(
                 node_ids,
             )
 
-        result_text = (
-            "\n".join(
-                [
-                    f"[{mode.value}] Sim {r.get('similarity', 0):.2f} (Rerank {r.get('rerank_score', 0):.2f}): {r['content'][:200]}..."
-                    for r in results
-                ]
-            )
-            if results
-            else "No relevant knowledge found."
-        )
+        # Empty string (not placeholder) so chat/Omni-RAG skip injection and answer honestly.
+        result_text = format_result_text(mode.value, results)
 
         response = {
             "mode": mode.value,
@@ -477,9 +598,10 @@ async def enhanced_search_knowledge(
             "node_ids": [str(r["id"]) for r in results],
         }
 
-        if use_cache:
+        # Cache only non-empty hits — do not freeze "empty RAG" for an hour.
+        if use_cache and results:
             try:
-                await rd.set(cache_key, json.dumps(response), ex=3600)
+                await rd.set(cache_key, json.dumps(response, default=str), ex=3600)
             except Exception:
                 pass
 

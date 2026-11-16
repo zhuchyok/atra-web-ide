@@ -101,9 +101,21 @@ class CollectiveMemory:
 
         # Сортируем по score и возвращаем top-N
         scored_results.sort(key=lambda x: x[0], reverse=True)
-        top = [exp for score, exp in scored_results[:limit]]
+        # Require meaningful overlap (score>=2 = ≥1 value-word). Weak 1-char noise
+        # used to block the knowledge_nodes fallback and leave Victoria empty-handed.
+        top = [exp for score, exp in scored_results[:limit] if score >= 2]
         if not top:
-            top = await self.query_knowledge_base(query, limit)
+            return await self.query_knowledge_base(query, limit)
+        if len(top) < limit:
+            kb = await self.query_knowledge_base(query, limit - len(top))
+            seen = {str(t.get("value", ""))[:80] for t in top}
+            for item in kb:
+                key = str(item.get("value", ""))[:80]
+                if key in seen:
+                    continue
+                top.append(item)
+                if len(top) >= limit:
+                    break
         return top
 
     async def query_knowledge_base(self, query: str, limit: int = 5) -> List[Dict]:
