@@ -42,9 +42,7 @@ def test_early_async_shortcut_returns_deep_analysis():
 
 def test_request_async_skips_preamble_for_analysis_heavy():
     fn = _load_early_async_shortcut()
-    restated, strategy = fn(
-        "request_async_mode", "проанализируй маршрутизацию экспертов подробно"
-    )
+    restated, strategy = fn("request_async_mode", "проанализируй маршрутизацию экспертов подробно")
     assert restated == "проанализируй маршрутизацию экспертов подробно"
     assert strategy is not None
     assert strategy["strategy"] == "deep_analysis"

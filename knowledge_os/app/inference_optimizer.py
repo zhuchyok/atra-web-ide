@@ -82,9 +82,7 @@ class InferenceOptimizer:
         """Держит штатные руки phi3.5 на 11437 (не на brain 11434)."""
         models_to_preload = ["phi3.5:3.8b"]
         for model in models_to_preload:
-            asyncio.create_task(
-                self.warm_up_model(model, keep_alive=-1, target_url=self.hands_url)
-            )
+            asyncio.create_task(self.warm_up_model(model, keep_alive=-1, target_url=self.hands_url))
 
     def reset_cache(self):
         self.preloaded_models.clear()

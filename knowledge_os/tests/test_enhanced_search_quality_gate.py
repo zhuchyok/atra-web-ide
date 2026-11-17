@@ -93,7 +93,9 @@ def test_format_result_text_uses_longer_snippet():
     from app.enhanced_search import format_result_text
 
     content = "A" * 600
-    text = format_result_text("hybrid", [{"content": content, "similarity": 0.8}], snippet_chars=500)
+    text = format_result_text(
+        "hybrid", [{"content": content, "similarity": 0.8}], snippet_chars=500
+    )
     assert "No relevant knowledge" not in text
     assert "[hybrid sim=0.80]" in text
     assert len(text) > 400
@@ -105,14 +107,9 @@ def test_rag_context_usable_rejects_placeholder_and_empty():
     assert rag_context_usable(None) is False
     assert rag_context_usable({}) is False
     assert (
-        rag_context_usable(
-            {"results": [], "result_text": "No relevant knowledge found."}
-        )
-        is False
+        rag_context_usable({"results": [], "result_text": "No relevant knowledge found."}) is False
     )
-    assert (
-        rag_context_usable({"results": [{"id": 1}], "result_text": ""}) is False
-    )
+    assert rag_context_usable({"results": [{"id": 1}], "result_text": ""}) is False
     assert (
         rag_context_usable(
             {

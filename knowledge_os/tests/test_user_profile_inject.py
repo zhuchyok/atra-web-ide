@@ -87,8 +87,6 @@ def test_victoria_server_wires_inject():
     assert "load_user_profile" in inject_region
     assert "format_user_profile_block" in inject_region
     # Path load targets USER.md only (no SOUL.md path reference in helper module)
-    helper = (ROOT / "src" / "agents" / "bridge" / "user_profile.py").read_text(
-        encoding="utf-8"
-    )
+    helper = (ROOT / "src" / "agents" / "bridge" / "user_profile.py").read_text(encoding="utf-8")
     assert "USER.md" in helper
     assert 'SOUL.md"' not in helper and "SOUL.md'" not in helper

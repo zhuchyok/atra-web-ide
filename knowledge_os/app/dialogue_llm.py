@@ -36,9 +36,9 @@ def _strip_model_artifacts(text: str) -> str:
 
 MLX_BASE = os.getenv("MLX_BASE_URL", "http://host.docker.internal:11435").rstrip("/")
 OLLAMA_BASE = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434").rstrip("/")
-OLLAMA_HANDS_BASE = (
-    os.getenv("OLLAMA_HANDS_URL") or "http://host.docker.internal:11437"
-).rstrip("/")
+OLLAMA_HANDS_BASE = (os.getenv("OLLAMA_HANDS_URL") or "http://host.docker.internal:11437").rstrip(
+    "/"
+)
 DEFAULT_OLLAMA_MODEL = os.getenv("DIALOGUE_OLLAMA_MODEL", "phi3.5:3.8b")
 DEFAULT_MLX_MODEL = os.getenv("DIALOGUE_MLX_MODEL", "victoria-wisdom-24k")
 HTTP_TIMEOUT = float(os.getenv("DIALOGUE_LLM_TIMEOUT_SEC", "90"))
@@ -87,6 +87,7 @@ def ollama_base_for_dialogue_model(name: Optional[str]) -> str:
     if is_hands_dialogue_model(name):
         return (os.getenv("OLLAMA_HANDS_URL") or OLLAMA_HANDS_BASE).rstrip("/")
     return OLLAMA_BASE
+
 
 INCOMPLETE_MARKER = "[INCOMPLETE]"
 
@@ -212,18 +213,10 @@ async def _resolve_ollama_model(model_hint: Optional[str]) -> str:
             return resolved_cand
         for name in available:
             if name.startswith(resolved_cand.split(":")[0] + ":") or name == resolved_cand:
-                return (
-                    normalize_ollama_hands_model(name)
-                    if is_hands_dialogue_model(name)
-                    else name
-                )
+                return normalize_ollama_hands_model(name) if is_hands_dialogue_model(name) else name
     if available:
         pick = available[0]
-        return (
-            normalize_ollama_hands_model(pick)
-            if is_hands_dialogue_model(pick)
-            else pick
-        )
+        return normalize_ollama_hands_model(pick) if is_hands_dialogue_model(pick) else pick
     return (
         normalize_ollama_hands_model(DEFAULT_OLLAMA_MODEL)
         if is_hands_dialogue_model(DEFAULT_OLLAMA_MODEL)
@@ -311,12 +304,8 @@ async def _try_ollama(prompt: str, *, model_hint: Optional[str]) -> tuple[str, s
             # [v173] smollm/tinyllama/moondream on brain 11434: do not pin —
             # wisdom_guard also unloads them; keep_alive=0 cuts churn window.
             _mk = (model or "").lower()
-            if ("11434" in base) and any(
-                t in _mk for t in ("smollm", "tinyllama", "moondream")
-            ):
-                body["keep_alive"] = int(
-                    os.getenv("DIALOGUE_BRAIN_STRAY_KEEP_ALIVE_SEC", "0")
-                )
+            if ("11434" in base) and any(t in _mk for t in ("smollm", "tinyllama", "moondream")):
+                body["keep_alive"] = int(os.getenv("DIALOGUE_BRAIN_STRAY_KEEP_ALIVE_SEC", "0"))
             for attempt in range(1, max_retries + 1):
                 remaining = deadline - time.monotonic()
                 if remaining <= 0.5:

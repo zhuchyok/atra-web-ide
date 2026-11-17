@@ -71,10 +71,7 @@ def test_queue_health_missing_group_with_backlog_is_failure(monkeypatch):
     def fake_run(cmd: str, timeout: int = 30):
         if "stream:expert_tasks:overflow" in cmd and "XINFO GROUPS" in cmd:
             return 0, _xinfo_payload(lag=0, pending=0, consumers=1), ""
-        if (
-            "XINFO GROUPS stream:expert_tasks" in cmd
-            and "stream:expert_tasks:" not in cmd
-        ):
+        if "XINFO GROUPS stream:expert_tasks" in cmd and "stream:expert_tasks:" not in cmd:
             return 0, "", ""
         if "XLEN stream:expert_tasks" in cmd:
             return 0, "12", ""
@@ -98,10 +95,7 @@ def test_queue_health_dedicated_legacy_shared_zero_consumers_empty_ok(monkeypatc
             return 0, _xinfo_payload(lag=0, pending=0, consumers=2), ""
         if "stream:expert_tasks:Анна" in cmd and "XINFO GROUPS" in cmd:
             return 0, _xinfo_payload(lag=0, pending=0, consumers=1), ""
-        if (
-            "XINFO GROUPS stream:expert_tasks" in cmd
-            and "stream:expert_tasks:" not in cmd
-        ):
+        if "XINFO GROUPS stream:expert_tasks" in cmd and "stream:expert_tasks:" not in cmd:
             return 0, _xinfo_payload(lag=0, pending=0, consumers=0), ""
         if "XLEN stream:expert_tasks" in cmd and "stream:expert_tasks:" not in cmd:
             return 0, "0", ""
@@ -127,10 +121,7 @@ def test_queue_health_dedicated_legacy_shared_missing_ok(monkeypatch):
             return 0, _xinfo_payload(lag=0, pending=0, consumers=1), ""
         if "stream:expert_tasks:Анна" in cmd and "XINFO GROUPS" in cmd:
             return 0, _xinfo_payload(lag=0, pending=0, consumers=1), ""
-        if (
-            "XINFO GROUPS stream:expert_tasks" in cmd
-            and "stream:expert_tasks:" not in cmd
-        ):
+        if "XINFO GROUPS stream:expert_tasks" in cmd and "stream:expert_tasks:" not in cmd:
             return 1, "", "ERR no such key"
         return 1, "", "unexpected"
 
@@ -153,10 +144,7 @@ def test_queue_health_dedicated_legacy_shared_orphaned_backlog_fails(monkeypatch
             return 0, _xinfo_payload(lag=0, pending=0, consumers=1), ""
         if "stream:expert_tasks:Анна" in cmd and "XINFO GROUPS" in cmd:
             return 0, _xinfo_payload(lag=0, pending=0, consumers=1), ""
-        if (
-            "XINFO GROUPS stream:expert_tasks" in cmd
-            and "stream:expert_tasks:" not in cmd
-        ):
+        if "XINFO GROUPS stream:expert_tasks" in cmd and "stream:expert_tasks:" not in cmd:
             return 0, _xinfo_payload(lag=3, pending=0, consumers=0), ""
         if "XLEN stream:expert_tasks" in cmd and "stream:expert_tasks:" not in cmd:
             return 0, "3", ""
@@ -180,10 +168,7 @@ def test_queue_health_shared_mode_still_requires_consumers(monkeypatch):
     def fake_run(cmd: str, timeout: int = 30):
         if "stream:expert_tasks:overflow" in cmd and "XINFO GROUPS" in cmd:
             return 0, _xinfo_payload(lag=0, pending=0, consumers=1), ""
-        if (
-            "XINFO GROUPS stream:expert_tasks" in cmd
-            and "stream:expert_tasks:" not in cmd
-        ):
+        if "XINFO GROUPS stream:expert_tasks" in cmd and "stream:expert_tasks:" not in cmd:
             return 0, _xinfo_payload(lag=0, pending=0, consumers=0), ""
         if "XLEN" in cmd:
             return 0, "0", ""

@@ -196,7 +196,6 @@ def _normalize_ollama_hands_model(name: Optional[str]) -> str:
 
             return _norm(name)
         except ImportError:
-
             key = (name or "").strip()
             if not key or key.endswith("3.8b-stable") or key == "phi3.5-stable":
                 return "phi3.5:3.8b"

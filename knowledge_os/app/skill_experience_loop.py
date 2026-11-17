@@ -17,9 +17,7 @@ import asyncpg
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_DSN = os.getenv(
-    "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
-)
+_DEFAULT_DSN = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
 
 
 def is_skill_loop_enabled(default: bool = True) -> bool:

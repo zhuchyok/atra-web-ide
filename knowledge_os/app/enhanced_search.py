@@ -136,9 +136,7 @@ def _is_curator_finding(metadata: Any) -> bool:
 
 
 # SQL fragment: exclude curator_finding the same way we exclude task_id artifacts.
-_SQL_EXCLUDE_CURATOR = (
-    "AND COALESCE(metadata->>'node_type', '') <> 'curator_finding'"
-)
+_SQL_EXCLUDE_CURATOR = "AND COALESCE(metadata->>'node_type', '') <> 'curator_finding'"
 
 
 def filter_search_results(
@@ -172,9 +170,7 @@ def filter_search_results(
     return out
 
 
-def format_result_text(
-    mode: str, results: list[dict], snippet_chars: Optional[int] = None
-) -> str:
+def format_result_text(mode: str, results: list[dict], snippet_chars: Optional[int] = None) -> str:
     """Build injectable context. Empty string when no usable hits (never a placeholder)."""
     if not results:
         return ""

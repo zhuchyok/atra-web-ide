@@ -73,7 +73,5 @@ def test_fast_file_check_ignores_negative_guard_condition(tmp_path, monkeypatch)
     monkeypatch.setattr(sw.os.path, "exists", fake_exists)
     monkeypatch.setattr(builtins, "open", fake_open)
 
-    result = _fast_file_check(
-        f"проверь файл {path} — есть ли там pip install в рантайме?"
-    )
+    result = _fast_file_check(f"проверь файл {path} — есть ли там pip install в рантайме?")
     assert result == "ОК"

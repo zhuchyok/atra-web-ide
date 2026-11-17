@@ -40,8 +40,12 @@ def test_coder_solo_gate_blocks_phi_on_11436():
     assert skip_hands_on_coder_slot("http://host.docker.internal:11436", "qwen3-coder:30b") is False
     assert skip_hands_on_coder_slot("http://host.docker.internal:11437", "phi3.5:3.8b") is False
     # [v173] any non-qwen3-coder* is rejected on 11436 (CODER_ALLOW)
-    assert skip_hands_on_coder_slot("http://host.docker.internal:11436", "tinyllama:1.1b-chat") is True
-    assert skip_hands_on_coder_slot("http://host.docker.internal:11436", "qwen2.5-coder:14b") is True
+    assert (
+        skip_hands_on_coder_slot("http://host.docker.internal:11436", "tinyllama:1.1b-chat") is True
+    )
+    assert (
+        skip_hands_on_coder_slot("http://host.docker.internal:11436", "qwen2.5-coder:14b") is True
+    )
     assert is_coder_model("qwen3-coder:latest") is True
     assert is_coder_model("qwen2.5-coder:14b") is False
     # [v173 XOR] non-residents are not Hands markers (BRAIN/HANDS gates separate)

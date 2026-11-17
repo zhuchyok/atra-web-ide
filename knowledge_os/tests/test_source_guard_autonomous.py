@@ -123,9 +123,9 @@ def test_non_protected_tmp_probe_allowed(tmp_path, monkeypatch):
 
 
 def test_react_agent_write_file_calls_source_guard():
-    src = (
-        __import__("pathlib").Path(ROOT) / "knowledge_os" / "app" / "react_agent.py"
-    ).read_text(encoding="utf-8")
+    src = (__import__("pathlib").Path(ROOT) / "knowledge_os" / "app" / "react_agent.py").read_text(
+        encoding="utf-8"
+    )
     assert "_source_guard_write_error" in src
     assert "guard_file_write" in src
     # create_file/write_file + smart-patch/patch_file must call the guard helper

@@ -49,9 +49,7 @@ def test_task5_pip_meta_check_not_runtime(vs_helpers):
 
 
 def test_task5_negative_guard_not_runtime(vs_helpers):
-    assert (
-        vs_helpers["_line_has_runtime_pip_install"]('if "pip install" not in text:') is False
-    )
+    assert vs_helpers["_line_has_runtime_pip_install"]('if "pip install" not in text:') is False
 
 
 def test_real_runtime_pip_still_flags(vs_helpers):
@@ -70,7 +68,11 @@ def test_task7_eval_meta_check_file_scan_ok(tmp_path, vs_helpers):
     )
     assert result is not None
     assert result.startswith("ОК"), result
-    assert "eval()" not in result.lower() or "не найдено" in result.lower() or "ничего не найдено" in result.lower()
+    assert (
+        "eval()" not in result.lower()
+        or "не найдено" in result.lower()
+        or "ничего не найдено" in result.lower()
+    )
 
 
 def test_real_eval_exec_still_flags_in_file_scan(tmp_path, vs_helpers):

@@ -14,8 +14,7 @@ VICTORIA_SERVER = ROOT / "src" / "agents" / "bridge" / "victoria_server.py"
 TASK_DETECTOR = ROOT / "src" / "agents" / "bridge" / "task_detector.py"
 
 TTC_FILE_CHECK_GOAL = (
-    "проверь файл knowledge_os/tests/test_ttc_exclude_probe_noise.py "
-    "— есть ли SyntaxError?"
+    "проверь файл knowledge_os/tests/test_ttc_exclude_probe_noise.py — есть ли SyntaxError?"
 )
 
 
@@ -47,9 +46,7 @@ def test_ttc_path_would_false_positive_fact_seeking_markers():
 
 def test_live_fact_builder_excludes_file_check_goals():
     text = VICTORIA_SERVER.read_text(encoding="utf-8")
-    fn = text.split("async def _build_live_fact_answer_for_run", 1)[1].split(
-        "async def ", 1
-    )[0]
+    fn = text.split("async def _build_live_fact_answer_for_run", 1)[1].split("async def ", 1)[0]
     assert "_FILE_CHECK_RE.match(_fc_prefix)" in fn
     assert "return None" in fn
     # Guard must appear before is_fact_seeking_question.

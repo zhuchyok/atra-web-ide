@@ -86,8 +86,7 @@ def test_victoria_provocation_pip_and_eval_clean_file(tmp_path, vs_helpers):
     target = tmp_path / "clean_provocation.py"
     target.write_text('print("clean")\nx = 1 + 2\n', encoding="utf-8")
     pip_task = (
-        f" — есть ли там pip install в рантайме ({PIP_MARKER} subprocess pip "
-        f"или os.system pip)?"
+        f" — есть ли там pip install в рантайме ({PIP_MARKER} subprocess pip или os.system pip)?"
     )
     eval_task = (
         f" — найди потенциальные проблемы: subprocess calls, hardcoded URLs, "
@@ -121,10 +120,7 @@ def test_victoria_never_scans_concatenated_goal_plus_file(tmp_path, vs_helpers):
     """If haystack were goal+file, eval() in the goal line would false-positive."""
     target = tmp_path / "clean_concat.py"
     target.write_text("print('ok')\n", encoding="utf-8")
-    goal = (
-        f"проверь файл {target} — найди потенциальные проблемы: eval(), exec(). "
-        f"{EVAL_MARKER}"
-    )
+    goal = f"проверь файл {target} — найди потенциальные проблемы: eval(), exec(). {EVAL_MARKER}"
     # Correct API: task_text is query-only; file is read from path.
     result = vs_helpers["_file_check_scan"](
         str(target),
@@ -147,10 +143,7 @@ def test_expert_worker_provocation_pip_clean_file(tmp_path, monkeypatch):
     monkeypatch.setenv("MONSTER_AUDIT_FAST_PATH", "true")
     target = tmp_path / "clean_expert.py"
     target.write_text("print('clean')\n", encoding="utf-8")
-    goal = (
-        f"проверь файл {target} — есть ли там pip install в рантайме "
-        f"({PIP_MARKER})?"
-    )
+    goal = f"проверь файл {target} — есть ли там pip install в рантайме ({PIP_MARKER})?"
     result = _run_monster_pip_runtime_audit(
         goal, {"source": "victoria_monster_delegation", "source_path": str(target)}
     )
@@ -305,9 +298,7 @@ def test_curator_provocation_pip_and_eval_clean_file(tmp_path, curator, monkeypa
     # Ensure extract resolves under ROOT
     monkeypatch.setattr(curator["Path"], "read_text", fake_read, raising=False)
 
-    pip_goal = (
-        f"проверь файл {app_path} — есть ли там pip install в рантайме? {PIP_MARKER}"
-    )
+    pip_goal = f"проверь файл {app_path} — есть ли там pip install в рантайме? {PIP_MARKER}"
     eval_goal = (
         f"прочитай файл {app_path} — найди потенциальные проблемы: "
         f"subprocess calls, hardcoded URLs, eval(), exec(). {EVAL_MARKER}"

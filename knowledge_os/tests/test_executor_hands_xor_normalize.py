@@ -69,9 +69,7 @@ def test_executor_source_normalizes_on_11437():
 
 def test_victoria_server_hands_prefs_omit_stable():
     """Live preference/maps that feed Hands must not nominate -stable."""
-    text = (ROOT / "src" / "agents" / "bridge" / "victoria_server.py").read_text(
-        encoding="utf-8"
-    )
+    text = (ROOT / "src" / "agents" / "bridge" / "victoria_server.py").read_text(encoding="utf-8")
     # _select_model_for_task model_map + preferred_planner
     assert '"phi3.5:3.8b-stable"' not in text
     assert "phi3.5:3.8b" in text

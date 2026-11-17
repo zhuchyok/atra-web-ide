@@ -298,10 +298,7 @@ def classify_scanner_incident(container: str, error: Dict) -> str:
     return "human"
 
 
-_EVIDENCE = (
-    "Evidence: command, output, PASS or FAIL, untested. "
-    "No «готово» without those four."
-)
+_EVIDENCE = "Evidence: command, output, PASS or FAIL, untested. No «готово» without those four."
 
 _HUMAN_BLOCKED_TOOLS = (
     "write_file",
@@ -369,9 +366,7 @@ def build_scanner_goal(container: str, error: Dict, klass: str, code_path: str =
     )
 
 
-def scanner_run_payload(
-    container: str, error: Dict, klass: str, code_path: str = ""
-) -> Dict:
+def scanner_run_payload(container: str, error: Dict, klass: str, code_path: str = "") -> Dict:
     """POST /run body: async accept, no sync 30s hang."""
     return {
         "goal": build_scanner_goal(container, error, klass, code_path),
@@ -492,7 +487,11 @@ class LogScanner:
     def get_containers(self) -> List[str]:
         """Получить список контейнеров для мониторинга."""
         if WATCH_CONTAINERS and WATCH_CONTAINERS != [""]:
-            return [c.strip() for c in WATCH_CONTAINERS if c.strip() and c.strip() not in SKIP_CONTAINERS]
+            return [
+                c.strip()
+                for c in WATCH_CONTAINERS
+                if c.strip() and c.strip() not in SKIP_CONTAINERS
+            ]
 
         try:
             result = subprocess.run(

@@ -35,15 +35,9 @@ def test_ollama_base_for_dialogue_model_routes_hands(monkeypatch):
     monkeypatch.setattr(mod, "OLLAMA_HANDS_BASE", "http://localhost:11437")
 
     assert mod.ollama_base_for_dialogue_model("phi3.5:3.8b") == "http://localhost:11437"
-    assert (
-        mod.ollama_base_for_dialogue_model("phi3.5:3.8b-stable")
-        == "http://localhost:11437"
-    )
+    assert mod.ollama_base_for_dialogue_model("phi3.5:3.8b-stable") == "http://localhost:11437"
     assert mod.ollama_base_for_dialogue_model("smollm2:360m") == "http://localhost:11434"
-    assert (
-        mod.ollama_base_for_dialogue_model("victoria-qwen38:latest")
-        == "http://localhost:11434"
-    )
+    assert mod.ollama_base_for_dialogue_model("victoria-qwen38:latest") == "http://localhost:11434"
 
 
 def test_normalize_stable_before_hands_post():

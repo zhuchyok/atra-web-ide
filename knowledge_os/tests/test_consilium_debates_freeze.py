@@ -11,11 +11,9 @@ COMPOSE = ROOT / "knowledge_os" / "docker-compose.agents.yml"
 
 def test_consilium_requires_debates_enabled():
     text = VICTORIA_SERVER.read_text(encoding="utf-8")
-    block = text[
-        text.index("# === CONSILIUM ROUTER") : text.index("# === /CONSILIUM ROUTER ===")
-    ]
+    block = text[text.index("# === CONSILIUM ROUTER") : text.index("# === /CONSILIUM ROUTER ===")]
     assert 'HYPOTHESIS_DEBATES_ENABLED", "false"' in block
-    assert "outcome=\"disabled\"" in block or 'outcome="disabled"' in block
+    assert 'outcome="disabled"' in block or 'outcome="disabled"' in block
     assert "elif consilium_category and _cons_routing and _debates_enabled:" in block
     assert 'mode": "debate"' in block
 

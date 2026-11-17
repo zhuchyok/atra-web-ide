@@ -239,9 +239,7 @@ async def test_predictive_warmup_call_site_normalizes_stable_on_hands_node():
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_post.return_value = MagicMock(status_code=200)
         mock_post.return_value.json.return_value = {"message": {"content": "Response"}}
-        await router.run_local_llm(
-            "Analyze this", category="reasoning", model="phi3.5:3.8b-stable"
-        )
+        await router.run_local_llm("Analyze this", category="reasoning", model="phi3.5:3.8b-stable")
 
     router._trigger_predictive_warmup.assert_called_once()
     warmup_model = router._trigger_predictive_warmup.call_args.args[0]
@@ -316,7 +314,7 @@ def test_model_fast_and_map_default_base_phi():
     with open(src_path, encoding="utf-8") as f:
         src = f.read()
     assert 'os.getenv("MODEL_FAST", "phi3.5:3.8b")' in src
-    assert 'Downgrading {initial_model} -> phi3.5:3.8b (Chat Priority)' in src
+    assert "Downgrading {initial_model} -> phi3.5:3.8b (Chat Priority)" in src
 
 
 @pytest.mark.asyncio

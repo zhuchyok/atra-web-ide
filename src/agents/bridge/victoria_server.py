@@ -1085,7 +1085,9 @@ async def _fail_orphaned_inflight_on_startup() -> None:
         task_id = raw_id.decode() if isinstance(raw_id, bytes) else str(raw_id)
         age_sec: Optional[float] = None
         try:
-            created_raw = raw_created.decode() if isinstance(raw_created, bytes) else str(raw_created)
+            created_raw = (
+                raw_created.decode() if isinstance(raw_created, bytes) else str(raw_created)
+            )
             try:
                 created_at = datetime.fromisoformat(created_raw)
                 if created_at.tzinfo is None:
@@ -2576,9 +2578,7 @@ def _scanner_patch_verify(goal: str, result: str) -> str:
         src = open(fp, encoding="utf-8").read()
         compile(src, fp, "exec")
     except Exception as e:
-        return (
-            f"command: python3 -m py_compile {rel}\noutput: {e}\nFAIL\nuntested\n{result}"
-        )
+        return f"command: python3 -m py_compile {rel}\noutput: {e}\nFAIL\nuntested\n{result}"
     runtime = "compiled"
     try:
         ns: dict = {}
@@ -2587,13 +2587,9 @@ def _scanner_patch_verify(goal: str, result: str) -> str:
             val = ns["add"](1, 2)
             runtime = f"add(1,2)={val}"
             if val != 3:
-                return (
-                    f"command: python3 -c add(1,2)\noutput: {runtime}\nFAIL\n{result}"
-                )
+                return f"command: python3 -c add(1,2)\noutput: {runtime}\nFAIL\n{result}"
     except Exception as e:
-        return (
-            f"command: python3 -c add(1,2)\noutput: {type(e).__name__}: {e}\nFAIL\n{result}"
-        )
+        return f"command: python3 -c add(1,2)\noutput: {type(e).__name__}: {e}\nFAIL\n{result}"
     return (
         f"command: python3 -m py_compile {rel}; add(1,2)\n"
         f"output: OK; {runtime}\nPASS\nwrite_file {rel}"
@@ -4939,11 +4935,7 @@ def _file_check_scan(path: str, task_text: str) -> Optional[str]:
         if not what:
             return None
         if "pip install" in what:
-            hits = [
-                i
-                for i, ln in enumerate(view_src)
-                if _line_has_runtime_pip_install(ln)
-            ]
+            hits = [i for i, ln in enumerate(view_src) if _line_has_runtime_pip_install(ln)]
             if not hits:
                 return (
                     f"ОК: runtime pip install через subprocess/os.system в файле {path} не найдено."
@@ -4968,11 +4960,7 @@ def _file_check_scan(path: str, task_text: str) -> Optional[str]:
         for item in items:
             if "pip install" in item:
                 pip_hit = next(
-                    (
-                        i
-                        for i, ln in enumerate(view_src)
-                        if _line_has_runtime_pip_install(ln)
-                    ),
+                    (i for i, ln in enumerate(view_src) if _line_has_runtime_pip_install(ln)),
                     None,
                 )
                 if pip_hit is not None:
@@ -5274,10 +5262,7 @@ def _strategy_envelope_user_error(goal: str = "") -> str:
             "Ошибка: вместо кода вернулся служебный strategy-JSON. "
             "Повторите запрос — ожидался код, не envelope выбора стратегии."
         )
-    return (
-        "Ошибка: служебный strategy-JSON не является ответом пользователю. "
-        "Повторите запрос."
-    )
+    return "Ошибка: служебный strategy-JSON не является ответом пользователю. Повторите запрос."
 
 
 def _guard_code_goal_strategy_envelope(goal: str, output: Any) -> str:
@@ -5304,11 +5289,7 @@ def _guard_code_goal_strategy_envelope(goal: str, output: Any) -> str:
     if isinstance(data, dict):
         for key in ("code", "output", "content", "result"):
             val = data.get(key)
-            if (
-                isinstance(val, str)
-                and val.strip()
-                and not _looks_like_strategy_envelope(val)
-            ):
+            if isinstance(val, str) and val.strip() and not _looks_like_strategy_envelope(val):
                 return val.strip()
     return _strategy_envelope_user_error(goal)
 
@@ -5657,7 +5638,9 @@ def _extract_async_task_id(payload: Any) -> Optional[str]:
     return None
 
 
-async def _await_async_handoff_result_for_chat(task_id: str, max_wait_sec: int = 45) -> Optional[str]:
+async def _await_async_handoff_result_for_chat(
+    task_id: str, max_wait_sec: int = 45
+) -> Optional[str]:
     """Poll /run status briefly so chat users see final answer, not handoff payload."""
     if not task_id:
         return None
@@ -10172,9 +10155,7 @@ async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
         scanner = await _live_scanner_line()
     pool = await agent._get_db_pool()
     if not pool:
-        return format_live_fact_answer(
-            goal, health="ok", ttc=sla, slots=slots, scanner=scanner
-        )
+        return format_live_fact_answer(goal, health="ok", ttc=sla, slots=slots, scanner=scanner)
 
     queue: Optional[dict] = None
     nodes: Optional[int] = None
@@ -10907,14 +10888,9 @@ async def run_task(
         _fast_cat = (
             "vip"
             if is_vip
-            else (
-                getattr(body, "category", None)
-                or ("fast" if is_fast_track else "chat")
-            )
+            else (getattr(body, "category", None) or ("fast" if is_fast_track else "chat"))
         )
-        content, source = await _generate_via_mlx_or_ollama(
-            goal, ideal_model, category=_fast_cat
-        )
+        content, source = await _generate_via_mlx_or_ollama(goal, ideal_model, category=_fast_cat)
 
         # Fallback для приветствий, если LLM зависла
         if not content and is_fast_track:
@@ -11471,7 +11447,11 @@ async def run_task(
         _sc_dir_sync = lambda k: (k or "").strip().lower() == "patch"  # noqa: E731
     _patch_direct_sync = _sc_dir_sync(getattr(body, "scanner_class", None))
     forced_reason = _force_deep_analysis_reason(goal)
-    if (not _patch_direct_sync) and forced_reason and strategy_result.get("strategy") == "need_clarification":
+    if (
+        (not _patch_direct_sync)
+        and forced_reason
+        and strategy_result.get("strategy") == "need_clarification"
+    ):
         strategy_result = {
             "strategy": "deep_analysis",
             "reason": forced_reason,
@@ -12971,7 +12951,9 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
             }
         )
     bible_brief = _build_bible_brief_from_docs(goal)
-    if bible_brief and (deterministic_chat_enabled or (is_victoria_model and is_project_brief_prompt)):
+    if bible_brief and (
+        deterministic_chat_enabled or (is_victoria_model and is_project_brief_prompt)
+    ):
         logger.info("[OPENAI-API] Deterministic Bible brief for goal: %s", goal[:80])
         return JSONResponse(
             content={
@@ -13017,9 +12999,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
         _file_check = None
     if _file_check and _file_check.get("output"):
         _fc_out = _normalize_output_for_user(_file_check["output"])
-        logger.info(
-            "[VICTORIA_FILE_CHECK] chat completions preview=%s", (_fc_out or "")[:120]
-        )
+        logger.info("[VICTORIA_FILE_CHECK] chat completions preview=%s", (_fc_out or "")[:120])
         return JSONResponse(
             content={
                 "id": f"chatcmpl-{correlation_id}",
@@ -13221,8 +13201,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 and not re.search(r"(?<![a-z])\.(py|ts|js|tsx|jsx)\b", _rag_probe.lower())
             )
             or any(
-                m in _rag_probe.lower()
-                for m in ("исправь", "напиши код", "создай файл", "pytest ")
+                m in _rag_probe.lower() for m in ("исправь", "напиши код", "создай файл", "pytest ")
             )
         )
         if "victoria" in str(request.model).lower() and not _skip_omni_rag:
@@ -13379,16 +13358,12 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     try:
                         _raw = result.body
                         _parsed = json.loads(
-                            bytes(_raw).decode()
-                            if isinstance(_raw, (bytes, memoryview))
-                            else _raw
+                            bytes(_raw).decode() if isinstance(_raw, (bytes, memoryview)) else _raw
                         )
                         if isinstance(_parsed, dict) and _parsed.get("task_id"):
                             _stream_task_id = str(_parsed["task_id"])
                             if not full_response_content:
-                                full_response_content = json.dumps(
-                                    _parsed, ensure_ascii=False
-                                )
+                                full_response_content = json.dumps(_parsed, ensure_ascii=False)
                     except Exception:
                         pass
                 if _stream_task_id:
@@ -13399,9 +13374,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     if _resolved:
                         full_response_content = _resolved
 
-                full_response_content = _normalize_output_for_user(
-                    full_response_content or ""
-                )
+                full_response_content = _normalize_output_for_user(full_response_content or "")
 
                 # 3. Стримим контент частями
                 if full_response_content:
@@ -13497,7 +13470,8 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     )
     _is_planning_goal = _is_planning_guidance_goal(_user_msg_text)
     _is_execution_task = (
-        any(marker in task_req.goal.lower() for marker in _execution_markers) and not _is_planning_goal
+        any(marker in task_req.goal.lower() for marker in _execution_markers)
+        and not _is_planning_goal
     )
     _is_simple_q = is_simple_message(_user_msg_text) or is_fast_track_message(_user_msg_text)
     _is_fact_q = is_fact_seeking_question(_user_msg_text)
@@ -13653,9 +13627,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
             "yes",
             "on",
         ) and (
-            _is_execution_task
-            or _force_full_for_docs
-            or _is_analysis_heavy_goal(_user_msg_text)
+            _is_execution_task or _force_full_for_docs or _is_analysis_heavy_goal(_user_msg_text)
         )
         if _early_async_chat:
             logger.info(
@@ -13716,9 +13688,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 else:
                     # Empty clarify list must not become a header-only stub
                     # (pair_2026-11-16_19-11-03).
-                    output_text = body_data.get(
-                        "output", body_data.get("message", "")
-                    )
+                    output_text = body_data.get("output", body_data.get("message", ""))
             else:
                 _out = body_data.get("output") or body_data.get("message")
                 if _out:
@@ -13740,9 +13710,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     if _async_task_id:
         _wait_sec = int(os.getenv("OPENAI_ASYNC_HANDOFF_WAIT_SEC", "90"))
         if _is_fact_q or is_curator_standard_goal(_user_msg_text):
-            _wait_sec = max(
-                _wait_sec, int(os.getenv("OPENAI_FACT_HANDOFF_WAIT_SEC", "120"))
-            )
+            _wait_sec = max(_wait_sec, int(os.getenv("OPENAI_FACT_HANDOFF_WAIT_SEC", "120")))
         _resolved = await _await_async_handoff_result_for_chat(
             _async_task_id, max_wait_sec=_wait_sec
         )
@@ -14655,8 +14623,10 @@ async def autonomous_code(request: dict):
         got = build_deliverable(workspace, rel_paths)
         presented = list(got.get("presented") or [])
         workspace_diff = str(got.get("workspace_diff") or "")
-        if final_stage == "passed" and file_path and (
-            not presented or workspace_diff.startswith("git_diff_unavailable")
+        if (
+            final_stage == "passed"
+            and file_path
+            and (not presented or workspace_diff.startswith("git_diff_unavailable"))
         ):
             final_stage = "deliverable_missing"
 
@@ -14664,11 +14634,7 @@ async def autonomous_code(request: dict):
         "compile_status": compile_status,
         "runtime_status": runtime_status,
         "final_status": "passed" if final_stage == "passed" else final_stage,
-        **(
-            {"presented": presented, "workspace_diff": workspace_diff}
-            if deliverable_on
-            else {}
-        ),
+        **({"presented": presented, "workspace_diff": workspace_diff} if deliverable_on else {}),
         "fix_iterations": fix_iterations,
         "attempts": attempts,
         "file_path": file_written or file_path,

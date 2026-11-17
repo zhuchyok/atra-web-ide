@@ -29,7 +29,6 @@ def test_brain_allowlist_unloads_smollm_and_tinyllama():
     assert _should_unload("qwen3.8:latest") is False
 
 
-
 def test_phi_and_brain_are_stray_on_coder_slot():
     assert _should_unload_coder("phi3.5:3.8b") is True
     assert _should_unload_coder("nomic-embed-text:latest") is True

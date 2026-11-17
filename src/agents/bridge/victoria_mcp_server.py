@@ -271,9 +271,7 @@ async def victoria_run(goal: str, max_steps: Optional[int] = 500) -> str:
         timeout_sec = max(60.0, float(VICTORIA_MCP_RUN_TIMEOUT_SEC))
         wait_sec = min(timeout_sec, float(os.getenv("VICTORIA_MCP_RUN_WAIT_SEC", "600")))
         async with httpx.AsyncClient(timeout=timeout_sec) as client:
-            return await _run_async_and_poll(
-                client, goal, max_steps, wait_sec=wait_sec
-            )
+            return await _run_async_and_poll(client, goal, max_steps, wait_sec=wait_sec)
     except httpx.TimeoutException:
         return (
             f"⏱️ Таймаут канала {int(timeout_sec)} с. "
@@ -341,9 +339,7 @@ async def victoria_chat(
                     wait_sec,
                     bool(history),
                 )
-                return await _run_async_and_poll(
-                    client, goal, max_steps=120, wait_sec=wait_sec
-                )
+                return await _run_async_and_poll(client, goal, max_steps=120, wait_sec=wait_sec)
             return await _chat_completions(client, message, history)
     except httpx.TimeoutException:
         return (

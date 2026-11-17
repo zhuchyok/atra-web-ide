@@ -253,10 +253,7 @@ def goal_wants_scanner(goal: str) -> bool:
 def goal_wants_ollama_slots(goal: str) -> bool:
     """Live /api/ps, not the 8010/8011/3005 registry."""
     g = (goal or "").lower()
-    return any(
-        x in g
-        for x in ("11434", "11436", "11437", "/api/ps", "слот", "ollama")
-    )
+    return any(x in g for x in ("11434", "11436", "11437", "/api/ps", "слот", "ollama"))
 
 
 def grounded_ports_answer(goal: str) -> Optional[str]:

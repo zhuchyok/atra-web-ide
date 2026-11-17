@@ -3,11 +3,7 @@ from pathlib import Path
 
 def test_orchestrate_unknown_category_has_non_recursive_fallback():
     text = (
-        Path(__file__).resolve().parents[2]
-        / "src"
-        / "agents"
-        / "bridge"
-        / "victoria_server.py"
+        Path(__file__).resolve().parents[2] / "src" / "agents" / "bridge" / "victoria_server.py"
     ).read_text(encoding="utf-8")
     fn = text.split("async def orchestrate_task(self, goal: str) -> str:", 1)[1].split(
         "async def _run_extended_swarm", 1

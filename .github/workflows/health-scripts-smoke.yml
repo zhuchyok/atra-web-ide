@@ -594,10 +594,11 @@ jobs:
           out1="$(mktemp)"; out2="$(mktemp)"
           : >"$MOCK_DIR/curl_hits"
           set +e
-          env ATRA_FORCE_PATH="$MOCK_DIR/bin:/bin:/usr/bin" HOME="$FAKE_HOME" \
+          # Unset CI markers so should_skip_ntfy does not short-circuit before curl/dedup.
+          env -u CI -u GITHUB_ACTIONS ATRA_FORCE_PATH="$MOCK_DIR/bin:/bin:/usr/bin" HOME="$FAKE_HOME" \
             NTFY_URL="https://ntfy.sh/atra_victoria_curator" NTFY_COOLDOWN_SEC=3600 \
             /bin/bash scripts/check_backups_health.sh >"$out1" 2>&1
-          env ATRA_FORCE_PATH="$MOCK_DIR/bin:/bin:/usr/bin" HOME="$FAKE_HOME" \
+          env -u CI -u GITHUB_ACTIONS ATRA_FORCE_PATH="$MOCK_DIR/bin:/bin:/usr/bin" HOME="$FAKE_HOME" \
             NTFY_URL="https://ntfy.sh/atra_victoria_curator" NTFY_COOLDOWN_SEC=3600 \
             /bin/bash scripts/check_backups_health.sh >"$out2" 2>&1
           set -e
