@@ -40,6 +40,14 @@ def test_heavy_code_not_trivial():
     assert not trivial("исправь IndentationError в src/agents/bridge/victoria_server.py")
 
 
+def test_vague_odnostrochnik_print_extract():
+    """Soak residual: «однострочник…print(2+2)» must not miss #66 and hang on /run."""
+    trivial, reply, _ = _load_helpers()
+    goal = "Напиши однострочник на Python: print(2+2)"
+    assert trivial(goal)
+    assert reply(goal) == "print(2+2)"
+
+
 def test_explicit_concrete_excludes_trivial():
     text = VICTORIA_SERVER.read_text(encoding="utf-8")
     fn = text[

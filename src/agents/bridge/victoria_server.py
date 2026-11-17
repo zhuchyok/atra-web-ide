@@ -5163,7 +5163,11 @@ def _is_trivial_self_contained_code_goal(goal: str) -> bool:
         _is_code_write_goal(g)
         or ("строку кода" in g)
         or ("строка кода" in g)
+        or ("однострочник" in g)
+        or ("однострочн" in g)
         or ("one line" in g and "code" in g)
+        or ("one-liner" in g)
+        or ("print(" in g)
     )
     if not looks_code:
         return False
@@ -5204,6 +5208,10 @@ def _try_trivial_code_reply(goal: str) -> Optional[str]:
     g = (goal or "").strip().lower()
     if any(m in g for m in ("дат", "date", "today", "сегодня")):
         return "print(datetime.date.today())"
+    # Prefer an explicit print(...) already in the goal (soak: «однострочник…print(2+2)»).
+    m = re.search(r"print\s*\([^)]*\)", goal or "", flags=re.IGNORECASE)
+    if m:
+        return m.group(0).strip()
     return None
 
 
