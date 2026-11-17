@@ -61,7 +61,11 @@ def test_chat_routes_to_run_in_source():
 def test_chat_file_check_ungated_in_server_source():
     text = VICTORIA_SERVER.read_text(encoding="utf-8")
     assert "_try_file_check_reply(goal)" in text
-    idx = text.index("Live facts must ship on chat")
-    window = text[idx : idx + 1800]
+    # Residual #65: file-check must run BEFORE live-fact on chat.
+    idx = text.index("Residual #65: FAST_ACTION file-check BEFORE live-fact")
+    window = text[idx : idx + 2200]
     assert "_try_file_check_reply(goal)" in window
     assert "[VICTORIA_FILE_CHECK] chat completions" in window
+    fc_pos = window.index("_try_file_check_reply(goal)")
+    lf_pos = window.index("_build_live_fact_answer_for_run(goal)")
+    assert fc_pos < lf_pos

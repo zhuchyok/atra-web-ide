@@ -10029,6 +10029,11 @@ async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
     # Tool directives (web/sql/git) must go through quick-tools, not fact-live probe.
     if _has_explicit_tool_directive(goal or ""):
         return None
+    # Residual #65: «проверь файл …» is deterministic file-check, not metrics.
+    # Path may contain «ttc»/«p95» and false-positive FACT_SEEKING_MARKERS.
+    _fc_prefix = (goal or "").strip()[:_FILE_CHECK_MAX_PREFIX]
+    if _FILE_CHECK_RE.match(_fc_prefix):
+        return None
     # Fact-probe — для КОРОТКИХ живых вопросов. Длинный текст (>400 симв.) — это
     # документ/материал с цитатами: факт-проба по подстроке ложно срабатывает
     # на цитаты вида «какой статус проекта?» внутри (уроки #64, слой 5).
@@ -10259,6 +10264,30 @@ async def run_task(
     logger.info("[REQUEST] Current planner model: %s", getattr(agent.planner, "model", "unknown"))
 
     goal = body.goal or ""
+    # Residual #65: file-check before live-fact (path may contain «ttc»).
+    try:
+        _early_file_check = await _try_file_check_reply(goal)
+    except Exception:
+        _early_file_check = None
+    if _early_file_check and _early_file_check.get("output"):
+        knowledge = _early_file_check.get("knowledge") or {}
+        metadata = {
+            **(knowledge.get("metadata") or {}),
+            "model_used": "none",
+            "correlation_id": correlation_id,
+        }
+        knowledge = {**knowledge, "metadata": metadata}
+        logger.info(
+            "[VICTORIA_FILE_CHECK] /run early correlation_id=%s preview=%s",
+            correlation_id,
+            (_early_file_check.get("output") or "")[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=_normalize_output_for_user(_early_file_check.get("output", "")),
+            knowledge=knowledge,
+            correlation_id=correlation_id,
+        )
     live_fact_answer = await _build_live_fact_answer_for_run(goal)
     if live_fact_answer:
         logger.info(
@@ -11335,8 +11364,12 @@ async def run_task(
     if not _patch_direct_sync:
         strategy_result = _override_need_clarification_strategy(goal, strategy_result)
     # Code/write goals must not stay on quick_answer (strategy JSON leak, task_4).
-    if (not _patch_direct_sync) and strategy_result.get("strategy") == "quick_answer" and _is_code_write_goal(
-        goal
+    # #66: trivial one-liners stay quick — deep triggers strategist-ТЗ bureaucracy.
+    if (
+        (not _patch_direct_sync)
+        and strategy_result.get("strategy") == "quick_answer"
+        and _is_code_write_goal(goal)
+        and not _is_trivial_self_contained_code_goal(goal)
     ):
         strategy_result = {
             "strategy": "deep_analysis",
@@ -12840,29 +12873,8 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
             }
         )
-    live_fact = await _build_live_fact_answer_for_run(goal)
-    # Live facts must ship on chat even when VICTORIA_DETERMINISTIC_CHAT=false.
-    # That flag gates identity/bible shortcuts; gating fact-probe behind it forced
-    # curator/health/slots questions into full run_task → 35s static handoff stub.
-    if live_fact:
-        logger.info("[VICTORIA_FACT] chat completions live fact preview=%s", live_fact[:120])
-        return JSONResponse(
-            content={
-                "id": f"chatcmpl-{correlation_id}",
-                "object": "chat.completion",
-                "created": int(time.time()),
-                "model": request.model,
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {"role": "assistant", "content": live_fact},
-                        "finish_reason": "stop",
-                    }
-                ],
-                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-            }
-        )
-    # Same for FAST_ACTION file-check («проверь файл …» → ОК/ПРОБЛЕМА + цитата).
+    # Residual #65: FAST_ACTION file-check BEFORE live-fact.
+    # Path may contain «ttc»/«p95» and would otherwise hijack fact_live_probe.
     try:
         _file_check = await _try_file_check_reply(goal)
     except Exception:
@@ -12882,6 +12894,28 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     {
                         "index": 0,
                         "message": {"role": "assistant", "content": _fc_out},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    live_fact = await _build_live_fact_answer_for_run(goal)
+    # Live facts must ship on chat even when VICTORIA_DETERMINISTIC_CHAT=false.
+    # That flag gates identity/bible shortcuts; gating fact-probe behind it forced
+    # curator/health/slots questions into full run_task → 35s static handoff stub.
+    if live_fact:
+        logger.info("[VICTORIA_FACT] chat completions live fact preview=%s", live_fact[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": live_fact},
                         "finish_reason": "stop",
                     }
                 ],
