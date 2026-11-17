@@ -5,6 +5,7 @@
 Использование:
   python scripts/check_quality_thresholds.py backend/validation_report.json
   python scripts/check_quality_thresholds.py validation_report.json --threshold faithfulness:0.7,relevance:0.75
+  python scripts/check_quality_thresholds.py logs/rag_quality_live.json --require-mode live
 
 При нарушении порогов — exit 1.
 """
@@ -23,6 +24,11 @@ def main() -> int:
         default="faithfulness:0.8,relevance:0.85,coherence:0.7",
         help="Comma-separated metric:value (QA: faithfulness≥0.8, relevance≥0.85, coherence≥0.7)",
     )
+    parser.add_argument(
+        "--require-mode",
+        default="",
+        help="Fail unless report.mode equals this value (e.g. live or reference_smoke)",
+    )
     args = parser.parse_args()
 
     path = Path(args.report)
@@ -36,6 +42,16 @@ def main() -> int:
     if data.get("skipped") is True:
         print("Report marked skipped=true; refusing to green-pass thresholds", file=sys.stderr)
         return 1
+
+    require_mode = (args.require_mode or "").strip()
+    if require_mode:
+        got = data.get("mode")
+        if got != require_mode:
+            print(
+                f"Report mode={got!r} does not match required {require_mode!r}",
+                file=sys.stderr,
+            )
+            return 1
 
     avg = data.get("avg_metrics", data.get("avg", {}))
     if not avg:

@@ -3,10 +3,19 @@
 Фаза 4: оценка качества RAG на validation set.
 
 Использование:
-  python scripts/evaluate_rag_quality.py --dataset data/validation_queries.json
-  python scripts/evaluate_rag_quality.py --dataset data/validation_queries.json --threshold faithfulness:0.8,relevance:0.85
+  # PR/CI offline smoke (no Ollama/seeded KB required):
+  python scripts/evaluate_rag_quality.py --mode reference_smoke --dataset data/validation_queries.json
+
+  # LIVE retrieval (Mac Studio / host with Ollama+Postgres). Fail-closed if services missing:
+  LIVE_RAG_QUALITY=1 OLLAMA_URL=http://127.0.0.1:11437 \\
+    python scripts/evaluate_rag_quality.py --mode live --dataset data/validation_queries.json \\
+    --output logs/rag_quality_live.json
+
+  # Same via host entrypoint:
+  ./scripts/run_live_rag_quality.sh
 
 Пороги: при нарушении любого порога скрипт завершается с ненулевым кодом (для CI).
+Live mode never green-passes on missing Ollama/DB or stub "[RAG unavailable]" answers.
 """
 
 import argparse
@@ -14,6 +23,8 @@ import asyncio
 import json
 import os
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -45,6 +56,118 @@ def load_validation_set(path: Path) -> list:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
     return data.get("queries", data) if isinstance(data, dict) else data
+
+
+def _env_truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _ollama_base_url() -> str:
+    return (
+        os.environ.get("OLLAMA_EMBED_URL")
+        or os.environ.get("OLLAMA_URL")
+        or os.environ.get("OLLAMA_BASE_URL")
+        or "http://127.0.0.1:11434"
+    ).rstrip("/")
+
+
+async def _preflight_live_services() -> dict:
+    """
+    Fail-closed checks for live RAG. Returns probe metadata or exits 1.
+    Never returns success when Ollama or Postgres is unreachable.
+    """
+    meta = {"ollama_url": _ollama_base_url(), "ollama_ok": False, "db_ok": False, "kb_rows": None}
+    ollama_url = meta["ollama_url"]
+    try:
+        req = urllib.request.Request(f"{ollama_url}/api/tags", method="GET")
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            meta["ollama_ok"] = int(getattr(resp, "status", 200) or 200) == 200
+            if meta["ollama_ok"]:
+                try:
+                    payload = json.loads(resp.read().decode("utf-8", errors="replace") or "{}")
+                    names = [m.get("name", "") for m in payload.get("models", [])]
+                    meta["ollama_models"] = names[:12]
+                    meta["has_nomic"] = any("nomic-embed" in n for n in names)
+                except Exception:
+                    meta["ollama_models"] = []
+                    meta["has_nomic"] = False
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        print(
+            f"LIVE RAG preflight FAIL: Ollama unreachable at {ollama_url}: {e}",
+            file=sys.stderr,
+        )
+        print(
+            "Hint: start Ollama. On Mac Studio hands (nomic) use "
+            "OLLAMA_URL=http://127.0.0.1:11437 (brain 11434 has no nomic).",
+            file=sys.stderr,
+        )
+        raise RuntimeError(f"ollama_unreachable:{ollama_url}") from e
+
+    if not meta["ollama_ok"]:
+        print(f"LIVE RAG preflight FAIL: Ollama bad status at {ollama_url}", file=sys.stderr)
+        raise RuntimeError(f"ollama_bad_status:{ollama_url}")
+
+    if KnowledgeOSClient is None:
+        print(
+            "LIVE RAG preflight FAIL: KnowledgeOSClient import failed "
+            "(run with PYTHONPATH=backend:.).",
+            file=sys.stderr,
+        )
+        raise RuntimeError("knowledge_os_import_failed")
+
+    kos = KnowledgeOSClient()
+    try:
+        await asyncio.wait_for(kos.connect(), timeout=5.0)
+        rows = await asyncio.wait_for(kos.search_knowledge("подписка", limit=1), timeout=8.0)
+        meta["db_ok"] = True
+        meta["kb_rows"] = len(rows or [])
+    except Exception as e:
+        print(f"LIVE RAG preflight FAIL: Postgres/Knowledge OS unreachable: {e}", file=sys.stderr)
+        print(
+            "Hint: set DATABASE_URL and ensure knowledge_postgres is up "
+            "(e.g. postgresql://admin:***@localhost:5432/knowledge_os).",
+            file=sys.stderr,
+        )
+        raise RuntimeError(f"postgres_unreachable:{e}") from e
+    finally:
+        try:
+            await asyncio.wait_for(kos.disconnect(), timeout=2.0)
+        except Exception:
+            pass
+
+    require_nomic = _env_truthy("LIVE_RAG_REQUIRE_NOMIC") or _env_truthy("LIVE_RAG_QUALITY")
+    if meta.get("has_nomic") is False:
+        msg = (
+            "nomic-embed-text not listed on "
+            f"{ollama_url}; vector path would degrade (MiniLM 384 vs KB 768)."
+        )
+        if require_nomic and not _env_truthy("LIVE_RAG_ALLOW_NO_NOMIC"):
+            print(f"LIVE RAG preflight FAIL: {msg}", file=sys.stderr)
+            print(
+                "Hint: set LIVE_OLLAMA_URL=http://127.0.0.1:11437 (hands) "
+                "or LIVE_RAG_ALLOW_NO_NOMIC=1 for keyword-only (not real embeds).",
+                file=sys.stderr,
+            )
+            raise RuntimeError(f"nomic_missing:{ollama_url}")
+        print(f"LIVE RAG preflight WARN: {msg}", file=sys.stderr)
+
+    print(
+        f"LIVE RAG preflight OK: ollama={ollama_url} "
+        f"nomic={meta.get('has_nomic')} db=ok kb_probe_rows={meta.get('kb_rows')}"
+    )
+    return meta
+
+
+def _is_stub_response(response: str) -> bool:
+    text = (response or "").strip()
+    if not text:
+        return True
+    stubs = (
+        "[RAG unavailable",
+        "[RAG timeout",
+        "[RAG not available",
+    )
+    return any(text.startswith(s) for s in stubs)
 
 
 async def get_response_for_query(query: str, fast_fail: bool = True) -> tuple:
@@ -176,14 +299,26 @@ def _reference_smoke_pair(query: str, reference: str) -> tuple:
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="Evaluate RAG quality on validation set")
+    parser = argparse.ArgumentParser(
+        description="Evaluate RAG quality on validation set",
+        epilog=(
+            "LIVE one-liner (Mac Studio): "
+            "LIVE_RAG_QUALITY=1 OLLAMA_URL=http://127.0.0.1:11437 "
+            "./scripts/run_live_rag_quality.sh"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--dataset", default="data/validation_queries.json", help="Path to validation JSON")
     parser.add_argument(
         "--threshold",
         default="faithfulness:0.8,relevance:0.85,coherence:0.7",
         help="Comma-separated metric:value (QA defaults: faithfulness≥0.8, relevance≥0.85, coherence≥0.7)",
     )
-    parser.add_argument("--no-fail", action="store_true", help="Do not exit with code 1 when thresholds fail (e.g. RAG offline)")
+    parser.add_argument(
+        "--no-fail",
+        action="store_true",
+        help="Do not exit 1 when thresholds fail (forbidden when LIVE_RAG_QUALITY=1 / --require-live)",
+    )
     parser.add_argument("--output", "-o", help="Write JSON report (avg_metrics, results) to file")
     parser.add_argument("--verbose", "-v", action="store_true", help="Print per-query results")
     parser.add_argument("--timeout-per-query", type=float, default=10.0, help="Timeout per query when RAG/Ollama unavailable (seconds)")
@@ -192,6 +327,17 @@ async def main():
         choices=("live", "reference_smoke"),
         default="live",
         help="live=RAG retrieval (needs DB/Ollama); reference_smoke=offline extract+evaluator over dataset references",
+    )
+    parser.add_argument(
+        "--require-live",
+        action="store_true",
+        help="Force fail-closed live preflight (also implied by LIVE_RAG_QUALITY=1)",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=0,
+        help="Evaluate only first N queries (0=all). Useful for host live smoke.",
     )
     args = parser.parse_args()
 
@@ -204,6 +350,9 @@ async def main():
     if not queries:
         print("No queries in dataset.", file=sys.stderr)
         return 1
+    if args.limit and args.limit > 0:
+        queries = queries[: args.limit]
+        print(f"Using first {len(queries)} queries (--limit {args.limit})")
 
     thresholds = {}
     for part in args.threshold.split(","):
@@ -218,10 +367,29 @@ async def main():
         return 1
 
     mode = args.mode
+    live_gate = mode == "live" and (args.require_live or _env_truthy("LIVE_RAG_QUALITY"))
+    # Default live (without LIVE_RAG_QUALITY) still preflights fail-closed: no silent green stubs.
+    require_services = mode == "live"
+    if args.no_fail and live_gate:
+        print(
+            "LIVE RAG refuse --no-fail under LIVE_RAG_QUALITY=1 / --require-live (fail-closed).",
+            file=sys.stderr,
+        )
+        return 1
+
+    preflight_meta = None
     if mode == "reference_smoke":
         print("Mode: reference_smoke (offline; not live RAG retrieval)")
-
+    else:
+        print("Mode: live (real RAG retrieval; fail-closed if Ollama/DB missing)")
+        if require_services:
+            try:
+                preflight_meta = await _preflight_live_services()
+            except RuntimeError as e:
+                print(f"LIVE RAG aborted: {e}", file=sys.stderr)
+                return 1
     results = []
+    stub_count = 0
     timeout_sec = getattr(args, "timeout_per_query", 10.0)
     skipped_no_ref = 0
     for i, item in enumerate(queries):
@@ -237,14 +405,19 @@ async def main():
             context = context_chunks
         else:
             try:
-                response, context_chunks = await asyncio.wait_for(get_response_for_query(q), timeout=timeout_sec)
+                response, context_chunks = await asyncio.wait_for(
+                    get_response_for_query(q, fast_fail=not live_gate),
+                    timeout=timeout_sec,
+                )
             except asyncio.TimeoutError:
                 response = "[RAG timeout: Ollama/embedding unavailable]"
                 context_chunks = []
+            if _is_stub_response(response) or not context_chunks:
+                stub_count += 1
             context = context_chunks or ([" ".join(context_expected)] if context_expected else [])
 
         metrics = await evaluator.evaluate_response(q, response, context, reference=reference)
-        results.append({"query": q[:60], "metrics": metrics})
+        results.append({"query": q[:60], "metrics": metrics, "stub": _is_stub_response(response) if mode == "live" else False})
 
         if args.verbose:
             print(f"  [{i+1}] {q[:50]}... faithfulness={metrics.get('faithfulness', 0):.2f} relevance={metrics.get('relevance', 0):.2f}")
@@ -256,6 +429,49 @@ async def main():
         return 1
     if mode == "reference_smoke" and skipped_no_ref:
         print(f"Skipped {skipped_no_ref} items without reference", file=sys.stderr)
+
+    if mode == "live" and stub_count > 0:
+        # Fail-closed: any stub means retrieval did not actually run for that query.
+        # Under LIVE_RAG_QUALITY / --require-live: refuse green even if averages look fine.
+        # Always refuse if majority are stubs (would fake quality).
+        stub_ratio = stub_count / float(n)
+        print(
+            f"LIVE RAG: stub/empty retrieval on {stub_count}/{n} queries "
+            f"({stub_ratio:.0%})",
+            file=sys.stderr,
+        )
+        if live_gate or stub_ratio >= 0.5:
+            print(
+                "LIVE RAG FAIL: refusing green pass on stub/empty live retrieval "
+                "(fix Ollama embeddings / seeded KB).",
+                file=sys.stderr,
+            )
+            if args.output:
+                out_path = Path(args.output)
+                if not out_path.is_absolute():
+                    out_path = REPO_ROOT / args.output
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(out_path, "w", encoding="utf-8") as f:
+                    json.dump(
+                        {
+                            "timestamp": __import__("datetime").datetime.now().isoformat(),
+                            "mode": "live",
+                            "avg_metrics": {},
+                            "total_queries": n,
+                            "stub_count": stub_count,
+                            "passed": False,
+                            "skipped": False,
+                            "preflight": preflight_meta,
+                            "note": "Live retrieval stubs/empty contexts — fail-closed.",
+                            "results": results,
+                            "thresholds": thresholds,
+                        },
+                        f,
+                        indent=2,
+                        ensure_ascii=False,
+                    )
+                print(f"\nReport written to {out_path}")
+            return 1
 
     avg = {}
     for k in ["faithfulness", "relevance", "coherence"]:
@@ -277,6 +493,7 @@ async def main():
             val = avg.get(name)
             if val is not None and val < th:
                 failed.append(f"{name}={val:.3f} < {th}")
+        passed = len(failed) == 0
 
     if args.output:
         out_path = Path(args.output)
@@ -289,7 +506,7 @@ async def main():
             "total_queries": n,
             "results": results,
             "thresholds": thresholds,
-            "passed": len(failed) == 0,
+            "passed": bool(passed) and len(failed) == 0,
             "skipped": False,
         }
         if mode == "reference_smoke":
@@ -297,6 +514,16 @@ async def main():
                 "Offline reference_smoke: extract_direct_answer over dataset Q/A chunks; "
                 "not live retrieval. Live RAG still requires seeded DB + Ollama."
             )
+        else:
+            report["note"] = (
+                "LIVE retrieval against real Knowledge OS + Ollama embeddings path. "
+                "Not CI reference_smoke."
+            )
+            report["stub_count"] = stub_count
+            if preflight_meta is not None:
+                report["preflight"] = preflight_meta
+            if live_gate:
+                report["live_gate"] = "LIVE_RAG_QUALITY"
         out_path.parent.mkdir(parents=True, exist_ok=True)
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
@@ -304,7 +531,7 @@ async def main():
 
     if failed:
         print("\nThresholds failed: " + ", ".join(failed), file=sys.stderr)
-        return 0 if args.no_fail else 1
+        return 0 if (args.no_fail and not live_gate) else 1
     print("\nAll thresholds passed.")
     return 0
 

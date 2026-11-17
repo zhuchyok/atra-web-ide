@@ -105,3 +105,62 @@ def test_skipped_report_still_fail_closed(tmp_path: Path):
     )
     assert gate.returncode == 1
     assert "skipped" in gate.stderr.lower()
+
+
+def test_require_mode_live_rejects_reference_smoke(tmp_path: Path):
+    report = tmp_path / "ref.json"
+    report.write_text(
+        json.dumps(
+            {
+                "mode": "reference_smoke",
+                "avg_metrics": {"faithfulness": 1.0, "relevance": 1.0, "coherence": 1.0},
+                "total_queries": 3,
+                "skipped": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    gate = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "check_quality_thresholds.py"),
+            str(report),
+            "--require-mode",
+            "live",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert gate.returncode == 1
+    assert "mode" in gate.stderr.lower()
+
+
+def test_live_preflight_fails_closed_without_ollama(tmp_path: Path):
+    """Honest fail: live gate must not green-pass when Ollama is unreachable."""
+    out = tmp_path / "live_fail.json"
+    env = {
+        **os.environ,
+        "LIVE_RAG_QUALITY": "1",
+        "OLLAMA_URL": "http://127.0.0.1:9",
+        "PYTHONPATH": f"{REPO_ROOT / 'backend'}:{REPO_ROOT}",
+    }
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "evaluate_rag_quality.py"),
+            "--mode",
+            "live",
+            "--require-live",
+            "--dataset",
+            str(REPO_ROOT / "data" / "validation_queries.json"),
+            "--output",
+            str(out),
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    assert proc.returncode == 1, proc.stdout + "\n" + proc.stderr
+    assert "preflight FAIL" in (proc.stderr + proc.stdout)

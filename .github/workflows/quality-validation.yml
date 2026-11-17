@@ -1,9 +1,28 @@
 # Фаза 4: проверка качества RAG при изменениях и по расписанию
+# PR/push/schedule on GitHub-hosted: reference_smoke / local_smoke (offline extract) — NOT live retrieval.
+# LIVE RAG: Mac Studio host (`./scripts/run_live_rag_quality.sh`) or workflow_dispatch with live_rag=true
+# (fail-closed if Ollama/Postgres missing — never silent green).
 name: Quality Validation
 
 on:
   schedule:
     - cron: "0 2 * * *" # Каждый день в 2:00 UTC
+  workflow_dispatch:
+    inputs:
+      live_rag:
+        description: "Run LIVE RAG quality (needs Ollama+Postgres on the runner; fail-closed if missing)"
+        type: boolean
+        default: false
+      # Prefer Mac Studio host script for real live scores. GH-hosted without
+      # Ollama+DB must fail closed (proves honesty). Use a self-hosted label only
+      # when that runner actually has Ollama+Postgres.
+      runner:
+        description: "Runner for LIVE job (ubuntu-latest fails closed without services; or self-hosted)"
+        type: choice
+        options:
+          - ubuntu-latest
+          - self-hosted
+        default: ubuntu-latest
   push:
     branches: [main]
     paths: &quality_paths
@@ -24,6 +43,7 @@ on:
       - "data/validation_queries.json"
       - "scripts/evaluate_rag_quality.py"
       - "scripts/check_quality_thresholds.py"
+      - "scripts/run_live_rag_quality.sh"
       - "scripts/benchmark_latency.py"
       - ".github/workflows/quality-validation.yml"
   pull_request:
@@ -31,6 +51,8 @@ on:
 
 jobs:
   validate-quality:
+    # Offline smoke stays the default PR/push/schedule gate (no fake live scores).
+    if: github.event_name != 'workflow_dispatch' || inputs.live_rag != true
     runs-on: ubuntu-latest
 
     services:
@@ -145,3 +167,65 @@ jobs:
           path: |
             latency_benchmark.json
             backend/latency_output.txt
+
+  # LIVE retrieval — only via workflow_dispatch(live_rag=true).
+  # On GitHub-hosted runners without Ollama+seeded KB this MUST fail closed (exit 1), never skip green.
+  # Preferred host path: LIVE_RAG_QUALITY=1 ./scripts/run_live_rag_quality.sh (Mac Studio).
+  validate-quality-live:
+    if: github.event_name == 'workflow_dispatch' && inputs.live_rag == true
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: LIVE RAG quality (fail-closed)
+        env:
+          LIVE_RAG_QUALITY: "1"
+          LIVE_RAG_REQUIRE_NOMIC: "1"
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OLLAMA_URL: ${{ secrets.OLLAMA_URL }}
+          RERANKING_ENABLED: "false"
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="$PWD/backend:$PWD"
+          export DATABASE_URL="${DATABASE_URL:-postgresql://admin:secret@localhost:5432/knowledge_os}"
+          # Hands/embed Ollama (nomic). Brain :11434 without nomic must fail closed.
+          export OLLAMA_URL="${OLLAMA_URL:-http://127.0.0.1:11437}"
+          mkdir -p logs
+          if [ ! -f data/validation_queries.json ]; then
+            echo "validation dataset missing"
+            exit 1
+          fi
+          # No silent skip: evaluate_rag_quality --mode live preflights Ollama+DB(+nomic) and exits 1 if missing.
+          python scripts/evaluate_rag_quality.py \
+            --mode live \
+            --require-live \
+            --limit "${RAG_LIVE_LIMIT:-20}" \
+            --dataset data/validation_queries.json \
+            --threshold faithfulness:0.8,relevance:0.85,coherence:0.7 \
+            --output logs/rag_quality_live.json \
+            --timeout-per-query 30 \
+            --verbose 2>&1 | tee logs/rag_quality_live_output.txt
+          test -f logs/rag_quality_live.json
+          python3 -c 'import json,sys; d=json.load(open("logs/rag_quality_live.json")); assert d.get("mode")=="live", d; assert d.get("skipped") is not True; assert int(d.get("total_queries") or 0)>=1'
+          python scripts/check_quality_thresholds.py logs/rag_quality_live.json \
+            --require-mode live \
+            --threshold faithfulness:0.8,relevance:0.85,coherence:0.7
+
+      - name: Upload LIVE validation report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-report-live
+          path: |
+            logs/rag_quality_live.json
+            logs/rag_quality_live_output.txt

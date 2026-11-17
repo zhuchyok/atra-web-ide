@@ -85,7 +85,17 @@
 
 ## Скрипты и интеграция
 
-- **Оценка на validation set:** `python scripts/evaluate_rag_quality.py --dataset data/validation_queries.json --threshold faithfulness:0.8,relevance:0.85`
+- **PR CI (offline):** `quality-validation.yml` runs `--mode reference_smoke` / latency `local_smoke` — proves extract+evaluator only, **not** live retrieval.
+- **LIVE RAG (Mac Studio / host with Ollama+Postgres):** fail-closed, labeled `mode=live`:
+
+```bash
+LIVE_RAG_QUALITY=1 ./scripts/run_live_rag_quality.sh
+```
+
+Or: `LIVE_RAG_QUALITY=1 OLLAMA_URL=http://127.0.0.1:11437 python scripts/evaluate_rag_quality.py --mode live --require-live --dataset data/validation_queries.json --output logs/rag_quality_live.json`
+
+- **Optional CI:** workflow_dispatch on Quality Validation with `live_rag=true` (fails closed if Ollama/DB missing; no silent green).
+- **Оценка на validation set (default live path):** `python scripts/evaluate_rag_quality.py --dataset data/validation_queries.json --threshold faithfulness:0.8,relevance:0.85`
 - **Экспорт метрик:** в Prometheus/ Grafana (например, `rag_quality_faithfulness`, `rag_quality_relevance`) для дашбордов Фазы 4.
 
 Подробнее план внедрения — в `docs/PHASE4_PLAN.md` и `docs/CONTINUOUS_IMPROVEMENT.md`.

@@ -24,7 +24,14 @@ if [ ! -f data/validation_queries.json ]; then
   echo "❌ Нет data/validation_queries.json"
   PIPELINE_FAIL=1
 else
+  # LIVE_RAG_QUALITY=1 → fail-closed live retrieval; else default --mode live still preflights.
+  # Prefer ./scripts/run_live_rag_quality.sh for labeled live reports under logs/.
+  RAG_MODE_ARGS=()
+  if [ "${LIVE_RAG_QUALITY:-}" = "1" ] || [ "${LIVE_RAG_QUALITY:-}" = "true" ]; then
+    RAG_MODE_ARGS=(--mode live --require-live)
+  fi
   if ! $PYTHON scripts/evaluate_rag_quality.py \
+    "${RAG_MODE_ARGS[@]}" \
     --dataset data/validation_queries.json \
     --threshold faithfulness:0.8,relevance:0.85,coherence:0.7 \
     --output backend/validation_report.json \
