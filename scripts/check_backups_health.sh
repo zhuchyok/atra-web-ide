@@ -41,12 +41,13 @@ should_skip_ntfy() {
     echo "skip: empty NTFY_URL"
     return 0
   fi
-  if [[ "${CI:-}" == "true" || "${GITHUB_ACTIONS:-}" == "true" ]]; then
-    echo "skip: CI"
-    return 0
-  fi
+  # Sandbox before CI: health-scripts-smoke asserts the sandbox HOME reason string.
   if is_sandbox_home; then
     echo "skip: sandbox HOME=${HOME}"
+    return 0
+  fi
+  if [[ "${CI:-}" == "true" || "${GITHUB_ACTIONS:-}" == "true" ]]; then
+    echo "skip: CI"
     return 0
   fi
   return 1

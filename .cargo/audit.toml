@@ -11,4 +11,6 @@ ignore = [
     # Transitive unmaintained crates currently required by dependency graph.
     "RUSTSEC-2025-0057",
     "RUSTSEC-2025-0134",
+    # chrono 0.4.x marked unmaintained; still required via sqlx/workspace until migration.
+    "RUSTSEC-2026-0543",
 ]

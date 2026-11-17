@@ -62,6 +62,7 @@ async def test_monster_delegation_allows_file_audit_fast_path():
 
 def test_file_audit_ignores_negative_guard_condition(tmp_path):
     import builtins
+
     import app.task_rule_executor as tre
 
     target = tmp_path / "guard_only.py"
@@ -85,6 +86,7 @@ def test_file_audit_ignores_negative_guard_condition(tmp_path):
 
 def test_file_audit_detects_runtime_pip_subprocess(tmp_path):
     import builtins
+
     import app.task_rule_executor as tre
 
     target = tmp_path / "runtime_pip.py"

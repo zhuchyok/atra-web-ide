@@ -1,7 +1,9 @@
-import pytest
-
 import app.task_distribution_system_complete as tds_mod
-from app.task_distribution_system_complete import TaskDistributionSystem, _is_task_parser_wrapper_text
+import pytest
+from app.task_distribution_system_complete import (
+    TaskDistributionSystem,
+    _is_task_parser_wrapper_text,
+)
 
 
 def test_wrapper_text_detector_flags_parser_prompt():

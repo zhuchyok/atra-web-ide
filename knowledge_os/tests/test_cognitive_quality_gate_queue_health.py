@@ -1,7 +1,6 @@
 import importlib.util
 from pathlib import Path
 
-
 _GATE = Path(__file__).resolve().parents[2] / "scripts" / "cognitive_quality_gate.py"
 _spec = importlib.util.spec_from_file_location("cognitive_gate_under_test", _GATE)
 _mod = importlib.util.module_from_spec(_spec)

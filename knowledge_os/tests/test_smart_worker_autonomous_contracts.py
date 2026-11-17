@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 FILE = ROOT / "knowledge_os" / "app" / "smart_worker_autonomous.py"
 

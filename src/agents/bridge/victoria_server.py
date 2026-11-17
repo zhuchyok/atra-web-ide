@@ -1762,11 +1762,11 @@ async def _preload_rag_cache():
 
 def _same_model_alias(left: str, right: str) -> bool:
     """Compare model names tolerating optional :latest suffix."""
-    l = (left or "").strip()
-    r = (right or "").strip()
-    if not l or not r:
+    left_name = (left or "").strip()
+    right_name = (right or "").strip()
+    if not left_name or not right_name:
         return False
-    return l == r or l.rstrip(":latest") == r.rstrip(":latest")
+    return left_name == right_name or left_name.rstrip(":latest") == right_name.rstrip(":latest")
 
 
 def _ollama_url_for_model(model: str, default_url: Optional[str] = None) -> str:
@@ -5475,9 +5475,10 @@ def _normalize_output_for_user(raw: Any) -> str:
                 if isinstance(_pc, str) and len(_pc) > 120:
                     return _pc[:4000]
             footer = "\n\n💡 Если выше только план без действий — задайте один шаг: «покажи файлы в frontend» или «найди ошибки в frontend»."
-            if len(s) <= head + tail:
+            head_n, tail_n = 600, 400
+            if len(s) <= head_n + tail_n:
                 return s.strip() + footer
-            return s[:head].rstrip() + "\n\n[...]\n\n" + s[-tail:].lstrip() + footer
+            return s[:head_n].rstrip() + "\n\n[...]\n\n" + s[-tail_n:].lstrip() + footer
         # Убрать внутренний монолог модели (рассуждения про finish/output) и оставить итоговый ответ
         if len(s) > 300:
             cleaned = _strip_internal_monologue(s)
@@ -5528,6 +5529,8 @@ def _normalize_output_for_user(raw: Any) -> str:
                 pass
             if data is None:
                 try:
+                    import ast
+
                     data = ast.literal_eval(s)
                 except Exception:  # noqa: BLE001
                     data = None
@@ -5589,8 +5592,6 @@ def _normalize_output_for_user(raw: Any) -> str:
                 "Запрос принят, но модель вернула только план действий без ответа. "
                 "Уточните запрос конкретным действием (например: «покажи чек-лист код-ревью для Python-модуля»)."
             )
-            if len(th) > 60 and len(s) < 4000:
-                s = th
 
         # Жёсткий лимит длины
         if len(s) > 1200:
@@ -14898,7 +14899,10 @@ async def orchestrate_plan(request: dict):
     )
     lessons = await _fetch_experience_lessons(goal, 3)
     lessons_block = (
-        ("Ранее полученный опыт (используй в плане):\n" + "\n".join(f"- {l}" for l in lessons))
+        (
+            "Ранее полученный опыт (используй в плане):\n"
+            + "\n".join(f"- {lesson}" for lesson in lessons)
+        )
         if lessons
         else ""
     )

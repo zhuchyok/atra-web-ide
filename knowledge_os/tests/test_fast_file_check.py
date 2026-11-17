@@ -57,6 +57,7 @@ def test_fast_file_check_ignores_negative_guard_condition(tmp_path, monkeypatch)
     path = "/app/knowledge_os/app/guard_only.py"
 
     import builtins
+
     import app.smart_worker_autonomous as sw
 
     real_open = builtins.open
