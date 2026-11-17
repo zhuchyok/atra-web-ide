@@ -90,10 +90,71 @@ async def measure_rag_latency(queries: List[str], samples: int = 3) -> List[Dict
     return results
 
 
+def _extract_answer_smoke(query: str, chunk: str) -> str:
+    """Minimal Q/A extract for offline smoke when RAGLightService is unavailable."""
+    for marker in ("\nОтвет:", "\nAnswer:", "Ответ:", "Answer:"):
+        idx = chunk.find(marker)
+        if idx >= 0:
+            return chunk[idx + len(marker) :].strip()[:400]
+    return chunk.strip()[:400]
+
+
+def measure_local_extract_smoke(queries: List[str], samples: int = 5) -> List[Dict]:
+    """Offline latency smoke: extract_direct_answer only (no Ollama/DB)."""
+    extract_fn = _extract_answer_smoke
+    try:
+        from app.services.rag_light import RAGLightService
+
+        rag = RAGLightService(
+            knowledge_os=None,
+            max_response_length=400,
+            config={
+                "query_rewriter_enabled": False,
+                "query_expansion_enabled": False,
+                "reranking_enabled": False,
+            },
+        )
+        extract_fn = rag.extract_direct_answer
+    except ImportError as e:
+        print(f"   RAGLightService unavailable ({e}); using inline extract smoke")
+
+    fixtures = {
+        "сколько стоит подписка": "Стоимость подписки составляет 999 рублей в месяц.",
+        "как создать аккаунт": "Для создания аккаунта перейдите на страницу регистрации.",
+        "контакты поддержки": "Email: support@atra.ai, Telegram: @atra_support.",
+        "документация API": "Документация API доступна по адресу /docs (Swagger UI).",
+        "как настроить Victoria": "Victoria настраивается через VICTORIA_URL (порт 8010).",
+    }
+    results = []
+    for q in queries:
+        ref = fixtures.get(q, f"Ответ на запрос: {q}")
+        chunk = f"Вопрос: {q}\nОтвет: {ref}"
+        for _ in range(samples):
+            t0 = time.perf_counter()
+            _ = extract_fn(q, chunk)
+            total_ms = (time.perf_counter() - t0) * 1000
+            results.append(
+                {
+                    "query": q[:40],
+                    "total_ms": total_ms,
+                    "spans": [{"name": "extract_answer", "duration_ms": total_ms}],
+                    "bottlenecks": [],
+                    "error": None,
+                }
+            )
+    return results
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="RAG latency benchmark")
     parser.add_argument("--no-fail", action="store_true", help="Не выходить с кодом 1 при ошибках (для CI)")
+    parser.add_argument(
+        "--mode",
+        choices=("live", "local_smoke"),
+        default="live",
+        help="live=full RAG path; local_smoke=offline extract_direct_answer only",
+    )
     args = parser.parse_args()
 
     # Тестовые запросы из validation set
@@ -107,16 +168,20 @@ def main():
 
     print("⚡ Бенчмарк latency RAG")
     print("=" * 50)
+    print(f"Mode: {args.mode}")
 
     svc = _check_services()
     print(f"   Ollama (embeddings): {'✅' if svc['ollama'] else '❌'}")
     print(f"   MLX (LLM fallback):  {'✅' if svc['mlx'] else '❌'}")
-    if not svc["ollama"]:
+    if args.mode == "live" and not svc["ollama"]:
         print("   ⚠️  Ollama недоступна — будет fallback на sentence-transformers (медленно)")
         print("      Запустите: ollama serve && ollama pull nomic-embed-text")
     print()
 
-    results = asyncio.run(measure_rag_latency(queries, samples=2))
+    if args.mode == "local_smoke":
+        results = measure_local_extract_smoke(queries, samples=5)
+    else:
+        results = asyncio.run(measure_rag_latency(queries, samples=2))
 
     valid = [r for r in results if r.get("total_ms", 0) >= 0]
     if not valid:
@@ -132,7 +197,9 @@ def main():
 
     print(f"\n📊 Перцентили (n={n} запросов):")
     print(f"   P50:  {p50:.0f} ms")
-    print(f"   P95:  {p95:.0f} ms  {'✅' if p95 < 300 else '❌'} (цель < 300ms)")
+    # local_smoke is not a live P95 SLA claim; keep a generous sanity ceiling
+    sla_ms = 300 if args.mode == "live" else 50
+    print(f"   P95:  {p95:.0f} ms  {'✅' if p95 < sla_ms else '❌'} (цель < {sla_ms}ms)")
     print(f"   P99:  {p99:.0f} ms")
     print(f"   Avg:  {avg:.0f} ms")
 
@@ -154,6 +221,7 @@ def main():
     out = REPO_ROOT / "latency_benchmark.json"
     with open(out, "w", encoding="utf-8") as f:
         json.dump({
+            "mode": args.mode,
             "p50_ms": p50,
             "p95_ms": p95,
             "p99_ms": p99,
@@ -162,11 +230,16 @@ def main():
             "services": svc,
             "results": results,
             "span_totals": span_totals,
+            "note": (
+                "Offline local_smoke: extract_direct_answer only; not live RAG latency."
+                if args.mode == "local_smoke"
+                else "Live RAG latency path."
+            ),
         }, f, indent=2, ensure_ascii=False)
     print(f"\n✅ Сохранено: {out}")
 
-    if p95 >= 300 and not args.no_fail:
-        print("❌ P95 SLA failed (>= 300ms)", file=sys.stderr)
+    if p95 >= sla_ms and not args.no_fail:
+        print(f"❌ P95 SLA failed (>= {sla_ms}ms)", file=sys.stderr)
         return 1
     return 0
 

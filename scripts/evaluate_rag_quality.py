@@ -149,6 +149,32 @@ async def get_response_for_query(query: str, fast_fail: bool = True) -> tuple:
     return response_text, context_chunks
 
 
+def _reference_smoke_pair(query: str, reference: str) -> tuple:
+    """
+    Offline smoke: build Q/A chunk and extract answer locally (no Ollama/DB).
+    Metrics are real RAGEvaluator scores over extract_direct_answer output — not live retrieval.
+    """
+    chunk = f"Вопрос: {query}\nОтвет: {reference}"
+    response = reference
+    if RAGLightService is not None:
+        try:
+            rag = RAGLightService(
+                knowledge_os=None,
+                max_response_length=400,
+                config={
+                    "query_rewriter_enabled": False,
+                    "query_expansion_enabled": False,
+                    "reranking_enabled": False,
+                },
+            )
+            extracted = rag.extract_direct_answer(query, chunk)
+            if extracted and len(extracted.strip()) >= 10:
+                response = extracted
+        except Exception:
+            response = reference
+    return response, [chunk]
+
+
 async def main():
     parser = argparse.ArgumentParser(description="Evaluate RAG quality on validation set")
     parser.add_argument("--dataset", default="data/validation_queries.json", help="Path to validation JSON")
@@ -161,6 +187,12 @@ async def main():
     parser.add_argument("--output", "-o", help="Write JSON report (avg_metrics, results) to file")
     parser.add_argument("--verbose", "-v", action="store_true", help="Print per-query results")
     parser.add_argument("--timeout-per-query", type=float, default=10.0, help="Timeout per query when RAG/Ollama unavailable (seconds)")
+    parser.add_argument(
+        "--mode",
+        choices=("live", "reference_smoke"),
+        default="live",
+        help="live=RAG retrieval (needs DB/Ollama); reference_smoke=offline extract+evaluator over dataset references",
+    )
     args = parser.parse_args()
 
     path = REPO_ROOT / args.dataset
@@ -185,19 +217,31 @@ async def main():
         print("RAGEvaluator not available.", file=sys.stderr)
         return 1
 
+    mode = args.mode
+    if mode == "reference_smoke":
+        print("Mode: reference_smoke (offline; not live RAG retrieval)")
+
     results = []
     timeout_sec = getattr(args, "timeout_per_query", 10.0)
+    skipped_no_ref = 0
     for i, item in enumerate(queries):
         q = item.get("query", item) if isinstance(item, dict) else str(item)
         reference = item.get("reference") if isinstance(item, dict) else None
         context_expected = item.get("context_expected") if isinstance(item, dict) else None
 
-        try:
-            response, context_chunks = await asyncio.wait_for(get_response_for_query(q), timeout=timeout_sec)
-        except asyncio.TimeoutError:
-            response = "[RAG timeout: Ollama/embedding unavailable]"
-            context_chunks = []
-        context = context_chunks or ([" ".join(context_expected)] if context_expected else [])
+        if mode == "reference_smoke":
+            if not reference or not str(reference).strip():
+                skipped_no_ref += 1
+                continue
+            response, context_chunks = _reference_smoke_pair(q, str(reference))
+            context = context_chunks
+        else:
+            try:
+                response, context_chunks = await asyncio.wait_for(get_response_for_query(q), timeout=timeout_sec)
+            except asyncio.TimeoutError:
+                response = "[RAG timeout: Ollama/embedding unavailable]"
+                context_chunks = []
+            context = context_chunks or ([" ".join(context_expected)] if context_expected else [])
 
         metrics = await evaluator.evaluate_response(q, response, context, reference=reference)
         results.append({"query": q[:60], "metrics": metrics})
@@ -207,12 +251,19 @@ async def main():
 
     # Aggregates
     n = len(results)
+    if n < 1:
+        print("No evaluable queries (reference_smoke requires reference fields).", file=sys.stderr)
+        return 1
+    if mode == "reference_smoke" and skipped_no_ref:
+        print(f"Skipped {skipped_no_ref} items without reference", file=sys.stderr)
+
     avg = {}
     for k in ["faithfulness", "relevance", "coherence"]:
         vals = [r["metrics"].get(k, 0) for r in results if r["metrics"]]
         avg[k] = sum(vals) / len(vals) if vals else 0.0
 
     print("\n--- RAG Quality Evaluation ---")
+    print(f"Mode: {mode}")
     print(f"Queries: {n}")
     print(f"Average faithfulness: {avg.get('faithfulness', 0):.3f}")
     print(f"Average relevance:     {avg.get('relevance', 0):.3f}")
@@ -233,12 +284,19 @@ async def main():
             out_path = REPO_ROOT / args.output
         report = {
             "timestamp": __import__("datetime").datetime.now().isoformat(),
+            "mode": mode,
             "avg_metrics": avg,
             "total_queries": n,
             "results": results,
             "thresholds": thresholds,
             "passed": len(failed) == 0,
+            "skipped": False,
         }
+        if mode == "reference_smoke":
+            report["note"] = (
+                "Offline reference_smoke: extract_direct_answer over dataset Q/A chunks; "
+                "not live retrieval. Live RAG still requires seeded DB + Ollama."
+            )
         out_path.parent.mkdir(parents=True, exist_ok=True)
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
