@@ -75,23 +75,6 @@ def test_filter_drops_curator_finding_nodes():
     assert [r["id"] for r in out] == [2, 3]
 
 
-def test_filter_drops_curator_finding_poison():
-    """#66 loop: refusal curator_finding must not re-enter Omni-RAG."""
-    from app.enhanced_search import filter_search_results
-
-    rows = [
-        {
-            "id": 1,
-            "content": "В соответствии с Когнитивным кодексом не могу приступить",
-            "similarity": 0.99,
-            "metadata": {"node_type": "curator_finding"},
-        },
-        {"id": 2, "content": "ports 11434 brain", "similarity": 0.7, "metadata": {"source": "docs"}},
-    ]
-    out = filter_search_results(rows, min_sim=0.45)
-    assert [r["id"] for r in out] == [2]
-
-
 def test_filter_skips_min_sim_for_bm25_rows():
     from app.enhanced_search import filter_search_results
 
