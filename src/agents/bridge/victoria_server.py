@@ -10403,27 +10403,6 @@ async def run_task(
             knowledge=knowledge,
             correlation_id=correlation_id,
         )
-    # #66: trivial self-contained code — code only, no strategist ТЗ.
-    _early_trivial = _try_trivial_code_reply(goal)
-    if _early_trivial:
-        logger.info(
-            "[VICTORIA_TRIVIAL_CODE] /run early correlation_id=%s preview=%s",
-            correlation_id,
-            _early_trivial[:80],
-        )
-        return TaskResponse(
-            status="success",
-            output=_early_trivial,
-            knowledge={
-                "strategy": "quick_answer",
-                "confidence": 0.99,
-                "metadata": {
-                    "source": "trivial_code_deterministic",
-                    "correlation_id": correlation_id,
-                },
-            },
-            correlation_id=correlation_id,
-        )
     live_fact_answer = await _build_live_fact_answer_for_run(goal)
     if live_fact_answer:
         logger.info(
@@ -13050,26 +13029,6 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     {
                         "index": 0,
                         "message": {"role": "assistant", "content": _fc_out},
-                        "finish_reason": "stop",
-                    }
-                ],
-                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-            }
-        )
-    # #66: trivial self-contained code — return code only, no Omni-RAG/bureaucracy.
-    _trivial_code = _try_trivial_code_reply(goal)
-    if _trivial_code:
-        logger.info("[OPENAI-API] Trivial code reply preview=%s", _trivial_code[:80])
-        return JSONResponse(
-            content={
-                "id": f"chatcmpl-{correlation_id}",
-                "object": "chat.completion",
-                "created": int(time.time()),
-                "model": request.model,
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {"role": "assistant", "content": _trivial_code},
                         "finish_reason": "stop",
                     }
                 ],

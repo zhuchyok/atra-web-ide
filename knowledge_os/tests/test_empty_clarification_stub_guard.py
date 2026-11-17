@@ -7,7 +7,7 @@ Victoria answered only «🤔 Мне нужно уточнить несколь�
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pytest
 
@@ -33,18 +33,24 @@ def _load_helpers():
     # File-check constants used by clarify override.
     fc_start = text.index("_FILE_CHECK_RE = re.compile(")
     fc_end = text.index("\ndef _line_has_runtime_pip_install(")
+    # #66: override calls _is_trivial_self_contained_code_goal (+ code-write markers).
+    trivial_start = text.index("_CODE_WRITE_GOAL_MARKERS = (")
+    trivial_end = text.index("\ndef _parse_json_object_loose(")
     start = text.index("def _override_need_clarification_strategy(")
     end = text.index("\ndef _has_explicit_tool_directive(")
     ns: dict = {
         "Any": Any,
         "Dict": Dict,
         "List": List,
+        "Optional": Optional,
         "re": re,
+        "json": __import__("json"),
         "is_introspection_goal": td_ns["is_introspection_goal"],
         "is_curator_standard_goal": td_ns["is_curator_standard_goal"],
         "is_fact_seeking_question": td_ns["is_fact_seeking_question"],
     }
     exec(compile(text[fc_start:fc_end], str(VICTORIA_SERVER), "exec"), ns)
+    exec(compile(text[trivial_start:trivial_end], str(VICTORIA_SERVER), "exec"), ns)
     exec(compile(text[start:end], str(VICTORIA_SERVER), "exec"), ns)
     return ns
 

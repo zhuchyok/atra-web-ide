@@ -58,9 +58,9 @@ def test_live_fact_builder_excludes_file_check_goals():
 
 def test_run_orders_file_check_before_live_fact():
     text = VICTORIA_SERVER.read_text(encoding="utf-8")
-    # /run early file-check block.
-    run_idx = text.index("Residual #65: file-check before live-fact")
-    run_window = text[run_idx : run_idx + 1200]
+    # /run: first file-check call must precede first live-fact builder after accept.
+    run_idx = text.index("accept POST /run")
+    run_window = text[run_idx : run_idx + 8000]
     assert "_try_file_check_reply(goal)" in run_window
     assert "_build_live_fact_answer_for_run(goal)" in run_window
     assert run_window.index("_try_file_check_reply(goal)") < run_window.index(
@@ -71,7 +71,9 @@ def test_run_orders_file_check_before_live_fact():
 def test_chat_orders_file_check_before_live_fact():
     text = VICTORIA_SERVER.read_text(encoding="utf-8")
     chat_idx = text.index("Residual #65: FAST_ACTION file-check BEFORE live-fact")
-    chat_window = text[chat_idx : chat_idx + 1800]
+    chat_window = text[chat_idx : chat_idx + 4000]
+    assert "_try_file_check_reply(goal)" in chat_window
+    assert "_build_live_fact_answer_for_run(goal)" in chat_window
     assert chat_window.index("_try_file_check_reply(goal)") < chat_window.index(
         "_build_live_fact_answer_for_run(goal)"
     )
