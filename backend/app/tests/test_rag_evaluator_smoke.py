@@ -9,7 +9,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from app.evaluation.rag_evaluator import DEFAULT_THRESHOLDS, RAGEvaluator
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
