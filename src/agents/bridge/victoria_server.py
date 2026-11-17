@@ -5163,6 +5163,70 @@ def _is_code_write_goal(goal: str) -> bool:
     return False
 
 
+def _is_trivial_self_contained_code_goal(goal: str) -> bool:
+    """Short self-contained code ask — execute immediately (#66).
+
+    Must NOT go through Enhanced/strategist-ТЗ (invents «раздел 1 ТЗ» / Cognitive Code).
+    """
+    g = (goal or "").strip().lower()
+    if not g or len(g) > 160:
+        return False
+    looks_code = (
+        _is_code_write_goal(g)
+        or ("строку кода" in g)
+        or ("строка кода" in g)
+        or ("one line" in g and "code" in g)
+    )
+    if not looks_code:
+        return False
+    # Project/file work → deep path stays.
+    if any(
+        b in g
+        for b in (
+            "исправ",
+            "pytest",
+            "создай файл",
+            "напиши файл",
+            "модул",
+            "рефактор",
+            "миграц",
+            "класс ",
+            "функци",
+            "файл ",
+            " файле",
+            "/app/",
+            "/users/",
+            "knowledge_os/",
+            "src/",
+        )
+    ):
+        return False
+    # Path-like tokens (avoid false positive on word «python»).
+    if re.search(r"(?<![a-z])\.(py|ts|js|tsx|jsx)\b", g):
+        return False
+    if re.search(r"[/\\][\w.-]+\.\w+", g):
+        return False
+    return True
+
+
+def _try_trivial_code_reply(goal: str) -> Optional[str]:
+    """Deterministic one-liners for curator trivial code tasks (#66)."""
+    if not _is_trivial_self_contained_code_goal(goal):
+        return None
+    g = (goal or "").strip().lower()
+    if any(m in g for m in ("дат", "date", "today", "сегодня")):
+        return "print(datetime.date.today())"
+    return None
+
+
+_TRIVIAL_CODE_SYSTEM_NUDGE = (
+    "Верни ТОЛЬКО строку кода (или один короткий code block). "
+    "Не пиши вступлений, вопросов, планов. "
+    "Никогда не упоминай «Когнитивный кодекс», «раздел N ТЗ», «ТЗ», "
+    "и не выдумывай маркеры вида [be:…]."
+)
+
+
 def _parse_json_object_loose(raw: Any) -> Optional[Dict[str, Any]]:
     """Best-effort parse of a single JSON object from dict/str."""
     if isinstance(raw, dict):
@@ -6222,9 +6286,12 @@ def _is_explicit_concrete_goal(goal: str) -> bool:
     g = (goal or "").lower()
     if not g:
         return False
+    # #66: trivial one-liners are concrete but must stay on quick/code-only, not deep.
+    if _is_trivial_self_contained_code_goal(goal):
+        return False
     if any(ind in g for ind in _EXPLICIT_CONCRETE_TASK_INDICATORS):
         return True
-    # «напиши одну строку кода…» — code-write, не чат quick_answer (task_4 2026-11-16).
+    # Non-trivial code-write still skips classifier → deep (envelope guard).
     return _is_code_write_goal(g)
 
 
@@ -6236,6 +6303,13 @@ def _override_need_clarification_strategy(
     Pair incident 2026-11-16_19-11-03: chat fact-check returned empty
     «Мне нужно уточнить несколько деталей:» with no tools/evidence.
     """
+    # #66: trivial one-liner always quick — even if classifier said deep/clarify.
+    if _is_trivial_self_contained_code_goal(goal):
+        return {
+            "strategy": "quick_answer",
+            "reason": "trivial_self_contained_code_no_clarify",
+            "confidence": 0.95,
+        }
     if not strategy_result or strategy_result.get("strategy") != "need_clarification":
         return strategy_result
     if is_introspection_goal(goal):
@@ -6474,6 +6548,14 @@ async def _select_strategy(
             "strategy": "deep_analysis",
             "reason": "явная задача с файлом/инструментом",
             "confidence": 0.9,
+        }
+    # #66: trivial one-liner → quick_answer (never strategist-ТЗ / Cognitive Code refuse).
+    if _is_trivial_self_contained_code_goal(goal):
+        logger.info("🟢 [STRATEGY] Trivial self-contained code, quick_answer: %s", goal[:50])
+        return {
+            "strategy": "quick_answer",
+            "reason": "trivial_self_contained_code",
+            "confidence": 0.95,
         }
     goal_lower_check = goal.lower()
     is_concrete_task = _is_explicit_concrete_goal(goal)
@@ -7898,7 +7980,12 @@ async def _run_task_background(
         # Guardrail (v144+): fact/curator/introspection never stop at clarify.
         strategy_result = _override_need_clarification_strategy(goal, strategy_result)
         # Code/write goals must not stay on quick_answer (strategy JSON leak, task_4).
-        if strategy_result.get("strategy") == "quick_answer" and _is_code_write_goal(goal):
+        # #66 exception: trivial one-liners stay quick (deep → strategist invents ТЗ).
+        if (
+            strategy_result.get("strategy") == "quick_answer"
+            and _is_code_write_goal(goal)
+            and not _is_trivial_self_contained_code_goal(goal)
+        ):
             strategy_result = {
                 "strategy": "deep_analysis",
                 "reason": "code_write_goal_override",
@@ -8037,7 +8124,14 @@ async def _run_task_background(
                 quick_model = os.getenv("VICTORIA_STRATEGY_MODEL", "phi3.5:3.8b")
             quick_text = ""
             quick_source = "strategy_quick_answer"
-            quick_text, quick_source = await _bg_try_generate(goal, quick_model)
+            _trivial_det = _try_trivial_code_reply(goal)
+            if _trivial_det:
+                quick_text, quick_source = _trivial_det, "trivial_code_deterministic"
+            else:
+                _quick_prompt = goal
+                if _is_trivial_self_contained_code_goal(goal):
+                    _quick_prompt = f"{_TRIVIAL_CODE_SYSTEM_NUDGE}\n\nЗадача: {goal}"
+                quick_text, quick_source = await _bg_try_generate(_quick_prompt, quick_model)
             if quick_text:
                 # Fail-closed: code goals must never complete with raw strategy envelope.
                 if _is_code_write_goal(goal) and _looks_like_strategy_envelope(quick_text):
@@ -10034,6 +10128,9 @@ async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
     _fc_prefix = (goal or "").strip()[:_FILE_CHECK_MAX_PREFIX]
     if _FILE_CHECK_RE.match(_fc_prefix):
         return None
+    # #66: trivial code is never a live-fact probe.
+    if _is_trivial_self_contained_code_goal(goal or ""):
+        return None
     # Fact-probe — для КОРОТКИХ живых вопросов. Длинный текст (>400 симв.) — это
     # документ/материал с цитатами: факт-проба по подстроке ложно срабатывает
     # на цитаты вида «какой статус проекта?» внутри (уроки #64, слой 5).
@@ -10264,6 +10361,24 @@ async def run_task(
     logger.info("[REQUEST] Current planner model: %s", getattr(agent.planner, "model", "unknown"))
 
     goal = body.goal or ""
+    # #66: deterministic trivial one-liner before Enhanced/strategist/RAG.
+    _trivial_code = _try_trivial_code_reply(goal)
+    if _trivial_code:
+        logger.info(
+            "[VICTORIA_CODE] /run trivial one-liner correlation_id=%s preview=%s",
+            correlation_id,
+            _trivial_code[:80],
+        )
+        return TaskResponse(
+            status="success",
+            output=_trivial_code,
+            knowledge={
+                "strategy": "trivial_self_contained_code",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
     # Residual #65: file-check before live-fact (path may contain «ttc»).
     try:
         _early_file_check = await _try_file_check_reply(goal)
@@ -10286,6 +10401,27 @@ async def run_task(
             status="success",
             output=_normalize_output_for_user(_early_file_check.get("output", "")),
             knowledge=knowledge,
+            correlation_id=correlation_id,
+        )
+    # #66: trivial self-contained code — code only, no strategist ТЗ.
+    _early_trivial = _try_trivial_code_reply(goal)
+    if _early_trivial:
+        logger.info(
+            "[VICTORIA_TRIVIAL_CODE] /run early correlation_id=%s preview=%s",
+            correlation_id,
+            _early_trivial[:80],
+        )
+        return TaskResponse(
+            status="success",
+            output=_early_trivial,
+            knowledge={
+                "strategy": "quick_answer",
+                "confidence": 0.99,
+                "metadata": {
+                    "source": "trivial_code_deterministic",
+                    "correlation_id": correlation_id,
+                },
+            },
             correlation_id=correlation_id,
         )
     live_fact_answer = await _build_live_fact_answer_for_run(goal)
@@ -12873,6 +13009,26 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
             }
         )
+    # #66: deterministic trivial code before file-check / live-fact / RAG.
+    _trivial_chat = _try_trivial_code_reply(goal)
+    if _trivial_chat:
+        logger.info("[VICTORIA_CODE] chat trivial one-liner preview=%s", _trivial_chat[:80])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _trivial_chat},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 1, "total_tokens": 1},
+            }
+        )
     # Residual #65: FAST_ACTION file-check BEFORE live-fact.
     # Path may contain «ttc»/«p95» and would otherwise hijack fact_live_probe.
     try:
@@ -12894,6 +13050,26 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     {
                         "index": 0,
                         "message": {"role": "assistant", "content": _fc_out},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    # #66: trivial self-contained code — return code only, no Omni-RAG/bureaucracy.
+    _trivial_code = _try_trivial_code_reply(goal)
+    if _trivial_code:
+        logger.info("[OPENAI-API] Trivial code reply preview=%s", _trivial_code[:80])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _trivial_code},
                         "finish_reason": "stop",
                     }
                 ],
@@ -13073,11 +13249,21 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
 
         # [SINGULARITY 16.0] Omni-RAG Integration for Open WebUI
         # Skip RAG for file-check / concrete exec — they have deterministic paths.
-        _skip_omni_rag = bool(
-            _FILE_CHECK_RE.match((goal or "").strip()[:_FILE_CHECK_MAX_PREFIX])
-        ) or any(
-            m in (goal or "").lower()
-            for m in ("исправь", "напиши код", "создай файл", "pytest ")
+        # #66: skip trivial/code-write without path (poisoned curator_finding refusals).
+        # Probe original user text — LTM may bloat `goal`.
+        _rag_probe = (_user_msg_text or goal or "").strip()
+        _skip_omni_rag = (
+            bool(_FILE_CHECK_RE.match(_rag_probe[:_FILE_CHECK_MAX_PREFIX]))
+            or _is_trivial_self_contained_code_goal(_rag_probe)
+            or (
+                _is_code_write_goal(_rag_probe)
+                and not re.search(r"[/\\][\w.-]+\.\w+", _rag_probe.lower())
+                and not re.search(r"(?<![a-z])\.(py|ts|js|tsx|jsx)\b", _rag_probe.lower())
+            )
+            or any(
+                m in _rag_probe.lower()
+                for m in ("исправь", "напиши код", "создай файл", "pytest ")
+            )
         )
         if "victoria" in str(request.model).lower() and not _skip_omni_rag:
             try:
