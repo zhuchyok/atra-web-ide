@@ -13,7 +13,6 @@ from collections.abc import AsyncGenerator
 from typing import List, Optional
 
 import httpx
-
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)

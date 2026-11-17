@@ -5,14 +5,13 @@
 import logging
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
-
 from app.services.ab_testing import (
     ABTestingService,
     ExperimentConfig,
     get_ab_testing_service,
 )
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 

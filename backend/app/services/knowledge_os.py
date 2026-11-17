@@ -7,9 +7,8 @@ import logging
 from typing import Dict, List, Optional
 
 import asyncpg
-from fastapi import Request
-
 from app.config import get_settings
+from fastapi import Request
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

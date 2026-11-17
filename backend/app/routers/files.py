@@ -9,10 +9,9 @@ import shutil
 from pathlib import Path
 from typing import List, Optional
 
+from app.config import get_settings
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
-
-from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

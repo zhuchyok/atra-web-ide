@@ -6,11 +6,10 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.main import app
 from app.routers import chat
 from app.services.victoria import VictoriaClient
+from fastapi.testclient import TestClient
 
 
 def _make_mock_client(run_return):

@@ -4,7 +4,6 @@ VERIFICATION_CHECKLIST §36, PROJECT_GAPS §2: сценарий стратеги
 """
 
 import pytest
-
 from app.services.strategic_classifier import (
     get_risk_level_from_question,
     is_strategic_question,

@@ -9,13 +9,12 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
-from pydantic import BaseModel, Field
-
 from app.services.multimodal_processor import (
     detect_content_type,
     get_multimodal_processor,
 )
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

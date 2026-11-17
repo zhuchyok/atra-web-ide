@@ -15,7 +15,6 @@ from datetime import datetime
 from typing import Any, Optional, cast
 
 import httpx
-
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)

@@ -9,7 +9,6 @@ import os
 from typing import Dict, Optional
 
 import httpx
-
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)

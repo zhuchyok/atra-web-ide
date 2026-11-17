@@ -19,10 +19,9 @@ from typing import Any, Optional
 from uuid import uuid4
 
 import httpx
+from app.services.victoria import VictoriaClient, get_victoria_client
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-
-from app.services.victoria import VictoriaClient, get_victoria_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

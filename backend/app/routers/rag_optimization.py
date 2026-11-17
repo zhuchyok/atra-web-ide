@@ -4,10 +4,9 @@
 
 from typing import Any, Dict
 
-from fastapi import APIRouter
-
 from app.config import get_settings
 from app.services.rag_light import get_rag_light_service
+from fastapi import APIRouter
 
 router = APIRouter(tags=["rag-optimization"])
 

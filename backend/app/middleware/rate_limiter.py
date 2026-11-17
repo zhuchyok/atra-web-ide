@@ -7,10 +7,9 @@ import time
 from collections import defaultdict
 from typing import Dict, Tuple
 
+from app.config import get_settings
 from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
-
-from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

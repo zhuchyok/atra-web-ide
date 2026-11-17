@@ -7,10 +7,9 @@ import mimetypes
 from pathlib import Path
 from typing import Optional
 
+from app.config import get_settings
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse, Response
-
-from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

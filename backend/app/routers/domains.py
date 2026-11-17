@@ -5,11 +5,10 @@ Domains Router - Knowledge OS домены (35 доменов)
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
-
 from app.services.cache import get_cache
 from app.services.knowledge_os import KnowledgeOSClient, get_knowledge_os_client
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

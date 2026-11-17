@@ -9,9 +9,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends
-
 from app.services.knowledge_os import KnowledgeOSClient, get_knowledge_os_client
+from fastapi import APIRouter, Depends
 
 router = APIRouter(prefix="/api/quality", tags=["quality"])
 

@@ -5,11 +5,10 @@ Experts Router - Улучшенная версия с кэшированием
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-
 from app.services.cache import get_cache
 from app.services.knowledge_os import KnowledgeOSClient, get_knowledge_os_client
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

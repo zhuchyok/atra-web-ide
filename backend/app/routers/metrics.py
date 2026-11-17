@@ -6,10 +6,9 @@ import logging
 import os
 import time
 
+from app.metrics.prometheus_metrics import get_metrics, update_routing_guard_metrics
 from fastapi import APIRouter, Response
 from prometheus_client import CONTENT_TYPE_LATEST
-
-from app.metrics.prometheus_metrics import get_metrics, update_routing_guard_metrics
 
 logger = logging.getLogger(__name__)
 

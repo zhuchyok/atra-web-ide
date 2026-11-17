@@ -5,7 +5,6 @@
 import asyncio
 
 import pytest
-
 from app.metrics.prometheus_metrics import (
     RAG_REQUESTS,
     USER_REQUESTS,

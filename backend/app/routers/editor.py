@@ -7,11 +7,10 @@ import os
 import uuid
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
-
 from app.services.ollama import OllamaClient, get_ollama_client
 from app.services.victoria import VictoriaClient, get_victoria_client
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

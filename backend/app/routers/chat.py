@@ -14,10 +14,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
-from pydantic import BaseModel, Field
-
 from app.metrics.prometheus_metrics import ASK_VICTORIA_TOTAL, CHAT_EXPERT_ANSWER_TOTAL
 from app.metrics.prometheus_metrics import metrics as prometheus_metrics
 from app.services.concurrency_limiter import (
@@ -31,6 +27,9 @@ from app.services.ollama import OllamaClient, get_ollama_client
 from app.services.victoria import VictoriaClient, get_victoria_client
 from app.utils.prompt_filter import detect as detect_injection
 from app.utils.prompt_filter import harden as harden_user_content
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

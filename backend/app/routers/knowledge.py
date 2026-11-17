@@ -5,10 +5,9 @@ Knowledge Router - Поиск по знаниям Knowledge OS
 import logging
 from typing import Any, List, Optional
 
+from app.services.knowledge_os import KnowledgeOSClient, get_knowledge_os_client
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-
-from app.services.knowledge_os import KnowledgeOSClient, get_knowledge_os_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

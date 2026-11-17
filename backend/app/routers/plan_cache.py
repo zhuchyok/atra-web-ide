@@ -4,9 +4,8 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends
-
 from app.services.plan_cache import PlanCacheService, get_plan_cache_service
+from fastapi import APIRouter, Depends
 
 router = APIRouter(tags=["plan-cache"])
 
