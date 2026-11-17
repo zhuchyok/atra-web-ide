@@ -55,8 +55,12 @@ repos:
     rev: v1.0
     hooks:
       - id: fmt
+        # Match CI (`cargo fmt --all -- --check`): do not pass filenames after `--`,
+        # or rustfmt reorders imports differently than workspace --all.
+        pass_filenames: false
         args: ["--manifest-path", "Cargo.toml", "--all", "--"]
       - id: clippy
+        pass_filenames: false
         args:
           [
             "--manifest-path",
