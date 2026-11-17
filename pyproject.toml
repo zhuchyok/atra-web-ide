@@ -60,10 +60,51 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
-# CI runs `mypy backend/app` from repo root. Existing annotation debt is large;
-# keep the job as a runnable gate (3.11 + no dual-module crash) until typed cleanup.
-ignore_errors = true
+# CI runs `mypy backend/app` from repo root. Gate the named targets honestly;
+# imported monoliths (victoria_server, knowledge_os) stay silent until their own jobs.
 explicit_package_bases = true
+follow_imports = "silent"
+
+# Residual annotation debt in backend.app (2026-11-17 measurement: 84 errors / 33 modules
+# after removing global ignore_errors; 205 total when follow_imports=normal). New modules
+# and clean files above are real gates — do not reintroduce global ignore_errors.
+[[tool.mypy.overrides]]
+module = [
+    "backend.app.config",
+    "backend.app.evaluation.rag_evaluator",
+    "backend.app.metrics.agent_suggestions",
+    "backend.app.metrics.prometheus_metrics",
+    "backend.app.middleware.rate_limiter",
+    "backend.app.routers.ab_testing",
+    "backend.app.routers.chat",
+    "backend.app.routers.domains",
+    "backend.app.routers.editor",
+    "backend.app.routers.experts",
+    "backend.app.routers.files",
+    "backend.app.routers.preview",
+    "backend.app.routers.sandbox",
+    "backend.app.routers.terminal",
+    "backend.app.services.ab_testing",
+    "backend.app.services.embedding_batch",
+    "backend.app.services.embedding_fallback",
+    "backend.app.services.emotions",
+    "backend.app.services.knowledge_os",
+    "backend.app.services.mlx",
+    "backend.app.services.multimodal_processor",
+    "backend.app.services.ollama",
+    "backend.app.services.plan_cache",
+    "backend.app.services.quality_ab_test",
+    "backend.app.services.query_expansion",
+    "backend.app.services.query_rewriter",
+    "backend.app.services.rag_light",
+    "backend.app.services.reranking",
+    "backend.app.services.streaming",
+    "backend.app.services.telegram_alerts",
+    "backend.app.services.unified_embedding_provider",
+    "backend.app.services.validation_pipeline",
+    "backend.app.services.victoria",
+]
+ignore_errors = true
 
 [tool.ruff]
 line-length = 100
