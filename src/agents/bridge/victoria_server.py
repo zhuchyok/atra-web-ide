@@ -1467,21 +1467,21 @@ except ImportError:
 from src.agents.bridge.enhanced_router import delegate_to_veronica
 from src.agents.bridge.project_registry import get_main_project, get_projects_registry
 from src.agents.bridge.task_detector import (
+    consilium_categories,
     detect_task_type,
     format_live_fact_answer,
     goal_wants_ollama_slots,
     goal_wants_scanner,
-    is_fact_seeking_question,
-    is_curator_standard_goal,
-    is_introspection_goal,
     is_consilium_winnable_goal,
-    consilium_categories,
+    is_curator_standard_goal,
+    is_fact_seeking_question,
+    is_introspection_goal,
     is_operational_execution_goal,
     should_use_enhanced,
 )
 from src.agents.core.base_agent import AtraBaseAgent as BaseAgent
 from src.agents.core.executor import OllamaExecutor, _ollama_base_url, build_executor_options
-from src.agents.tools.system_tools import SystemTools, WebTools, DataTools, GitTools
+from src.agents.tools.system_tools import DataTools, GitTools, SystemTools, WebTools
 
 
 def _parse_pattern_list_env(name: str) -> Tuple[str, ...]:
@@ -11356,7 +11356,7 @@ async def run_task(
             _quick_goal = goal
             if tool_context_blocks:
                 _quick_goal = (
-                    f"Инструменты уже выполнены. Используй только эти результаты для ответа:\n"
+                    "Инструменты уже выполнены. Используй только эти результаты для ответа:\n"
                     + "\n\n".join(tool_context_blocks)
                     + f"\n\nЗапрос пользователя: {goal}"
                 )
@@ -12092,7 +12092,7 @@ async def run_task(
 
                 # [MULTI-AGENT] EventBus — событие завершения задачи
                 try:
-                    from app.event_bus import get_event_bus, Event, EventType
+                    from app.event_bus import Event, EventType, get_event_bus
 
                     event_bus = get_event_bus()
                     event = Event(
@@ -14875,7 +14875,10 @@ async def orchestrate_plan(request: dict):
             pos = nxt if nxt >= 0 else len(t)
         return out
 
+    _last_plan_raw = ""
+
     async def _llm_plan(prompt: str) -> list:
+        nonlocal _last_plan_raw
         from dialogue_llm import generate_dialogue
 
         plan_res = await generate_dialogue(
@@ -14883,7 +14886,8 @@ async def orchestrate_plan(request: dict):
             expert_name="Виктория",
             model_hint=os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-24k"),
         )
-        return _parse_steps((plan_res.text if hasattr(plan_res, "text") else str(plan_res)) or "")
+        _last_plan_raw = (plan_res.text if hasattr(plan_res, "text") else str(plan_res)) or ""
+        return _parse_steps(_last_plan_raw)
 
     base_prompt_tail = (
         f"Задача: {goal}. Составь план из {max_steps} шагов по написанию python-кода. "
@@ -14903,9 +14907,15 @@ async def orchestrate_plan(request: dict):
     except Exception as e:  # noqa: BLE001
         return {"status": "error", "detail": f"plan llm: {e}"}
     if not steps:
-        with open("/tmp/plan_debug.json", "w") as _df:
-            _df.write(str(plan_res and getattr(plan_res, "text", ""))[:2000])
-        return {"status": "error", "detail": f"plan parse failed raw_head={str(plan_res)[:150]!r}"}
+        try:
+            with open("/tmp/plan_debug.json", "w") as _df:
+                _df.write(_last_plan_raw[:2000])
+        except Exception:  # noqa: BLE001
+            pass
+        return {
+            "status": "error",
+            "detail": f"plan parse failed raw_head={_last_plan_raw[:150]!r}",
+        }
 
     base_url = "http://localhost:8000"
 
@@ -14929,8 +14939,9 @@ async def orchestrate_plan(request: dict):
                 return False
             with open(abs_fp, "r", encoding="utf-8", errors="ignore") as _f:
                 head = _f.read(1600)
-            from dialogue_llm import generate_dialogue
             import uuid as _uu
+
+            from dialogue_llm import generate_dialogue
 
             sp = (
                 f"Подзадача: «{step_goal}». Файл: {fp}.\n"
@@ -15134,9 +15145,10 @@ async def orchestrate_plan(request: dict):
             {
                 "goal": f"[plan] {goal[:200]}",
                 "outcome": "passed" if summary.startswith("Все") else "partial",
-                "lesson": f"{len(steps)}+{sum(1 for r in replan_iters and [True])} replans.x{n}: "
-                + "; ".join(f"{r['step']}:{r['status']}" for r in results)
-                + f" | replans_used={replans_used}",
+                "lesson": (
+                    f"{len(steps)} steps, replans_used={replans_used}: "
+                    + "; ".join(f"{r['step']}:{r['status']}" for r in results)
+                ),
                 "source": "/api/orchestrate-plan",
             }
         )

@@ -112,16 +112,33 @@ def _finite_sim(value: Any) -> Optional[float]:
     return score
 
 
-def _is_task_artifact(metadata: Any) -> bool:
-    """Worker/task rows in knowledge_nodes bleed into chat RAG as false context."""
+def _parse_metadata(metadata: Any) -> Optional[dict]:
     if not metadata:
-        return False
+        return None
     if isinstance(metadata, str):
         try:
             metadata = json.loads(metadata)
         except Exception:
-            return False
-    return isinstance(metadata, dict) and ("task_id" in metadata)
+            return None
+    return metadata if isinstance(metadata, dict) else None
+
+
+def _is_task_artifact(metadata: Any) -> bool:
+    """Worker/task rows in knowledge_nodes bleed into chat RAG as false context."""
+    meta = _parse_metadata(metadata)
+    return bool(meta and "task_id" in meta)
+
+
+def _is_curator_finding(metadata: Any) -> bool:
+    """Curator findings (#66) re-poison Omni-RAG with refusal / Cognitive Code text."""
+    meta = _parse_metadata(metadata)
+    return bool(meta and meta.get("node_type") == "curator_finding")
+
+
+# SQL fragment: exclude curator_finding the same way we exclude task_id artifacts.
+_SQL_EXCLUDE_CURATOR = (
+    "AND COALESCE(metadata->>'node_type', '') <> 'curator_finding'"
+)
 
 
 def filter_search_results(
@@ -130,7 +147,7 @@ def filter_search_results(
     min_sim: Optional[float] = None,
     apply_min_sim: bool = True,
 ) -> list[dict]:
-    """Drop NaN/Inf, task artifacts, and (optionally) below-threshold hits.
+    """Drop NaN/Inf, task artifacts, curator_finding, and (optionally) below-threshold hits.
 
     apply_min_sim=False for raw BM25/ts_rank rows — those scores are not cosine-scaled;
     hybrid_search applies the threshold on the combined 0.7*vector+0.3*bm25 score.
@@ -141,6 +158,8 @@ def filter_search_results(
     out: list[dict] = []
     for row in results:
         if _is_task_artifact(row.get("metadata")):
+            continue
+        if _is_curator_finding(row.get("metadata")):
             continue
         sim = _finite_sim(row.get("similarity", 0))
         if sim is None:
@@ -282,14 +301,16 @@ async def semantic_search(
     embedding = await get_embedding(query)
     qp = QueryParams([str(embedding)])
 
-    sql = """
+    # Escape {{}} — f-string; literal jsonb empty object must not interpolate.
+    sql = f"""
         SELECT id, content, confidence_score, usage_count, metadata,
                (1 - (embedding <=> $1::vector)) as similarity,
                created_at, domain_id
         FROM knowledge_nodes
         WHERE confidence_score > 0.3
         AND embedding IS NOT NULL
-        AND NOT (COALESCE(metadata, '{}'::jsonb) ? 'task_id')
+        AND NOT (COALESCE(metadata, '{{}}'::jsonb) ? 'task_id')
+        {_SQL_EXCLUDE_CURATOR}
     """
 
     if domain:
@@ -325,6 +346,7 @@ async def keyword_search(
         WHERE confidence_score > 0.3
         AND content_tsvector @@ to_tsquery('russian', {qp.add(ts_query)})
         AND NOT (COALESCE(metadata, '{{}}'::jsonb) ? 'task_id')
+        {_SQL_EXCLUDE_CURATOR}
     """
 
     if domain:
@@ -333,7 +355,7 @@ async def keyword_search(
     sql += f" ORDER BY similarity DESC, usage_count DESC LIMIT {qp.add(max(limit * 3, limit))}"
 
     results = await conn.fetch(sql, *qp.get_all())
-    # ts_rank is not cosine-scaled — keep poisoned/task filter only.
+    # ts_rank is not cosine-scaled — keep poisoned/task/curator filter only.
     return filter_search_results([dict(r) for r in results], apply_min_sim=False)[:limit]
 
 
@@ -344,14 +366,15 @@ async def metric_search(
     numbers = re.findall(r"\d+\.?\d*", query)
     qp = QueryParams()
 
-    sql = """
+    sql = f"""
         SELECT id, content, confidence_score, usage_count,
                confidence_score as similarity,
                created_at, domain_id,
                metadata
         FROM knowledge_nodes
         WHERE confidence_score > 0.3
-        AND NOT (COALESCE(metadata, '{}'::jsonb) ? 'task_id')
+        AND NOT (COALESCE(metadata, '{{}}'::jsonb) ? 'task_id')
+        {_SQL_EXCLUDE_CURATOR}
     """
 
     conditions = []
@@ -385,7 +408,7 @@ async def metric_search(
     sql += f" ORDER BY confidence_score DESC, usage_count DESC LIMIT {qp.add(limit)}"
 
     results = await conn.fetch(sql, *qp.get_all())
-    return [dict(r) for r in results]
+    return filter_search_results([dict(r) for r in results], apply_min_sim=False)[:limit]
 
 
 async def temporal_search(
@@ -421,6 +444,7 @@ async def temporal_search(
         WHERE confidence_score > 0.3
         AND {time_condition}
         AND NOT (COALESCE(metadata, '{{}}'::jsonb) ? 'task_id')
+        {_SQL_EXCLUDE_CURATOR}
     """
 
     if domain:

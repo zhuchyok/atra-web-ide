@@ -47,6 +47,51 @@ def test_filter_drops_task_id_artifacts():
     assert [r["id"] for r in out] == [2]
 
 
+def test_filter_drops_curator_finding_nodes():
+    """#66: curator_finding refusals must not re-poison Omni-RAG chat context."""
+    from app.enhanced_search import filter_search_results
+
+    rows = [
+        {
+            "id": 1,
+            "content": "Когнитивный Код: не могу приступить — INSUFFICIENT_CONTEXT / UNVERIFIED",
+            "similarity": 0.95,
+            "metadata": {"node_type": "curator_finding", "report": "curator_x.json"},
+        },
+        {
+            "id": 2,
+            "content": "standard: brain on 11434 victoria-qwen38",
+            "similarity": 0.8,
+            "metadata": {"node_type": "standard"},
+        },
+        {
+            "id": 3,
+            "content": "plain doc without node_type",
+            "similarity": 0.7,
+            "metadata": {"source": "docs"},
+        },
+    ]
+    out = filter_search_results(rows, min_sim=0.45)
+    assert [r["id"] for r in out] == [2, 3]
+
+
+def test_filter_drops_curator_finding_poison():
+    """#66 loop: refusal curator_finding must not re-enter Omni-RAG."""
+    from app.enhanced_search import filter_search_results
+
+    rows = [
+        {
+            "id": 1,
+            "content": "В соответствии с Когнитивным кодексом не могу приступить",
+            "similarity": 0.99,
+            "metadata": {"node_type": "curator_finding"},
+        },
+        {"id": 2, "content": "ports 11434 brain", "similarity": 0.7, "metadata": {"source": "docs"}},
+    ]
+    out = filter_search_results(rows, min_sim=0.45)
+    assert [r["id"] for r in out] == [2]
+
+
 def test_filter_skips_min_sim_for_bm25_rows():
     from app.enhanced_search import filter_search_results
 
