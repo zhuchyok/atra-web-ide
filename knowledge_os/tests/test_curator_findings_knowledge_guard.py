@@ -59,12 +59,7 @@ def test_ok_chatter_not_actionable(mod):
 
 
 def test_queued_status_not_actionable(mod):
-    assert (
-        mod.is_non_knowledge_finding(
-            "[check] ⏳ Task task_abc queued to worker"
-        )
-        is True
-    )
+    assert mod.is_non_knowledge_finding("[check] ⏳ Task task_abc queued to worker") is True
 
 
 def test_real_problem_kept(mod):

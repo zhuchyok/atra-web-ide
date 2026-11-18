@@ -35,7 +35,9 @@ async def test_evaluator_rejects_empty_response():
 async def test_evaluator_accepts_faithful_answer():
     ev = RAGEvaluator()
     query = "сколько стоит подписка"
-    reference = "Стоимость подписки составляет 999 рублей в месяц. Доступна пробная версия на 14 дней."
+    reference = (
+        "Стоимость подписки составляет 999 рублей в месяц. Доступна пробная версия на 14 дней."
+    )
     context = [f"Вопрос: {query}\nОтвет: {reference}"]
     metrics = await ev.evaluate_response(query, reference, context, reference=reference)
     passed, failed = RAGEvaluator.check_thresholds(metrics, DEFAULT_THRESHOLDS)

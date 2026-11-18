@@ -57,7 +57,11 @@ async def _refresh_routing_guard_metrics() -> None:
                     stale_sec = float(os.getenv("ROUTING_GUARD_STALE_SEC", "3600"))
                 except Exception:
                     stale_sec = 3600.0
-                ts_raw = (values[5] or "").strip() if isinstance(values[5], str) else str(values[5] or "")
+                ts_raw = (
+                    (values[5] or "").strip()
+                    if isinstance(values[5], str)
+                    else str(values[5] or "")
+                )
                 mode = (values[6] or "").strip().lower()
                 enforce = (values[7] or "").strip()
                 # Runtime contract mode is source-of-truth for enforced routing policy.
