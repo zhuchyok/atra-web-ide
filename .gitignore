@@ -152,3 +152,6 @@ configs/evals/results/battle_*.json
 .qoder/
 .serena/
 .zcode/
+
+# Nested selfdev worktree (must not be a gitlink / submodule)
+.selfdev-worktree/

@@ -76,11 +76,15 @@ jobs:
                 cargo test --workspace
                 ;;
               knowledge_os:lint)
-                python -m pip install -r knowledge_os/requirements.txt
-                ruff check knowledge_os/
+                # Lean: ruff only — full requirements.txt pulls torch via sentence-transformers.
+                python -m pip install --upgrade pip
+                python -m pip install ruff
+                python -m ruff check knowledge_os/
                 ;;
               knowledge_os:test)
-                python -m pip install -r knowledge_os/requirements.txt
+                # Prefer lean test deps (still heavy; avoids browser-use/moondream).
+                python -m pip install --upgrade pip
+                python -m pip install -r knowledge_os/requirements-test.txt
                 python -m pytest knowledge_os/tests/ -q
                 ;;
               frontend:build)
