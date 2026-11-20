@@ -47,8 +47,17 @@ echo "report=$REPORT"
 
 # RAG_LIVE_LIMIT defaults to 20 for host smoke; set 0 for full dataset.
 LIMIT_ARGS=()
+SEED_LIMIT_ARGS=()
 if [ "${RAG_LIVE_LIMIT:-20}" != "0" ]; then
   LIMIT_ARGS=(--limit "${RAG_LIVE_LIMIT:-20}")
+  SEED_LIMIT_ARGS=(--limit "${RAG_LIVE_LIMIT:-20}")
+fi
+
+# Relevance is F1(response, reference). Without seed_dataset Q/A nodes, vector/keyword
+# hits land on corpus noise → faithfulness≈1, relevance≈0. Seed is required, not optional.
+if [ "${RAG_LIVE_SKIP_SEED:-0}" != "1" ]; then
+  echo "=== Ensuring seed_dataset Q/A in knowledge_nodes ==="
+  "$PYTHON" -u scripts/seed_knowledge_from_dataset.py "${SEED_LIMIT_ARGS[@]}"
 fi
 
 set +e
