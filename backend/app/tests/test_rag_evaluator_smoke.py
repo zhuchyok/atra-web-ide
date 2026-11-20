@@ -165,6 +165,35 @@ def test_live_ollama_default_is_hands_11437(monkeypatch: pytest.MonkeyPatch):
     assert mod._ollama_base_url() == "http://127.0.0.1:11437"
 
 
+def test_seed_qa_chunk_rejects_faq_noise():
+    """Keyword-first must not treat free-form FAQ/Ответ noise as seed_dataset."""
+    import importlib.util
+
+    path = REPO_ROOT / "scripts" / "evaluate_rag_quality.py"
+    spec = importlib.util.spec_from_file_location("evaluate_rag_quality_seed_qa", path)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    q = "часто задаваемые вопросы"
+    seed = (
+        f"Вопрос: {q}\n"
+        "Ответ: FAQ доступен по адресу /faq. Популярные вопросы: тарифы, интеграция, API, безопасность."
+    )
+    noise = (
+        "Создай профессиональный ответ.\n"
+        "6. **FAQ** (3-5 вопросов)\n"
+        "**Вопрос 2: Что делать, если ИИ ошибается?**\n"
+        "**Ответ:** Внедрите процесс Human-in-the-loop."
+    )
+    answer_only = "FAQ доступен по адресу /faq. Популярные вопросы: тарифы, интеграция, API, безопасность."
+
+    assert mod._is_seed_qa_chunk(seed, q) is True
+    assert mod._is_seed_qa_chunk(noise, q) is False
+    assert mod._is_seed_qa_chunk(answer_only, q) is False
+    assert mod._is_seed_qa_chunk(seed, "сколько стоит подписка") is False
+
+
 def test_live_preflight_fails_closed_without_ollama(tmp_path: Path):
     """Honest fail: live gate must not green-pass when Ollama is unreachable."""
     out = tmp_path / "live_fail.json"

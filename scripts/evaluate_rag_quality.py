@@ -176,6 +176,30 @@ def _is_stub_response(response: str) -> bool:
     return any(text.startswith(s) for s in stubs)
 
 
+def _is_seed_qa_chunk(content: str, query: str) -> bool:
+    """
+    True only for seed_dataset-style «Вопрос: <query>\\nОтвет: ...» chunks.
+
+    Free-form docs that merely contain «Ответ:» / FAQ sections (long_term_memory,
+    AutoGen FAQs, etc.) must not win keyword-first — they yield faithfulness≈1
+    and relevance=0 against the validation reference.
+    """
+    if not content or not query:
+        return False
+    c = content.strip()
+    q = query.strip().lower()
+    has_ru = "Вопрос:" in c and "Ответ:" in c
+    has_en = "Question:" in c and "Answer:" in c
+    if not (has_ru or has_en):
+        return False
+    # Prefer match on the question side (before answer marker), not answer body.
+    for marker in ("\nОтвет:", "\nAnswer:", "Ответ:", "Answer:"):
+        idx = c.find(marker)
+        if idx >= 0:
+            return q in c[:idx].lower()
+    return False
+
+
 async def get_response_for_query(query: str, fast_fail: bool = True) -> tuple:
     """
     Получить ответ и контекст от RAG-light (если доступен).
@@ -218,18 +242,19 @@ async def get_response_for_query(query: str, fast_fail: bool = True) -> tuple:
             search_limit = int(os.environ.get("RAG_VALIDATION_LIMIT", "5"))
             search_timeout = 5.0 if fast_fail else 30.0
 
-            # Приоритет: чанки формата «Вопрос: X Ответ: Y» (seed_dataset) — keyword ищет точнее
+            # Приоритет: только seed «Вопрос: <query> Ответ: Y» — не любой чанк с «Ответ:»
             _kw_prefer = os.environ.get("RAG_VALIDATION_KEYWORD_FIRST", "true").lower() == "true"
             if _kw_prefer and kos:
                 try:
-                    rows = await asyncio.wait_for(kos.search_knowledge(query, limit=3), timeout=3.0)
+                    rows = await asyncio.wait_for(kos.search_knowledge(query, limit=5), timeout=3.0)
                     for r in rows:
                         c = (r.get("content") or "")
-                        if "Ответ:" in c or "Answer:" in c:
-                            context_chunks = [c]
-                            response_text = rag.extract_direct_answer(query, c)
-                            if response_text and len(response_text) > 10:
-                                break
+                        if not _is_seed_qa_chunk(c, query):
+                            continue
+                        context_chunks = [c]
+                        response_text = rag.extract_direct_answer(query, c)
+                        if response_text and len(response_text) > 10:
+                            break
                 except Exception:
                     pass
 
