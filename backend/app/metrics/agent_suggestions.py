@@ -5,7 +5,7 @@
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List
+from typing import DefaultDict, Dict, List, Optional
 
 
 @dataclass
@@ -15,9 +15,9 @@ class AgentSuggestionMetric:
     complexity_score: float
     reason: str
     user_action: str = "unknown"  # "accepted", "ignored", "switched"
-    timestamp: datetime = None
+    timestamp: Optional[datetime] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
@@ -54,7 +54,7 @@ class AgentSuggestionMetrics:
         if suggested_metrics:
             avg_score = sum(m.complexity_score for m in suggested_metrics) / len(suggested_metrics)
             stats["avg_complexity_score"] = round(avg_score, 2)
-            reasons = defaultdict(int)
+            reasons: DefaultDict[str, int] = defaultdict(int)
             for m in suggested_metrics:
                 if m.reason:
                     reasons[m.reason] += 1

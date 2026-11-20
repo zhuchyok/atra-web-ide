@@ -119,7 +119,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         allowed, message = self.rate_limiter.check_rate_limit(request)
 
         if not allowed:
-            logger.warning(f"Rate limit exceeded for {request.client.host}: {message}")
+            client_host = request.client.host if request.client else "unknown"
+            logger.warning(f"Rate limit exceeded for {client_host}: {message}")
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail={"error": "rate_limit_exceeded", "message": message, "retry_after": 60},

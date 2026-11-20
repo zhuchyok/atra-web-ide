@@ -65,16 +65,14 @@ ignore_missing_imports = true
 explicit_package_bases = true
 follow_imports = "silent"
 
-# Residual annotation debt in backend.app (2026-11-17 measurement: 84 errors / 33 modules
-# after removing global ignore_errors; 205 total when follow_imports=normal). New modules
+# Residual annotation debt in backend.app (2026-11-20: 31 modules after clearing
+# agent_suggestions + rate_limiter; earlier 84 errors / 33 modules). New modules
 # and clean files above are real gates — do not reintroduce global ignore_errors.
 [[tool.mypy.overrides]]
 module = [
     "backend.app.config",
     "backend.app.evaluation.rag_evaluator",
-    "backend.app.metrics.agent_suggestions",
     "backend.app.metrics.prometheus_metrics",
-    "backend.app.middleware.rate_limiter",
     "backend.app.routers.ab_testing",
     "backend.app.routers.chat",
     "backend.app.routers.domains",
