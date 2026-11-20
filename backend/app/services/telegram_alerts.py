@@ -11,6 +11,7 @@ import logging
 import os
 import time
 from pathlib import Path
+from typing import Any, cast
 
 import httpx
 
@@ -26,17 +27,18 @@ ALERT_COOLDOWN_SEC = int(os.getenv("TELEGRAM_ALERT_COOLDOWN_SEC", "3600"))  # 1 
 _ALERT_STATE_FILE = Path("/tmp/telegram_task_alert_state.json")
 
 
-def _load_alert_state() -> dict:
+def _load_alert_state() -> dict[str, Any]:
     try:
         if _ALERT_STATE_FILE.exists():
             with open(_ALERT_STATE_FILE) as f:
-                return json.load(f)
+                data = json.load(f)
+                return cast(dict[str, Any], data) if isinstance(data, dict) else {}
     except Exception as e:
         logger.debug("telegram_alerts: load state %s", e)
     return {}
 
 
-def _save_alert_state(state: dict) -> None:
+def _save_alert_state(state: dict[str, Any]) -> None:
     try:
         with open(_ALERT_STATE_FILE, "w") as f:
             json.dump(state, f)
@@ -46,7 +48,7 @@ def _save_alert_state(state: dict) -> None:
 
 def _can_send_alert(alert_type: str) -> bool:
     state = _load_alert_state()
-    last = state.get(alert_type, 0)
+    last = float(state.get(alert_type, 0) or 0)
     return (time.time() - last) >= ALERT_COOLDOWN_SEC
 
 

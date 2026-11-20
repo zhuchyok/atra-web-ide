@@ -210,7 +210,7 @@ async def read_file(
 @router.post("/write")
 async def write_file(
     path: str = Query(..., description="Путь к файлу", max_length=500),
-    request: WriteFileRequest = None,
+    request: Optional[WriteFileRequest] = None,
 ) -> dict:
     """
     Записать файл
@@ -252,7 +252,8 @@ async def write_file(
 
 @router.post("/create")
 async def create_item(
-    path: str = Query(..., description="Путь", max_length=500), request: CreateRequest = None
+    path: str = Query(..., description="Путь", max_length=500),
+    request: Optional[CreateRequest] = None,
 ) -> dict:
     """
     Создать файл или папку

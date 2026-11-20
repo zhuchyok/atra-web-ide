@@ -23,7 +23,9 @@ class ExperimentRequest(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=100)
     description: str = Field(default="", max_length=500)
-    variants: Dict[str, float] = Field(default_factory=lambda: {"control": 50, "variant_a": 50})
+    variants: Dict[str, float] = Field(
+        default_factory=lambda: {"control": 50.0, "variant_a": 50.0}
+    )
     parameters: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
     enabled: bool = True
 
@@ -75,7 +77,7 @@ async def get_experiment_stats(
     stats = ab_testing.get_experiment_stats(experiment_name)
     if not stats:
         raise HTTPException(status_code=404, detail="Experiment not found")
-    return stats
+    return dict(stats)
 
 
 @router.post("/experiments/{experiment_name}/toggle")
