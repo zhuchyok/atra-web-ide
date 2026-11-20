@@ -5,7 +5,16 @@ import asyncpg
 from typing import List, Optional
 
 async def get_embedding(text: str) -> Optional[List[float]]:
-    embed_url = os.getenv("OLLAMA_EMBED_URL", "http://localhost:11434/api/embeddings")
+    # Hands :11437 has nomic; brain :11434 is victoria-qwen38 only.
+    base = (
+        os.getenv("LIVE_OLLAMA_URL")
+        or os.getenv("OLLAMA_EMBED_URL")
+        or "http://127.0.0.1:11437"
+    ).rstrip("/")
+    if base.endswith("/api/embeddings"):
+        embed_url = base
+    else:
+        embed_url = f"{base}/api/embeddings"
     model = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
