@@ -7,6 +7,7 @@ from src.agents.bridge.task_detector import (
     format_live_fact_answer,
     goal_wants_ollama_slots,
     goal_wants_scanner,
+    goal_wants_ttc,
     grounded_ports_answer,
     is_fact_seeking_question,
     public_task_title,
@@ -159,11 +160,37 @@ def test_ttc_metrics_are_fact_seeking():
     assert is_fact_seeking_question(
         "curl -s http://127.0.0.1:8010/metrics | grep victoria_async_ttc_p95"
     )
+    assert goal_wants_ttc("какие victoria_async_ttc p50 p95 samples")
     ans = format_live_fact_answer(
         "какие victoria_async_ttc p50 p95 samples",
         ttc={"p50": 11.5, "p95": 27.3, "samples": 4, "inflight_max": 0.0, "inflight_n": 0},
     )
     assert ans == "p50=11.5 p95=27.3 samples=4 inflight_max=0.0 inflight=0"
+
+
+def test_metrics_dump_meta_question_does_not_emit_ttc():
+    """Health + 'metrics dump' prose must not become a p50/p95 dump."""
+    goal = (
+        "Fact-check only. Report: (1) curl :8010/health status, "
+        "(3) whether chat returns a normal short answer or a metrics dump."
+    )
+    assert is_fact_seeking_question(goal)
+    assert goal_wants_ttc(goal) is False
+    ans = format_live_fact_answer(
+        goal,
+        health="ok",
+        ttc={
+            "p50": 57.884,
+            "p95": 234.617,
+            "samples": 200,
+            "inflight_max": 0.0,
+            "inflight_n": 0,
+            "by_reason": {"request_async_mode": {"p95": 234.617, "samples": 199}},
+        },
+    )
+    assert ans == "ok"
+    assert "p50=" not in (ans or "")
+    assert "by_reason=" not in (ans or "")
 
 
 def test_ttc_metrics_append_by_reason_when_present():

@@ -284,6 +284,46 @@ def goal_wants_ollama_slots(goal: str) -> bool:
     return any(x in g for x in ("11434", "11436", "11437", "/api/ps", "слот", "ollama"))
 
 
+def goal_wants_ttc(goal: str) -> bool:
+    """TTC/p95 dump only when the user asks for latency metrics — not 'metrics dump' prose."""
+    g = (goal or "").lower()
+    if any(
+        x in g
+        for x in (
+            "/metrics",
+            "victoria_async",
+            "time_to_completed",
+            "time-to-completed",
+            "duration_seconds",
+        )
+    ):
+        return True
+    if any(x in g for x in ("p95", "p50", "ttc")) and any(
+        x in g
+        for x in (
+            "async",
+            "samples",
+            "latency",
+            "ttc",
+            "victoria",
+            "inflight",
+            "prometheus",
+            "дай",
+            "покажи",
+            "какие",
+            "curl",
+            "grep",
+        )
+    ):
+        return True
+    # Bare "metrics" is too broad ("metrics dump" meta-questions). Require TTC context.
+    if "metrics" in g and any(
+        x in g for x in ("ttc", "p95", "p50", "async", "prometheus", "victoria_async", "/metrics")
+    ):
+        return True
+    return False
+
+
 def grounded_ports_answer(goal: str) -> Optional[str]:
     """Ответ по портам из реестра, не из головы модели."""
     g = (goal or "").lower()
@@ -420,21 +460,7 @@ def format_live_fact_answer(
             )
         if parts:
             bits.append(" ".join(parts))
-    if ttc is not None and any(
-        x in g
-        for x in (
-            "/metrics",
-            "metrics",
-            "p95",
-            "p50",
-            "ttc",
-            "time_to_completed",
-            "time-to-completed",
-            "duration_seconds",
-            "inflight",
-            "victoria_async",
-        )
-    ):
+    if ttc is not None and goal_wants_ttc(goal):
         line = (
             "p50="
             + str(float(ttc.get("p50") or 0.0))

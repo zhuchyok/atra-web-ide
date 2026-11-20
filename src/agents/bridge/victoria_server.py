@@ -1475,6 +1475,7 @@ from src.agents.bridge.task_detector import (
     format_live_fact_answer,
     goal_wants_ollama_slots,
     goal_wants_scanner,
+    goal_wants_ttc,
     is_consilium_winnable_goal,
     is_curator_standard_goal,
     is_fact_seeking_question,
@@ -10314,7 +10315,7 @@ async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
     if any(goal_lower.startswith(prefix) for prefix in automated_prefixes):
         return None
 
-    sla = await _async_sla_snapshot()
+    sla = await _async_sla_snapshot() if goal_wants_ttc(goal or "") else None
     slots = None
     if goal_wants_ollama_slots(goal or ""):
         slots = await _live_ollama_slots_line()
