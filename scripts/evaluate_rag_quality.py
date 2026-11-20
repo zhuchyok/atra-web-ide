@@ -63,11 +63,17 @@ def _env_truthy(name: str) -> bool:
 
 
 def _ollama_base_url() -> str:
+    """Hands nomic first — same contract as seed_knowledge_from_dataset / run_live_rag_quality.sh.
+
+    Prefer LIVE_OLLAMA_URL / OLLAMA_EMBED_URL so a brain-only OLLAMA_BASE_URL from .env
+    cannot hijack embeds (brain :11434 has victoria-qwen38 only; nomic lives on :11437).
+    """
     return (
-        os.environ.get("OLLAMA_EMBED_URL")
+        os.environ.get("LIVE_OLLAMA_URL")
+        or os.environ.get("OLLAMA_EMBED_URL")
         or os.environ.get("OLLAMA_URL")
         or os.environ.get("OLLAMA_BASE_URL")
-        or "http://127.0.0.1:11434"
+        or "http://127.0.0.1:11437"
     ).rstrip("/")
 
 

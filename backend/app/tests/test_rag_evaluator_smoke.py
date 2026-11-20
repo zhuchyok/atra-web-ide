@@ -138,6 +138,33 @@ def test_require_mode_live_rejects_reference_smoke(tmp_path: Path):
     assert "mode" in gate.stderr.lower()
 
 
+def test_live_ollama_default_is_hands_11437(monkeypatch: pytest.MonkeyPatch):
+    """Direct --mode live must default embeds to hands nomic (:11437), not brain (:11434)."""
+    for key in (
+        "LIVE_OLLAMA_URL",
+        "OLLAMA_EMBED_URL",
+        "OLLAMA_URL",
+        "OLLAMA_BASE_URL",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+    import importlib.util
+
+    path = REPO_ROOT / "scripts" / "evaluate_rag_quality.py"
+    spec = importlib.util.spec_from_file_location("evaluate_rag_quality_under_test", path)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    assert mod._ollama_base_url() == "http://127.0.0.1:11437"
+
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+    assert mod._ollama_base_url() == "http://127.0.0.1:11434"
+
+    monkeypatch.setenv("LIVE_OLLAMA_URL", "http://127.0.0.1:11437")
+    assert mod._ollama_base_url() == "http://127.0.0.1:11437"
+
+
 def test_live_preflight_fails_closed_without_ollama(tmp_path: Path):
     """Honest fail: live gate must not green-pass when Ollama is unreachable."""
     out = tmp_path / "live_fail.json"
