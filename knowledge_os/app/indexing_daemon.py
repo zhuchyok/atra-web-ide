@@ -22,9 +22,12 @@ DB_URL = os.getenv(
 )
 # [v149.58g] embeds — на РУКИ (11437), не на мозг: OLLAMA_BASE_URL=11434
 # гнал индексацию в мозговой инстанс и топил его очередь (браунаут 20.10).
-OLLAMA_URL = os.getenv(
-    "OLLAMA_EMBED_URL", os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-).replace("/api/embeddings", "")
+# LIVE_OLLAMA_URL → OLLAMA_EMBED_URL → hands :11437 (never brain :11434).
+OLLAMA_URL = (
+    os.getenv("LIVE_OLLAMA_URL")
+    or os.getenv("OLLAMA_EMBED_URL")
+    or "http://127.0.0.1:11437"
+).replace("/api/embeddings", "").rstrip("/")
 EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 
 # Расширения файлов для индексации

@@ -71,11 +71,16 @@ _is_docker = (
     os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
 )
 _default_embed_base = (
-    "http://host.docker.internal:11437" if _is_docker else "http://localhost:11437"
+    "http://host.docker.internal:11437" if _is_docker else "http://127.0.0.1:11437"
 )
-# [FIX] Принудительно используем IP хоста для Ollama из контейнера, если host.docker.internal не резолвится
-_embed_base = os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_API_URL") or _default_embed_base
-OLLAMA_EMBED_URL = os.getenv("OLLAMA_EMBED_URL") or f"{_embed_base.rstrip('/')}/api/embeddings"
+# LIVE_OLLAMA_URL → OLLAMA_EMBED_URL → hands :11437. Never fall back to brain
+# OLLAMA_BASE_URL (:11434) — that flooded /api/embeddings into qwen38.
+_embed_base = (
+    (os.getenv("LIVE_OLLAMA_URL") or "").strip()
+    or (os.getenv("OLLAMA_EMBED_URL") or "").strip()
+    or _default_embed_base
+).rstrip("/").replace("/api/embeddings", "")
+OLLAMA_EMBED_URL = f"{_embed_base}/api/embeddings"
 # [v150.75] 11436 = coder, не nomic. 11437 busy не должен грузить эмбеддер на coder.
 _fallback_default = ""
 OLLAMA_EMBED_FALLBACK_URLS = [

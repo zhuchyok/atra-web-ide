@@ -18,13 +18,16 @@ logger = logging.getLogger(__name__)
 def resolve_ollama_embed_base_url(
     embed_url: Optional[str] = None,
     hands_url: Optional[str] = None,
+    live_url: Optional[str] = None,
 ) -> str:
     """nomic lives on hands :11437 — never default embeds to brain :11434.
 
+    Priority: LIVE_OLLAMA_URL → OLLAMA_EMBED_URL → OLLAMA_HANDS_URL → :11437.
     Accepts base URL or full ``.../api/embeddings``; always returns base without path.
     """
     raw = (
-        (embed_url if embed_url is not None else os.getenv("OLLAMA_EMBED_URL"))
+        (live_url if live_url is not None else os.getenv("LIVE_OLLAMA_URL"))
+        or (embed_url if embed_url is not None else os.getenv("OLLAMA_EMBED_URL"))
         or (hands_url if hands_url is not None else os.getenv("OLLAMA_HANDS_URL"))
         or "http://127.0.0.1:11437"
     ).strip().rstrip("/")

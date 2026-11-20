@@ -20,7 +20,12 @@ DATABASE_URL = os.getenv(
     "POSTGRES_DIRECT_URL",
     os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"),
 )
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+# Hands :11437 has nomic; brain :11434 is victoria-qwen38 only.
+OLLAMA_BASE_URL = (
+    os.getenv("LIVE_OLLAMA_URL")
+    or os.getenv("OLLAMA_EMBED_URL")
+    or "http://127.0.0.1:11437"
+).rstrip("/").replace("/api/embeddings", "")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "nomic-embed-text:latest")
 BATCH_SIZE = 100
 DEFAULT_MAX_NODES = 1000

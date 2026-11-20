@@ -8,11 +8,22 @@ import pytest
 
 
 def test_resolve_ollama_embed_base_defaults_to_hands(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("LIVE_OLLAMA_URL", raising=False)
     monkeypatch.delenv("OLLAMA_EMBED_URL", raising=False)
     monkeypatch.delenv("OLLAMA_HANDS_URL", raising=False)
     # Brain URL must not hijack embeds.
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
     monkeypatch.setenv("OLLAMA_URL", "http://127.0.0.1:11434")
+
+    from app.config import resolve_ollama_embed_base_url
+
+    assert resolve_ollama_embed_base_url() == "http://127.0.0.1:11437"
+
+
+def test_resolve_ollama_embed_prefers_live_url(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("LIVE_OLLAMA_URL", "http://127.0.0.1:11437")
+    monkeypatch.setenv("OLLAMA_EMBED_URL", "http://embed.example:9999")
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 
     from app.config import resolve_ollama_embed_base_url
 

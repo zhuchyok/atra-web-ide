@@ -2759,9 +2759,16 @@ class VictoriaAgent(BaseAgent):
 
     async def _get_embedding_for_rag(self, text: str) -> Optional[List[float]]:
         """Один эмбеддинг для RAG (Ollama nomic-embed-text). Таймаут короткий для скорости."""
-        embed_url = os.getenv(
-            "OLLAMA_EMBED_URL",
-            os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/") + "/api/embeddings",
+        # Hands :11437 has nomic; never default embeds to brain :11434.
+        _embed_base = (
+            os.getenv("LIVE_OLLAMA_URL")
+            or os.getenv("OLLAMA_EMBED_URL")
+            or "http://127.0.0.1:11437"
+        ).rstrip("/")
+        embed_url = (
+            _embed_base
+            if _embed_base.endswith("/api/embeddings")
+            else f"{_embed_base}/api/embeddings"
         )
         model = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
         try:
@@ -2785,9 +2792,15 @@ class VictoriaAgent(BaseAgent):
         if len(texts) == 1:
             emb = await self._get_embedding_for_rag(texts[0])
             return [emb]
-        embed_url = os.getenv(
-            "OLLAMA_EMBED_URL",
-            os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/") + "/api/embeddings",
+        _embed_base = (
+            os.getenv("LIVE_OLLAMA_URL")
+            or os.getenv("OLLAMA_EMBED_URL")
+            or "http://127.0.0.1:11437"
+        ).rstrip("/")
+        embed_url = (
+            _embed_base
+            if _embed_base.endswith("/api/embeddings")
+            else f"{_embed_base}/api/embeddings"
         )
         model = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
         try:

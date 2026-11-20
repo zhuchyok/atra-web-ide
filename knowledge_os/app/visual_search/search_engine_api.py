@@ -16,7 +16,12 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Victoria Visual Search API")
 
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+# Hands :11437 has nomic; brain :11434 is victoria-qwen38 only.
+OLLAMA_BASE_URL = (
+    os.getenv("LIVE_OLLAMA_URL")
+    or os.getenv("OLLAMA_EMBED_URL")
+    or "http://127.0.0.1:11437"
+).rstrip("/").replace("/api/embeddings", "")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
 INDEX_PATH = "/app/models/visual_index.faiss"
 METADATA_PATH = "/app/models/visual_metadata.json"
