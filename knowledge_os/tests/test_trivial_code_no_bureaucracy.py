@@ -30,7 +30,7 @@ def test_trivial_one_liner_detected():
     trivial, reply, code_write = _load_helpers()
     assert code_write(TRIVIAL)
     assert trivial(TRIVIAL)
-    assert reply(TRIVIAL) == "print(datetime.date.today())"
+    assert reply(TRIVIAL) == "import datetime; print(datetime.date.today())"
 
 
 def test_heavy_code_not_trivial():

@@ -5207,7 +5207,7 @@ def _try_trivial_code_reply(goal: str) -> Optional[str]:
         return None
     g = (goal or "").strip().lower()
     if any(m in g for m in ("дат", "date", "today", "сегодня")):
-        return "print(datetime.date.today())"
+        return "import datetime; print(datetime.date.today())"
     # Prefer an explicit print(...) already in the goal (soak: «однострочник…print(2+2)»).
     m = re.search(r"print\s*\([^)]*\)", goal or "", flags=re.IGNORECASE)
     if m:
