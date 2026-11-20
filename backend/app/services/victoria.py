@@ -384,14 +384,15 @@ class VictoriaClient:
             if chat_history:
                 payload["chat_history"] = chat_history[-30:]
 
-            stream_kw = {"json": payload}
-            if correlation_id:
-                stream_kw["headers"] = {"X-Correlation-ID": correlation_id}
+            headers = {"X-Correlation-ID": correlation_id} if correlation_id else None
 
             try:
                 # Вызываем новый эндпоинт /stream
                 async with client.stream(
-                    "POST", f"{self.base_url}/stream", **stream_kw
+                    "POST",
+                    f"{self.base_url}/stream",
+                    json=payload,
+                    headers=headers,
                 ) as response:
                     response.raise_for_status()
                     async for line in response.aiter_lines():

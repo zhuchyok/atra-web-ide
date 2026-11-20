@@ -7,7 +7,7 @@ RAG-light: быстрый ответ на фактуальные вопросы 
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import httpx
 from app.config import get_settings, resolve_ollama_embed_base_url
@@ -19,7 +19,9 @@ def _embed_ollama_base(settings: Any = None) -> str:
     """Base URL for nomic embeds (hands :11437), not brain :11434."""
     s = settings or get_settings()
     configured = (getattr(s, "ollama_embed_url", None) or "").strip()
-    return resolve_ollama_embed_base_url(embed_url=configured or None)
+    return cast(
+        str, resolve_ollama_embed_base_url(embed_url=cast(Optional[str], configured or None))
+    )
 
 
 def _rag_metrics_decorator(func):
@@ -82,7 +84,7 @@ class RAGLightService:
         self.use_reranking = config.get("reranking_enabled", False) if config else False
         self.use_query_expansion = config.get("query_expansion_enabled", True) if config else True
         self.use_query_rewriter = config.get("query_rewriter_enabled", True) if config else True
-        self._cache: dict = {}
+        self._cache: Dict[int, str] = {}
         self._cache_max = 200
         self.rag_context_cache: Any = None
         self.embedding_batch_processor: Any = None
@@ -166,7 +168,7 @@ class RAGLightService:
                         record_cache_hit("embedding_batch")
                     except Exception:
                         pass
-                return emb
+                return cast(List[float], emb)
 
         # 2. Ollama напрямую (быстро, без загрузки Python-модели)
         emb = await self.get_embedding(query)
@@ -183,7 +185,7 @@ class RAGLightService:
                     except Exception:
                         pass
                 logger.debug("Using local embedding fallback for: %s...", query[:50])
-                return emb
+                return cast(List[float], emb)
 
         return None
 
@@ -202,7 +204,10 @@ class RAGLightService:
                     logger.warning("Ollama embeddings status %s: %s", r.status_code, r.text[:200])
                     return None
                 data = r.json()
-                return data.get("embedding")
+                embedding = data.get("embedding")
+                if isinstance(embedding, list):
+                    return cast(List[float], embedding)
+                return None
         except Exception as e:
             logger.warning("RAG-light get_embedding error: %s", e)
             return None
@@ -227,7 +232,7 @@ class RAGLightService:
                 query, user_id, limit=limit, threshold=th
             )
             if cached:
-                return cached
+                return cast(List[Tuple[str, float]], cached)
 
         search_query = await self._prepare_query_for_search(query)
         embedding = await self._get_embedding_optimized(search_query)
@@ -271,7 +276,7 @@ class RAGLightService:
                 reranked = await self.reranking_service.rerank_chunks(
                     query, chunk_texts, method="hybrid", top_k=limit
                 )
-                return reranked[:limit]
+                return cast(List[str], reranked[:limit])
             except Exception as e:
                 logger.warning("Reranking failed: %s, using original order", e)
         return chunk_texts[:limit]
@@ -312,7 +317,7 @@ class RAGLightService:
                 expanded = expand_query_fallback(query)
             if expanded != query:
                 logger.debug("Query expanded: %s -> %s", query[:40], expanded[:60])
-            return expanded
+            return cast(str, expanded)
         except Exception as e:
             logger.debug("Query expansion skipped: %s", e)
             return query
@@ -337,7 +342,7 @@ class RAGLightService:
         if self.rag_context_cache:
             cached = await self.rag_context_cache.get_context(query, user_id, limit=1, threshold=th)
             if cached:
-                return cached[0]
+                return cast(Tuple[str, float], cached[0])
 
         search_query = await self._prepare_query_for_search(query)
         embedding = await self._get_embedding_optimized(search_query)
