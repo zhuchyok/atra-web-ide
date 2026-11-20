@@ -24,5 +24,5 @@ def test_get_run_status_prefers_local_terminal_over_redis_inflight():
     assert "redis_st in _inflight" in fn
     assert "status self-heal" in fn
     assert "VICTORIA_ASYNC_HARD_TIMEOUT_SEC" in fn
-    assert "VICTORIA_ASYNC_WATCHDOG_SEC" in fn
+    assert "VICTORIA_ASYNC_INFLIGHT_STALE_SEC" in fn
     assert "updated_age=" in fn

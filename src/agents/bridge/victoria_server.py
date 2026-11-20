@@ -9464,11 +9464,12 @@ async def get_run_status(task_id: str):
     except ValueError:
         _hard_sec = 600.0
     try:
-        _wd_raw = os.getenv("VICTORIA_ASYNC_WATCHDOG_SEC", "180")
-        _stale_upd_sec = float(_wd_raw) if _wd_raw not in ("0", "") else 180.0
+        # Prefer inflight-stale (default 420) over silent-watchdog (180): long
+        # enhanced.solve often does not touch updated_at, and 180s false-fails live work.
+        _stale_upd_sec = float(os.getenv("VICTORIA_ASYNC_INFLIGHT_STALE_SEC", "420"))
     except ValueError:
-        _stale_upd_sec = 180.0
-    _stale_upd_sec = max(180.0, _stale_upd_sec)
+        _stale_upd_sec = 420.0
+    _stale_upd_sec = max(300.0, _stale_upd_sec)
     _elapsed_now = _elapsed_seconds_from_store(rec)
     _upd_age = _elapsed_seconds_from_store(
         {"created_at": rec.get("updated_at") or rec.get("created_at")}
