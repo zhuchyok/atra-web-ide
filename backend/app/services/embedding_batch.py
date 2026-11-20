@@ -22,7 +22,14 @@ class EmbeddingBatchProcessor:
         batch_size: int = 10,
         batch_timeout_ms: int = 50,
     ):
-        self.ollama_url = ollama_url.rstrip("/")
+        # Defense-in-depth: ctor may receive base or full .../api/embeddings|/api/embed
+        # (same class of bug as seed_validation double-append).
+        url = ollama_url.strip().rstrip("/")
+        for suffix in ("/api/embeddings", "/api/embed"):
+            if url.endswith(suffix):
+                url = url[: -len(suffix)].rstrip("/")
+                break
+        self.ollama_url = url
         self.ollama_model = ollama_model
         self.batch_size = batch_size
         self.batch_timeout_ms = batch_timeout_ms

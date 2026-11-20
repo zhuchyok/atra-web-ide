@@ -97,3 +97,42 @@ def test_embedding_batch_posts_to_hands_not_brain():
     assert posted["url"] == f"{_HANDS}/api/embeddings"
     assert "11434" not in posted["url"]
     assert posted["json"]["model"] == "nomic-embed-text"
+
+
+def test_embedding_batch_ctor_strips_full_embeddings_url():
+    """Ctor with .../api/embeddings must still POST once to /api/embeddings (no double-append)."""
+    posted: dict = {}
+
+    class _Resp:
+        status_code = 200
+
+        def json(self):
+            return {"embedding": [0.1]}
+
+    class _Client:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def post(self, url, json=None):
+            posted["url"] = url
+            return _Resp()
+
+    async def _run():
+        with patch("app.services.embedding_batch.httpx.AsyncClient", _Client):
+            proc = EmbeddingBatchProcessor(
+                ollama_url=f"{_HANDS}/api/embeddings",
+                ollama_model="nomic-embed-text",
+            )
+            assert proc.ollama_url == _HANDS
+            emb = await proc._call_ollama_single("hello")
+            assert emb == [0.1]
+
+    asyncio.run(_run())
+    assert posted["url"] == f"{_HANDS}/api/embeddings"
+    assert posted["url"].count("/api/embeddings") == 1
