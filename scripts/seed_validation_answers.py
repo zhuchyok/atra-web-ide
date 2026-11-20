@@ -5,7 +5,6 @@
 """
 import asyncio
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -36,7 +35,7 @@ async def seed_knowledge_nodes():
     try:
         import asyncpg
         import httpx
-        from app.config import get_settings
+        from app.config import get_settings, resolve_ollama_embed_base_url
     except ImportError as e:
         print(f"Import error: {e}")
         return
@@ -44,22 +43,21 @@ async def seed_knowledge_nodes():
     settings = get_settings()
     conn = await asyncpg.connect(settings.database_url)
 
-    # Используем nomic-embed-text через Ollama (768-dim, совместимо с RAG)
-    print("📦 Получение эмбеддингов через Ollama nomic-embed-text (768-dim)...")
+    # Hands nomic (:11437). LIVE/EMBED may already include /api/embeddings (compose);
+    # resolve_ollama_embed_base_url strips that so we never double-append.
+    embed_base = resolve_ollama_embed_base_url()
+    embed_url = f"{embed_base.rstrip('/')}/api/embeddings"
+    print(
+        f"📦 Получение эмбеддингов через Ollama nomic-embed-text (768-dim) @ {embed_url}..."
+    )
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         added = 0
         for query, answer in SEED_ANSWERS.items():
             # Получаем эмбеддинг через Ollama
             try:
-                # Hands Ollama (nomic) is :11437; brain :11434 has victoria-qwen38 only.
-                _embed_url = (
-                    os.environ.get("LIVE_OLLAMA_URL")
-                    or os.environ.get("OLLAMA_EMBED_URL")
-                    or "http://127.0.0.1:11437"
-                ).rstrip("/")
                 response = await client.post(
-                    f"{_embed_url}/api/embeddings",
+                    embed_url,
                     json={"model": "nomic-embed-text", "prompt": answer},
                 )
                 if response.status_code != 200:
