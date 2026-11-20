@@ -1758,6 +1758,18 @@ async def run_smart_agent_async(
         except ImportError:
             pass
 
+    # Hub-once: facts-before-claims / no bare «готово» for all callers (no double-prefix)
+    try:
+        try:
+            from cursor_method import CURSOR_METHOD_PROMPT
+        except ImportError:
+            from app.cursor_method import CURSOR_METHOD_PROMPT
+        _p = prompt or ""
+        if "МЕТОД CURSOR" not in _p and CURSOR_METHOD_PROMPT not in _p:
+            prompt = f"{CURSOR_METHOD_PROMPT}{_p}"
+    except ImportError:
+        pass
+
     # [SINGULARITY 31.3] Try v2 pipeline if enabled (feature flag)
     if os.getenv("USE_AI_PIPELINE_V2", "false").lower() in ("true", "1", "yes"):
         try:
