@@ -5,7 +5,7 @@
 
 import asyncio
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, cast
 
 import httpx
 
@@ -91,7 +91,7 @@ class EmbeddingBatchProcessor:
         results = await asyncio.gather(*tasks, return_exceptions=True)
         out: List[Optional[List[float]]] = []
         for r in results:
-            if isinstance(r, Exception):
+            if isinstance(r, BaseException):
                 logger.debug("Ollama single error: %s", r)
                 out.append(None)
             else:
@@ -107,7 +107,8 @@ class EmbeddingBatchProcessor:
                     json={"model": self.ollama_model, "prompt": text[:8000]},
                 )
                 if r.status_code == 200:
-                    return r.json().get("embedding")
+                    embedding = r.json().get("embedding")
+                    return cast(Optional[List[float]], embedding)
                 logger.warning("Ollama embeddings %s: %s", r.status_code, r.text[:200])
                 return None
         except Exception as e:

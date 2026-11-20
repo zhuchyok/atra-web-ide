@@ -267,7 +267,9 @@ def grounded_ports_answer(goal: str) -> Optional[str]:
         if name in g and port not in seen:
             found.append(port)
             seen.add(port)
-    if len(found) >= 2:
+    # Named service(s) win: "какой порт у Victoria?" → 8010, not the full dump.
+    # Previously len(found)==1 fell through to "8010, 8011, 3005" via "порт ".
+    if found:
         return ", ".join(found)
     if "порта" in g or "порты" in g or "порт " in g:
         return "8010, 8011, 3005"

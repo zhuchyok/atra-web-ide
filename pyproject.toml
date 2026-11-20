@@ -65,17 +65,15 @@ ignore_missing_imports = true
 explicit_package_bases = true
 follow_imports = "silent"
 
-# Residual annotation debt in backend.app (2026-11-20: 14 modules after clearing
-# ab_testing/files/telegram_alerts; prior: terminal/streaming/query_expansion,
+# Residual annotation debt in backend.app (2026-11-20: 11 modules after clearing
+# config/experts/embedding_batch; prior: ab_testing/files/telegram_alerts,
+# terminal/streaming/query_expansion,
 # chat/domains/embedding_fallback/mlx/query_rewriter/unified_embedding_provider).
 # New modules and clean files above are real gates — do not reintroduce global ignore_errors.
 [[tool.mypy.overrides]]
 module = [
-    "backend.app.config",
     "backend.app.metrics.prometheus_metrics",
     "backend.app.routers.editor",
-    "backend.app.routers.experts",
-    "backend.app.services.embedding_batch",
     "backend.app.services.knowledge_os",
     "backend.app.services.multimodal_processor",
     "backend.app.services.ollama",

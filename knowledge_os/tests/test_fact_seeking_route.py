@@ -41,6 +41,17 @@ def test_grounded_ports_match_registry():
     assert ans == "8010, 8011, 3005"
 
 
+def test_single_named_port_not_full_dump():
+    """Pair quality: named-service port questions must not dump 8010,8011,3005."""
+    assert grounded_ports_answer("Одно предложение: какой порт у Victoria agent?") == "8010"
+    assert grounded_ports_answer("какой порт у Victoria?") == "8010"
+    assert grounded_ports_answer("какой порт Veronica?") == "8011"
+    assert grounded_ports_answer("порт open webui") == "3005"
+    assert grounded_ports_answer("порты Victoria и Veronica") == "8010, 8011"
+    assert grounded_ports_answer("какие порты у проекта") == "8010, 8011, 3005"
+    assert format_live_fact_answer("какой порт у Victoria agent?") == "8010"
+
+
 def test_greeting_is_not_fact_seeking():
     assert not is_fact_seeking_question("привет")
     assert not is_fact_seeking_question("кто ты?")

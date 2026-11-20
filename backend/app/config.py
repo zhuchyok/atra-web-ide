@@ -119,7 +119,9 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             if v.startswith("["):
                 try:
-                    return json.loads(v)
+                    parsed = json.loads(v)
+                    if isinstance(parsed, list):
+                        return [str(o) for o in parsed]
                 except json.JSONDecodeError:
                     pass
             return [o.strip() for o in v.split(",") if o.strip()]
@@ -257,8 +259,8 @@ class Settings(BaseSettings):
     local_embedding_model: str = os.getenv("LOCAL_EMBEDDING_MODEL", "all-MiniLM-L6-v2")
     keyword_fallback_enabled: bool = os.getenv("KEYWORD_FALLBACK_ENABLED", "true").lower() == "true"
 
-    def validate(self) -> None:
-        """Валидация настроек"""
+    def validate_settings(self) -> None:
+        """Валидация настроек (не BaseModel.validate — конфликт сигнатуры)."""
         errors = []
 
         # Проверка URL
@@ -286,5 +288,5 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Получить настройки (кэшировано)"""
     settings = Settings()
-    settings.validate()
+    settings.validate_settings()
     return settings

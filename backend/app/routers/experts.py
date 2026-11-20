@@ -3,7 +3,7 @@ Experts Router - Улучшенная версия с кэшированием
 """
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, cast
 
 from app.services.cache import get_cache
 from app.services.knowledge_os import KnowledgeOSClient, get_knowledge_os_client
@@ -41,7 +41,7 @@ async def list_experts(
     cached = cache.get(cache_key)
     if cached is not None:
         logger.debug("Experts list served from cache")
-        return cached
+        return cast(List[Expert], cached)
 
     try:
         experts = await knowledge_os.get_experts()
@@ -97,7 +97,7 @@ async def get_expert(
     cached = cache.get(cache_key)
     if cached is not None:
         logger.debug(f"Expert {expert_id} served from cache")
-        return cached
+        return cast(Expert, cached)
 
     try:
         expert = await knowledge_os.get_expert(expert_id)
