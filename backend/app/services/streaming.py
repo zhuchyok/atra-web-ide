@@ -26,9 +26,9 @@ class StreamingProcessor:
         self.buffer_size = buffer_size
         self.min_delay = min_delay
         self.max_delay = max_delay
-        self._buffer = []
+        self._buffer: list[str] = []
         self._in_code_block = False
-        self._code_language = None
+        self._code_language: Optional[str] = None
 
     async def process_stream(
         self, source: AsyncGenerator[str, None], on_chunk: Optional[Callable] = None

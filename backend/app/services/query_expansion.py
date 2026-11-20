@@ -38,12 +38,12 @@ def expand_query(query: str, max_extra_terms: int = 8) -> str:
     # Точное совпадение
     extra = QUERY_EXPANSION_TERMS.get(q_lower)
     if extra:
-        terms = extra.split()[:max_extra_terms]
-        return f"{query} {' '.join(terms)}"
+        extra_terms = extra.split()[:max_extra_terms]
+        return f"{query} {' '.join(extra_terms)}"
     # Частичное совпадение (подстрока)
-    for key, terms in QUERY_EXPANSION_TERMS.items():
+    for key, expansion in QUERY_EXPANSION_TERMS.items():
         if key in q_lower or q_lower in key:
-            add = terms.split()[:max_extra_terms]
+            add = expansion.split()[:max_extra_terms]
             return f"{query} {' '.join(add)}"
     return query
 

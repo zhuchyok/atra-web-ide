@@ -67,8 +67,8 @@ class TerminalSession:
 
     def __init__(self, websocket: WebSocket):
         self.websocket = websocket
-        self.pid = None
-        self.fd = None
+        self.pid: Optional[int] = None
+        self.fd: Optional[int] = None
 
     async def start(self):
         """Запустить PTY (не блокирует event loop)."""
