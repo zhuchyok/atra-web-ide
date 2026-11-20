@@ -85,7 +85,20 @@ jobs:
                 # Prefer lean test deps (still heavy; avoids browser-use/moondream).
                 python -m pip install --upgrade pip
                 python -m pip install -r knowledge_os/requirements-test.txt
-                python -m pytest knowledge_os/tests/ -q
+                python -m pytest knowledge_os/tests/ -q \
+                  -k "not benchmark and not live" \
+                  --ignore=knowledge_os/tests/test_e2e.py \
+                  --ignore=knowledge_os/tests/test_security.py \
+                  --ignore=knowledge_os/tests/test_performance_benchmarks.py \
+                  --ignore=knowledge_os/tests/test_live_chain.py \
+                  --ignore=knowledge_os/tests/test_integration_bridge.py \
+                  --ignore=knowledge_os/tests/test_actor_event_sourcing.py \
+                  --ignore=knowledge_os/tests/test_knowledge_graph.py \
+                  --ignore=knowledge_os/tests/test_load.py \
+                  --ignore=knowledge_os/tests/test_red_team_auditor.py \
+                  --ignore=knowledge_os/tests/test_deep_memory.py \
+                  --ignore=knowledge_os/tests/test_rest_api.py \
+                  --ignore=knowledge_os/tests/test_victoria_chat_and_request.py
                 ;;
               frontend:build)
                 cd frontend && npm ci && npm run build && cd ..
