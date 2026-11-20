@@ -227,7 +227,7 @@ async def lint_code(request: LintRequest) -> LintResponse:
 
 def _lint_python(code: str) -> List[Dict[str, str | int]]:
     """Базовая проверка Python кода"""
-    errors = []
+    errors: List[Dict[str, str | int]] = []
     lines = code.split("\n")
 
     for i, line in enumerate(lines, 1):
@@ -261,7 +261,7 @@ def _lint_python(code: str) -> List[Dict[str, str | int]]:
 
 def _lint_javascript(code: str) -> List[Dict[str, str | int]]:
     """Базовая проверка JavaScript кода"""
-    errors = []
+    errors: List[Dict[str, str | int]] = []
     lines = code.split("\n")
 
     for i, line in enumerate(lines, 1):
@@ -292,7 +292,7 @@ def _lint_javascript(code: str) -> List[Dict[str, str | int]]:
 
 def _lint_json(code: str) -> List[Dict[str, str | int]]:
     """Проверка JSON синтаксиса"""
-    errors = []
+    errors: List[Dict[str, str | int]] = []
 
     try:
         import json

@@ -9,7 +9,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -179,9 +179,11 @@ class ValidationPipeline:
         """Получение контекста для запроса (для оценки faithfulness)."""
         try:
             if hasattr(self.rag_service, "get_chunks_for_query"):
-                return await self.rag_service.get_chunks_for_query(query, limit=5)
+                chunks = await self.rag_service.get_chunks_for_query(query, limit=5)
+                return cast(List[str], chunks)
             if hasattr(self.rag_service, "get_last_context"):
-                return await self.rag_service.get_last_context()
+                ctx = await self.rag_service.get_last_context()
+                return cast(List[str], ctx)
         except Exception as e:
             logger.warning("Could not get context for evaluation: %s", e)
         return []

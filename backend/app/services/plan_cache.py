@@ -6,7 +6,7 @@
 import hashlib
 import logging
 import pickle
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 from app.config import get_settings
 
@@ -78,7 +78,7 @@ class PlanCacheService:
             except Exception:
                 pass
             logger.debug("Plan cache hit (local): %s", key)
-            return self.local_cache[key]
+            return cast(Dict[str, Any], self.local_cache[key])
 
         if self.use_redis and self.redis:
             try:
@@ -91,7 +91,7 @@ class PlanCacheService:
                         record_cache_hit("plan_cache")
                     except Exception:
                         pass
-                    plan = pickle.loads(cached)
+                    plan = cast(Dict[str, Any], pickle.loads(cached))
                     self.local_cache[key] = plan
                     logger.debug("Plan cache hit (redis): %s", key)
                     return plan
@@ -151,7 +151,7 @@ class PlanCacheService:
             update_cache_size("plan_cache", size)
         except Exception:
             pass
-        out = {"local_cache_size": size}
+        out: Dict[str, Any] = {"local_cache_size": size}
         if self.use_redis and self.redis:
             try:
                 keys = await self.redis.keys("plan:*")

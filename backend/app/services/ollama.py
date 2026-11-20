@@ -10,7 +10,7 @@ import json
 import logging
 import os
 from collections.abc import AsyncGenerator
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import httpx
 from app.config import get_settings
@@ -114,7 +114,8 @@ class OllamaClient:
 
         try:
             data = await self._retry_request(_make_request)
-            return data.get("models", [])
+            models = data.get("models", []) if isinstance(data, dict) else []
+            return cast(List[dict[Any, Any]], models)
         except httpx.HTTPError as e:
             logger.error(f"Ollama list_models error: {e}")
             return []
@@ -144,7 +145,8 @@ class OllamaClient:
 
         try:
             logger.info(f"📥 Загрузка модели: {model_name}")
-            return await self._retry_request(_make_request)
+            result = await self._retry_request(_make_request)
+            return cast(Dict[str, Any], result) if isinstance(result, dict) else {"raw": result}
         except httpx.HTTPError as e:
             logger.error(f"Ollama pull_model error: {e}")
             return {"error": str(e)}
@@ -209,7 +211,8 @@ class OllamaClient:
                 return response.json()
 
         try:
-            return await self._retry_request(_make_request)
+            result = await self._retry_request(_make_request)
+            return cast(Dict[str, Any], result) if isinstance(result, dict) else {"raw": result}
         except httpx.HTTPError as e:
             logger.error(f"Ollama generate error: {e}")
             return {"error": str(e)}
@@ -260,7 +263,8 @@ class OllamaClient:
                 return {"status": "healthy", "mode": "cloud" if self.use_cloud else "local"}
 
         try:
-            return await self._retry_request(_make_request)
+            result = await self._retry_request(_make_request)
+            return cast(Dict[str, Any], result) if isinstance(result, dict) else {"status": "healthy"}
         except httpx.HTTPError as e:
             return {
                 "status": "unhealthy",

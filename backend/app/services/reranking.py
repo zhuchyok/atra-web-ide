@@ -7,18 +7,19 @@
 
 import logging
 import re
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional
 
 logger = logging.getLogger(__name__)
 
 # Опционально: sentence-transformers для cross-encoder
+_CrossEncoderCls: Any = None
 try:
-    from sentence_transformers import CrossEncoder
+    from sentence_transformers import CrossEncoder as _ImportedCrossEncoder
 
+    _CrossEncoderCls = _ImportedCrossEncoder
     CROSS_ENCODER_AVAILABLE = True
 except ImportError:
     CROSS_ENCODER_AVAILABLE = False
-    CrossEncoder = None
 
 
 class RerankingService:
@@ -35,10 +36,10 @@ class RerankingService:
     ):
         self.method = method
         self.top_k = top_k
-        self._cross_encoder = None
-        if method == "cross_encoder" and CROSS_ENCODER_AVAILABLE and CrossEncoder:
+        self._cross_encoder: Any = None
+        if method == "cross_encoder" and CROSS_ENCODER_AVAILABLE and _CrossEncoderCls is not None:
             try:
-                self._cross_encoder = CrossEncoder(
+                self._cross_encoder = _CrossEncoderCls(
                     model_name or "cross-encoder/ms-marco-MiniLM-L-6-v2"
                 )
             except Exception as e:
@@ -61,7 +62,7 @@ class RerankingService:
         m = method or self.method
         k = min(top_k or self.top_k, len(chunks))
 
-        if m == "cross_encoder" and self._cross_encoder:
+        if m == "cross_encoder" and self._cross_encoder is not None:
             return await self._rerank_cross_encoder(query, chunks, k)
         if m == "hybrid":
             return await self._rerank_hybrid(query, chunks, k)
@@ -69,9 +70,12 @@ class RerankingService:
 
     async def _rerank_cross_encoder(self, query: str, chunks: List[str], top_k: int) -> List[str]:
         """Реранкинг через cross-encoder (точнее, но медленнее)."""
+        encoder = self._cross_encoder
+        if encoder is None:
+            return await self._rerank_text_similarity(query, chunks, top_k)
         try:
             pairs = [(query, c) for c in chunks]
-            scores = self._cross_encoder.predict(pairs)
+            scores = encoder.predict(pairs)
             indexed = list(zip(scores, chunks))
             indexed.sort(key=lambda x: x[0], reverse=True)
             return [c for _, c in indexed[:top_k]]
