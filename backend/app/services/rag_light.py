@@ -10,9 +10,16 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
-from app.config import get_settings
+from app.config import get_settings, resolve_ollama_embed_base_url
 
 logger = logging.getLogger(__name__)
+
+
+def _embed_ollama_base(settings: Any = None) -> str:
+    """Base URL for nomic embeds (hands :11437), not brain :11434."""
+    s = settings or get_settings()
+    configured = (getattr(s, "ollama_embed_url", None) or "").strip()
+    return resolve_ollama_embed_base_url(embed_url=configured or None)
 
 
 def _rag_metrics_decorator(func):
@@ -94,7 +101,7 @@ class RAGLightService:
                 from app.services.embedding_batch import EmbeddingBatchProcessor
 
                 self.embedding_batch_processor = EmbeddingBatchProcessor(
-                    ollama_url=settings.ollama_url,
+                    ollama_url=_embed_ollama_base(settings),
                     ollama_model=getattr(settings, "ollama_embed_model", "nomic-embed-text"),
                     batch_size=getattr(settings, "embedding_batch_size", 10),
                     batch_timeout_ms=getattr(settings, "embedding_batch_timeout_ms", 50),
@@ -181,9 +188,9 @@ class RAGLightService:
         return None
 
     async def get_embedding(self, text: str) -> Optional[List[float]]:
-        """Получение эмбеддинга через Ollama API."""
+        """Получение эмбеддинга через Ollama API (hands nomic :11437)."""
         settings = get_settings()
-        url = f"{settings.ollama_url.rstrip('/')}/api/embeddings"
+        url = f"{_embed_ollama_base(settings).rstrip('/')}/api/embeddings"
         model = getattr(settings, "ollama_embed_model", "nomic-embed-text")
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:

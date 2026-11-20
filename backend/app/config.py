@@ -15,6 +15,25 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 logger = logging.getLogger(__name__)
 
 
+def resolve_ollama_embed_base_url(
+    embed_url: Optional[str] = None,
+    hands_url: Optional[str] = None,
+) -> str:
+    """nomic lives on hands :11437 — never default embeds to brain :11434.
+
+    Accepts base URL or full ``.../api/embeddings``; always returns base without path.
+    """
+    raw = (
+        (embed_url if embed_url is not None else os.getenv("OLLAMA_EMBED_URL"))
+        or (hands_url if hands_url is not None else os.getenv("OLLAMA_HANDS_URL"))
+        or "http://127.0.0.1:11437"
+    ).strip().rstrip("/")
+    suffix = "/api/embeddings"
+    if raw.endswith(suffix):
+        raw = raw[: -len(suffix)]
+    return raw
+
+
 class Settings(BaseSettings):
     """Настройки приложения с валидацией"""
 
@@ -146,6 +165,8 @@ class Settings(BaseSettings):
     rag_light_max_length: int = int(os.getenv("RAG_LIGHT_MAX_LENGTH", "150"))
     rag_light_timeout_ms: int = int(os.getenv("RAG_LIGHT_TIMEOUT_MS", "200"))
     ollama_embed_model: str = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+    # Hands nomic (:11437). Prefer OLLAMA_EMBED_URL / OLLAMA_HANDS_URL; never brain :11434.
+    ollama_embed_url: str = resolve_ollama_embed_base_url()
     # Фаза 4: реранкинг чанков для повышения релевантности
     reranking_enabled: bool = os.getenv("RERANKING_ENABLED", "false").lower() == "true"
     # Фаза 4: query expansion для улучшения retrieval
