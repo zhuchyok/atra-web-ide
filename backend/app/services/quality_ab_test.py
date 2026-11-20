@@ -22,7 +22,7 @@ class QualityABTest:
 
     def __init__(self, results_path: Optional[str] = None):
         self.results_path = Path(results_path) if results_path else _default_results_path()
-        self.experiments = {
+        self.experiments: Dict[str, Any] = {
             "reranking_method": {
                 "variants": {
                     "control": {"method": None},
@@ -47,7 +47,7 @@ class QualityABTest:
                 "weights": [0.34, 0.33, 0.33],
             },
         }
-        self.results: Dict[str, Dict] = {}
+        self.results: Dict[str, Dict[str, Any]] = {}
         self._load_results()
 
     def _load_results(self) -> None:
@@ -72,9 +72,9 @@ class QualityABTest:
             return "control"
         hash_input = f"{user_id}_{experiment}"
         hash_value = int(hashlib.md5(hash_input.encode()).hexdigest()[:8], 16)
-        weights = self.experiments[experiment]["weights"]
+        weights: List[float] = [float(w) for w in self.experiments[experiment]["weights"]]
         cumulative = 0.0
-        variants = list(self.experiments[experiment]["variants"].keys())
+        variants: List[str] = [str(k) for k in self.experiments[experiment]["variants"].keys()]
         for variant, weight in zip(variants, weights):
             cumulative += weight
             if (hash_value % 100) < (cumulative * 100):
@@ -107,17 +107,18 @@ class QualityABTest:
         """Победитель только при наличии samples; иначе None (fail-closed, не 'control')."""
         if experiment not in self.experiments:
             return None
-        best_variant = None
+        best_variant: Optional[str] = None
         best_score = -1.0
         for variant in self.experiments[experiment]["variants"]:
-            key = f"{experiment}:{variant}"
+            variant_name = str(variant)
+            key = f"{experiment}:{variant_name}"
             if key in self.results and self.results[key]["count"] > 0:
                 avg = (
                     self.results[key]["metrics"].get(primary_metric, 0) / self.results[key]["count"]
                 )
                 if avg > best_score:
                     best_score = avg
-                    best_variant = variant
+                    best_variant = variant_name
         return best_variant
 
     def get_summary(self, experiment: str) -> Dict[str, Any]:

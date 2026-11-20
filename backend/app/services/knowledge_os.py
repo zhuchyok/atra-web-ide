@@ -47,12 +47,18 @@ class KnowledgeOSClient:
             await self._pool.close()
         self._pool = None
 
-    async def get_experts(self) -> List[dict]:
-        """Получить список всех экспертов"""
+    async def _require_pool(self) -> asyncpg.Pool:
+        """Ensure pool exists; mypy-narrow Optional after lazy connect."""
         if self._pool is None:
             await self.connect()
+        assert self._pool is not None
+        return self._pool
 
-        async with self._pool.acquire() as conn:
+    async def get_experts(self) -> List[dict]:
+        """Получить список всех экспертов"""
+        pool = await self._require_pool()
+
+        async with pool.acquire() as conn:
             rows = await conn.fetch("""
                 SELECT
                     id,
@@ -67,10 +73,9 @@ class KnowledgeOSClient:
 
     async def get_expert(self, expert_id: str) -> Optional[dict]:
         """Получить эксперта по ID"""
-        if self._pool is None:
-            await self.connect()
+        pool = await self._require_pool()
 
-        async with self._pool.acquire() as conn:
+        async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
                 SELECT
@@ -98,11 +103,10 @@ class KnowledgeOSClient:
 
     async def get_expert_by_name(self, name: str) -> Optional[dict]:
         """Получить эксперта по имени. Veronica→Вероника, Victoria→Виктория."""
-        if self._pool is None:
-            await self.connect()
+        pool = await self._require_pool()
         n = (name or "").strip()
         resolved = self._EXPERT_NAME_TO_DB.get(n, name)
-        async with self._pool.acquire() as conn:
+        async with pool.acquire() as conn:
             for candidate in [resolved, name]:
                 if not candidate:
                     continue
@@ -119,10 +123,9 @@ class KnowledgeOSClient:
 
     async def get_domains(self) -> List[dict]:
         """Получить список доменов"""
-        if self._pool is None:
-            await self.connect()
+        pool = await self._require_pool()
 
-        async with self._pool.acquire() as conn:
+        async with pool.acquire() as conn:
             rows = await conn.fetch("""
                 SELECT
                     id,
@@ -144,11 +147,10 @@ class KnowledgeOSClient:
         Векторный поиск по knowledge_nodes (pgvector).
         Возвращает чанки с similarity >= threshold.
         """
-        if self._pool is None:
-            await self.connect()
+        pool = await self._require_pool()
         # PostgreSQL pgvector: <=> это оператор расстояния (1 - distance = similarity)
         try:
-            async with self._pool.acquire() as conn:
+            async with pool.acquire() as conn:
                 rows = await conn.fetch(
                     """
                     SELECT content, metadata, (1 - (embedding <=> $1::vector)) AS similarity
@@ -171,10 +173,9 @@ class KnowledgeOSClient:
         self, query: str, limit: int = 10, domain_id: Optional[str] = None
     ) -> List[dict]:
         """Поиск по знаниям"""
-        if self._pool is None:
-            await self.connect()
+        pool = await self._require_pool()
 
-        async with self._pool.acquire() as conn:
+        async with pool.acquire() as conn:
             if domain_id:
                 rows = await conn.fetch(
                     """
@@ -217,10 +218,9 @@ class KnowledgeOSClient:
 
     async def get_stats(self) -> dict:
         """Статистика Knowledge OS"""
-        if self._pool is None:
-            await self.connect()
+        pool = await self._require_pool()
 
-        async with self._pool.acquire() as conn:
+        async with pool.acquire() as conn:
             experts_count = await conn.fetchval("SELECT COUNT(*) FROM experts")
             knowledge_count = await conn.fetchval("SELECT COUNT(*) FROM knowledge_nodes")
             domains_count = await conn.fetchval("SELECT COUNT(*) FROM domains")
