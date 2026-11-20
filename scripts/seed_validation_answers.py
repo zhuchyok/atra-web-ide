@@ -5,6 +5,7 @@
 """
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -51,9 +52,15 @@ async def seed_knowledge_nodes():
         for query, answer in SEED_ANSWERS.items():
             # Получаем эмбеддинг через Ollama
             try:
+                # Hands Ollama (nomic) is :11437; brain :11434 has victoria-qwen38 only.
+                _embed_url = (
+                    os.environ.get("LIVE_OLLAMA_URL")
+                    or os.environ.get("OLLAMA_EMBED_URL")
+                    or "http://127.0.0.1:11437"
+                ).rstrip("/")
                 response = await client.post(
-                    "http://localhost:11434/api/embeddings",
-                    json={"model": "nomic-embed-text", "prompt": answer}
+                    f"{_embed_url}/api/embeddings",
+                    json={"model": "nomic-embed-text", "prompt": answer},
                 )
                 if response.status_code != 200:
                     print(f"⚠️ Skipping '{query}': Ollama error {response.status_code}")

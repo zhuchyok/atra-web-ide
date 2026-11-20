@@ -116,7 +116,8 @@ class MLXClient:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(f"{self.base_url}/health")
                 if response.status_code == 200:
-                    return response.json()
+                    payload = response.json()
+                    return payload if isinstance(payload, dict) else {"status": "ok", "raw": payload}
         except Exception as e:
             logger.debug(f"MLX health check failed: {e}")
 

@@ -484,7 +484,9 @@ async def make_plan(
         if result.get("status") == "error":
             raise HTTPException(status_code=500, detail=result.get("error"))
         content_raw = result.get("result", "") or result.get("response", "")
-        return {"plan": content_raw if isinstance(content_raw, str) else str(content_raw)}
+        return JSONResponse(
+            content={"plan": content_raw if isinstance(content_raw, str) else str(content_raw)}
+        )
     except HTTPException:
         raise
     except Exception as e:

@@ -81,6 +81,8 @@ class QueryRewriter:
                 "из ключевых слов для семантического поиска по базе знаний. "
                 "Сохрани суть. Ответь только переписанным запросом, без пояснений.\n\nЗапрос: "
             ) + query
+            if not self.llm_url:
+                return None
             async with httpx.AsyncClient(timeout=5.0) as client:
                 r = await client.post(
                     f"{self.llm_url.rstrip('/')}/api/generate",

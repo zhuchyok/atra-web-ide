@@ -42,9 +42,11 @@ class UnifiedEmbeddingProvider:
         if key in self._request_embeddings:
             return self._request_embeddings[key]
         emb = await self._get_embedding(text)
-        if emb:
-            self._request_embeddings[key] = emb
-        return emb
+        if emb is None:
+            return None
+        typed = [float(x) for x in emb]
+        self._request_embeddings[key] = typed
+        return typed
 
     def get_cached_only(self, text: str) -> Optional[List[float]]:
         """Быстрая проверка без вызова Ollama."""

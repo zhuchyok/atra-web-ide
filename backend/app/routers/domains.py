@@ -3,7 +3,7 @@ Domains Router - Knowledge OS домены (35 доменов)
 """
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, cast
 
 from app.services.cache import get_cache
 from app.services.knowledge_os import KnowledgeOSClient, get_knowledge_os_client
@@ -39,7 +39,7 @@ async def list_domains(
     cached = cache.get(cache_key)
     if cached is not None:
         logger.debug("Domains list served from cache")
-        return cached
+        return cast(List[Domain], cached)
 
     try:
         rows = await knowledge_os.get_domains()

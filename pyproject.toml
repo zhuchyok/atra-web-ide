@@ -65,35 +65,29 @@ ignore_missing_imports = true
 explicit_package_bases = true
 follow_imports = "silent"
 
-# Residual annotation debt in backend.app (2026-11-20: 26 modules after clearing
-# ab_testing + rag_evaluator + sandbox; was 29 after emotions + preview). New modules
-# and clean files above are real gates — do not reintroduce global ignore_errors.
+# Residual annotation debt in backend.app (2026-11-20: 20 modules after clearing
+# chat/domains/embedding_fallback/mlx/query_rewriter/unified_embedding_provider).
+# New modules and clean files above are real gates — do not reintroduce global ignore_errors.
 [[tool.mypy.overrides]]
 module = [
     "backend.app.config",
     "backend.app.metrics.prometheus_metrics",
     "backend.app.routers.ab_testing",
-    "backend.app.routers.chat",
-    "backend.app.routers.domains",
     "backend.app.routers.editor",
     "backend.app.routers.experts",
     "backend.app.routers.files",
     "backend.app.routers.terminal",
     "backend.app.services.embedding_batch",
-    "backend.app.services.embedding_fallback",
     "backend.app.services.knowledge_os",
-    "backend.app.services.mlx",
     "backend.app.services.multimodal_processor",
     "backend.app.services.ollama",
     "backend.app.services.plan_cache",
     "backend.app.services.quality_ab_test",
     "backend.app.services.query_expansion",
-    "backend.app.services.query_rewriter",
     "backend.app.services.rag_light",
     "backend.app.services.reranking",
     "backend.app.services.streaming",
     "backend.app.services.telegram_alerts",
-    "backend.app.services.unified_embedding_provider",
     "backend.app.services.validation_pipeline",
     "backend.app.services.victoria",
 ]

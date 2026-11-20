@@ -50,7 +50,7 @@ class EmbeddingFallback:
         try:
             embedding = self._local_model.encode(text).tolist()
             logger.debug("Local embedding generated for: %s...", text[:50])
-            return embedding
+            return [float(x) for x in embedding]
         except Exception as e:
             logger.error("Error generating local embedding: %s", e)
             return None
