@@ -598,7 +598,6 @@ def run_backtest(
 
             except Exception as e:
                 # Если интеллектуальная система не работает, используем обычный сигнал
-                logger = logging.getLogger(__name__)
                 logger.debug("⚠️ Ошибка интеллектуальной системы: %s, используем обычный сигнал", e)
                 final_params = {}
 
@@ -651,7 +650,6 @@ def run_backtest(
                     # }
                     pass
                 except Exception as e:
-                    logger = logging.getLogger(__name__)
                     logger.debug("⚠️ Ошибка проверки интеллектуальной системой: %s", e)
 
                 side = signal_side
