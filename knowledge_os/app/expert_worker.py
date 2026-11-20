@@ -630,8 +630,13 @@ class VictoriaExpertActor(AgentBase):
         await self.record_event("task_started", {"description": task_description[:200]})
 
         # [SINGULARITY 28.2] Add contract enforcement to prompt
+        try:
+            from cursor_method import CURSOR_METHOD_PROMPT
+        except ImportError:
+            from app.cursor_method import CURSOR_METHOD_PROMPT
+
         contract_instruction = ExpertContract.format_prompt_instruction()
-        full_prompt = f"{task_description}\n\n{contract_instruction}"
+        full_prompt = f"{CURSOR_METHOD_PROMPT}{task_description}\n\n{contract_instruction}"
 
         import hashlib as _hashlib
 
@@ -1670,7 +1675,15 @@ async def process_task(task_data: dict):
                             logger.debug(f"Failed to load DNA for dialogue: {dna_err}")
                             _persona = f"Ты — {expert_name}, эксперт корпорации Singularity 21.5."
 
-                        _system = f"{_persona}\n\nОтвечай от первого лица кратко (2-3 предложения), в своём стиле."
+                        try:
+                            from cursor_method import CURSOR_METHOD_PROMPT as _CMP
+                        except ImportError:
+                            from app.cursor_method import CURSOR_METHOD_PROMPT as _CMP
+
+                        _system = (
+                            f"{_persona}\n\n{_CMP}"
+                            "Отвечай от первого лица кратко (2-3 предложения), в своём стиле."
+                        )
 
                         # Очищаем description от служебного префикса "УЧАСТИЕ В ДИАЛОГЕ [id]: ..."
                         import re as _re
