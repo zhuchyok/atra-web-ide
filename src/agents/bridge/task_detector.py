@@ -285,7 +285,11 @@ def goal_wants_ollama_slots(goal: str) -> bool:
 
 
 def goal_wants_ttc(goal: str) -> bool:
-    """TTC/p95 dump only when the user asks for latency metrics — not 'metrics dump' prose."""
+    """TTC/p95 dump only when the user asks for latency metrics — not 'metrics dump' prose.
+
+    Do not put ``ttc`` on both sides of the AND: that made bare "what is ttc" /
+    "explain ttc" emit a live p50/p95 dump instead of an explanation.
+    """
     g = (goal or "").lower()
     if any(
         x in g
@@ -304,7 +308,6 @@ def goal_wants_ttc(goal: str) -> bool:
             "async",
             "samples",
             "latency",
-            "ttc",
             "victoria",
             "inflight",
             "prometheus",
@@ -313,6 +316,8 @@ def goal_wants_ttc(goal: str) -> bool:
             "какие",
             "curl",
             "grep",
+            "show",
+            "give",
         )
     ):
         return True
@@ -535,6 +540,7 @@ def is_fact_seeking_question(goal: str) -> bool:
 
     # Объяснительные/творческие цели — не fact-probe, даже если внутри есть
     # слово-маркер («объясни backpressure в очередях задач» ≠ «сколько в очереди»).
+    # English mirrors: "what is ttc" / "explain ttc" must not dump live p50/p95.
     if any(
         g.startswith(v)
         for v in (
@@ -546,6 +552,12 @@ def is_fact_seeking_question(goal: str) -> bool:
             "сравни",
             "проанализируй",
             "разбери",
+            "explain",
+            "what is",
+            "what's",
+            "whats",
+            "tell me about",
+            "tell me what",
         )
     ):
         return False

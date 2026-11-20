@@ -193,6 +193,31 @@ def test_metrics_dump_meta_question_does_not_emit_ttc():
     assert "by_reason=" not in (ans or "")
 
 
+def test_english_explain_ttc_is_not_live_metrics_dump():
+    """Bare 'what is/explain ttc' must not hijack chat into a p50/p95 dump."""
+    ttc = {
+        "p50": 57.884,
+        "p95": 234.617,
+        "samples": 200,
+        "inflight_max": 0.0,
+        "inflight_n": 0,
+        "by_reason": {"request_async_mode": {"p95": 234.617, "samples": 199}},
+    }
+    for goal in (
+        "what is ttc in this project?",
+        "explain ttc threshold 420",
+        "what's ttc?",
+        "что такое ttc?",
+        "объясни ttc threshold 420",
+    ):
+        assert is_fact_seeking_question(goal) is False, goal
+        assert goal_wants_ttc(goal) is False, goal
+        assert format_live_fact_answer(goal, health="ok", ttc=ttc) is None, goal
+    # Explicit ask for live TTC numbers still works.
+    assert goal_wants_ttc("дай victoria_async_ttc p50 p95 samples")
+    assert goal_wants_ttc("show victoria async ttc p95 samples")
+
+
 def test_ttc_metrics_append_by_reason_when_present():
     ans = format_live_fact_answer(
         "какие victoria_async_ttc p50 p95 samples",
