@@ -6,14 +6,19 @@ from fastapi import APIRouter, HTTPException
 
 # from ..services.knowledge_service import knowledge_service
 
-# Пытаемся импортировать SandboxManager
+# Пытаемся импортировать SandboxManager (один binding — без no-redef).
 try:
-    from knowledge_os.app.sandbox_manager import get_sandbox_manager
+    from knowledge_os.app.sandbox_manager import get_sandbox_manager as _get_sandbox_manager
 except ImportError:
     try:
-        from app.sandbox_manager import get_sandbox_manager
+        from app.sandbox_manager import get_sandbox_manager as _get_sandbox_manager
     except ImportError:
-        get_sandbox_manager = lambda: None
+
+        def _get_sandbox_manager():  # type: ignore[misc]
+            return None
+
+
+get_sandbox_manager = _get_sandbox_manager
 
 router = APIRouter(prefix="/api/sandbox", tags=["sandbox"])
 logger = logging.getLogger(__name__)

@@ -8943,7 +8943,31 @@ async def _run_task_background(
                     context=context_with_history if context_with_history else None,  # type: ignore[call-arg]
                 )
             )
-            done, _ = await asyncio.wait({solve_task}, timeout=_enhanced_timeout)
+
+            async def _enhanced_solve_heartbeat() -> None:
+                """Keep Redis updated_at fresh so /run/status self-heal does not
+                false-fail a live enhanced.solve (UVICORN_WORKERS>1)."""
+                _hb_sec = float(os.getenv("VICTORIA_ENHANCED_HEARTBEAT_SEC", "30"))
+                if _hb_sec <= 0:
+                    return
+                while True:
+                    await asyncio.sleep(_hb_sec)
+                    store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    store["stage"] = "enhanced_solve"
+                    try:
+                        await _sync_store()
+                    except Exception:
+                        pass
+
+            _hb_task = asyncio.create_task(_enhanced_solve_heartbeat())
+            try:
+                done, _ = await asyncio.wait({solve_task}, timeout=_enhanced_timeout)
+            finally:
+                _hb_task.cancel()
+                try:
+                    await _hb_task
+                except (asyncio.CancelledError, Exception):
+                    pass
             if not done:
                 logger.error(
                     "[VICTORIA_CYCLE] enhanced.solve soft-timeout task_id=%s after %ss",

@@ -26,3 +26,15 @@ def test_get_run_status_prefers_local_terminal_over_redis_inflight():
     assert "VICTORIA_ASYNC_HARD_TIMEOUT_SEC" in fn
     assert "VICTORIA_ASYNC_INFLIGHT_STALE_SEC" in fn
     assert "updated_age=" in fn
+
+
+def test_enhanced_solve_heartbeats_updated_at():
+    text = VICTORIA_SERVER.read_text(encoding="utf-8")
+    assert "async def _enhanced_solve_heartbeat()" in text
+    assert "VICTORIA_ENHANCED_HEARTBEAT_SEC" in text
+    # Heartbeat must wrap the wait on solve_task, not run after it.
+    chunk = text.split("solve_task = asyncio.create_task(", 1)[1].split(
+        "if not done:", 1
+    )[0]
+    assert "_enhanced_solve_heartbeat" in chunk
+    assert "asyncio.wait({solve_task}" in chunk

@@ -148,7 +148,7 @@ class RAGEvaluator:
 
             scorer = rouge_scorer.RougeScorer(["rouge1"], use_stemmer=False)
             s = scorer.score(reference, response)
-            return s["rouge1"].recall
+            return float(s["rouge1"].recall)
         except ImportError:
             r_w = set(response.lower().split())
             ref_w = set(reference.lower().split())

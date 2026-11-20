@@ -99,9 +99,9 @@ class ABTestingService:
         hash_value = int(hashlib.md5(hash_input.encode()).hexdigest()[:8], 16)
         variant_num = hash_value % 100
 
-        cumulative = 0
+        cumulative = 0.0
         for variant_name, percentage in exp.variants.items():
-            cumulative += percentage
+            cumulative += float(percentage)
             if variant_num < cumulative:
                 if user_id not in self.user_variants:
                     self.user_variants[user_id] = {}
