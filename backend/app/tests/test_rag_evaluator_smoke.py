@@ -143,6 +143,7 @@ def test_live_ollama_default_is_hands_11437(monkeypatch: pytest.MonkeyPatch):
     for key in (
         "LIVE_OLLAMA_URL",
         "OLLAMA_EMBED_URL",
+        "OLLAMA_HANDS_URL",
         "OLLAMA_URL",
         "OLLAMA_BASE_URL",
     ):
@@ -158,11 +159,17 @@ def test_live_ollama_default_is_hands_11437(monkeypatch: pytest.MonkeyPatch):
 
     assert mod._ollama_base_url() == "http://127.0.0.1:11437"
 
+    # Brain env must not hijack nomic embeds onto :11434.
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
-    assert mod._ollama_base_url() == "http://127.0.0.1:11434"
-
-    monkeypatch.setenv("LIVE_OLLAMA_URL", "http://127.0.0.1:11437")
+    monkeypatch.setenv("OLLAMA_URL", "http://127.0.0.1:11434")
     assert mod._ollama_base_url() == "http://127.0.0.1:11437"
+    assert "11434" not in mod._ollama_base_url()
+
+    monkeypatch.setenv("OLLAMA_HANDS_URL", "http://127.0.0.1:11437")
+    assert mod._ollama_base_url() == "http://127.0.0.1:11437"
+
+    monkeypatch.setenv("LIVE_OLLAMA_URL", "http://embed.example:9999/api/embeddings")
+    assert mod._ollama_base_url() == "http://embed.example:9999"
 
 
 def test_seed_qa_chunk_rejects_faq_noise():

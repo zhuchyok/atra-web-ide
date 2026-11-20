@@ -65,16 +65,15 @@ def _env_truthy(name: str) -> bool:
 def _ollama_base_url() -> str:
     """Hands nomic first — same contract as seed_knowledge_from_dataset / run_live_rag_quality.sh.
 
-    Prefer LIVE_OLLAMA_URL / OLLAMA_EMBED_URL so a brain-only OLLAMA_BASE_URL from .env
-    cannot hijack embeds (brain :11434 has victoria-qwen38 only; nomic lives on :11437).
+    LIVE_OLLAMA_URL → OLLAMA_EMBED_URL → OLLAMA_HANDS_URL → :11437.
+    Never fall back to OLLAMA_URL / OLLAMA_BASE_URL (brain :11434 has no nomic).
     """
     return (
-        os.environ.get("LIVE_OLLAMA_URL")
-        or os.environ.get("OLLAMA_EMBED_URL")
-        or os.environ.get("OLLAMA_URL")
-        or os.environ.get("OLLAMA_BASE_URL")
+        (os.environ.get("LIVE_OLLAMA_URL") or "").strip()
+        or (os.environ.get("OLLAMA_EMBED_URL") or "").strip()
+        or (os.environ.get("OLLAMA_HANDS_URL") or "").strip()
         or "http://127.0.0.1:11437"
-    ).rstrip("/")
+    ).rstrip("/").replace("/api/embeddings", "").replace("/api/embed", "")
 
 
 async def _preflight_live_services() -> dict:
