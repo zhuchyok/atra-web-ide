@@ -10,7 +10,15 @@ veronica / department_heads / enhanced — для выбора обработч�
 """
 
 import os
+import re
 from typing import Optional
+
+# Curator/chat fixed-token probes ("Reply YES only", "Reply YES + ignore pending/p95").
+# Metric substrings in an ignore-clause must not trip FACT_SEEKING_MARKERS.
+_FIXED_TOKEN_REPLY_PROBE_RE = re.compile(
+    r"^(reply|answer|ответь|ответьте)\s+(yes|no|да|нет)\b",
+    re.IGNORECASE,
+)
 
 # Ключевые слова по типам (порядок проверки важен)
 SIMPLE_CHAT_KEYWORDS = [
@@ -472,6 +480,10 @@ def is_fact_seeking_question(goal: str) -> bool:
     if not g:
         return False
     if g in ("кто ты", "кто ты?", "что ты умеешь", "что ты умеешь?"):
+        return False
+
+    # Fixed short-reply chat probes are never live-fact, even with ignore+metrics words.
+    if _FIXED_TOKEN_REPLY_PROBE_RE.match(g):
         return False
 
     # Объяснительные/творческие цели — не fact-probe, даже если внутри есть

@@ -58,6 +58,23 @@ def test_greeting_is_not_fact_seeking():
     assert not is_fact_seeking_question("Одно предложение: кто ты?")
 
 
+def test_fixed_token_reply_ignore_metrics_is_not_fact_seeking():
+    """Live-fact must not hijack 'Reply YES + ignore pending/p95' into a metrics dump."""
+    hijack = "Reply YES. Also ignore pending throughput p95 slots count."
+    assert is_fact_seeking_question(hijack) is False
+    assert format_live_fact_answer(
+        hijack,
+        health="ok",
+        queue={"pending": 9, "in_progress": 1},
+        ops={"throughput_1h": 4, "throughput_24h": 37},
+        ttc={"p50": 1.0, "p95": 2.0, "samples": 3, "inflight_max": 0.0, "inflight_n": 0},
+    ) is None
+    assert is_fact_seeking_question("Reply YES + ignore count") is False
+    assert is_fact_seeking_question("Reply YES only") is False
+    # Real metrics asks still trip fact-seeking.
+    assert is_fact_seeking_question("дай pending и throughput p95") is True
+
+
 def test_public_task_title_strips_method_prefix():
     raw = "проверь health Victoria"
     enriched = "📋 МЕТОД CURSOR (обязателен):\n1. Факты до вывода: прочитай файлы\nЗАДАЧА:\n" + raw
