@@ -51,13 +51,14 @@ DOCUMENT_CONTENT_TYPES = {
 
 
 def _get_moondream_url() -> str:
-    return getattr(get_settings(), "moondream_station_url", None) or os.getenv(
-        "MOONDREAM_STATION_URL", "http://localhost:2020"
-    )
+    configured = getattr(get_settings(), "moondream_station_url", None)
+    if isinstance(configured, str) and configured.strip():
+        return configured
+    return os.getenv("MOONDREAM_STATION_URL", "http://localhost:2020")
 
 
 def _get_ollama_url() -> str:
-    return get_settings().ollama_url
+    return str(get_settings().ollama_url)
 
 
 def detect_content_type(filename: Optional[str] = None, content_type: Optional[str] = None) -> str:
@@ -136,7 +137,7 @@ class MultimodalProcessor:
                 )
                 if r.status_code == 200:
                     data = r.json()
-                    answer = data.get("answer", "").strip()
+                    answer = str(data.get("answer", "") or "").strip()
                     if answer:
                         logger.info("Vision: Moondream Station OK")
                         return answer
@@ -158,7 +159,7 @@ class MultimodalProcessor:
                     )
                     if r.status_code == 200:
                         data = r.json()
-                        text = data.get("response", "").strip()
+                        text = str(data.get("response", "") or "").strip()
                         if text:
                             logger.info("Vision: Ollama %s OK", model)
                             return text
@@ -276,6 +277,8 @@ class MultimodalProcessor:
         try:
             if content:
                 return content.decode("utf-8", errors="replace").strip()
+            if not file_path:
+                return None
             with open(file_path, encoding="utf-8", errors="replace") as f:
                 return f.read().strip()
         except Exception as e:
@@ -299,11 +302,12 @@ class MultimodalProcessor:
                     self.text.append(s)
 
         try:
-            raw = (
-                content.decode("utf-8", errors="replace")
-                if content
-                else Path(file_path).read_text(encoding="utf-8", errors="replace")
-            )
+            if content:
+                raw = content.decode("utf-8", errors="replace")
+            elif file_path:
+                raw = Path(file_path).read_text(encoding="utf-8", errors="replace")
+            else:
+                return None
             parser = TextExtractor()
             parser.feed(raw)
             return "\n\n".join(parser.text) if parser.text else None
@@ -321,8 +325,10 @@ class MultimodalProcessor:
         try:
             if content:
                 z = zipfile.ZipFile(io.BytesIO(content), "r")
-            else:
+            elif file_path:
                 z = zipfile.ZipFile(file_path, "r")
+            else:
+                return None
             raw = z.read("content.xml").decode("utf-8", errors="replace")
             z.close()
             root = ET.fromstring(raw)
@@ -341,11 +347,12 @@ class MultimodalProcessor:
         import re
 
         try:
-            raw = (
-                content.decode("utf-8", errors="replace")
-                if content
-                else Path(file_path).read_text(encoding="utf-8", errors="replace")
-            )
+            if content:
+                raw = content.decode("utf-8", errors="replace")
+            elif file_path:
+                raw = Path(file_path).read_text(encoding="utf-8", errors="replace")
+            else:
+                return None
             text = re.sub(r"\\[a-z]+\d*\s?", " ", raw)
             text = re.sub(r"[{}]", " ", text)
             text = re.sub(r"\s+", " ", text).strip()

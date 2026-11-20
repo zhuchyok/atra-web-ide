@@ -65,14 +65,12 @@ ignore_missing_imports = true
 explicit_package_bases = true
 follow_imports = "silent"
 
-# Residual annotation debt in backend.app (2026-11-20: 4 modules after clearing
-# knowledge_os/quality_ab_test; prior: ollama/reranking/validation_pipeline,
-# editor/plan_cache).
+# Residual annotation debt in backend.app (2026-11-20: 2 modules after clearing
+# prometheus_metrics, multimodal_processor; prior: knowledge_os/quality_ab_test,
+# ollama/reranking/validation_pipeline, editor/plan_cache).
 # New modules and clean files above are real gates — do not reintroduce global ignore_errors.
 [[tool.mypy.overrides]]
 module = [
-    "backend.app.metrics.prometheus_metrics",
-    "backend.app.services.multimodal_processor",
     "backend.app.services.rag_light",
     "backend.app.services.victoria",
 ]

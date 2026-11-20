@@ -6,7 +6,7 @@ RAG, Plan Cache, LLM, запросы, ошибки.
 import logging
 import time
 from functools import wraps
-from typing import Type, TypeVar
+from typing import Any, Callable, TypeVar, cast
 
 from prometheus_client import (
     REGISTRY,
@@ -21,6 +21,26 @@ logger = logging.getLogger(__name__)
 
 _M = TypeVar("_M")
 
+
+class _DummyMetric:
+    """No-op metric stub when registry create/lookup fails."""
+
+    def labels(self, *args: Any, **kwargs: Any) -> "_DummyMetric":
+        return self
+
+    def inc(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
+    def dec(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
+    def set(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
+    def observe(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
+
 # [SINGULARITY 24.3] Глобальная изоляция для воркеров
 # Мы создаем метрики в НОВОМ реестре для каждого импорта, чтобы избежать конфликтов.
 
@@ -29,7 +49,11 @@ _isolated_registry = CollectorRegistry()
 
 
 def get_metric(
-    metric_class: Type[_M], name: str, documentation: str, labelnames=(), **kwargs
+    metric_class: Callable[..., _M],
+    name: str,
+    documentation: str,
+    labelnames: Any = (),
+    **kwargs: Any,
 ) -> _M:
     """
     Безопасное получение или создание метрики в изолированном реестре.
@@ -40,30 +64,12 @@ def get_metric(
     except ValueError:
         # Если дубликат в изолированном реестре (что странно для одного импорта, но возможно при reload),
         # пытаемся найти его там.
-        if (
-            hasattr(_isolated_registry, "_names_to_collectors")
-            and name in _isolated_registry._names_to_collectors
-        ):
-            return _isolated_registry._names_to_collectors[name]
+        collectors = getattr(_isolated_registry, "_names_to_collectors", None)
+        if isinstance(collectors, dict) and name in collectors:
+            return cast(_M, collectors[name])
 
         # Если совсем всё плохо, возвращаем заглушку
-        class Dummy:
-            def labels(self, *args, **kwargs):
-                return self
-
-            def inc(self, *args, **kwargs):
-                pass
-
-            def dec(self, *args, **kwargs):
-                pass
-
-            def set(self, *args, **kwargs):
-                pass
-
-            def observe(self, *args, **kwargs):
-                pass
-
-        return Dummy()
+        return cast(_M, _DummyMetric())
 
 
 # === Основные метрики ===
