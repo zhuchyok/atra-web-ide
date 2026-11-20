@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 VICTORIA_SERVER = ROOT / "src" / "agents" / "bridge" / "victoria_server.py"
 MCP_SERVER = ROOT / "src" / "agents" / "bridge" / "victoria_mcp_server.py"
@@ -38,6 +40,37 @@ def test_app_container_path_still_matches():
     m = rx.match(goal[:120])
     assert m is not None
     assert m.group("path") == "/app/knowledge_os/app/expert_worker.py"
+
+
+@pytest.mark.parametrize(
+    "goal",
+    [
+        "существует ли файл /app/src/agents/bridge/victoria_server.py",
+        "проверь существует ли файл /app/src/agents/bridge/victoria_server.py",
+        "есть ли файл /app/src/agents/bridge/victoria_server.py",
+        "проверь есть ли файл /app/src/agents/bridge/victoria_server.py?",
+    ],
+)
+def test_existence_phrasing_matches_file_check_re(goal):
+    rx = _load_file_check_re()
+    m = rx.match(goal[:120])
+    assert m is not None
+    assert m.group("exists")
+    assert m.group("path") == "/app/src/agents/bridge/victoria_server.py"
+
+
+@pytest.mark.parametrize(
+    "goal",
+    [
+        "существует ли файл в проекте",
+        "есть ли файл с секретами",
+        "проверь существует ли файл в репозитории",
+        "аудит всех файлов проекта",
+    ],
+)
+def test_existence_phrasing_rejects_project_wide_audits(goal):
+    rx = _load_file_check_re()
+    assert rx.match(goal[:120]) is None
 
 
 def test_mcp_prefer_run_with_history_in_source():

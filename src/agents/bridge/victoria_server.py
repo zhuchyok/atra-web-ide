@@ -4845,8 +4845,14 @@ def _is_direct_tool_reply_candidate(goal: str) -> bool:
 
 
 # Path may contain hyphens (…/atra-web-ide/…); stop at whitespace before em/en dash.
+# Canonical: «проверь/прочитай файл /path …»
+# Existence: «существует ли файл», «есть ли файл», «проверь есть/существует ли файл»
+# Path must contain '/' to avoid project-wide FPs («есть ли файл в проекте»).
 _FILE_CHECK_RE = re.compile(
-    r"^\s*(?:проверь|прочитай)\s+файл\s+(?P<path>\S+?)(?=\s+[—\-]\s|\s*$)",
+    r"^\s*(?:"
+    r"(?P<canonical>(?:проверь|прочитай)\s+файл)|"
+    r"(?P<exists>(?:проверь\s+)?(?:существует|есть)\s+ли\s+файл)"
+    r")\s+(?P<path>\S*?/\S*?)(?=\s+[—\-]\s|\s*[.?!]?\s*$)",
     re.IGNORECASE,
 )
 # Truncated per bible v34: keywords must be within the first 120 chars.
@@ -4980,8 +4986,10 @@ def _file_check_scan(path: str, task_text: str) -> Optional[str]:
 async def _try_file_check_reply(goal: str) -> Optional[Dict[str, Any]]:
     """FAST_ACTION_PATH (библия v34): файловые проверки без LLM, <200 мс.
 
-    Триггер: цель начинается с «проверь файл …» / «прочитай файл …» (в первых 120 символах).
-    Формат ответа — по эталону code_audit: ОК / ПРОБЛЕМА + цитата.
+    Триггер (в первых 120 символах): «проверь/прочитай файл …» или
+    «существует/есть ли файл …» / «проверь существует|есть ли файл …».
+    Формат ответа — по эталону code_audit: ОК / ПРОБЛЕМА + цитата;
+    для existence-only — ФАЙЛ СУЩЕСТВУЕТ / ФАЙЛ НЕ НАЙДЕН.
     """
     g = (goal or "").strip()
     if len(g) < _FILE_CHECK_MAX_PREFIX:
@@ -4991,12 +4999,27 @@ async def _try_file_check_reply(goal: str) -> Optional[Dict[str, Any]]:
     m = _FILE_CHECK_RE.match(prefix)
     if not m:
         return None
-    path = (m.group("path") or "").rstrip(".,;:)")
-    if not path:
+    path = (m.group("path") or "").rstrip(".,;:)?!")
+    if not path or "/" not in path:
         return None
     # Позиции матча в prefix совпадают с позициями в g (prefix — начало g).
     task_text = g[m.end("path") :][:400]
-    answer = _file_check_scan(path, task_text)
+    # Pure existence («существует/есть ли файл /path») — no open/LLM, only isfile.
+    _has_content_audit = bool(
+        re.search(
+            r"есть\s+ли\s+(?:там\s+)?\S|найди\s+(?:потенциальные\s+)?проблемы",
+            task_text,
+            re.IGNORECASE,
+        )
+    )
+    if m.group("exists") and not _has_content_audit:
+        answer = (
+            f"ФАЙЛ СУЩЕСТВУЕТ: {path}"
+            if os.path.isfile(path)
+            else f"ФАЙЛ НЕ НАЙДЕН: {path}"
+        )
+    else:
+        answer = _file_check_scan(path, task_text)
     if answer is None:
         return None
     return {
