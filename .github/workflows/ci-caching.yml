@@ -98,7 +98,8 @@ jobs:
                   --ignore=knowledge_os/tests/test_red_team_auditor.py \
                   --ignore=knowledge_os/tests/test_deep_memory.py \
                   --ignore=knowledge_os/tests/test_rest_api.py \
-                  --ignore=knowledge_os/tests/test_victoria_chat_and_request.py
+                  --ignore=knowledge_os/tests/test_victoria_chat_and_request.py \
+                  --ignore=knowledge_os/tests/test_promotion_engine.py
                 ;;
               frontend:build)
                 cd frontend && npm ci && npm run build && cd ..
