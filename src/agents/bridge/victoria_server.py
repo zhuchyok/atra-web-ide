@@ -9456,21 +9456,36 @@ async def get_run_status(task_id: str):
     if len(out) > 8000:
         out = out[:8000].rstrip() + "\n\n[... ответ обрезан ...]"
     status_val = rec.get("status", "queued")
-    # Self-heal: Redis left at running/processing after hard timeout (pair poll stuck).
+    # Self-heal: Redis left at running/processing with no progress (pair poll stuck).
+    # Trigger on hard age OR stale updated_at beyond watchdog (enhanced_solve can sit
+    # for 600s with UVICORN_WORKERS>1 while pair max_wait is ~300s).
     try:
         _hard_sec = float(os.getenv("VICTORIA_ASYNC_HARD_TIMEOUT_SEC", "600"))
     except ValueError:
         _hard_sec = 600.0
+    try:
+        _wd_raw = os.getenv("VICTORIA_ASYNC_WATCHDOG_SEC", "180")
+        _stale_upd_sec = float(_wd_raw) if _wd_raw not in ("0", "") else 180.0
+    except ValueError:
+        _stale_upd_sec = 180.0
+    _stale_upd_sec = max(180.0, _stale_upd_sec)
     _elapsed_now = _elapsed_seconds_from_store(rec)
-    if (
+    _upd_age = _elapsed_seconds_from_store(
+        {"created_at": rec.get("updated_at") or rec.get("created_at")}
+    )
+    _stale = (
         str(status_val).lower() in _inflight
-        and _elapsed_now is not None
-        and _elapsed_now > _hard_sec
-    ):
+        and (
+            (_elapsed_now is not None and _elapsed_now > _hard_sec)
+            or (_upd_age is not None and _upd_age > _stale_upd_sec)
+        )
+    )
+    if _stale:
         status_val = "failed"
         err = (
-            f"Background timeout after {_elapsed_now:.0f}s "
-            f"(hard cap {_hard_sec:.0f}s; status self-heal)"
+            f"Background stalled after elapsed={_elapsed_now}s "
+            f"updated_age={_upd_age}s (watchdog {_stale_upd_sec:.0f}s / "
+            f"hard {_hard_sec:.0f}s; status self-heal)"
         )
         rec["status"] = status_val
         rec["error"] = rec.get("error") or err
