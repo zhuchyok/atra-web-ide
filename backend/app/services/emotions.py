@@ -184,7 +184,7 @@ class EmotionDetector:
         if max_score == 0:
             return Emotion.CALM, 0.5
 
-        dominant_emotion = max(scores, key=scores.get)
+        dominant_emotion = max(scores, key=lambda e: scores[e])
         confidence = min(max_score / 5, 1.0)  # Нормализация
 
         return dominant_emotion, confidence

@@ -7640,12 +7640,38 @@ async def _run_task_background(
         if redis_manager:
             try:
                 st = {k: v for k, v in store.items() if v is not None}
-                await redis_manager.update_task_status(
-                    task_id,
-                    st.get("status", "processing"),
-                    result=st.get("output") or st.get("error"),
-                    metadata=st,
-                )
+                try:
+                    await redis_manager.update_task_status(
+                        task_id,
+                        st.get("status", "processing"),
+                        result=st.get("output") or st.get("error"),
+                        metadata=st,
+                    )
+                except Exception as full_err:
+                    # Full metadata may be non-JSON-serializable; never lose terminal status
+                    # across UVICORN_WORKERS>1 (status lives in Redis, not per-worker memory).
+                    logger.warning(
+                        "[STATUS] full Redis sync failed task_id=%s: %s — thin fallback",
+                        task_id[:8],
+                        full_err,
+                    )
+                    thin = {
+                        "status": status_now,
+                        "stage": store.get("stage"),
+                        "created_at": store.get("created_at"),
+                        "updated_at": store.get("updated_at"),
+                        "handoff_reason": store.get("handoff_reason"),
+                        "correlation_id": store.get("correlation_id"),
+                        "duration_seconds": store.get("duration_seconds"),
+                        "error": store.get("error"),
+                    }
+                    thin = {k: v for k, v in thin.items() if v is not None}
+                    await redis_manager.update_task_status(
+                        task_id,
+                        status_now,
+                        result=store.get("output") or store.get("error"),
+                        metadata=thin,
+                    )
                 client = await redis_manager.get_client()
                 created = store.get("created_at")
                 replay = store.get("replay") if isinstance(store.get("replay"), dict) else {}
@@ -7659,8 +7685,13 @@ async def _run_task_background(
                     await client.hset(_ASYNC_INFLIGHT_REDIS_KEY, task_id, str(created))
                 else:
                     await _clear_async_inflight(task_id)
-            except Exception:
-                pass
+            except Exception as sync_err:
+                logger.warning(
+                    "[STATUS] Redis sync failed task_id=%s status=%s: %s",
+                    task_id[:8],
+                    status_now,
+                    sync_err,
+                )
 
     # Always update in-memory store (UVICORN_WORKERS>1 still needs Redis for other workers).
     # Full-store sync: thin metadata={"stage": ...} wipes created_at/started_monotonic.
@@ -9385,8 +9416,18 @@ async def get_run_status(task_id: str):
     if redis_manager:
         rec = await redis_manager.get_task_status(task_id)
 
-    if rec is None:
-        rec = _run_task_store.get(task_id)
+    local = _run_task_store.get(task_id)
+    _terminal = ("completed", "failed", "cancelled", "success")
+    _inflight = ("queued", "processing", "running")
+    if local is not None:
+        local_st = str(local.get("status") or "").lower()
+        redis_st = str((rec or {}).get("status") or "").lower() if rec else ""
+        # Same-worker: local terminal wins over stale Redis inflight (UVICORN_WORKERS>1
+        # still needs Redis sync; this covers the worker that owns the task).
+        if local_st in _terminal and (rec is None or redis_st in _inflight or not redis_st):
+            rec = dict(local)
+        elif rec is None:
+            rec = local
     if rec is None:
         raise HTTPException(status_code=404, detail="task_id not found")
 
@@ -9415,6 +9456,48 @@ async def get_run_status(task_id: str):
     if len(out) > 8000:
         out = out[:8000].rstrip() + "\n\n[... ответ обрезан ...]"
     status_val = rec.get("status", "queued")
+    # Self-heal: Redis left at running/processing after hard timeout (pair poll stuck).
+    try:
+        _hard_sec = float(os.getenv("VICTORIA_ASYNC_HARD_TIMEOUT_SEC", "600"))
+    except ValueError:
+        _hard_sec = 600.0
+    _elapsed_now = _elapsed_seconds_from_store(rec)
+    if (
+        str(status_val).lower() in _inflight
+        and _elapsed_now is not None
+        and _elapsed_now > _hard_sec
+    ):
+        status_val = "failed"
+        err = (
+            f"Background timeout after {_elapsed_now:.0f}s "
+            f"(hard cap {_hard_sec:.0f}s; status self-heal)"
+        )
+        rec["status"] = status_val
+        rec["error"] = rec.get("error") or err
+        rec["stage"] = "failed"
+        out = out or err
+        if redis_manager:
+            try:
+                await redis_manager.update_task_status(
+                    task_id,
+                    "failed",
+                    result=err,
+                    metadata={
+                        "status": "failed",
+                        "stage": "failed",
+                        "error": err,
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                        "created_at": rec.get("created_at"),
+                        "handoff_reason": rec.get("handoff_reason"),
+                    },
+                )
+                await _clear_async_inflight(task_id)
+            except Exception as heal_err:
+                logger.warning(
+                    "[STATUS] stale self-heal Redis write failed task_id=%s: %s",
+                    task_id[:8],
+                    heal_err,
+                )
     logger.info(
         "[VICTORIA_CYCLE] GET /run/status/%s status=%s output_len=%s", task_id, status_val, len(out)
     )

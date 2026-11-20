@@ -113,11 +113,10 @@ async def preview_file(path: str = Query(..., description="Путь к файл�
             "application/json",
             "application/xml",
         ]:
-            content = file_path.read_text(encoding="utf-8")
-            return Response(content=content, media_type=mime_type)
-        else:
-            content = file_path.read_bytes()
-            return Response(content=content, media_type=mime_type)
+            text_content = file_path.read_text(encoding="utf-8")
+            return Response(content=text_content, media_type=mime_type)
+        binary_content = file_path.read_bytes()
+        return Response(content=binary_content, media_type=mime_type)
 
     except HTTPException:
         raise
