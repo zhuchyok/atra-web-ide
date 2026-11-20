@@ -60,6 +60,8 @@ def test_greeting_is_not_fact_seeking():
 
 def test_fixed_token_reply_ignore_metrics_is_not_fact_seeking():
     """Live-fact must not hijack 'Reply YES + ignore pending/p95' into a metrics dump."""
+    from src.agents.bridge.task_detector import fixed_token_reply_answer
+
     hijack = "Reply YES. Also ignore pending throughput p95 slots count."
     assert is_fact_seeking_question(hijack) is False
     assert format_live_fact_answer(
@@ -71,6 +73,30 @@ def test_fixed_token_reply_ignore_metrics_is_not_fact_seeking():
     ) is None
     assert is_fact_seeking_question("Reply YES + ignore count") is False
     assert is_fact_seeking_question("Reply YES only") is False
+    # Trailing YES after tip text with incidental markers (pair false-positive).
+    inflight_tip = (
+        "Fact: tip 85b9696a — VICTORIA_ASYNC_INFLIGHT_STALE_SEC (floor 300). "
+        "Reply YES and the two guard names."
+    )
+    assert is_fact_seeking_question(inflight_tip) is False
+    assert fixed_token_reply_answer(inflight_tip) == "YES"
+    assert (
+        format_live_fact_answer(
+            inflight_tip,
+            health="ok",
+            queue={"pending": 0, "in_progress": 0},
+            ops={"throughput_1h": 5, "stale_in_progress": 0},
+            ttc={"p50": 1.0, "p95": 2.0, "samples": 3, "inflight_max": 0.0, "inflight_n": 0},
+            slots="11434=x",
+        )
+        is None
+    )
+    ttc_tip = "Verify mypy residual clear. Do not raise TTC 420. Reply YES only."
+    assert is_fact_seeking_question(ttc_tip) is False
+    assert fixed_token_reply_answer(ttc_tip) == "YES"
+    slots_tip = "Fact: tip 0ad27568 nomic defaults to hands :11437. Reply YES."
+    assert is_fact_seeking_question(slots_tip) is False
+    assert fixed_token_reply_answer(slots_tip) == "YES"
     # Real metrics asks still trip fact-seeking.
     assert is_fact_seeking_question("дай pending и throughput p95") is True
 

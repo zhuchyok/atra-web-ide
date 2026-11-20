@@ -13,12 +13,32 @@ import os
 import re
 from typing import Optional
 
-# Curator/chat fixed-token probes ("Reply YES only", "Reply YES + ignore pending/p95").
-# Metric substrings in an ignore-clause must not trip FACT_SEEKING_MARKERS.
+# Curator/chat fixed-token probes ("Reply YES only", "Fact: … Reply YES").
+# Must match mid-string too: pair goals put YES after tip text that often
+# contains incidental FACT_SEEKING_MARKERS (inflight/stale/ttc/11437).
 _FIXED_TOKEN_REPLY_PROBE_RE = re.compile(
-    r"^(reply|answer|ответь|ответьте)\s+(yes|no|да|нет)\b",
+    r"(?:^|[\s.!?\"'(\[\-/:])(reply|answer|ответь|ответьте)\s+(yes|no|да|нет)\b",
     re.IGNORECASE,
 )
+
+
+def is_fixed_token_reply_probe(goal: str) -> bool:
+    """True when the ask is a fixed YES/NO token, not a live metrics probe."""
+    g = (goal or "").strip()
+    return bool(g and _FIXED_TOKEN_REPLY_PROBE_RE.search(g))
+
+
+def fixed_token_reply_answer(goal: str) -> Optional[str]:
+    """Deterministic YES/NO for fixed-token probes (never a metrics dump)."""
+    m = _FIXED_TOKEN_REPLY_PROBE_RE.search((goal or "").strip())
+    if not m:
+        return None
+    token = (m.group(2) or "").lower()
+    if token in ("yes", "да"):
+        return "YES"
+    if token in ("no", "нет"):
+        return "NO"
+    return None
 
 # Ключевые слова по типам (порядок проверки важен)
 SIMPLE_CHAT_KEYWORDS = [
@@ -482,8 +502,9 @@ def is_fact_seeking_question(goal: str) -> bool:
     if g in ("кто ты", "кто ты?", "что ты умеешь", "что ты умеешь?"):
         return False
 
-    # Fixed short-reply chat probes are never live-fact, even with ignore+metrics words.
-    if _FIXED_TOKEN_REPLY_PROBE_RE.match(g):
+    # Fixed short-reply chat probes are never live-fact, even with ignore+metrics words
+    # or incidental marker substrings in a fact preamble (INFLIGHT_STALE, TTC, :11437).
+    if is_fixed_token_reply_probe(g):
         return False
 
     # Объяснительные/творческие цели — не fact-probe, даже если внутри есть

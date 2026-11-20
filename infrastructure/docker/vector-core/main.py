@@ -22,7 +22,19 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434")
+# Hands :11437 has nomic; brain :11434 is victoria-qwen38 only.
+# LIVE_OLLAMA_URL → OLLAMA_EMBED_URL → hands :11437 (never brain :11434).
+_is_docker = (
+    os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
+)
+_default_embed_base = (
+    "http://host.docker.internal:11437" if _is_docker else "http://127.0.0.1:11437"
+)
+OLLAMA_URL = (
+    (os.getenv("LIVE_OLLAMA_URL") or "").strip()
+    or (os.getenv("OLLAMA_EMBED_URL") or "").strip()
+    or _default_embed_base
+).rstrip("/").replace("/api/embeddings", "").replace("/api/embed", "")
 _fallback_raw = os.getenv("EMBED_FALLBACK_URLS", "")
 _fallback_urls = [u.strip().rstrip("/") for u in _fallback_raw.split(",") if u.strip()]
 _embed_endpoints = [OLLAMA_URL.rstrip("/"), *_fallback_urls]

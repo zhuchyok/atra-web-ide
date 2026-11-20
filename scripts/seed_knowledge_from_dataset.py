@@ -8,7 +8,7 @@
 Не использовать brain :11434 (там нет nomic).
 
 Запуск:
-  OLLAMA_URL=http://127.0.0.1:11437 python3 scripts/seed_knowledge_from_dataset.py
+  LIVE_OLLAMA_URL=http://127.0.0.1:11437 python3 scripts/seed_knowledge_from_dataset.py
   python3 scripts/seed_knowledge_from_dataset.py --limit 5
 """
 import argparse
@@ -25,14 +25,12 @@ DATASET = REPO_ROOT / "data" / "validation_queries.json"
 
 
 def _embed_ollama_url() -> str:
-    """Hands nomic first — same contract as run_live_rag_quality.sh."""
+    """LIVE_OLLAMA_URL → OLLAMA_EMBED_URL → hands :11437 (never brain :11434)."""
     return (
-        os.environ.get("LIVE_OLLAMA_URL")
-        or os.environ.get("OLLAMA_EMBED_URL")
-        or os.environ.get("OLLAMA_URL")
-        or os.environ.get("OLLAMA_BASE_URL")
+        (os.environ.get("LIVE_OLLAMA_URL") or "").strip()
+        or (os.environ.get("OLLAMA_EMBED_URL") or "").strip()
         or "http://127.0.0.1:11437"
-    ).rstrip("/")
+    ).rstrip("/").replace("/api/embeddings", "").replace("/api/embed", "")
 
 
 async def main() -> int:

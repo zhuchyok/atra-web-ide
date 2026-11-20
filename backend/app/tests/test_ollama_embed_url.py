@@ -1,10 +1,14 @@
 """Guards: backend embeds default to hands nomic (:11437), not brain (:11434)."""
 
 import asyncio
+import re
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+
+_REPO = Path(__file__).resolve().parents[3]
 
 
 def test_resolve_ollama_embed_base_defaults_to_hands(monkeypatch: pytest.MonkeyPatch):
@@ -95,3 +99,23 @@ def test_rag_light_get_embedding_posts_to_hands_url():
     assert emb == [0.1, 0.2]
     assert posted["url"] == "http://127.0.0.1:11437/api/embeddings"
     assert "11434" not in posted["url"]
+
+
+def test_vector_core_default_embed_url_is_hands_not_brain():
+    """vector-core used to default OLLAMA_URL to :11434 (no nomic on brain)."""
+    text = (_REPO / "infrastructure/docker/vector-core/main.py").read_text(encoding="utf-8")
+    assert 'getenv("OLLAMA_URL", "http://host.docker.internal:11434")' not in text
+    assert "LIVE_OLLAMA_URL" in text
+    assert "11437" in text
+    # Default base must mention hands port, never brain as getenv default.
+    assert re.search(r'_default_embed_base\s*=\s*\([\s\S]*?11437', text)
+
+
+def test_mass_and_seed_scripts_do_not_fallback_to_brain_base_url():
+    mass = (_REPO / "scripts/mass_embedding_generator.py").read_text(encoding="utf-8")
+    seed = (_REPO / "scripts/seed_knowledge_from_dataset.py").read_text(encoding="utf-8")
+    for text in (mass, seed):
+        assert 'getenv("OLLAMA_BASE_URL"' not in text
+        assert 'environ.get("OLLAMA_BASE_URL"' not in text
+        assert 'environ.get("OLLAMA_URL"' not in text
+        assert "11437" in text

@@ -1471,6 +1471,7 @@ from src.agents.bridge.project_registry import get_main_project, get_projects_re
 from src.agents.bridge.task_detector import (
     consilium_categories,
     detect_task_type,
+    fixed_token_reply_answer,
     format_live_fact_answer,
     goal_wants_ollama_slots,
     goal_wants_scanner,
@@ -10552,6 +10553,24 @@ async def run_task(
             knowledge=knowledge,
             correlation_id=correlation_id,
         )
+    # Fixed-token YES/NO before live-fact: tip preambles often contain inflight/ttc/11437.
+    _fixed_token = fixed_token_reply_answer(goal)
+    if _fixed_token:
+        logger.info(
+            "[VICTORIA_FIXED_TOKEN] /run correlation_id=%s answer=%s",
+            correlation_id,
+            _fixed_token,
+        )
+        return TaskResponse(
+            status="success",
+            output=_fixed_token,
+            knowledge={
+                "strategy": "fixed_token_reply",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
     live_fact_answer = await _build_live_fact_answer_for_run(goal)
     if live_fact_answer:
         logger.info(
@@ -13181,6 +13200,26 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     }
                 ],
                 "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    # Fixed-token YES/NO before live-fact (pair tips with INFLIGHT/TTC/11437).
+    _chat_fixed = fixed_token_reply_answer(goal)
+    if _chat_fixed:
+        logger.info("[VICTORIA_FIXED_TOKEN] chat completions answer=%s", _chat_fixed)
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_fixed},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 1, "total_tokens": 1},
             }
         )
     live_fact = await _build_live_fact_answer_for_run(goal)

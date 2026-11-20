@@ -123,14 +123,24 @@ def test_rag_context_usable_rejects_placeholder_and_empty():
 
 def test_embed_fallback_url_defaults_to_hands_not_brain(monkeypatch):
     """nomic must not load onto brain 11434 (contract: hands 11437)."""
+    monkeypatch.delenv("LIVE_OLLAMA_URL", raising=False)
     monkeypatch.delenv("OLLAMA_EMBED_URL", raising=False)
     monkeypatch.delenv("OLLAMA_HANDS_URL", raising=False)
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
     from app.enhanced_search import _embed_fallback_url
 
     url = _embed_fallback_url()
-    assert "11437" in url
+    assert url == "http://127.0.0.1:11437/api/embeddings"
     assert "11434" not in url
-    assert url.endswith("/api/embeddings")
+
+
+def test_embed_fallback_url_prefers_live_over_embed(monkeypatch):
+    monkeypatch.setenv("LIVE_OLLAMA_URL", "http://127.0.0.1:11437")
+    monkeypatch.setenv("OLLAMA_EMBED_URL", "http://embed.example:9999")
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+    from app.enhanced_search import _embed_fallback_url
+
+    assert _embed_fallback_url() == "http://127.0.0.1:11437/api/embeddings"
 
 
 @pytest.mark.asyncio

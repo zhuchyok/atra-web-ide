@@ -209,14 +209,13 @@ def rag_context_usable(rag_res: Optional[dict]) -> bool:
 
 
 def _embed_fallback_url() -> str:
-    """nomic on hands 11437 — never default to brain 11434."""
-    explicit = (os.getenv("OLLAMA_EMBED_URL") or "").strip()
-    if explicit:
-        return explicit
-    hands = (os.getenv("OLLAMA_HANDS_URL") or "http://localhost:11437").rstrip("/")
-    if hands.endswith("/api/embeddings"):
-        return hands
-    return f"{hands}/api/embeddings"
+    """LIVE_OLLAMA_URL → OLLAMA_EMBED_URL → hands :11437 (never brain :11434)."""
+    base = (
+        (os.getenv("LIVE_OLLAMA_URL") or "").strip()
+        or (os.getenv("OLLAMA_EMBED_URL") or "").strip()
+        or "http://127.0.0.1:11437"
+    ).rstrip("/").replace("/api/embeddings", "")
+    return f"{base}/api/embeddings"
 
 
 async def get_embedding(text: str) -> list[float]:
