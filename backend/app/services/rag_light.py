@@ -7,12 +7,15 @@ RAG-light: быстрый ответ на фактуальные вопросы 
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any, Dict, List, Optional, Tuple, cast
 
 import httpx
 from app.config import get_settings, resolve_ollama_embed_base_url
 
 logger = logging.getLogger(__name__)
+
+_FastFactFn = Callable[..., Awaitable[Optional[str]]]
 
 
 def _embed_ollama_base(settings: Any = None) -> str:
@@ -24,12 +27,15 @@ def _embed_ollama_base(settings: Any = None) -> str:
     )
 
 
-def _rag_metrics_decorator(func):
+def _rag_metrics_decorator(func: _FastFactFn) -> _FastFactFn:
     """Декоратор метрик RAG (ленивый импорт, без зависимости при старте)."""
 
     async def wrapper(
-        self, query: str, timeout_ms: Optional[int] = None, user_id: Optional[str] = None
-    ):
+        self: Any,
+        query: str,
+        timeout_ms: Optional[int] = None,
+        user_id: Optional[str] = None,
+    ) -> Optional[str]:
         try:
             import time
 

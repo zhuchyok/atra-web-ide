@@ -65,16 +65,12 @@ ignore_missing_imports = true
 explicit_package_bases = true
 follow_imports = "silent"
 
-# Residual annotation debt in backend.app (2026-11-20: 2 modules after clearing
-# prometheus_metrics, multimodal_processor; prior: knowledge_os/quality_ab_test,
-# ollama/reranking/validation_pipeline, editor/plan_cache).
-# New modules and clean files above are real gates — do not reintroduce global ignore_errors.
-[[tool.mypy.overrides]]
-module = [
-    "backend.app.services.rag_light",
-    "backend.app.services.victoria",
-]
-ignore_errors = true
+# Residual annotation debt in backend.app: 0 modules (2026-11-20).
+# Cleared this wave: rag_light, victoria.
+# Prior clears: prometheus_metrics, multimodal_processor, knowledge_os/quality_ab_test,
+# ollama/reranking/validation_pipeline, editor/plan_cache, and earlier waves.
+# No [[tool.mypy.overrides]] ignore_errors — do not reintroduce module-wide silence.
+# New modules and clean files above are real gates.
 
 [tool.ruff]
 line-length = 100
