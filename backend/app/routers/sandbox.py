@@ -1,24 +1,34 @@
 import logging
 import os
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 from fastapi import APIRouter, HTTPException
 
 # from ..services.knowledge_service import knowledge_service
 
-# Пытаемся импортировать SandboxManager (один binding — без no-redef).
+# Пытаемся импортировать SandboxManager (раздельные имена — без no-redef).
+_get_sandbox_manager_impl: Callable[[], Any]
 try:
-    from knowledge_os.app.sandbox_manager import get_sandbox_manager as _get_sandbox_manager
+    from knowledge_os.app.sandbox_manager import (
+        get_sandbox_manager as _gsm_kos,
+    )
+
+    _get_sandbox_manager_impl = _gsm_kos
 except ImportError:
     try:
-        from app.sandbox_manager import get_sandbox_manager as _get_sandbox_manager
+        from app.sandbox_manager import get_sandbox_manager as _gsm_app
+
+        _get_sandbox_manager_impl = _gsm_app
     except ImportError:
 
-        def _get_sandbox_manager():  # type: ignore[misc]
+        def _gsm_none() -> None:
             return None
 
+        _get_sandbox_manager_impl = _gsm_none
 
-get_sandbox_manager = _get_sandbox_manager
+
+def get_sandbox_manager() -> Any:
+    return _get_sandbox_manager_impl()
 
 router = APIRouter(prefix="/api/sandbox", tags=["sandbox"])
 logger = logging.getLogger(__name__)
