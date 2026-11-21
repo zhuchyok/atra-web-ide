@@ -12887,6 +12887,32 @@ class ChatCompletionRequest(BaseModel):
     stream: Optional[bool] = False
     temperature: Optional[float] = 0.7
     max_tokens: Optional[int] = None
+    user: Optional[str] = None
+
+
+def _resolve_chat_user_key(request: ChatCompletionRequest, req: Request) -> str:
+    """Stable chat identity for LTM / session_id (not per-request correlation_id).
+
+    Priority: X-Victoria-User / X-Session-Id → body.user → VICTORIA_CHAT_USER_KEY → atra-default.
+    """
+    headers = getattr(req, "headers", None) if req is not None else None
+    if headers is not None:
+        for header in ("X-Victoria-User", "X-Session-Id"):
+            raw = headers.get(header)
+            if raw is None:
+                continue
+            key = str(raw).strip()
+            if key:
+                return key
+    body_user = getattr(request, "user", None)
+    if body_user is not None:
+        key = str(body_user).strip()
+        if key:
+            return key
+    env_key = (os.getenv("VICTORIA_CHAT_USER_KEY") or "").strip()
+    if env_key:
+        return env_key
+    return "atra-default"
 
 
 @app.post("/v1/chat/completions")
@@ -13347,11 +13373,14 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
             else:
                 chat_history.append({"user": "", "assistant": m.content})
 
+    # Stable user key AFTER live-fact / fixed-token / file-check early exits above.
+    chat_user_key = _resolve_chat_user_key(request, req)
+
     # Создаем объект запроса, совместимый с нашим run_task
     task_req = TaskRequest(
         goal=goal,
         project_context=os.getenv("MAIN_PROJECT", "atra-web-ide"),
-        session_id=f"openai-{correlation_id[:8]}",
+        session_id=chat_user_key,
         chat_history=chat_history,
         use_enhanced=True,  # Всегда используем Enhanced для OpenAI API (Open WebUI)
     )
@@ -13380,7 +13409,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 ltm = get_long_term_memory_manager()
                 # Ищем последние 5 обменов для этого пользователя/проекта
                 memory_context = await ltm.get_recent_threads(
-                    user_key=f"openai-{correlation_id[:8]}",
+                    user_key=chat_user_key,
                     project_context=task_req.project_context or "unknown",
                     limit=5,
                 )
@@ -13614,21 +13643,22 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
 
                 # Сохраняем в память (фоном)
                 try:
-                    from app.long_term_memory import get_long_term_memory_manager
-                except ImportError:
                     try:
-                        from long_term_memory import get_long_term_memory_manager
+                        from app.long_term_memory import get_long_term_memory_manager
                     except ImportError:
-                        from long_term_memory import get_ltm as get_long_term_memory_manager
+                        try:
+                            from long_term_memory import get_long_term_memory_manager
+                        except ImportError:
+                            from long_term_memory import get_ltm as get_long_term_memory_manager
 
                     ltm = get_long_term_memory_manager()
                     await ltm.save_thread(
-                        user_key=f"openai-{correlation_id[:8]}",
+                        user_key=chat_user_key,
                         project_context=task_req.project_context or "unknown",
                         goal_summary=user_messages[-1].content[:200],
                         outcome_summary=(full_response_content or "")[:200],
                     )
-                except:
+                except Exception:
                     pass
 
             except Exception as e:
@@ -13945,7 +13975,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
 
         ltm = get_long_term_memory_manager()
         await ltm.save_thread(
-            user_key=f"openai-{correlation_id[:8]}",
+            user_key=chat_user_key,
             project_context=task_req.project_context or "unknown",
             goal_summary=user_messages[-1].content[:200],
             outcome_summary=output_text[:200],

@@ -1,7 +1,7 @@
 # Design: Victoria cross-session memory (stable key + LTM)
 
 Date: 2026-11-21  
-Status: draft — awaiting user review before implementation plan  
+Status: approved (user «го» 2026-11-21) — implementing  
 Scope: iteration A (межсессии). Phase 2 (top-N `kind=experience` inject) out of scope here.
 
 ## Problem
