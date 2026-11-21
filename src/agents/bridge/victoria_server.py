@@ -13674,8 +13674,8 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     await ltm.save_thread(
                         user_key=chat_user_key,
                         project_context=task_req.project_context or "unknown",
-                        goal_summary=user_messages[-1].content[:200],
-                        outcome_summary=(full_response_content or "")[:200],
+                        user_message=user_messages[-1].content[:200],
+                        assistant_message=(full_response_content or "")[:200],
                     )
                 except Exception:
                     pass
@@ -13996,8 +13996,8 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
         await ltm.save_thread(
             user_key=chat_user_key,
             project_context=task_req.project_context or "unknown",
-            goal_summary=user_messages[-1].content[:200],
-            outcome_summary=output_text[:200],
+            user_message=user_messages[-1].content[:200],
+            assistant_message=output_text[:200],
         )
     except Exception as e:
         logger.debug(f"Memory save failed: {e}")
