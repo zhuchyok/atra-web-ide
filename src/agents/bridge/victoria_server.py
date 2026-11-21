@@ -13391,6 +13391,25 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     _is_simple = is_simple_message(_user_msg_text) or is_fast_track_message(_user_msg_text)
 
     if not _is_simple:
+        # Phase 2: top-N kind=experience into chat LLM path (AFTER live-fact exits above).
+        # Probe original user text — do not poison fact-probe (already returned) or tsquery.
+        try:
+            exp_probe = (_user_msg_text or goal or "").strip()
+            exp_lessons = await _fetch_experience_lessons(exp_probe, 3)
+            if exp_lessons:
+                exp_block = "ОПЫТ:\n" + "\n".join(f"- {lesson}" for lesson in exp_lessons)
+                if len(exp_block) > 600:
+                    exp_block = exp_block[:600]
+                goal = f"{exp_block}\n\nТЕКУЩИЙ ЗАПРОС: {goal}"
+                task_req.goal = goal
+                logger.info(
+                    "🧠 [OPENAI-API] Experience lessons injected: %s chars (%s items)",
+                    len(exp_block),
+                    len(exp_lessons),
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.debug("experience inject skipped: %s", e)
+
         # [SINGULARITY 15.0] Интеграция LongTermMemory
         memory_context = ""
         if "victoria" in str(request.model).lower():

@@ -84,15 +84,37 @@ def test_fallback_atra_default(resolve_key, monkeypatch):
     assert resolve_key(body, _req({})) == "atra-default"
 
 
-def test_chat_path_no_ephemeral_openai_correlation_keys():
-    """All four chat-path LTM/session sites must use resolved key, not openai-{uuid}."""
+def _chat_completions_region() -> str:
     text = VICTORIA_SERVER.read_text(encoding="utf-8")
     chat_start = text.index('@app.post("/v1/chat/completions")')
     # Chat handler ends at the next top-level route decorator after chat_completions.
     rest = text[chat_start + 1 :]
     next_route = rest.find("\n@app.")
-    chat_region = text[chat_start : chat_start + 1 + next_route] if next_route != -1 else text[chat_start:]
+    return text[chat_start : chat_start + 1 + next_route] if next_route != -1 else text[chat_start:]
+
+
+def test_chat_path_no_ephemeral_openai_correlation_keys():
+    """All four chat-path LTM/session sites must use resolved key, not openai-{uuid}."""
+    chat_region = _chat_completions_region()
     assert "openai-{correlation" not in chat_region
     assert "session_id=chat_user_key" in chat_region or "session_id=chat_user_key," in chat_region
     assert "user_key=chat_user_key" in chat_region
     assert "_resolve_chat_user_key" in chat_region
+
+
+def test_chat_path_injects_experience_lessons_after_live_fact():
+    """Phase 2: non-simple chat LLM path calls _fetch_experience_lessons after live-fact."""
+    chat_region = _chat_completions_region()
+    live_fact_pos = chat_region.index("live_fact = await _build_live_fact_answer_for_run")
+    # Early return on live_fact must precede experience inject.
+    live_return_pos = chat_region.index("if live_fact:", live_fact_pos)
+    exp_pos = chat_region.index("await _fetch_experience_lessons(")
+    assert exp_pos > live_return_pos
+    assert "ОПЫТ:" in chat_region
+    # Same gate as LTM: only inside `if not _is_simple`.
+    simple_gate = chat_region.index("if not _is_simple:")
+    assert simple_gate < exp_pos
+    # Cap / N=3 contract present in chat region.
+    assert "_fetch_experience_lessons(exp_probe, 3)" in chat_region or (
+        "_fetch_experience_lessons(" in chat_region and ", 3)" in chat_region[exp_pos : exp_pos + 80]
+    )
