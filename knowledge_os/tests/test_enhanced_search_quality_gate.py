@@ -143,6 +143,25 @@ def test_embed_fallback_url_prefers_live_over_embed(monkeypatch):
     assert _embed_fallback_url() == "http://127.0.0.1:11437/api/embeddings"
 
 
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "http://host.docker.internal:11437/api/embeddings",
+        "http://host.docker.internal:11437/api/embed",
+    ],
+)
+def test_embed_fallback_url_strips_both_path_forms(monkeypatch, raw):
+    """Compose may set singular /api/embed; must not double-append /api/embeddings."""
+    monkeypatch.delenv("LIVE_OLLAMA_URL", raising=False)
+    monkeypatch.setenv("OLLAMA_EMBED_URL", raw)
+    from app.enhanced_search import _embed_fallback_url
+
+    url = _embed_fallback_url()
+    assert url == "http://host.docker.internal:11437/api/embeddings"
+    assert url.count("/api/embed") == 1
+    assert "/api/embeddings" in url
+
+
 @pytest.mark.asyncio
 async def test_collective_memory_falls_back_when_session_weak(monkeypatch):
     from app.collective_memory import CollectiveMemory

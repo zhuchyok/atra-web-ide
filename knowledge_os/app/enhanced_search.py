@@ -214,7 +214,7 @@ def _embed_fallback_url() -> str:
         (os.getenv("LIVE_OLLAMA_URL") or "").strip()
         or (os.getenv("OLLAMA_EMBED_URL") or "").strip()
         or "http://127.0.0.1:11437"
-    ).rstrip("/").replace("/api/embeddings", "")
+    ).rstrip("/").replace("/api/embeddings", "").replace("/api/embed", "")
     return f"{base}/api/embeddings"
 
 

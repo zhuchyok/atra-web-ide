@@ -47,6 +47,32 @@ def test_resolve_ollama_embed_prefers_explicit_and_strips_path(
     assert resolve_ollama_embed_base_url() == "http://embed.example:9999"
 
 
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("http://embed.example:9999/api/embeddings", "http://embed.example:9999"),
+        ("http://embed.example:9999/api/embed", "http://embed.example:9999"),
+        ("http://embed.example:9999/api/embeddings/", "http://embed.example:9999"),
+        ("http://embed.example:9999/api/embed/", "http://embed.example:9999"),
+    ],
+)
+def test_resolve_ollama_embed_strips_both_embed_path_forms(
+    monkeypatch: pytest.MonkeyPatch, raw: str, expected: str
+):
+    """Compose may set .../api/embed (singular); must strip like /api/embeddings."""
+    monkeypatch.delenv("LIVE_OLLAMA_URL", raising=False)
+    monkeypatch.setenv("OLLAMA_EMBED_URL", raw)
+    monkeypatch.setenv("OLLAMA_HANDS_URL", "http://127.0.0.1:11437")
+
+    from app.config import resolve_ollama_embed_base_url
+
+    base = resolve_ollama_embed_base_url()
+    assert base == expected
+    assert not base.endswith("/api/embed")
+    assert not base.endswith("/api/embeddings")
+    assert f"{base}/api/embeddings" == f"{expected}/api/embeddings"
+
+
 def test_rag_light_embed_base_ignores_brain_ollama_url():
     from app.services.rag_light import _embed_ollama_base
 
@@ -109,6 +135,32 @@ def test_vector_core_default_embed_url_is_hands_not_brain():
     assert "11437" in text
     # Default base must mention hands port, never brain as getenv default.
     assert re.search(r'_default_embed_base\s*=\s*\([\s\S]*?11437', text)
+    # EMBED_FALLBACK_URLS must strip both path forms before appending /api/embeddings.
+    assert "_normalize_embed_base" in text
+    assert '"/api/embed"' in text
+    assert "EMBED_FALLBACK_URLS" in text
+
+
+def test_vector_core_normalize_embed_base_strips_both_forms():
+    """Import-free guard: fallback URLs with /api/embed must not double-append."""
+    import importlib.util
+
+    path = _REPO / "infrastructure/docker/vector-core/main.py"
+    spec = importlib.util.spec_from_file_location("vector_core_main", path)
+    assert spec and spec.loader
+    # Load only the helper by exec'ing a minimal slice — prefer calling the module fn.
+    # Module import pulls FastAPI; skip if unavailable and assert source contract instead.
+    try:
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    except Exception:
+        text = path.read_text(encoding="utf-8")
+        assert "def _normalize_embed_base" in text
+        assert '"/api/embeddings"' in text and '"/api/embed"' in text
+        return
+    assert mod._normalize_embed_base("http://h:1/api/embeddings") == "http://h:1"
+    assert mod._normalize_embed_base("http://h:1/api/embed") == "http://h:1"
+    assert mod._normalize_embed_base("http://h:1") == "http://h:1"
 
 
 def test_mass_and_seed_scripts_do_not_fallback_to_brain_base_url():
@@ -119,6 +171,19 @@ def test_mass_and_seed_scripts_do_not_fallback_to_brain_base_url():
         assert 'environ.get("OLLAMA_BASE_URL"' not in text
         assert 'environ.get("OLLAMA_URL"' not in text
         assert "11437" in text
+
+
+def test_kos_embed_clients_strip_both_api_embed_path_forms():
+    """semantic_cache / enhanced_search / kos mass must strip /api/embed too."""
+    paths = (
+        _REPO / "knowledge_os/app/semantic_cache.py",
+        _REPO / "knowledge_os/app/enhanced_search.py",
+        _REPO / "knowledge_os/scripts/mass_embedding_generator.py",
+    )
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        assert 'replace("/api/embeddings", "")' in text
+        assert 'replace("/api/embed", "")' in text
 
 
 def test_seed_validation_answers_strips_embed_path_and_ignores_brain(

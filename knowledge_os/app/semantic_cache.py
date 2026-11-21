@@ -79,7 +79,7 @@ _embed_base = (
     (os.getenv("LIVE_OLLAMA_URL") or "").strip()
     or (os.getenv("OLLAMA_EMBED_URL") or "").strip()
     or _default_embed_base
-).rstrip("/").replace("/api/embeddings", "")
+).rstrip("/").replace("/api/embeddings", "").replace("/api/embed", "")
 OLLAMA_EMBED_URL = f"{_embed_base}/api/embeddings"
 # [v150.75] 11436 = coder, не nomic. 11437 busy не должен грузить эмбеддер на coder.
 _fallback_default = ""

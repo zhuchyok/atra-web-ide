@@ -25,7 +25,7 @@ OLLAMA_BASE_URL = (
     os.getenv("LIVE_OLLAMA_URL")
     or os.getenv("OLLAMA_EMBED_URL")
     or "http://127.0.0.1:11437"
-).rstrip("/").replace("/api/embeddings", "")
+).rstrip("/").replace("/api/embeddings", "").replace("/api/embed", "")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "nomic-embed-text:latest")
 BATCH_SIZE = 100
 DEFAULT_MAX_NODES = 1000

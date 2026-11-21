@@ -36,7 +36,21 @@ OLLAMA_URL = (
     or _default_embed_base
 ).rstrip("/").replace("/api/embeddings", "").replace("/api/embed", "")
 _fallback_raw = os.getenv("EMBED_FALLBACK_URLS", "")
-_fallback_urls = [u.strip().rstrip("/") for u in _fallback_raw.split(",") if u.strip()]
+
+
+def _normalize_embed_base(url: str) -> str:
+    """Strip /api/embeddings|/api/embed so callers can safely append /api/embeddings."""
+    base = url.strip().rstrip("/")
+    for suffix in ("/api/embeddings", "/api/embed"):
+        if base.endswith(suffix):
+            base = base[: -len(suffix)].rstrip("/")
+            break
+    return base
+
+
+_fallback_urls = [
+    _normalize_embed_base(u) for u in _fallback_raw.split(",") if u.strip()
+]
 _embed_endpoints = [OLLAMA_URL.rstrip("/"), *_fallback_urls]
 EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
 EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "768"))

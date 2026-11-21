@@ -23,7 +23,8 @@ def resolve_ollama_embed_base_url(
     """nomic lives on hands :11437 — never default embeds to brain :11434.
 
     Priority: LIVE_OLLAMA_URL → OLLAMA_EMBED_URL → OLLAMA_HANDS_URL → :11437.
-    Accepts base URL or full ``.../api/embeddings``; always returns base without path.
+    Accepts base URL or full ``.../api/embeddings`` / ``.../api/embed``;
+    always returns base without path.
     """
     raw = (
         (live_url if live_url is not None else os.getenv("LIVE_OLLAMA_URL"))
@@ -31,9 +32,11 @@ def resolve_ollama_embed_base_url(
         or (hands_url if hands_url is not None else os.getenv("OLLAMA_HANDS_URL"))
         or "http://127.0.0.1:11437"
     ).strip().rstrip("/")
-    suffix = "/api/embeddings"
-    if raw.endswith(suffix):
-        raw = raw[: -len(suffix)]
+    # Longer suffix first so /api/embeddings is not left as trailing "dings".
+    for suffix in ("/api/embeddings", "/api/embed"):
+        if raw.endswith(suffix):
+            raw = raw[: -len(suffix)].rstrip("/")
+            break
     return raw
 
 
