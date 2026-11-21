@@ -273,6 +273,9 @@ services:
       VICTORIA_ASYNC_HARD_TIMEOUT_SEC: "900"
       UVICORN_WORKERS: "2"
       UVICORN_TIMEOUT_KEEP_ALIVE: "75"
+      # Cross-session chat memory (stable user key + LTM writes on /run helpers)
+      LONG_TERM_MEMORY_ENABLED: "true"
+      VICTORIA_CHAT_USER_KEY: ${VICTORIA_CHAT_USER_KEY:-atra-default}
       DOCKER_HOST: "tcp://docker-proxy:2376"
     ports:
       - "8010:8000"
