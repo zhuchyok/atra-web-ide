@@ -218,6 +218,25 @@ def test_english_explain_ttc_is_not_live_metrics_dump():
     assert goal_wants_ttc("show victoria async ttc p95 samples")
 
 
+def test_definitional_ttc_with_dai_is_not_live_metrics_dump():
+    """'дай определение ttc' must not trip (ttc ∧ дай) into a p50/p95 dump."""
+    for goal in (
+        "дай определение ttc",
+        "дай что такое ttc",
+        "покажи определение ttc",
+        "дай объясни ttc",
+        "give me what is ttc",
+        "show explain ttc",
+        "дай что значит ttc",
+    ):
+        assert goal_wants_ttc(goal) is False, goal
+    # Latency markers override definitional exclusion.
+    assert goal_wants_ttc("дай определение ttc p50 p95 samples") is True
+    assert goal_wants_ttc("дай victoria_async_ttc p50 p95 samples") is True
+    assert goal_wants_ttc("дай определение ttc /metrics") is True
+    assert goal_wants_ttc("дай определение ttc inflight") is True
+
+
 def test_ttc_metrics_append_by_reason_when_present():
     ans = format_live_fact_answer(
         "какие victoria_async_ttc p50 p95 samples",

@@ -289,8 +289,33 @@ def goal_wants_ttc(goal: str) -> bool:
 
     Do not put ``ttc`` on both sides of the AND: that made bare "what is ttc" /
     "explain ttc" emit a live p50/p95 dump instead of an explanation.
+
+    Definitional asks ("дай определение ttc", "что такое ttc") must not trip the
+    (ttc ∧ дай/покажи) path unless explicit latency markers are present.
     """
     g = (goal or "").lower()
+    _latency_markers = (
+        "/metrics",
+        "victoria_async",
+        "p50",
+        "p95",
+        "samples",
+        "inflight",
+        "time_to_completed",
+        "time-to-completed",
+        "duration_seconds",
+    )
+    _definitional = (
+        "определение",
+        "что такое",
+        "объясни",
+        "what is",
+        "what's",
+        "explain",
+        "значит",
+    )
+    if any(x in g for x in _definitional) and not any(x in g for x in _latency_markers):
+        return False
     if any(
         x in g
         for x in (
