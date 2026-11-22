@@ -54,15 +54,20 @@ class NotificationService:
                     .replace("EXITED", "ОСТАНОВЛЕН")
                 )
 
-            # Ntfy supports base64 encoded headers with 'X-' prefix
-            b64_title = base64.b64encode(title.encode("utf-8")).decode("ascii")
-
-            headers = {"X-Title": b64_title, "Priority": priority, "Tags": ",".join(tags or [])}
+            # [2026-11-22] HTTP-заголовки не несут UTF-8, а ?b64? ntfy.sh не декодирует —
+            # JSON-публикация: title/message/tags в теле, всё читаемо
+            topic = self.ntfy_url.rstrip("/").split("/")[-1]
+            payload = {
+                "topic": topic,
+                "title": title,
+                "message": message[:4000],
+                "priority": priority if str(priority).isdigit() else "default",
+            }
+            if tags:
+                payload["tags"] = list(tags)
 
             async with httpx.AsyncClient() as client:
-                resp = await client.post(
-                    self.ntfy_url, content=message.encode("utf-8"), headers=headers, timeout=10.0
-                )
+                resp = await client.post("https://ntfy.sh/", json=payload, timeout=10.0)
                 if resp.status_code == 200:
                     logger.info(f"🔔 [NTFY] Sent: {title}")
                 else:

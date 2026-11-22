@@ -6,6 +6,7 @@ cloud_watchdog.py — автоматический переключатель ST
 Если все недоступны N раз подряд → STRICT_LOCAL=true + перезапуск Victoria + ntfy.
 При восстановлении → STRICT_LOCAL=false + перезапуск + ntfy.
 """
+
 import asyncio
 import logging
 import os
@@ -27,11 +28,11 @@ ENV_FILE = ROOT / ".env"
 KOS_ENV_FILE = ROOT / "knowledge_os" / ".env"
 
 # Настройки
-CHECK_INTERVAL = 30       # секунд между проверками в норме
-OFFLINE_RECHECK = 60      # секунд между проверками в офлайн режиме
-FAIL_THRESHOLD = 3        # неудач подряд → включить STRICT_LOCAL
-RESTORE_THRESHOLD = 2     # успехов подряд → выключить STRICT_LOCAL
-CONNECT_TIMEOUT = 5.0     # таймаут TCP соединения
+CHECK_INTERVAL = 30  # секунд между проверками в норме
+OFFLINE_RECHECK = 60  # секунд между проверками в офлайн режиме
+FAIL_THRESHOLD = 3  # неудач подряд → включить STRICT_LOCAL
+RESTORE_THRESHOLD = 2  # успехов подряд → выключить STRICT_LOCAL
+CONNECT_TIMEOUT = 5.0  # таймаут TCP соединения
 
 # Хосты проверки: (host, port)
 # Достаточно одного доступного → интернет есть
@@ -81,16 +82,26 @@ def restart_victoria() -> None:
     log.info("Перезапускаем victoria-agent...")
     try:
         subprocess.run(
-            ["docker", "compose", "-f", str(ROOT / "knowledge_os" / "docker-compose.yml"),
-             "up", "-d", "--no-deps", "--force-recreate", "victoria-agent"],
-            capture_output=True, timeout=60, cwd=str(ROOT),
+            [
+                "docker",
+                "compose",
+                "-f",
+                str(ROOT / "knowledge_os" / "docker-compose.yml"),
+                "up",
+                "-d",
+                "--no-deps",
+                "--force-recreate",
+                "victoria-agent",
+            ],
+            capture_output=True,
+            timeout=60,
+            cwd=str(ROOT),
         )
         log.info("victoria-agent перезапущен ✅")
     except Exception as e:
         log.warning("docker compose failed: %s — пробуем docker restart", e)
         try:
-            subprocess.run(["docker", "restart", "victoria-agent"],
-                           capture_output=True, timeout=30)
+            subprocess.run(["docker", "restart", "victoria-agent"], capture_output=True, timeout=30)
         except Exception as e2:
             log.error("docker restart тоже не удался: %s", e2)
 
@@ -98,19 +109,28 @@ def restart_victoria() -> None:
 async def notify(title: str, msg: str, priority: str = "default") -> None:
     ntfy = _get_ntfy_url()
     try:
-        import httpx
         import base64
+
+        import httpx
+
         loop = asyncio.get_event_loop()
 
         def _send() -> None:
-            # [FIX 30.2] Use Base64 for headers to support Russian/Unicode correctly in ntfy
-            b64_title = base64.b64encode(title.encode('utf-8')).decode('ascii')
-
+            # [2026-11-22] HTTP-заголовки не несут UTF-8, а ?b64? ntfy.sh не декодирует —
+            # JSON-публикация: title/message в теле, всё читаемо
+            topic = ntfy.rstrip("/").split("/")[-1]
             # trust_env=False — отключаем ALL_PROXY (socks5h без httpx-socks даёт gaierror)
             # ntfy.sh доступен напрямую без прокси
             with httpx.Client(trust_env=False, timeout=10.0) as client:
-                client.post(ntfy, content=msg.encode('utf-8'),
-                            headers={"X-Title": b64_title, "Priority": priority})
+                client.post(
+                    "https://ntfy.sh/",
+                    json={
+                        "topic": topic,
+                        "title": title,
+                        "message": msg[:4000],
+                        "priority": priority if priority.isdigit() else "default",
+                    },
+                )
 
         await loop.run_in_executor(None, _send)
     except Exception as e:
@@ -139,8 +159,11 @@ async def check_cloud() -> bool:
 async def main() -> None:
     log.info("🚀 cloud_watchdog запущен")
     log.info("   Хосты: %s", CLOUD_HOSTS)
-    log.info("   Порог: %d неудач → STRICT_LOCAL=true | %d успехов → false",
-             FAIL_THRESHOLD, RESTORE_THRESHOLD)
+    log.info(
+        "   Порог: %d неудач → STRICT_LOCAL=true | %d успехов → false",
+        FAIL_THRESHOLD,
+        RESTORE_THRESHOLD,
+    )
 
     fail_count = 0
     success_count = 0
