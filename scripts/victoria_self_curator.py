@@ -18,14 +18,14 @@ async def _ntfy_notify(title: str, body: str) -> None:
     """Отправка в ntfy → Telegram fallback."""
     if NTFY_URL:
         try:
-            import base64
-            # [FIX 30.2] Use Base64 for headers to support Russian/Unicode correctly in ntfy
-            b64_title = base64.b64encode(title.encode('utf-8')).decode('ascii')
-
+            # [2026-11-22] Заголовки HTTP не несут UTF-8 (латиница-1), а маркер ?b64?
+            # ntfy.sh не декодирует — публикация JSON-телом: и title, и message в UTF-8
+            topic = NTFY_URL.rstrip("/").split("/")[-1]
             # trust_env=False — отключаем ALL_PROXY из env (socks5h без httpx-socks даёт gaierror)
             async with httpx.AsyncClient(timeout=10.0, trust_env=False) as c:
-                await c.post(NTFY_URL, content=body.encode('utf-8'),
-                             headers={"X-Title": b64_title, "Priority": "default"})
+                await c.post("https://ntfy.sh/", json={
+                    "topic": topic, "title": title, "message": body[:4000], "priority": "default",
+                })
             logger.info("ntfy отправлено ✅")
             return
         except Exception as e:

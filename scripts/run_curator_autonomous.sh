@@ -123,7 +123,8 @@ echo "Готово. При расхождениях: FINDINGS в docs/curator_re
 
 # [SINGULARITY 21.5] Шаг 4: Victoria само-анализ + авто-патч через FAST_PATCH_PATH
 echo "=== 4. Victoria Self-Curator: само-анализ + авто-патч ==="
-$PYTHON_CMD scripts/victoria_self_curator.py --skip-curator || true
+# [2026-11-22] victoria_self_curator выведен из строя: его 'анализ' давно = Fast Track timeout-извинение,
+# дублирует новый канал самоаудита (send_self_audit_chat.py, launchd 09:00). Битый b64-заголовок ntfy исправлен.
 echo ""
 
 # [SINGULARITY 21.25] Шаг 5: Замкнутый цикл — Victoria сама генерирует следующие задачи
