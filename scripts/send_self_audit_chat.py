@@ -20,7 +20,9 @@ from pathlib import Path
 
 import httpx
 
-ROOT = Path(__file__).resolve().parents[1]
+# [TCC-2026-11-23] при запуске копии из HOME корень задаётся ATRA_REPO
+import os as _os
+ROOT = Path(_os.getenv("ATRA_REPO") or Path(__file__).resolve().parents[1])
 sys.path.insert(0, str(ROOT / "scripts"))
 
 VICTORIA_URL = "http://localhost:8010"
@@ -28,7 +30,7 @@ BRAIN_URL = "http://localhost:11434"  # мозг напрямую: у рефле
 TIMEOUT = 900
 
 
-async def main() -> int:
+async def main() -> int:  # возвращает int-код
     from build_self_audit_task import build_task_text  # noqa: PLC0415
 
     task = build_task_text()
@@ -63,7 +65,11 @@ async def main() -> int:
     # [2026-11-12] В 6:05 мозг ещё разгребал очередь после 28 кураторских задач
     # (500) — ретраи с паузой, самоаудиту неспешно
     data = None
+    deadline = asyncio.get_event_loop().time() + 1500  # сессия ≤25 мин: утром мозг может быть занят
     for attempt in range(10):
+        if asyncio.get_event_loop().time() > deadline:
+            print("дедлайн сессии (25 мин) — сдаёмся, завтра снова", file=sys.stderr, flush=True)
+            return 1
         try:
             async with httpx.AsyncClient(timeout=TIMEOUT) as client:
                 r = await client.post(f"{BRAIN_URL}/api/chat", json=payload)
@@ -74,7 +80,7 @@ async def main() -> int:
             if attempt == 9:
                 raise
             wait = min(120, 60 + attempt * 15)
-            print(f"попытка {attempt + 1} не удалась ({e}), ждём {wait}с", file=sys.stderr)
+            print(f"попытка {attempt + 1} не удалась ({e}), ждём {wait}с", file=sys.stderr, flush=True)
             await asyncio.sleep(wait)
     msg = data.get("message", {}) or {}
     out = msg.get("content") or ""

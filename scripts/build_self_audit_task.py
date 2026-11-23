@@ -13,7 +13,9 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+# [TCC-2026-11-23] при запуске копии из HOME корень задаётся ATRA_REPO
+import os as _os
+ROOT = Path(_os.getenv("ATRA_REPO") or Path(__file__).resolve().parents[1])
 REPORTS = ROOT / "docs" / "curator_reports"
 TEMPLATE = ROOT / "scripts" / "curator_self_audit_tasks.txt"
 
