@@ -27,11 +27,15 @@ def resolve_ollama_embed_base_url(
     always returns base without path.
     """
     raw = (
-        (live_url if live_url is not None else os.getenv("LIVE_OLLAMA_URL"))
-        or (embed_url if embed_url is not None else os.getenv("OLLAMA_EMBED_URL"))
-        or (hands_url if hands_url is not None else os.getenv("OLLAMA_HANDS_URL"))
-        or "http://127.0.0.1:11437"
-    ).strip().rstrip("/")
+        (
+            (live_url if live_url is not None else os.getenv("LIVE_OLLAMA_URL"))
+            or (embed_url if embed_url is not None else os.getenv("OLLAMA_EMBED_URL"))
+            or (hands_url if hands_url is not None else os.getenv("OLLAMA_HANDS_URL"))
+            or "http://127.0.0.1:11437"
+        )
+        .strip()
+        .rstrip("/")
+    )
     # Longer suffix first so /api/embeddings is not left as trailing "dings".
     for suffix in ("/api/embeddings", "/api/embed"):
         if raw.endswith(suffix):

@@ -7,9 +7,9 @@ VICTORIA_SERVER = Path(__file__).resolve().parents[2] / "src/agents/bridge/victo
 
 def test_sync_store_has_thin_redis_fallback():
     text = VICTORIA_SERVER.read_text(encoding="utf-8")
-    sync = text.split("async def _sync_store():", 1)[1].split(
-        'store["status"] = "processing"', 1
-    )[0]
+    sync = text.split("async def _sync_store():", 1)[1].split('store["status"] = "processing"', 1)[
+        0
+    ]
     assert "thin fallback" in sync
     assert "full Redis sync failed" in sync
     assert "Redis sync failed task_id=" in sync
@@ -33,8 +33,6 @@ def test_enhanced_solve_heartbeats_updated_at():
     assert "async def _enhanced_solve_heartbeat()" in text
     assert "VICTORIA_ENHANCED_HEARTBEAT_SEC" in text
     # Heartbeat must wrap the wait on solve_task, not run after it.
-    chunk = text.split("solve_task = asyncio.create_task(", 1)[1].split(
-        "if not done:", 1
-    )[0]
+    chunk = text.split("solve_task = asyncio.create_task(", 1)[1].split("if not done:", 1)[0]
     assert "_enhanced_solve_heartbeat" in chunk
     assert "asyncio.wait({solve_task}" in chunk

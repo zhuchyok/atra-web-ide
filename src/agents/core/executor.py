@@ -65,13 +65,49 @@ ALLOWED_TOOLS = {
     "git_status",
     "git_diff",
     "git_log",
-    "git_branch_create",
-    "git_add",
-    "git_commit",
-    "git_pr_create",
+    # Read-only git. Mutate (add/commit/branch/pr_create/test_run/push) stay
+    # unwired on Victoria until approve gate — do not advertise them here.
     "git_pr_list",
-    "git_test_run",
 }
+# Implementations exist in GitTools; mutate only when ATRA_ALLOW_GIT_MUTATE=true.
+_GIT_MUTATE_TOOLS_PARKED = frozenset(
+    {
+        "git_branch_create",
+        "git_add",
+        "git_commit",
+        "git_pr_create",
+        "git_test_run",
+        "git_push",
+    }
+)
+_GIT_MUTATE_ADVERTISE = frozenset(
+    {
+        "git_branch_create",
+        "git_add",
+        "git_commit",
+        "git_pr_create",
+        "git_test_run",
+    }
+)
+
+
+def _maybe_enable_git_mutate_tools() -> None:
+    """Advertise mutate git tools only when approve env is on (push stays out)."""
+    global ALLOWED_TOOLS, ALLOWED_TOOLS_HINT
+    try:
+        from src.agents.tools.system_tools import _allow_git_mutate
+    except ImportError:
+        try:
+            from agents.tools.system_tools import _allow_git_mutate  # type: ignore
+        except ImportError:
+            return
+    if not _allow_git_mutate():
+        return
+    ALLOWED_TOOLS = set(ALLOWED_TOOLS) | set(_GIT_MUTATE_ADVERTISE)
+    ALLOWED_TOOLS_HINT = ", ".join(sorted(ALLOWED_TOOLS))
+
+
+_maybe_enable_git_mutate_tools()
 ALLOWED_TOOLS_HINT = ", ".join(sorted(ALLOWED_TOOLS))
 
 # p95: thinking tokens dominate brain generate. Keep ON only for hard categories;
@@ -90,10 +126,17 @@ def executor_enable_thinking(category: Optional[str] = None) -> bool:
 
 def build_executor_options(category: Optional[str] = None) -> dict[str, Any]:
     """Default /api/chat options; expose for unit tests (before/after payload)."""
+    cat = (category or "").strip().lower()
+    default_cap = int(os.getenv("EXECUTOR_NUM_PREDICT_CAP", "1200"))
+    # Day-better: fast/chat stay short — less tail latency on hands/brain.
+    if cat in ("fast", "chat"):
+        cap = int(os.getenv("EXECUTOR_NUM_PREDICT_FAST", "256"))
+    else:
+        cap = default_cap
     return {
         "temperature": 0.1,
         "enable_thinking": executor_enable_thinking(category),
-        "num_predict": int(os.getenv("EXECUTOR_NUM_PREDICT_CAP", "1200")),
+        "num_predict": cap,
     }
 
 
@@ -313,12 +356,15 @@ class OllamaExecutor:
         logger.info(f"[EXECUTOR_INIT] MLX fallback enabled: {self._use_mlx_fallback}")
         logger.info(f"[EXECUTOR_INIT] Semantic cache enabled: {self.use_semantic_cache}")
 
-        self.system_prompt = """ТЫ — ВИКТОРИЯ, TEAM LEAD ATRA. Отвечай на русском.
+        self.system_prompt = (
+            """ТЫ — ВИКТОРИЯ, TEAM LEAD ATRA. Отвечай на русском.
 
 СТРОГО: Ответ — ОДИН JSON, без текста до/после. Поле "tool" — только из разрешенного списка ниже.
 
 ФОРМАТ: {"thought": "...", "tool": "...", "tool_input": {...}}
-СПИСОК ДОПУСТИМЫХ TOOL: finish, read_file, list_directory, run_terminal_cmd, ssh_run, write_file, apply_patch, grep_search, web_search, db_query, git_status, git_diff, git_log, git_branch_create, git_add, git_commit, git_pr_create, git_pr_list, git_test_run.
+СПИСОК ДОПУСТИМЫХ TOOL: """
+            + ALLOWED_TOOLS_HINT
+            + """.
 
 БАЗОВЫЕ ПРИМЕРЫ ИНСТРУМЕНТОВ (список выше является полным):
 1. finish - ЗАВЕРШИТЬ задачу. Используй СРАЗУ для простых вопросов!
@@ -366,6 +412,7 @@ A: {"thought": "Создаю файл src/calc.py с функцией add", "too
 НЕПРАВИЛЬНО (так НЕ делай):
 A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"file_path": "src/calc.py", "content": "1. Создать файл\n2. Написать функцию\n3. Сохранить"}}
 """
+        )
 
     async def _check_model_available(self, base_url: str, model: str) -> bool:
         """Check if a model is available on the given server"""
@@ -506,14 +553,21 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
             in ("1", "true", "yes", "on")
             and "victoria-qwen38" in str(req_model).lower()
         )
+        # Day-better: short/fast on hands phi must not L2-hit unrelated brain answers
+        # (seen: «настроение номер N» → Data Contracts dump).
+        _cat = (category or "").strip().lower()
+        disable_short_chat_semantic_cache = os.getenv(
+            "VICTORIA_DISABLE_SEMANTIC_CACHE_FOR_SHORT", "true"
+        ).lower() in ("1", "true", "yes", "on") and (
+            _cat in ("fast", "chat") or "phi3.5" in str(req_model).lower()
+        )
+        _skip_semantic_cache = (
+            disable_victoria_qwen_semantic_cache or disable_short_chat_semantic_cache
+        )
 
         # === HYBRID CACHE CHECK [SINGULARITY 21.13] ===
         cache_key = f"{expert_name}:{model or self.model}:{system or ''}:{prompt}"
-        if (
-            self.use_semantic_cache
-            and self._is_cacheable(prompt)
-            and not disable_victoria_qwen_semantic_cache
-        ):
+        if self.use_semantic_cache and self._is_cacheable(prompt) and not _skip_semantic_cache:
             # L1: Exact Match (Hash)
             hash_key = hashlib.md5(cache_key.encode()).hexdigest()
             if hash_key in self._local_hash_cache:
@@ -586,7 +640,7 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
             self.use_semantic_cache
             and self._is_cacheable(prompt)
             and isinstance(response, (str, AgentAction, AgentFinish))
-            and not disable_victoria_qwen_semantic_cache
+            and not _skip_semantic_cache
         ):
             # Extract raw content for caching
             content_to_cache = None
@@ -766,15 +820,20 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
         # = 6 мин за задачу, очередь не дышала. 1200 ток ≈ 2.5 мин — компромисс
         # «медленно, но верно»: каждый вызов уступает слот следующим.
         # [p95] enable_thinking gated: ON only for reasoning/vip/complex.
+        # Qwen3.5 / Ollama chat honors top-level `think`, NOT options.enable_thinking alone
+        # (live: enable_thinking=false → content="" + message.thinking filled; think:false → OK).
+        _think_on = executor_enable_thinking(category)
         _options = build_executor_options(category)
         payload = {
             "model": model,
             "messages": messages,
             "stream": False,
+            "think": _think_on,
             "options": _options,
         }
         logger.info(
-            "[LLM_OPTIONS] enable_thinking=%s category=%s",
+            "[LLM_OPTIONS] think=%s enable_thinking=%s category=%s",
+            _think_on,
             _options.get("enable_thinking"),
             category or "-",
         )
@@ -848,7 +907,17 @@ A: {"thought": "Создаю план", "tool": "write_file", "tool_input": {"fi
 
                     if response.status == 200:
                         result = await response.json()
-                        content = result.get("message", {}).get("content", "")
+                        msg = result.get("message", {}) or {}
+                        content = msg.get("content", "") or ""
+                        # Salvage: if template still dumps into `thinking` and content is empty.
+                        if not str(content).strip():
+                            thinking = msg.get("thinking", "") or ""
+                            if str(thinking).strip():
+                                content = str(thinking).strip()
+                                logger.warning(
+                                    "[LLM_SALVAGE] empty content; using message.thinking (%d chars)",
+                                    len(content),
+                                )
 
                         # === SUCCESS LOGGING ===
                         logger.info("[LLM_RESPONSE] ✅ Success!")

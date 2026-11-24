@@ -66,3 +66,6 @@ def test_before_after_options_payload_contract():
     assert "def executor_enable_thinking(" in text
     assert '"enable_thinking": True' not in text
     assert "build_executor_options(category)" in text
+    # Ollama Qwen3.5 needs top-level think (options.enable_thinking alone is insufficient).
+    assert '"think": _think_on' in text
+    assert "LLM_SALVAGE" in text

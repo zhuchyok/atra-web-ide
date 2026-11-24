@@ -298,6 +298,43 @@ def is_fast_track_message(content: str) -> bool:
     return False
 
 
+def _static_simple_shortcut_reply(text: str) -> Optional[str]:
+    """Deterministic ultra-fast chat replies (greetings / ≤2 words). No LLM.
+
+    Shared by stream and non-stream OpenAI chat paths so OpenWebUI (stream=true)
+    gets the same latency win as sync chat.
+    """
+    if not text or is_fact_seeking_question(text):
+        return None
+    goal_lower = text.lower().strip()
+    if not goal_lower:
+        return None
+    if any(p in goal_lower for p in ("привет", "здравствуй", "hello", "hi")):
+        return "Привет! Чем могу помочь?"
+    if any(
+        p in goal_lower
+        for p in (
+            "кто ты",
+            "ты кто",
+            "who are you",
+            "what are you",
+            "какая ты",
+            "ты виктория",
+        )
+    ):
+        return "Да, я Виктория, Team Lead корпорации ATRA."
+    if "что ты умеешь" in goal_lower:
+        return (
+            "Я — Виктория, Assistant ATRA. Могу отвечать на вопросы по проекту, "
+            "анализировать код, управлять задачами."
+        )
+    if "скажи одно слово" in goal_lower or "ответь одним словом" in goal_lower:
+        return "ок"
+    if len(goal_lower.split()) <= 2:
+        return "Чем могу помочь?"
+    return None
+
+
 def _force_deep_analysis_reason(goal: str) -> Optional[str]:
     """
     Явные сигналы, что задачу нужно выполнять без режима уточнений.
@@ -370,25 +407,27 @@ def _has_no_clarification_instruction(goal: str) -> bool:
 
 
 def _select_model_for_chat(content: str, expert_name: Optional[str] = None) -> str:
-    """Автоматический выбор модели на основе содержания сообщения и эксперта"""
-    content_lower = content.lower()
-    short_chat_model = os.getenv(
-        "VICTORIA_CHAT_SHORT_MODEL",
-        os.getenv("VICTORIA_MODEL", "victoria-qwen38:latest"),
-    )
+    """Автоматический выбор модели на основе содержания сообщения и эксперта.
 
-    # [VIP ROUTE] Если в чате Иван (CEO) или запрос стратегический
+    Day pin: brain = VICTORIA_MODEL (victoria-qwen38*), short = phi@11437.
+    Do not route day chat to victoria-wisdom-24k (MLX legacy).
+    """
+    content_lower = content.lower()
+    short_chat_model = os.getenv("VICTORIA_CHAT_SHORT_MODEL", "phi3.5:3.8b")
+    day_brain = os.getenv("VICTORIA_MODEL", "victoria-qwen38:latest")
+
+    # VIP / strategy → day brain (not wisdom-24k).
     if any(
         word in content_lower
         for word in ["стратег", "корпорац", "совет", "директор", "иван", "ceo"]
     ):
-        return "victoria-wisdom-24k:latest"
+        return day_brain
 
     if any(
         word in content_lower
         for word in ["подумай", "логика", "планир", "reasoning", "анализ", "объясни", "почему"]
     ):
-        return "victoria-wisdom-24k:latest"
+        return day_brain
 
     if any(
         word in content_lower
@@ -404,15 +443,15 @@ def _select_model_for_chat(content: str, expert_name: Optional[str] = None) -> s
             "алгоритм",
         ]
     ):
-        return "victoria-wisdom-24k:latest"
+        return day_brain
 
     if len(content) > 500:
-        return "victoria-wisdom-24k:latest"
+        return day_brain
 
     if len(content) < 200:
         return short_chat_model  # Быстрая локальная модель для коротких вопросов
 
-    return "victoria-wisdom-24k:latest"
+    return day_brain
 
 
 # Загружаем .env при старте
@@ -1476,11 +1515,15 @@ from src.agents.bridge.task_detector import (
     goal_wants_ollama_slots,
     goal_wants_scanner,
     goal_wants_ttc,
+    extract_brain_canary_token,
+    is_brain_canary_probe,
     is_consilium_winnable_goal,
     is_curator_standard_goal,
     is_fact_seeking_question,
     is_introspection_goal,
     is_operational_execution_goal,
+    prefix_brain_canary_token,
+    safety_refuse_answer,
     should_use_enhanced,
 )
 from src.agents.core.base_agent import AtraBaseAgent as BaseAgent
@@ -2674,6 +2717,19 @@ class VictoriaAgent(BaseAgent):
         self.add_tool("git_status", GitTools.git_status)
         self.add_tool("git_diff", GitTools.git_diff)
         self.add_tool("git_log", GitTools.git_log)
+        # Read-only PR list (Wave 2/3). Mutate only when ATRA_ALLOW_GIT_MUTATE=true.
+        self.add_tool("git_pr_list", GitTools.git_pr_list)
+        try:
+            from src.agents.tools.system_tools import _allow_git_mutate
+        except ImportError:
+            from agents.tools.system_tools import _allow_git_mutate  # type: ignore
+        if _allow_git_mutate():
+            self.add_tool("git_branch_create", GitTools.git_branch_create)
+            self.add_tool("git_add", GitTools.git_add)
+            self.add_tool("git_commit", GitTools.git_commit)
+            self.add_tool("git_pr_create", GitTools.git_pr_create)
+            self.add_tool("git_test_run", GitTools.git_test_run)
+            logger.info("[VICTORIA_INIT] git mutate tools registered (ATRA_ALLOW_GIT_MUTATE=true)")
 
         # Интеграция с Knowledge OS (опционально)
         self.db_pool = None
@@ -4870,8 +4926,53 @@ _FILE_CHECK_RE = re.compile(
     r")\s+(?P<path>\S*?/\S*?)(?=\s+[—\-]\s|\s*[.?!]?\s*$)",
     re.IGNORECASE,
 )
+# Canary / colloquial existence: path with extension (do not use bare '.' stop class).
+_FILE_EXISTENCE_FALLBACK_RE = re.compile(
+    r"(?:"
+    r"(?:проверь|прочитай)\s+файл\s+(?P<path1>(?:knowledge_os|src|configs|/app|/Users)\S*?\.[A-Za-z0-9]+)|"
+    r"(?:существует|есть)\s+ли\s+файл\s+(?P<path2>(?:knowledge_os|src|configs|/app|/Users)\S*?\.[A-Za-z0-9]+)|"
+    r"проверь\s+наличие\s+(?P<path3>(?:knowledge_os|src|configs|/app|/Users)\S*?\.[A-Za-z0-9]+)|"
+    r"файл\s+(?P<path4>(?:knowledge_os|src|configs|/app|/Users)\S*?\.[A-Za-z0-9]+)\s+на\s+месте"
+    r")",
+    re.IGNORECASE,
+)
 # Truncated per bible v34: keywords must be within the first 120 chars.
+# BCANARY-* nonce is stripped before matching so harness prompts still fit.
 _FILE_CHECK_MAX_PREFIX = 120
+
+
+def _strip_brain_canary_prefix(goal: str) -> str:
+    """Remove leading BCANARY-* nonce so file-check regex can match."""
+    g = (goal or "").strip()
+    return re.sub(
+        r"^\s*BCANARY-[A-Za-z0-9_-]+\s*",
+        "",
+        g,
+        count=1,
+        flags=re.IGNORECASE,
+    ).strip()
+
+
+def _resolve_repo_isfile(path: str) -> bool:
+    """True if path exists as a file (cwd, PROJECT_ROOT, /workspace, /app)."""
+    raw = (path or "").rstrip(".,;:)?!")
+    if not raw:
+        return False
+    if os.path.isfile(raw):
+        return True
+    if os.path.isabs(raw):
+        return False
+    roots = []
+    for cand in (
+        os.getcwd(),
+        os.getenv("PROJECT_ROOT") or "",
+        "/workspace/atra-web-ide",
+        "/app",
+    ):
+        if cand and cand not in roots:
+            roots.append(cand)
+    return any(os.path.isfile(os.path.join(root, raw)) for root in roots)
+
 
 # Quoted membership needles: `"pip install" in x` / `"eval()" not in y` — meta-checks, not use.
 _MEMBERSHIP_NEEDLE_RE = re.compile(
@@ -5004,37 +5105,64 @@ async def _try_file_check_reply(goal: str) -> Optional[Dict[str, Any]]:
     Триггер (в первых 120 символах): «проверь/прочитай файл …» или
     «существует/есть ли файл …» / «проверь существует|есть ли файл …».
     Формат ответа — по эталону code_audit: ОК / ПРОБЛЕМА + цитата;
-    для existence-only — ФАЙЛ СУЩЕСТВУЕТ / ФАЙЛ НЕ НАЙДЕН.
+    для existence-only — ФАЙЛ СУЩЕСТВУЕТ / ФАЙЛ НЕ НАЙДЕН (ДА/НЕТ для canary).
     """
-    g = (goal or "").strip()
+    g = _strip_brain_canary_prefix(goal)
     if len(g) < _FILE_CHECK_MAX_PREFIX:
         prefix = g
     else:
         prefix = g[:_FILE_CHECK_MAX_PREFIX]
     m = _FILE_CHECK_RE.match(prefix)
-    if not m:
-        return None
-    path = (m.group("path") or "").rstrip(".,;:)?!")
+    path = ""
+    exists_only = False
+    task_text = ""
+    if m:
+        path = (m.group("path") or "").rstrip(".,;:)?!")
+        # Позиции матча в prefix совпадают с позициями в g (prefix — начало g).
+        task_text = g[m.end("path") :][:400]
+        _has_content_audit = bool(
+            re.search(
+                r"есть\s+ли\s+(?:там\s+)?\S|найди\s+(?:потенциальные\s+)?проблемы",
+                task_text,
+                re.IGNORECASE,
+            )
+        )
+        if m.group("exists") and not _has_content_audit:
+            exists_only = True
+    else:
+        fm = _FILE_EXISTENCE_FALLBACK_RE.search(g[:500])
+        if not fm:
+            return None
+        path = next(
+            (fm.group(k) for k in ("path1", "path2", "path3", "path4") if fm.group(k)),
+            "",
+        )
+        path = (path or "").rstrip(".,;:)?!")
+        exists_only = True
     if not path or "/" not in path:
         return None
-    # Позиции матча в prefix совпадают с позициями в g (prefix — начало g).
-    task_text = g[m.end("path") :][:400]
-    # Pure existence («существует/есть ли файл /path») — no open/LLM, only isfile.
-    _has_content_audit = bool(
-        re.search(
-            r"есть\s+ли\s+(?:там\s+)?\S|найди\s+(?:потенциальные\s+)?проблемы",
-            task_text,
-            re.IGNORECASE,
-        )
-    )
-    if m.group("exists") and not _has_content_audit:
-        answer = (
-            f"ФАЙЛ СУЩЕСТВУЕТ: {path}"
-            if os.path.isfile(path)
-            else f"ФАЙЛ НЕ НАЙДЕН: {path}"
-        )
+    if exists_only:
+        ok = _resolve_repo_isfile(path)
+        if re.search(r"BCANARY-[A-Za-z0-9_-]+", goal or "", re.IGNORECASE):
+            answer = f"{'ДА' if ok else 'НЕТ'}, {path}"
+        else:
+            answer = f"ФАЙЛ СУЩЕСТВУЕТ: {path}" if ok else f"ФАЙЛ НЕ НАЙДЕН: {path}"
     else:
-        answer = _file_check_scan(path, task_text)
+        scan_path = path
+        if not os.path.isfile(scan_path):
+            for root in (
+                os.getcwd(),
+                os.getenv("PROJECT_ROOT") or "",
+                "/workspace/atra-web-ide",
+                "/app",
+            ):
+                if not root:
+                    continue
+                cand = os.path.join(root, path)
+                if os.path.isfile(cand):
+                    scan_path = cand
+                    break
+        answer = _file_check_scan(scan_path, task_text)
     if answer is None:
         return None
     return {
@@ -5365,6 +5493,9 @@ def _normalize_output_for_user(raw: Any) -> str:
         s = raw.strip()
         # Удаляем think-блоки для чистого пользовательского текста даже в direct /run fast-path.
         s = re.sub(r"<think>.*?</think>", "", s, flags=re.DOTALL | re.IGNORECASE).strip()
+        # Unclosed <think>: wipe to EOF — do NOT strip tags and leave the body (egress leak).
+        if re.search(r"<think>", s, re.IGNORECASE):
+            s = re.sub(r"<think>.*$", "", s, flags=re.DOTALL | re.IGNORECASE).strip()
         s = re.sub(r"</?think>", "", s, flags=re.IGNORECASE).strip()
         # Убираем запятую/точку/двоеточие в начале (артефакт продолжения промпта)
         s = re.sub(r"^[,.:;]\s*", "", s).strip()
@@ -5684,33 +5815,132 @@ def _extract_async_task_id(payload: Any) -> Optional[str]:
     return None
 
 
-async def _await_async_handoff_result_for_chat(
-    task_id: str, max_wait_sec: int = 45
-) -> Optional[str]:
-    """Poll /run status briefly so chat users see final answer, not handoff payload."""
+def _stream_stage_enabled() -> bool:
+    return os.getenv("VICTORIA_STREAM_STAGE", "true").lower() in ("1", "true", "yes", "on")
+
+
+def _stream_stage_label(elapsed_sec: float, stage: str = "") -> str:
+    """Human-readable stage line for OpenAI stream delta.content (OpenWebUI-safe)."""
+    stage = (stage or "").strip()
+    if stage:
+        pretty = {
+            "strategy": "стратегия",
+            "understanding": "разбор цели",
+            "execution": "исполнение",
+            "clarification": "уточнение",
+            "file_written": "файл записан",
+            "compile": "компиляция",
+            "runtime": "runtime-проверка",
+            "test": "тесты",
+            "completed": "готово",
+            "failed": "ошибка",
+        }.get(stage, stage)
+        return f"⏳ stage={pretty}\n"
+    if elapsed_sec < 8:
+        return "⏳ Начинаю…\n"
+    if elapsed_sec < 25:
+        return "⏳ Думаю…\n"
+    if elapsed_sec < 60:
+        return "⏳ Ещё работаю…\n"
+    return "⏳ Долгий прогон, держу связь…\n"
+
+
+def _openai_sse_content_chunk(
+    correlation_id: str, model: str, content: str, *, role: Optional[str] = None
+) -> str:
+    delta: Dict[str, Any] = {}
+    if role:
+        delta["role"] = role
+    if content is not None:
+        delta["content"] = content
+    chunk = {
+        "id": f"chatcmpl-{correlation_id}",
+        "object": "chat.completion.chunk",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [{"index": 0, "delta": delta, "finish_reason": None}],
+    }
+    return f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+
+
+async def _iter_async_handoff_for_chat(
+    task_id: str, max_wait_sec: int = 45, *, emit_stages: bool = False
+):
+    """Poll /run status. Yields (\"stage\", text) when emit_stages, then (\"final\", text).
+
+    Wave A + day-better SSE: surface ``stage`` during wait, not only on timeout stub.
+    """
     if not task_id:
-        return None
+        return
     deadline = time.time() + max(5, int(max_wait_sec))
+    last_stage = ""
+    started = time.time()
     while time.time() < deadline:
         try:
             status_payload = await get_run_status(task_id)
             status = str(status_payload.get("status") or "").lower()
+            stage = str(
+                status_payload.get("stage")
+                or (status_payload.get("metadata") or {}).get("stage")
+                or ""
+            ).strip()
+            if stage and stage != last_stage:
+                last_stage = stage
+                logger.info(
+                    "[VICTORIA_CHAT_HANDOFF] task_id=%s stage=%s status=%s",
+                    task_id,
+                    stage,
+                    status,
+                )
+                if emit_stages:
+                    yield ("stage", _stream_stage_label(time.time() - started, stage))
             if status in ("completed", "success"):
                 out = _normalize_output_for_user(status_payload.get("output") or "")
-                return out or "✅ Задача выполнена, но без текстового вывода."
+                yield (
+                    "final",
+                    out or "✅ Задача выполнена, но без текстового вывода.",
+                )
+                return
             if status in ("failed", "error", "cancelled"):
                 err = (
                     status_payload.get("error")
                     or status_payload.get("output")
                     or "❌ Фоновая задача завершилась с ошибкой."
                 )
-                return _normalize_output_for_user(err)
+                yield ("final", _normalize_output_for_user(err))
+                return
         except HTTPException:
             pass
         except Exception:
             pass
         await asyncio.sleep(1.5)
-    return None
+    if last_stage:
+        yield (
+            "final",
+            (
+                f"⏳ Задача ещё выполняется (stage={last_stage}). "
+                f"task_id={task_id}. Повторите через 20–40 секунд или опросите /run/status/{{task_id}}."
+            ),
+        )
+        return
+    yield ("final", None)
+
+
+async def _await_async_handoff_result_for_chat(
+    task_id: str, max_wait_sec: int = 45
+) -> Optional[str]:
+    """Poll /run status briefly so chat users see final answer, not handoff payload.
+
+    Wave A: track ``stage`` so timeout stubs are not silent «думает».
+    Returns final text, or a stage-aware still-running hint (never None if we saw a stage).
+    """
+    final: Optional[str] = None
+    async for kind, text in _iter_async_handoff_for_chat(
+        task_id, max_wait_sec=max_wait_sec, emit_stages=False
+    ):
+        if kind == "final":
+            final = text
+    return final
 
 
 def _rewrite_bible_access_denial(text: str) -> str:
@@ -6466,9 +6696,8 @@ def _early_async_preamble_shortcut(
             "reason": "early_async_analysis_skip_preamble",
             "confidence": 0.9,
         }
-    if reason == "request_async_mode" and (
-        _is_analysis_heavy_goal(goal) or bool(_force_deep_analysis_reason(goal))
-    ):
+    # Wave A: always skip wasted preamble on explicit async — dominant TTC reason.
+    if reason == "request_async_mode":
         return (goal or ""), {
             "strategy": "deep_analysis",
             "reason": "async_mode_skip_preamble",
@@ -8658,7 +8887,9 @@ async def _run_task_background(
         # задачи зависают в heavy-route и дают still_running/timeouts.
         if strategy_result.get("strategy") == "quick_answer":
             use_enhanced_actual = False
-        elif strategy_result.get("strategy") == "deep_analysis":
+        elif strategy_result.get("strategy") == "deep_analysis" and use_enhanced:
+            # Respect caller opt-out (OpenAI chat sets use_enhanced=False for
+            # conversational turns — do not escalate into enhanced_solve).
             use_enhanced_actual = True
         try:
             from medic.log_scanner import scanner_class_forces_direct
@@ -9513,12 +9744,9 @@ async def get_run_status(task_id: str):
     _upd_age = _elapsed_seconds_from_store(
         {"created_at": rec.get("updated_at") or rec.get("created_at")}
     )
-    _stale = (
-        str(status_val).lower() in _inflight
-        and (
-            (_elapsed_now is not None and _elapsed_now > _hard_sec)
-            or (_upd_age is not None and _upd_age > _stale_upd_sec)
-        )
+    _stale = str(status_val).lower() in _inflight and (
+        (_elapsed_now is not None and _elapsed_now > _hard_sec)
+        or (_upd_age is not None and _upd_age > _stale_upd_sec)
     )
     if _stale:
         status_val = "failed"
@@ -9622,6 +9850,13 @@ async def _generate_via_mlx_or_ollama(
         "code",
     )
     _mlx_serves = any(m in ideal_model.lower() for m in _mlx_served_markers)
+    # Live XOR: phi lives on hands 11437. Skipping MLX avoids short-chat bounce
+    # through 11435 before executor redirects to hands anyway.
+    if "phi3.5" in ideal_model.lower() and os.getenv(
+        "VICTORIA_PHI_PREFER_HANDS", "true"
+    ).lower() in ("1", "true", "yes", "on"):
+        _mlx_serves = False
+        logger.info("[MLX_DEBUG] %s → prefer hands Ollama (skip MLX)", ideal_model)
     if not _mlx_serves:
         logger.info("[MLX_DEBUG] %s не обслуживается MLX-прокси — сразу Ollama", ideal_model)
 
@@ -9707,6 +9942,8 @@ async def _generate_via_mlx_or_ollama(
                 "[OLLAMA_DEBUG] executor.ask returned nothing, trying direct API: %s", ollama_url
             )
             async with httpx.AsyncClient(timeout=300.0) as client:
+                _opts = build_executor_options(category)
+                _think_on = bool(_opts.get("enable_thinking"))
                 payload = {
                     "model": ideal_model,
                     "messages": [
@@ -9714,7 +9951,9 @@ async def _generate_via_mlx_or_ollama(
                         {"role": "user", "content": full_prompt},
                     ],
                     "stream": False,
-                    "options": build_executor_options(category),
+                    # Top-level think (Qwen3.5); options.enable_thinking alone is insufficient.
+                    "think": _think_on,
+                    "options": _opts,
                 }
                 if stop:
                     payload["stop"] = stop
@@ -9723,7 +9962,14 @@ async def _generate_via_mlx_or_ollama(
                 logger.info("[OLLAMA_DEBUG] Direct API status: %d", r.status_code)
                 if r.status_code == 200:
                     data = r.json()
-                    content = data.get("message", {}).get("content", "").strip()
+                    msg = data.get("message", {}) or {}
+                    content = (msg.get("content") or "").strip()
+                    if not content and (msg.get("thinking") or "").strip():
+                        content = str(msg.get("thinking") or "").strip()
+                        logger.warning(
+                            "[OLLAMA_DEBUG] Direct API salvage thinking→content (%d chars)",
+                            len(content),
+                        )
                     logger.info("[OLLAMA_DEBUG] Direct API success, length: %d", len(content))
                     return (content, "ollama_direct")
         except Exception as e:
@@ -9760,6 +10006,25 @@ async def run_task_stream(body: TaskRequest, request: Request):
         VICTORIA_ACTIVE_REQUESTS.inc()
     except Exception:
         pass
+
+    # Safety refusals before skill/LLM (parity with /run + OpenAI chat).
+    _stream_safety = safety_refuse_answer(body.goal or "")
+    if _stream_safety:
+        _stream_safety = prefix_brain_canary_token(body.goal or "", _stream_safety)
+        logger.info("[VICTORIA_SAFETY] /stream refuse preview=%s", _stream_safety[:120])
+
+        async def _safety_sse():
+            yield f"data: {json.dumps({'type': 'final', 'content': _stream_safety}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'end'})}\n\n"
+
+        try:
+            VICTORIA_REQUEST_DURATION.labels(endpoint="/stream", mode="sync").observe(
+                time.time() - _stream_start_time
+            )
+            VICTORIA_ACTIVE_REQUESTS.dec()
+        except Exception:
+            pass
+        return StreamingResponse(_safety_sse(), media_type="text/event-stream")
 
     # ✅ SKILL DISCIPLINE: автоопределение и вызов скилла перед выполнением
     skill_context = None
@@ -9869,42 +10134,48 @@ async def run_task_stream(body: TaskRequest, request: Request):
             if body.session_id:
                 session_ctx = await _get_session_context_from_db(body.session_id, body.goal)
 
-            # Сингулярность 10.0: Подтягиваем знания AI Research даже для простых запросов
-            ai_research_context = ""
-            try:
-                temp_enhanced = _get_victoria_enhanced_singleton()
-                if temp_enhanced is None:
-                    raise RuntimeError("VictoriaEnhanced unavailable")
-                ai_research_context = await asyncio.wait_for(
-                    getattr(temp_enhanced, "_get_ai_research_context", lambda *a, **k: "")(
-                        body.goal
-                    ),
-                    timeout=3.0,  # pyright: ignore[reportAttributeAccessIssue]
-                )
-            except Exception as e:
-                logger.debug("AI Research context fetch failed for stream: %s", e)
-
             prompt_for_gen = body.goal
             if session_ctx:
                 prompt_for_gen = f"{session_ctx}\n\nТЕКУЩИЙ ЗАПРОС: {prompt_for_gen}"
-            if ai_research_context:
-                prompt_for_gen = f"{ai_research_context}\n\n{prompt_for_gen}"
 
-            # [SINGULARITY 21.17] Expert DNA for Fast Path
-            try:
-                _dna_fn = _lazy_expert_dna_manager()
-                if _dna_fn is None:
-                    raise ImportError("expert_dna_manager not available")
-                dna_mgr = _dna_fn()
-                expert_dna = await dna_mgr.get_expert_dna("Виктория")
-                if expert_dna:
-                    prompt_for_gen = f"{expert_dna}\n\n{prompt_for_gen}"
-            except Exception as de:
-                logger.debug("Expert DNA fetch failed for stream: %s", de)
+            # Day-better: skip AI-research (3s) + Expert DNA on simple/fast chat.
+            # Keep enrichment for VIP / team discussion only.
+            _enrich_fast = bool(is_vip or is_discussion)
+            if _enrich_fast:
+                ai_research_context = ""
+                try:
+                    temp_enhanced = _get_victoria_enhanced_singleton()
+                    if temp_enhanced is None:
+                        raise RuntimeError("VictoriaEnhanced unavailable")
+                    ai_research_context = await asyncio.wait_for(
+                        getattr(temp_enhanced, "_get_ai_research_context", lambda *a, **k: "")(
+                            body.goal
+                        ),
+                        timeout=3.0,  # pyright: ignore[reportAttributeAccessIssue]
+                    )
+                except Exception as e:
+                    logger.debug("AI Research context fetch failed for stream: %s", e)
+                if ai_research_context:
+                    prompt_for_gen = f"{ai_research_context}\n\n{prompt_for_gen}"
+                try:
+                    _dna_fn = _lazy_expert_dna_manager()
+                    if _dna_fn is None:
+                        raise ImportError("expert_dna_manager not available")
+                    dna_mgr = _dna_fn()
+                    expert_dna = await dna_mgr.get_expert_dna("Виктория")
+                    if expert_dna:
+                        prompt_for_gen = f"{expert_dna}\n\n{prompt_for_gen}"
+                except Exception as de:
+                    logger.debug("Expert DNA fetch failed for stream: %s", de)
+            else:
+                logger.info(
+                    "⚡ [STREAM] skip AI-research+DNA on simple/fast goal: %s",
+                    (body.goal or "")[:40],
+                )
 
             if is_discussion:
-                # [SINGULARITY 29.1] Всегда используем Wisdom для discussion
-                ideal_model = os.getenv("VICTORIA_MODEL", "victoria-wisdom-24k:latest")
+                # Day pin: discussion uses live VICTORIA_MODEL (qwen38), not wisdom-24k.
+                ideal_model = os.getenv("VICTORIA_MODEL", "victoria-qwen38:latest")
                 system_msg = """Ты — команда экспертов ATRA. Твоя задача: провести ЖИВОЕ обсуждение на РУССКОМ языке.
 ПРАВИЛА:
 1. Пиши ТОЛЬКО реплики экспертов.
@@ -10271,8 +10542,69 @@ async def _live_scanner_line() -> str:
     return "сканер не сняла"
 
 
+async def _brain_canary_direct_generate(goal: str) -> Optional[str]:
+    """BCANARY harness: answer from live VICTORIA_MODEL via Ollama, skip orchestrator.
+
+    Avoids async handoff without task_id and /run poll timeouts that poison the rubric.
+    Live-fact is skipped for BCANARY-* (see _build_live_fact_answer_for_run) so RU/status
+    prompts with nonce are not hijacked into queue/ps dumps.
+    """
+    if not is_brain_canary_probe(goal or ""):
+        return None
+    model = (
+        os.getenv("VICTORIA_MODEL")
+        or os.getenv("VICTORIA_PLANNER_MODEL")
+        or "victoria-qwen38:latest"
+    )
+    ollama_url = (
+        os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_HOST") or "http://127.0.0.1:11434"
+    ).rstrip("/")
+    if os.path.exists("/.dockerenv") and "host.docker.internal" not in ollama_url:
+        if "localhost" in ollama_url or "127.0.0.1" in ollama_url:
+            ollama_url = "http://host.docker.internal:11434"
+    try:
+        import httpx
+
+        timeout = float(os.getenv("VICTORIA_CANARY_DIRECT_TIMEOUT_SEC", "90"))
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            r = await client.post(
+                f"{ollama_url}/api/generate",
+                json={
+                    "model": model,
+                    "prompt": goal,
+                    "stream": False,
+                    "think": False,
+                    "keep_alive": "24h",
+                    "options": {"num_ctx": 16384, "num_predict": 256, "temperature": 0.2},
+                },
+            )
+        if r.status_code != 200:
+            logger.warning("[VICTORIA_CANARY] direct generate HTTP %s", r.status_code)
+            return None
+        data = r.json() if r.content else {}
+        text = str(data.get("response") or "").strip()
+        # Drop leaked chain-of-thought preambles (Qwen think dumps).
+        if "<think>" in text.lower():
+            text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE).strip()
+        if text.lower().startswith("we need answer") or "user says:" in text.lower():
+            # Keep last non-empty block after reasoning prose
+            parts = [p.strip() for p in re.split(r"\n{2,}", text) if p.strip()]
+            if parts:
+                text = parts[-1]
+        if not text:
+            return None
+        return prefix_brain_canary_token(goal, text)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[VICTORIA_CANARY] direct generate failed: %s", exc)
+        return None
+
+
 async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
     """Build a deterministic fact answer for /run without LLM."""
+    # Brain canary harness injects BCANARY-*; skip live-fact so RU/refusal/code
+    # prompts are not hijacked into queue/ps dumps (intentional fp0* have no token).
+    if is_brain_canary_probe(goal or ""):
+        return None
     # Tool directives (web/sql/git) must go through quick-tools, not fact-live probe.
     if _has_explicit_tool_directive(goal or ""):
         return None
@@ -10530,6 +10862,24 @@ async def run_task(
             },
             correlation_id=correlation_id,
         )
+    # Safety refusals before file-check / live-fact / canary-direct / LLM.
+    _safety = safety_refuse_answer(goal)
+    if _safety:
+        logger.info(
+            "[VICTORIA_SAFETY] /run refuse correlation_id=%s preview=%s",
+            correlation_id,
+            _safety[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _safety),
+            knowledge={
+                "strategy": "safety_refuse",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
     # Residual #65: file-check before live-fact (path may contain «ttc»).
     try:
         _early_file_check = await _try_file_check_reply(goal)
@@ -10550,7 +10900,9 @@ async def run_task(
         )
         return TaskResponse(
             status="success",
-            output=_normalize_output_for_user(_early_file_check.get("output", "")),
+            output=prefix_brain_canary_token(
+                goal, _normalize_output_for_user(_early_file_check.get("output", ""))
+            ),
             knowledge=knowledge,
             correlation_id=correlation_id,
         )
@@ -10564,7 +10916,7 @@ async def run_task(
         )
         return TaskResponse(
             status="success",
-            output=_fixed_token,
+            output=prefix_brain_canary_token(goal, _fixed_token),
             knowledge={
                 "strategy": "fixed_token_reply",
                 "source": "deterministic",
@@ -10574,6 +10926,7 @@ async def run_task(
         )
     live_fact_answer = await _build_live_fact_answer_for_run(goal)
     if live_fact_answer:
+        live_fact_answer = prefix_brain_canary_token(goal, live_fact_answer)
         logger.info(
             "[VICTORIA_FACT] /run deterministic fact answer correlation_id=%s preview=%s",
             correlation_id,
@@ -10586,6 +10939,23 @@ async def run_task(
                 "strategy": "fact_live_probe",
                 "source": "postgres_live",
                 "fact_mode": True,
+            },
+            correlation_id=correlation_id,
+        )
+    # Brain canary harness: direct Ollama brain, no early-async /run hang.
+    _canary_direct = await _brain_canary_direct_generate(goal)
+    if _canary_direct:
+        logger.info(
+            "[VICTORIA_CANARY] /run direct brain preview=%s",
+            _canary_direct[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=_canary_direct,
+            knowledge={
+                "strategy": "brain_canary_direct",
+                "source": "ollama_brain",
+                "metadata": {"correlation_id": correlation_id},
             },
             correlation_id=correlation_id,
         )
@@ -10765,16 +11135,30 @@ async def run_task(
 
         if not content or len(content) < 10:
             logger.warning("[VICTORIA_CYCLE] Content too short or empty after cleanup: %s", content)
-            # Если после очистки пусто, но оригинал был длинным — значит там был только <think>
-            # В этом случае возвращаем оригинал без очистки (лучше с <think>, чем ничего)
-            if len(content or "") < 10 and source == "mlx":
-                logger.info(
-                    "[VICTORIA_CYCLE] Cleanup killed everything, returning original content"
-                )
-                # Но все же попробуем убрать только теги, оставив текст внутри если он там есть
+            # Do NOT re-emit think prose (strip tags / keep body). Prefer honest fail.
+            if len(content or "") < 10 and source == "mlx" and (original_content or "").strip():
                 import re
 
-                content = re.sub(r"</?think>", "", original_content or "")
+                _rescued = re.sub(
+                    r"<think>.*?</think>",
+                    "",
+                    original_content or "",
+                    flags=re.DOTALL | re.IGNORECASE,
+                ).strip()
+                if re.search(r"<think>", _rescued, re.IGNORECASE):
+                    _rescued = re.sub(
+                        r"<think>.*$", "", _rescued, flags=re.DOTALL | re.IGNORECASE
+                    ).strip()
+                _rescued = re.sub(r"</?think>", "", _rescued, flags=re.IGNORECASE).strip()
+                if len(_rescued) >= 10:
+                    content = _rescued
+                    logger.info(
+                        "[VICTORIA_CYCLE] mlx rescue after think wipe (%d chars)", len(content)
+                    )
+                else:
+                    logger.info(
+                        "[VICTORIA_CYCLE] mlx output was think-only; refusing think-body leak"
+                    )
 
             if not content or len(content) < 10:
                 return TaskResponse(
@@ -11090,34 +11474,9 @@ async def run_task(
                 source = "static_fallback"
 
         if content:
-            # [SINGULARITY 21.17] Expert DNA for Fast Path
-            try:
-                _dna_fn2 = _lazy_expert_dna_manager()
-                if _dna_fn2 is None:
-                    raise ImportError("expert_dna_manager not available")
-                dna_mgr = _dna_fn2()
-                expert_dna = await dna_mgr.get_expert_dna("Виктория")
-                if expert_dna:
-                    goal = f"{expert_dna}\n\n{goal}"
-            except Exception as de:
-                logger.debug("Expert DNA fetch failed for fast path: %s", de)
-
-            # [SINGULARITY 28.X] Log FAST PATH to agent_ab_results
-            try:
-                if asyncpg:
-                    db_url = os.getenv(
-                        "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
-                    )
-                    conn = await asyncpg.connect(db_url, timeout=5)
-                    _fp_id = f"fast_{abs(hash(content[:100])) % 1000000}"
-                    await conn.execute(
-                        """INSERT INTO agent_ab_results (expert_name, strategy, task_id, score, created_at) VALUES ('Виктория', 'fast_path', $1, 1.0, NOW())""",
-                        _fp_id,
-                    )
-                    logger.info(f"⚖️ [AB_FAST] logged: {_fp_id}")
-                    await conn.close()
-            except Exception as _aberr:
-                logger.debug(f"AB fast log failed: {_aberr}")
+            # Day-better: DNA after generate never reshaped `content` — dead tax.
+            # AB INSERT was a sync DB round-trip on every greeting — skip.
+            logger.info("⚡ [FAST-PATH] skip DNA+AB tax after generate")
 
             normalized_content = _normalize_output_for_user(content)
             if normalized_content.startswith("⚠️"):
@@ -11495,13 +11854,9 @@ async def run_task(
             "агент",
             "orchestrat",
             "decompos",
-            "проанализ",
-            "анализ",
-            "объясни",
-            "сравни",
-            "почему",
-            "разбери",
-            "исследуй",
+            # Conversational Q&A markers intentionally NOT here (Wave A):
+            # «объясни/анализ/почему/…» used to force async and inflate TTC.
+            # Keep only mutate/code/deploy markers for sync_safe exclusion.
         )
         return len(low) <= 700 and not any(m in low for m in heavy_markers)
 
@@ -12890,25 +13245,46 @@ class ChatCompletionRequest(BaseModel):
     user: Optional[str] = None
 
 
+def _coerce_chat_user_key(raw) -> str:
+    """Normalize header/body user identity to a non-empty string key (or "")."""
+    if raw is None:
+        return ""
+    if isinstance(raw, dict):
+        for field in ("id", "email", "name"):
+            val = raw.get(field)
+            if val is not None:
+                key = str(val).strip()
+                if key:
+                    return key
+        return ""
+    return str(raw).strip()
+
+
 def _resolve_chat_user_key(request: ChatCompletionRequest, req: Request) -> str:
     """Stable chat identity for LTM / session_id (not per-request correlation_id).
 
-    Priority: X-Victoria-User / X-Session-Id → body.user → VICTORIA_CHAT_USER_KEY → atra-default.
+    Priority: X-Victoria-User / X-Session-Id → OpenWebUI user headers → body.user
+    → VICTORIA_CHAT_USER_KEY → atra-default.
     """
     headers = getattr(req, "headers", None) if req is not None else None
     if headers is not None:
-        for header in ("X-Victoria-User", "X-Session-Id"):
+        for header in (
+            "X-Victoria-User",
+            "X-Session-Id",
+            # OpenWebUI ENABLE_FORWARD_USER_INFO_HEADERS=true
+            "X-OpenWebUI-User-Id",
+            "X-OpenWebUI-User-Email",
+        ):
             raw = headers.get(header)
             if raw is None:
                 continue
-            key = str(raw).strip()
+            key = _coerce_chat_user_key(raw)
             if key:
                 return key
     body_user = getattr(request, "user", None)
-    if body_user is not None:
-        key = str(body_user).strip()
-        if key:
-            return key
+    key = _coerce_chat_user_key(body_user)
+    if key:
+        return key
     env_key = (os.getenv("VICTORIA_CHAT_USER_KEY") or "").strip()
     if env_key:
         return env_key
@@ -13204,6 +13580,27 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 "usage": {"prompt_tokens": 0, "completion_tokens": 1, "total_tokens": 1},
             }
         )
+    # Safety refusals before file-check / live-fact / canary-direct / LLM.
+    _chat_safety = safety_refuse_answer(goal)
+    if _chat_safety:
+        _chat_safety = prefix_brain_canary_token(goal, _chat_safety)
+        logger.info("[VICTORIA_SAFETY] chat refuse preview=%s", _chat_safety[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_safety},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
     # Residual #65: FAST_ACTION file-check BEFORE live-fact.
     # Path may contain «ttc»/«p95» and would otherwise hijack fact_live_probe.
     try:
@@ -13211,7 +13608,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     except Exception:
         _file_check = None
     if _file_check and _file_check.get("output"):
-        _fc_out = _normalize_output_for_user(_file_check["output"])
+        _fc_out = prefix_brain_canary_token(goal, _normalize_output_for_user(_file_check["output"]))
         logger.info("[VICTORIA_FILE_CHECK] chat completions preview=%s", (_fc_out or "")[:120])
         return JSONResponse(
             content={
@@ -13232,6 +13629,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     # Fixed-token YES/NO before live-fact (pair tips with INFLIGHT/TTC/11437).
     _chat_fixed = fixed_token_reply_answer(goal)
     if _chat_fixed:
+        _chat_fixed = prefix_brain_canary_token(goal, _chat_fixed)
         logger.info("[VICTORIA_FIXED_TOKEN] chat completions answer=%s", _chat_fixed)
         return JSONResponse(
             content={
@@ -13254,6 +13652,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     # That flag gates identity/bible shortcuts; gating fact-probe behind it forced
     # curator/health/slots questions into full run_task → 35s static handoff stub.
     if live_fact:
+        live_fact = prefix_brain_canary_token(goal, live_fact)
         logger.info("[VICTORIA_FACT] chat completions live fact preview=%s", live_fact[:120])
         return JSONResponse(
             content={
@@ -13265,6 +13664,26 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     {
                         "index": 0,
                         "message": {"role": "assistant", "content": live_fact},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    # Brain canary: direct Ollama brain (skip async handoff / execution markers).
+    _canary_chat = await _brain_canary_direct_generate(goal)
+    if _canary_chat:
+        logger.info("[VICTORIA_CANARY] chat direct brain preview=%s", _canary_chat[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _canary_chat},
                         "finish_reason": "stop",
                     }
                 ],
@@ -13375,6 +13794,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
 
     # Stable user key AFTER live-fact / fixed-token / file-check early exits above.
     chat_user_key = _resolve_chat_user_key(request, req)
+    logger.info(f"🔗 [OPENAI-API] chat_user_key={chat_user_key}")
 
     # Создаем объект запроса, совместимый с нашим run_task
     task_req = TaskRequest(
@@ -13459,7 +13879,27 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 m in _rag_probe.lower() for m in ("исправь", "напиши код", "создай файл", "pytest ")
             )
         )
-        if "victoria" in str(request.model).lower() and not _skip_omni_rag:
+        # Day latency: Omni-RAG only for knowledge/fact asks — not every chat
+        # (LTM/session recall). Blind RAG also inflated task_req.goal past the
+        # fast-path 2000-char gate and forced enhanced_solve → busy stubs.
+        _omni_knowledge_markers = (
+            "что такое",
+            "кто такой",
+            "как работает",
+            "документац",
+            "архитектур",
+            "master_reference",
+            "библи",
+            "blackboard",
+            "knowledge fabric",
+            "опиши",
+            "расскажи",
+        )
+        _want_omni_rag = (not _skip_omni_rag) and (
+            is_fact_seeking_question(_rag_probe)
+            or any(m in _rag_probe.lower() for m in _omni_knowledge_markers)
+        )
+        if "victoria" in str(request.model).lower() and _want_omni_rag:
             try:
                 from app.enhanced_search import (
                     SearchMode,
@@ -13469,17 +13909,24 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
 
                 logger.info("🔍 [OPENAI-API] Omni-RAG: Searching knowledge for goal...")
                 rag_res = await enhanced_search_knowledge(
-                    query=goal, mode=SearchMode.HYBRID, limit=3
+                    query=_rag_probe, mode=SearchMode.HYBRID, limit=3
                 )
                 # Quality gate: skip empty / placeholder / weak filtered hits.
                 if rag_context_usable(rag_res):
                     knowledge_text = rag_res.get("result_text", "")
-                    # Очищаем RAG от внутренних монологов (<think>/<thought> блоков)
+                    # Очищаем RAG от монологов (think/thought/reasoning_trace) — иначе echo в ответ.
                     knowledge_text = re.sub(
-                        r"<think>.*?</think>|<thought>.*?</thought>",
+                        r"<think>.*?</think>|<thought>.*?</thought>|"
+                        r"<reasoning_trace>.*?</reasoning_trace>",
                         "",
                         knowledge_text,
-                        flags=re.DOTALL,
+                        flags=re.DOTALL | re.IGNORECASE,
+                    )
+                    knowledge_text = re.sub(
+                        r"<(?:think|thought|reasoning_trace)>.*$",
+                        "",
+                        knowledge_text,
+                        flags=re.DOTALL | re.IGNORECASE,
                     )
                     knowledge_text = knowledge_text.strip()
                     if knowledge_text:
@@ -13487,9 +13934,17 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                             f"📚 [OPENAI-API] Omni-RAG: Found {len(rag_res['results'])} relevant nodes"
                         )
                         # Внедряем знания в начало запроса
-                        task_req.goal = f"КОНТЕКСТ ИЗ БАЗЫ ЗНАНИЙ (Omni-RAG):\n{knowledge_text}\n\nЗАПРОС ПОЛЬЗОВАТЕЛЯ: {task_req.goal}"
+                        task_req.goal = (
+                            f"КОНТЕКСТ ИЗ БАЗЫ ЗНАНИЙ (Omni-RAG):\n{knowledge_text}\n\n"
+                            f"ЗАПРОС ПОЛЬЗОВАТЕЛЯ: {task_req.goal}"
+                        )
             except Exception as e:
                 logger.warning(f"⚠️ [OPENAI-API] Omni-RAG search failed: {e}")
+        elif "victoria" in str(request.model).lower() and not _skip_omni_rag:
+            logger.info(
+                "⚡ [OPENAI-API] skip Omni-RAG (chat/LTM, not knowledge/fact): %s",
+                (_rag_probe or "")[:40],
+            )
     else:
         logger.info("⚡ [OPENAI-API] Simple message detected, skipping RAG and LTM")
 
@@ -13498,34 +13953,261 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     if task_req.session_id and task_req.session_id.startswith("tg-"):
         logger.info(f"📱 [OMNI-RAG] Telegram request detected: {task_req.session_id}")
 
+    # Static shortcuts BEFORE stream/non-stream fork (OpenWebUI uses stream=true).
+    shortcuts_enabled = os.getenv("VICTORIA_SIMPLE_SHORTCUTS", "true").lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    allow_simple_shortcut_path = shortcuts_enabled or ("victoria" not in str(request.model).lower())
+    _force_full_for_docs = _needs_full_pipeline_for_docs(_user_msg_text)
+    _is_fact_q_early = is_fact_seeking_question(_user_msg_text)
+    _is_planning_goal_early = _is_planning_guidance_goal(_user_msg_text)
+    _execution_markers_early = (
+        "выполни",
+        "создай",
+        "напиши код",
+        "исправь",
+        "аудит",
+        "проверь",
+        "разработай",
+        "сделай",
+        "установи",
+        "настрой",
+        "задеплой",
+    )
+    _is_execution_task_early = (
+        any(marker in (_user_msg_text or "").lower() for marker in _execution_markers_early)
+        and not _is_planning_goal_early
+    )
+    # Before stream/sync fork: conversational chat must not default to Enhanced
+    # (OpenWebUI uses stream=true → previously always enhanced_solve + busy stubs).
+    task_req.use_enhanced = bool(
+        _is_execution_task_early
+        or _force_full_for_docs
+        or _is_analysis_heavy_goal(_user_msg_text)
+        or _is_fact_q_early
+    )
+    _static_shortcut: Optional[str] = None
+    if (
+        allow_simple_shortcut_path
+        and not _force_full_for_docs
+        and _is_simple
+        and not _is_fact_q_early
+    ):
+        _static_shortcut = _static_simple_shortcut_reply(_user_msg_text)
+
+    # Knowledge / LTM chat fast-path BEFORE stream fork (OpenWebUI=stream).
+    # Avoids strategy→enhanced_solve when LTM/experience already inflated goal.
+    _pre_fast_content: Optional[str] = None
+    _want_pre_fast = (
+        allow_simple_shortcut_path
+        and not _force_full_for_docs
+        and not _static_shortcut
+        and not _is_fact_q_early
+        and (
+            _is_simple
+            or (
+                not _is_execution_task_early
+                and len(_user_msg_text or "") < 2000
+                and "victoria" in str(request.model).lower()
+            )
+        )
+    )
+    if _want_pre_fast:
+        try:
+            _pf_model = _select_model_for_chat(task_req.goal)
+            if _is_planning_goal_early:
+                _pf_model = os.getenv("VICTORIA_SYNC_SAFE_MODEL", "phi3.5:3.8b")
+            _pf_system = (
+                "Ты — Виктория, Lead-разработчик ATRA. "
+                "Если в запросе есть блок «РАНЕЕ ОБСУЖДАЛОСЬ» — опирайся на него. "
+                "Отвечай кратко, по существу, без лишних предисловий."
+            )
+            if _is_planning_goal_early:
+                _pf_system = (
+                    "Ты — Виктория, Team Lead ATRA. "
+                    "Дай практичный короткий план (3-5 шагов), без выдуманных версий/фактов, "
+                    "только проверяемые действия."
+                )
+            _pf_cat = "fast" if _is_simple else "chat"
+            _pf_content, _pf_src = await _generate_via_mlx_or_ollama(
+                task_req.goal,
+                _pf_model,
+                system=_pf_system,
+                category=_pf_cat,
+            )
+            if _pf_content:
+                _pre_fast_content = _normalize_output_for_user(_pf_content)
+                logger.info(
+                    "⚡ [OPENAI-API] pre-fork knowledge fast-path ok src=%s chars=%s",
+                    _pf_src,
+                    len(_pre_fast_content or ""),
+                )
+        except Exception as _pf_err:
+            logger.debug("pre-fork fast-path skipped: %s", _pf_err)
+
+    if _pre_fast_content and request.stream:
+
+        async def openai_prefast_stream_generator():
+            logger.info(
+                "⚡ [OPENAI-STREAM] pre-fork fast-path (skip run_task): %s",
+                (_user_msg_text or "")[:40],
+            )
+            yield _openai_sse_content_chunk(correlation_id, request.model, "", role="assistant")
+            await asyncio.sleep(0.01)
+            chunk_size = 20
+            for i in range(0, len(_pre_fast_content), chunk_size):
+                part = _pre_fast_content[i : i + chunk_size]
+                yield _openai_sse_content_chunk(correlation_id, request.model, part)
+                await asyncio.sleep(0.01)
+            final_chunk = {
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            }
+            yield f"data: {json.dumps(final_chunk)}\n\n"
+            yield "data: [DONE]\n\n"
+
+            async def _pf_ltm() -> None:
+                try:
+                    try:
+                        from app.long_term_memory import get_long_term_memory_manager
+                    except ImportError:
+                        try:
+                            from long_term_memory import get_long_term_memory_manager
+                        except ImportError:
+                            from long_term_memory import get_ltm as get_long_term_memory_manager
+
+                    ltm = get_long_term_memory_manager()
+                    await asyncio.wait_for(
+                        ltm.save_thread(
+                            user_key=chat_user_key,
+                            project_context=task_req.project_context or "unknown",
+                            user_message=(user_messages[-1].content if user_messages else "")[:200],
+                            assistant_message=(_pre_fast_content or "")[:200],
+                            embedding=[0.0] * 768,
+                        ),
+                        timeout=5.0,
+                    )
+                except Exception:
+                    pass
+
+            asyncio.create_task(_pf_ltm())
+
+        return StreamingResponse(
+            openai_prefast_stream_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    if _static_shortcut and request.stream:
+
+        async def openai_shortcut_stream_generator():
+            logger.info(
+                "⚡ [OPENAI-STREAM] static shortcut (skip run_task): %s",
+                (_user_msg_text or "")[:40],
+            )
+            init_chunk = {
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"role": "assistant", "content": ""},
+                        "finish_reason": None,
+                    }
+                ],
+            }
+            yield f"data: {json.dumps(init_chunk)}\n\n"
+            content_chunk = {
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"content": _static_shortcut},
+                        "finish_reason": None,
+                    }
+                ],
+            }
+            yield f"data: {json.dumps(content_chunk)}\n\n"
+            done_chunk = {
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            }
+            yield f"data: {json.dumps(done_chunk)}\n\n"
+            yield "data: [DONE]\n\n"
+            try:
+                try:
+                    from app.long_term_memory import get_long_term_memory_manager
+                except ImportError:
+                    try:
+                        from long_term_memory import get_long_term_memory_manager
+                    except ImportError:
+                        from long_term_memory import get_ltm as get_long_term_memory_manager
+
+                ltm = get_long_term_memory_manager()
+                await ltm.save_thread(
+                    user_key=chat_user_key,
+                    project_context=task_req.project_context or "unknown",
+                    user_message=(user_messages[-1].content if user_messages else "")[:200],
+                    assistant_message=(_static_shortcut or "")[:200],
+                )
+            except Exception:
+                pass
+
+        return StreamingResponse(
+            openai_shortcut_stream_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
     # --- РЕАЛИЗАЦИЯ СТРИМИНГА (OPENAI COMPATIBLE) ---
     if request.stream:
 
         async def openai_stream_generator():
             full_response_content = ""
+            _stage_on = _stream_stage_enabled() and not _is_simple
+            _stream_t0 = time.monotonic()
+            _last_stage_line = ""
             try:
-                # 1. Сначала шлем пустой чанк для инициализации роли
-                initial_chunk = {
-                    "id": f"chatcmpl-{correlation_id}",
-                    "object": "chat.completion.chunk",
-                    "created": int(time.time()),
-                    "model": request.model,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {"role": "assistant", "content": ""},
-                            "finish_reason": None,
-                        }
-                    ],
-                }
-                yield f"data: {json.dumps(initial_chunk)}\n\n"
+                # 1. Role init (+ optional early stage so OpenWebUI is not blank).
+                yield _openai_sse_content_chunk(correlation_id, request.model, "", role="assistant")
                 await asyncio.sleep(0.01)
+                if _stage_on:
+                    _last_stage_line = _stream_stage_label(0.0)
+                    yield _openai_sse_content_chunk(correlation_id, request.model, _last_stage_line)
 
                 # 2. Sync run with heartbeats; on wall timeout → async handoff + poll
                 # (parity with non-stream chat path; OpenWebUI often uses stream=true).
                 run_task_coro = run_task(task_req, req, async_mode=False)
                 task = asyncio.create_task(run_task_coro)
-                heartbeat_sec = int(os.getenv("VICTORIA_STREAM_HEARTBEAT_SEC", "15"))
+                # Day-better: shorter heartbeat when stages are on (visible progress).
+                heartbeat_sec = int(
+                    os.getenv(
+                        "VICTORIA_STREAM_HEARTBEAT_SEC",
+                        "8" if _stage_on else "15",
+                    )
+                )
                 stream_max_sec = float(
                     os.getenv("VICTORIA_STREAM_MAX_SEC", str(OPENAI_SYNC_EXEC_TIMEOUT_SEC))
                 )
@@ -13545,22 +14227,27 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                         [task], timeout=min(heartbeat_sec, max(0.1, remaining))
                     )
                     if not done:
-                        hb_chunk = {
-                            "id": f"chatcmpl-{correlation_id}",
-                            "object": "chat.completion.chunk",
-                            "created": int(time.time()),
-                            "model": request.model,
-                            "choices": [
-                                {"index": 0, "delta": {"content": ""}, "finish_reason": None}
-                            ],
-                        }
-                        yield f"data: {json.dumps(hb_chunk)}\n\n"
+                        if _stage_on:
+                            line = _stream_stage_label(time.monotonic() - _stream_t0)
+                            if line != _last_stage_line:
+                                _last_stage_line = line
+                                yield _openai_sse_content_chunk(correlation_id, request.model, line)
+                            else:
+                                yield _openai_sse_content_chunk(correlation_id, request.model, "")
+                        else:
+                            yield _openai_sse_content_chunk(correlation_id, request.model, "")
                 result = None
                 if timed_out:
                     logger.warning(
                         "[OPENAI-STREAM] sync timed out after %.0fs — async handoff",
                         stream_max_sec,
                     )
+                    if _stage_on:
+                        yield _openai_sse_content_chunk(
+                            correlation_id,
+                            request.model,
+                            "⏳ Перехожу в фон…\n",
+                        )
                     try:
                         result = await run_task(task_req, req, async_mode=True)
                     except Exception as run_err:
@@ -13623,9 +14310,16 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                         pass
                 if _stream_task_id:
                     _wait = int(os.getenv("OPENAI_ASYNC_HANDOFF_WAIT_SEC", "90"))
-                    _resolved = await _await_async_handoff_result_for_chat(
-                        _stream_task_id, max_wait_sec=_wait
-                    )
+                    _resolved = None
+                    async for _kind, _text in _iter_async_handoff_for_chat(
+                        _stream_task_id,
+                        max_wait_sec=_wait,
+                        emit_stages=_stage_on,
+                    ):
+                        if _kind == "stage" and _text:
+                            yield _openai_sse_content_chunk(correlation_id, request.model, _text)
+                        elif _kind == "final":
+                            _resolved = _text
                     if _resolved:
                         full_response_content = _resolved
 
@@ -13660,25 +14354,43 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 yield f"data: {json.dumps(final_chunk)}\n\n"
                 yield "data: [DONE]\n\n"
 
-                # Сохраняем в память (фоном)
-                try:
-                    try:
-                        from app.long_term_memory import get_long_term_memory_manager
-                    except ImportError:
-                        try:
-                            from long_term_memory import get_long_term_memory_manager
-                        except ImportError:
-                            from long_term_memory import get_ltm as get_long_term_memory_manager
+                # Сохраняем в память (фоном) — skip busy/handoff stubs
+                _stream_out = full_response_content or ""
+                if (
+                    "Задача ещё выполняется" in _stream_out
+                    or "Задача принята и выполняется в фоне" in _stream_out
+                    or "task_id=" in _stream_out[:80]
+                ):
+                    logger.info("⚡ [OPENAI-STREAM] skip LTM save for busy/handoff stub")
+                else:
 
-                    ltm = get_long_term_memory_manager()
-                    await ltm.save_thread(
-                        user_key=chat_user_key,
-                        project_context=task_req.project_context or "unknown",
-                        user_message=user_messages[-1].content[:200],
-                        assistant_message=(full_response_content or "")[:200],
-                    )
-                except Exception:
-                    pass
+                    async def _stream_ltm() -> None:
+                        try:
+                            try:
+                                from app.long_term_memory import get_long_term_memory_manager
+                            except ImportError:
+                                try:
+                                    from long_term_memory import get_long_term_memory_manager
+                                except ImportError:
+                                    from long_term_memory import (
+                                        get_ltm as get_long_term_memory_manager,
+                                    )
+
+                            ltm = get_long_term_memory_manager()
+                            await asyncio.wait_for(
+                                ltm.save_thread(
+                                    user_key=chat_user_key,
+                                    project_context=task_req.project_context or "unknown",
+                                    user_message=user_messages[-1].content[:200],
+                                    assistant_message=_stream_out[:200],
+                                    embedding=[0.0] * 768,
+                                ),
+                                timeout=5.0,
+                            )
+                        except Exception:
+                            pass
+
+                    asyncio.create_task(_stream_ltm())
 
             except Exception as e:
                 logger.error(f"❌ [OPENAI-STREAM] Error: {e}")
@@ -13726,13 +14438,12 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     )
     _is_planning_goal = _is_planning_guidance_goal(_user_msg_text)
     _is_execution_task = (
-        any(marker in task_req.goal.lower() for marker in _execution_markers)
+        any(marker in (_user_msg_text or "").lower() for marker in _execution_markers)
         and not _is_planning_goal
     )
     _is_simple_q = is_simple_message(_user_msg_text) or is_fast_track_message(_user_msg_text)
-    _is_fact_q = is_fact_seeking_question(_user_msg_text)
+    _is_fact_q = _is_fact_q_early
 
-    _force_full_for_docs = _needs_full_pipeline_for_docs(_user_msg_text)
     openai_chat_timeout_sec = OPENAI_SYNC_EXEC_TIMEOUT_SEC
     if _force_full_for_docs or _is_execution_task or _is_analysis_heavy_goal(_user_msg_text):
         openai_chat_timeout_sec = OPENAI_COMPLEX_EXEC_TIMEOUT_SEC
@@ -13741,64 +14452,72 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
             openai_chat_timeout_sec,
             float(os.getenv("OPENAI_FACT_CHAT_TIMEOUT_SEC", "90")),
         )
+    # Chat conversational: do not default to Victoria (slow enhanced_solve + handoff stubs).
+    # Keep Enhanced for exec / docs / heavy analysis / fact probes.
+    task_req.use_enhanced = bool(
+        _is_execution_task
+        or _force_full_for_docs
+        or _is_analysis_heavy_goal(_user_msg_text)
+        or _is_fact_q
+    )
     logger.info(
-        "⏱ [OPENAI-API] selected timeout=%.1fs simple=%s exec=%s planning=%s force_docs=%s fact=%s",
+        "⏱ [OPENAI-API] selected timeout=%.1fs simple=%s exec=%s planning=%s force_docs=%s fact=%s enhanced=%s",
         openai_chat_timeout_sec,
         _is_simple_q,
         _is_execution_task,
         _is_planning_goal,
         _force_full_for_docs,
         _is_fact_q,
+        task_req.use_enhanced,
     )
-    # Keep simple chat responsive by default; can be disabled via env if needed.
-    shortcuts_enabled = os.getenv("VICTORIA_SIMPLE_SHORTCUTS", "true").lower() in (
-        "1",
-        "true",
-        "yes",
-        "on",
-    )
-    allow_simple_shortcut_path = shortcuts_enabled or ("victoria" not in str(request.model).lower())
-    if (
+    if _static_shortcut:
+        output_text = _static_shortcut
+        logger.info(
+            "⚡ [OPENAI-API] static shortcut (skip run_task): %s",
+            (_user_msg_text or "")[:40],
+        )
+    elif _pre_fast_content:
+        output_text = _pre_fast_content
+        logger.info(
+            "⚡ [OPENAI-API] reuse pre-fork fast-path (skip run_task): %s",
+            (_user_msg_text or "")[:40],
+        )
+    elif (
         allow_simple_shortcut_path
         and not _force_full_for_docs
         and (
             _is_simple_q
             or (
                 not _is_execution_task
-                and len(task_req.goal) < 2000
+                # Gate on original user text — LTM/experience/RAG inflate task_req.goal
+                # and used to push chat into enhanced_solve busy stubs.
+                and len(_user_msg_text or "") < 2000
                 and "victoria" in str(request.model).lower()
             )
         )
         and not _is_fact_q
     ):
-        # Для простых/быстрых сообщений — статический fallback без LLM
-        if _is_simple_q:
-            goal_lower = _user_msg_text.lower().strip()
-            if any(p in goal_lower for p in ["привет", "здравствуй", "hello", "hi"]):
-                output_text = "Привет! Чем могу помочь?"
-            elif any(
-                p in goal_lower
-                for p in [
-                    "кто ты",
-                    "ты кто",
-                    "who are you",
-                    "what are you",
-                    "какая ты",
-                    "ты виктория",
-                ]
-            ):
-                output_text = "Да, я Виктория, Team Lead корпорации ATRA."
-            elif "что ты умеешь" in goal_lower:
-                output_text = "Я — Виктория, Assistant ATRA. Могу отвечать на вопросы по проекту, анализировать код, управлять задачами."
-            elif "скажи одно слово" in goal_lower or "ответь одним словом" in goal_lower:
-                # Keep strict one-word prompts ultra-fast and deterministic.
-                output_text = "ок"
-            elif len(goal_lower.split()) <= 2:
-                output_text = "Чем могу помочь?"
         if not output_text:
             # [SINGULARITY 31.3] RAG for fast-path knowledge questions
             _rag_context = ""
-            if not _is_planning_goal:
+            # Day-better: simple chat on hands phi — skip Omni-RAG embed storm
+            # (was multi-second before first token). Keep RAG for planning / fact.
+            _want_fast_rag = (not _is_planning_goal) and (
+                _is_fact_q
+                or any(
+                    m in (_user_msg_text or "").lower()
+                    for m in (
+                        "что такое",
+                        "кто такой",
+                        "как работает",
+                        "документац",
+                        "архитектур",
+                        "master_reference",
+                        "библи",
+                    )
+                )
+            )
+            if _want_fast_rag:
                 try:
                     from app.enhanced_search import (
                         SearchMode,
@@ -13813,6 +14532,11 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                         _rag_context = (_rag_res.get("result_text") or "")[:1500]
                 except Exception:
                     pass
+            elif _is_simple_q:
+                logger.info(
+                    "⚡ [OPENAI-API] skip RAG on simple short chat: %s",
+                    (_user_msg_text or "")[:40],
+                )
 
             logger.info(f"⚡ [OPENAI-API] Knowledge fast-path for goal: {_user_msg_text[:60]}")
             try:
@@ -13837,10 +14561,12 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                         "Дай практичный короткий план (3-5 шагов), без выдуманных версий/фактов, "
                         "только проверяемые действия."
                     )
+                _fast_cat = "fast" if _is_simple_q else "chat"
                 _content, _source = await _generate_via_mlx_or_ollama(
                     _prompt,
                     _model,
                     system=_system_prompt,
+                    category=_fast_cat,
                 )
                 if _content:
                     output_text = _normalize_output_for_user(_content)
@@ -13946,14 +14672,20 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     # (pair_2026-11-16_19-11-03).
                     output_text = body_data.get("output", body_data.get("message", ""))
             else:
-                _out = body_data.get("output") or body_data.get("message")
-                if _out:
-                    output_text = _out
-                elif body_data.get("task_id"):
-                    # Preserve handoff payload so chat can poll /run/status.
+                # Prefer full 202 payload when task_id is present: bare `message` is
+                # «Задача принята…status_url» without UUID and breaks chat poll.
+                if body_data.get("task_id") and (
+                    body_data.get("status_url") or body_data.get("handoff_reason")
+                ):
                     output_text = json.dumps(body_data, ensure_ascii=False)
                 else:
-                    output_text = str(body_data)
+                    _out = body_data.get("output") or body_data.get("message")
+                    if _out:
+                        output_text = _out
+                    elif body_data.get("task_id"):
+                        output_text = json.dumps(body_data, ensure_ascii=False)
+                    else:
+                        output_text = str(body_data)
         elif isinstance(result, TaskResponse):
             output_text = result.output
         elif hasattr(result, "output"):
@@ -13983,24 +14715,45 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     output_text = _normalize_output_for_user(output_text)
 
     # [SINGULARITY 15.0] Сохранение в LongTermMemory после успешного ответа
-    try:
-        try:
-            from app.long_term_memory import get_long_term_memory_manager
-        except ImportError:
-            try:
-                from long_term_memory import get_long_term_memory_manager
-            except ImportError:
-                from long_term_memory import get_ltm as get_long_term_memory_manager
-
-        ltm = get_long_term_memory_manager()
-        await ltm.save_thread(
-            user_key=chat_user_key,
-            project_context=task_req.project_context or "unknown",
-            user_message=user_messages[-1].content[:200],
-            assistant_message=output_text[:200],
+    # Do not poison LTM with async busy stubs (was teaching recall "ещё выполняется").
+    _ltm_skip = bool(
+        output_text
+        and (
+            "Задача ещё выполняется" in output_text
+            or "Задача принята и выполняется в фоне" in output_text
+            or "task_id=" in output_text[:80]
         )
-    except Exception as e:
-        logger.debug(f"Memory save failed: {e}")
+    )
+    if not _ltm_skip:
+        # Fire-and-forget: never block chat on embed 503 → HF ST load (was 60–90s).
+        # Zero embedding skips get_embedding; get_recent_threads is SQL by user_key.
+        async def _ltm_save_bg() -> None:
+            try:
+                try:
+                    from app.long_term_memory import get_long_term_memory_manager
+                except ImportError:
+                    try:
+                        from long_term_memory import get_long_term_memory_manager
+                    except ImportError:
+                        from long_term_memory import get_ltm as get_long_term_memory_manager
+
+                ltm = get_long_term_memory_manager()
+                await asyncio.wait_for(
+                    ltm.save_thread(
+                        user_key=chat_user_key,
+                        project_context=task_req.project_context or "unknown",
+                        user_message=user_messages[-1].content[:200],
+                        assistant_message=output_text[:200],
+                        embedding=[0.0] * 768,
+                    ),
+                    timeout=5.0,
+                )
+            except Exception as e:
+                logger.debug("Memory save failed: %s", e)
+
+        asyncio.create_task(_ltm_save_bg())
+    else:
+        logger.info("⚡ [OPENAI-API] skip LTM save for busy/handoff stub")
 
     response_data = {
         "id": f"chatcmpl-{correlation_id}",
@@ -14672,10 +15425,25 @@ async def autonomous_code(request: dict):
         return code_text
 
     phase_ms: dict = {}
+    progress: list = []
     import time as _time
+
+    def _publish_progress(stage_name: str) -> None:
+        """Wave 3: thin progress for clients + optional /run task store stage."""
+        progress.append(stage_name)
+        tid = str(request.get("task_id") or "").strip()
+        if tid and tid in _run_task_store:
+            _run_task_store[tid]["stage"] = stage_name
 
     async def _run_stage(stage: str, cmd: list, timeout_s: float, cwd_: str | None = None):
         t_start = _time.monotonic()
+        label = stage.rstrip("0123456789")
+        if label.startswith("compile"):
+            _publish_progress("compile")
+        elif label.startswith("runtime"):
+            _publish_progress("runtime")
+        elif label.startswith("test"):
+            _publish_progress("test")
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -14688,11 +15456,6 @@ async def autonomous_code(request: dict):
             status = "passed" if proc.returncode == 0 else "failed"
         except asyncio.TimeoutError:
             status, out = "timeout", ""
-        phase_key = (
-            stage.split(str(max_iters))[-1]
-            if str(max_iters) in stage
-            else stage.rstrip("0123456789")
-        )
         phase_ms[stage.rstrip("0123456789") + "_ms"] = round((_time.monotonic() - t_start) * 1000)
         attempts.append({"stage": stage, "status": status, "output": out})
         return status, out
@@ -14704,7 +15467,7 @@ async def autonomous_code(request: dict):
             "основной модуль (именно-файл), вызывает функцию и проверяет результат; печатает 'OK' если всё хорошо, "
             "иначе печатает 'FAIL'. Тест самодостаточный."
         )
-        test_code_res = await _ask_veronica(test_path)
+        test_code_res = await _ask_veronica(test_goal)
         test_code = _extract_code(test_code_res)
         if test_code and test_path:
             allowed, reason, tp = _autonomous_guard_write(workspace, test_path, test_code + "\n")
@@ -14764,6 +15527,7 @@ async def autonomous_code(request: dict):
             with open(target, "w") as f:
                 f.write(to_write)
             file_written = target
+            _publish_progress("file_written")
         elif file_written:
             to_write = _normalize_indent(code) + "\n"
             allowed, reason, target = _autonomous_guard_write(workspace, file_written, to_write)
@@ -14774,6 +15538,7 @@ async def autonomous_code(request: dict):
                 break
             with open(target, "w") as f:
                 f.write(to_write)
+            _publish_progress("file_written")
 
         # Stage 1: py_compile
         c_status, c_out = await _run_stage(
@@ -14856,12 +15621,10 @@ async def autonomous_code(request: dict):
 
     presented: list = []
     workspace_diff = ""
-    deliverable_on = os.getenv("TURN_DELIVERABLE", "0").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+    # Wave 3: code goals force deliverable proof (env can still force-off with TURN_DELIVERABLE=0
+    # only if explicitly set to "off"; default and "1"/unset → on for this endpoint).
+    _td_env = os.getenv("TURN_DELIVERABLE", "1").strip().lower()
+    deliverable_on = _td_env not in {"0", "false", "no", "off"}
     if deliverable_on:
         try:
             from app.turn_harness.deliverable import build_deliverable
@@ -14876,6 +15639,15 @@ async def autonomous_code(request: dict):
                 except ValueError:
                     rel = file_written
             rel_paths.append(rel)
+        if test_path:
+            tp_rel = test_path
+            if os.path.isabs(test_path):
+                try:
+                    tp_rel = os.path.relpath(test_path, workspace)
+                except ValueError:
+                    tp_rel = test_path
+            if tp_rel not in rel_paths:
+                rel_paths.append(tp_rel)
         got = build_deliverable(workspace, rel_paths)
         presented = list(got.get("presented") or [])
         workspace_diff = str(got.get("workspace_diff") or "")
@@ -14886,11 +15658,24 @@ async def autonomous_code(request: dict):
         ):
             final_stage = "deliverable_missing"
 
+    test_attempts = [a for a in attempts if str(a.get("stage", "")).startswith("test")]
+    if test_attempts:
+        test_status = test_attempts[-1].get("status")
+    elif test_path:
+        test_status = "skipped"
+    else:
+        test_status = None
+
+    _publish_progress("completed" if final_stage == "passed" else final_stage)
+
     return {
         "compile_status": compile_status,
         "runtime_status": runtime_status,
+        "test_status": test_status,
         "final_status": "passed" if final_stage == "passed" else final_stage,
-        **({"presented": presented, "workspace_diff": workspace_diff} if deliverable_on else {}),
+        "presented": presented,
+        "workspace_diff": workspace_diff,
+        "progress": progress,
         "fix_iterations": fix_iterations,
         "attempts": attempts,
         "file_path": file_written or file_path,
@@ -14900,6 +15685,9 @@ async def autonomous_code(request: dict):
         else "error",
         "phase_ms": phase_ms,
         "llm_ms": llm_ms,
+        "compile_ms": phase_ms.get("compile_ms"),
+        "runtime_ms": phase_ms.get("runtime_ms"),
+        "test_ms": phase_ms.get("test_ms"),
     }
 
 

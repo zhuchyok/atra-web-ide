@@ -211,10 +211,15 @@ def rag_context_usable(rag_res: Optional[dict]) -> bool:
 def _embed_fallback_url() -> str:
     """LIVE_OLLAMA_URL → OLLAMA_EMBED_URL → hands :11437 (never brain :11434)."""
     base = (
-        (os.getenv("LIVE_OLLAMA_URL") or "").strip()
-        or (os.getenv("OLLAMA_EMBED_URL") or "").strip()
-        or "http://127.0.0.1:11437"
-    ).rstrip("/").replace("/api/embeddings", "").replace("/api/embed", "")
+        (
+            (os.getenv("LIVE_OLLAMA_URL") or "").strip()
+            or (os.getenv("OLLAMA_EMBED_URL") or "").strip()
+            or "http://127.0.0.1:11437"
+        )
+        .rstrip("/")
+        .replace("/api/embeddings", "")
+        .replace("/api/embed", "")
+    )
     return f"{base}/api/embeddings"
 
 

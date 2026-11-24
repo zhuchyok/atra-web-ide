@@ -41,6 +41,18 @@ def _allow_git_push() -> bool:
     return os.getenv("ATRA_ALLOW_GIT_PUSH", "").lower() in ("true", "1", "yes")
 
 
+def _allow_git_mutate() -> bool:
+    """Approve gate for git add/commit/branch/pr_create/test_run (not push)."""
+    return os.getenv("ATRA_ALLOW_GIT_MUTATE", "").lower() in ("true", "1", "yes")
+
+
+def _git_mutate_rejected() -> str:
+    return (
+        "Error: git mutate rejected (ATRA_ALLOW_GIT_MUTATE not set). "
+        "Human approve only — set env true and restart Victoria."
+    )
+
+
 def _unwrap_quoted(inner: str) -> str:
     text = (inner or "").strip()
     if len(text) >= 2 and text[0] == text[-1] and text[0] in ("'", '"'):
@@ -715,6 +727,8 @@ class GitTools:
 
     @staticmethod
     async def git_branch_create(name: str = "") -> str:
+        if not _allow_git_mutate():
+            return _git_mutate_rejected()
         if not GitTools._safe_token(name):
             return "Error: опасное имя ветки"
         code, out = GitTools._git_run(["checkout", "-b", name])
@@ -722,6 +736,8 @@ class GitTools:
 
     @staticmethod
     async def git_add(paths: str = "") -> str:
+        if not _allow_git_mutate():
+            return _git_mutate_rejected()
         # однострочный список через пробел; safeguard на ".." и /etc
         if any(part.startswith("/") or ".." in part for part in paths.split()):
             return "Error: только относительные пути репозитория"
@@ -730,6 +746,8 @@ class GitTools:
 
     @staticmethod
     async def git_commit(message: str = "") -> str:
+        if not _allow_git_mutate():
+            return _git_mutate_rejected()
         if not GitTools._safe_token(message):
             return "Error: сообщение содержит запрещённые токены"
         code, out = GitTools._git_run(["commit", "--no-verify", "-m", message[:300]])
@@ -752,6 +770,8 @@ class GitTools:
     async def git_pr_create(title: str = "", body: str = "") -> str:
         import shutil
 
+        if not _allow_git_mutate():
+            return _git_mutate_rejected()
         if shutil.which("gh") is None:
             return (
                 "Note: gh CLI доступен только на хосте. Команда прерывания.\n"
@@ -771,6 +791,8 @@ class GitTools:
 
     @staticmethod
     async def git_test_run(path: str = "") -> str:
+        if not _allow_git_mutate():
+            return _git_mutate_rejected()
         cmd = ["python3", "-m", "pytest", "-q"] if not path else ["python3", path]
         proc = subprocess.run(
             cmd, cwd=GitTools._resolve_repo(), capture_output=True, text=True, timeout=120

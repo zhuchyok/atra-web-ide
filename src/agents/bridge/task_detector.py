@@ -28,6 +28,130 @@ def is_fixed_token_reply_probe(goal: str) -> bool:
     return bool(g and _FIXED_TOKEN_REPLY_PROBE_RE.search(g))
 
 
+# Brain canary harness (scripts/brain_canary_battle.py) embeds BCANARY-<id>-<hex>.
+_BCANARY_TOKEN_RE = re.compile(r"BCANARY-[A-Za-z0-9_-]+", re.IGNORECASE)
+
+
+def extract_brain_canary_token(goal: str) -> Optional[str]:
+    """Return first BCANARY-* token from goal, if any."""
+    m = _BCANARY_TOKEN_RE.search(goal or "")
+    return m.group(0) if m else None
+
+
+def is_brain_canary_probe(goal: str) -> bool:
+    """Harness probe: measure brain answer, not orchestrator async handoff."""
+    return extract_brain_canary_token(goal) is not None
+
+
+def prefix_brain_canary_token(goal: str, text: str) -> str:
+    """Ensure canary answers echo the harness nonce (first line)."""
+    tok = extract_brain_canary_token(goal)
+    body = (text or "").strip()
+    if not tok or not body:
+        return body
+    if tok.lower() in body.lower():
+        return body
+    return f"{tok}\n{body}"
+
+
+def is_destructive_infra_wipe(goal: str) -> bool:
+    """True for wipe-all docker volumes / nuke-without-backup style asks."""
+    g = (goal or "").lower()
+    if not g:
+        return False
+    wipe_verbs = (
+        "удал",
+        "снес",
+        "wipe",
+        "уничтож",
+        "purge",
+        "rm -rf",
+        "volume rm",
+        "down -v",
+    )
+    volume_marks = (
+        "docker volume",
+        "volumes",
+        "том",
+        "volume ",
+    )
+    nuke_context = (
+        "без бэкап",
+        "без backup",
+        "с нуля",
+        "все volume",
+        "все docker",
+        "всех volume",
+        "project atra",
+        "проекта atra",
+    )
+    has_wipe = any(v in g for v in wipe_verbs)
+    has_vol = any(v in g for v in volume_marks)
+    has_nuke = any(v in g for v in nuke_context)
+    return bool(has_wipe and has_vol and (has_nuke or "все" in g))
+
+
+def is_secret_exfil_ask(goal: str) -> bool:
+    """True when user asks to paste secrets from .env / passwords into chat."""
+    g = (goal or "").lower()
+    if not g:
+        return False
+    secret_marks = (
+        ".env",
+        "postgres_password",
+        "парол",
+        "password",
+        "secret",
+        "токен бота",
+        "api key",
+        "apikey",
+    )
+    ask_marks = ("покажи", "дай ", "вывед", "в чат", "целиком", "paste", "show me")
+    return any(s in g for s in secret_marks) and any(a in g for a in ask_marks)
+
+
+def is_cloud_bypass_ask(goal: str) -> bool:
+    """True when user asks to bypass STRICT_LOCAL / send goals to cloud APIs."""
+    g = (goal or "").lower()
+    if not g:
+        return False
+    bypass = (
+        "обойд",
+        "bypass",
+        "вместо 11434",
+        "вместо локальн",
+        "cloud api",
+        "облачн",
+        "openai.com",
+        "strict_local",
+    )
+    send = ("отправ", "ходи в", "перейди на cloud", "use cloud")
+    return any(b in g for b in bypass) and (
+        any(s in g for s in send) or "облач" in g or "cloud" in g
+    )
+
+
+def safety_refuse_answer(goal: str) -> Optional[str]:
+    """Deterministic safety refusals (before LLM / canary direct)."""
+    if is_destructive_infra_wipe(goal):
+        return (
+            "Отказ: не удаляю docker volumes и не сношу проект без явного "
+            "подтверждения куратора и бэкапа. Это разрушительная операция — "
+            "не буду выполнять."
+        )
+    if is_secret_exfil_ask(goal):
+        return (
+            "Отказ: не показываю пароли и секреты из `.env` в чате. "
+            "Используйте переменные окружения / secret manager."
+        )
+    if is_cloud_bypass_ask(goal):
+        return (
+            "Отказ: не обхожу локальный контур и не отправляю goal в облачный API. "
+            "Работаем STRICT_LOCAL (11434/8010)."
+        )
+    return None
+
+
 def fixed_token_reply_answer(goal: str) -> Optional[str]:
     """Deterministic YES/NO for fixed-token probes (never a metrics dump)."""
     m = _FIXED_TOKEN_REPLY_PROBE_RE.search((goal or "").strip())
@@ -39,6 +163,7 @@ def fixed_token_reply_answer(goal: str) -> Optional[str]:
     if token in ("no", "нет"):
         return "NO"
     return None
+
 
 # Ключевые слова по типам (порядок проверки важен)
 SIMPLE_CHAT_KEYWORDS = [

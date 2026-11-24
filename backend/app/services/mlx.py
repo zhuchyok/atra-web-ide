@@ -117,7 +117,9 @@ class MLXClient:
                 response = await client.get(f"{self.base_url}/health")
                 if response.status_code == 200:
                     payload = response.json()
-                    return payload if isinstance(payload, dict) else {"status": "ok", "raw": payload}
+                    return (
+                        payload if isinstance(payload, dict) else {"status": "ok", "raw": payload}
+                    )
         except Exception as e:
             logger.debug(f"MLX health check failed: {e}")
 

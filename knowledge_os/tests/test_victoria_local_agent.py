@@ -43,6 +43,11 @@ async def test_generate_local_prefer_router():
 def test_enhanced_evolver_has_no_cursor_binary_path():
     import inspect
 
+    # 'app' может быть занят backend/app (импортирован другим тестом ранее) —
+    # вычищаем все варианты, чтобы импортировать knowledge_os/app/enhanced_expert_evolver
+    sys.modules.pop("app.enhanced_expert_evolver", None)
+    if not hasattr(sys.modules.get("app", ModuleType("app")), "__path__"):
+        sys.modules.pop("app", None)
     import app.enhanced_expert_evolver as mod
 
     src = inspect.getsource(mod)

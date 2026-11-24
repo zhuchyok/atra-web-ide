@@ -193,7 +193,9 @@ def test_seed_qa_chunk_rejects_faq_noise():
         "**Вопрос 2: Что делать, если ИИ ошибается?**\n"
         "**Ответ:** Внедрите процесс Human-in-the-loop."
     )
-    answer_only = "FAQ доступен по адресу /faq. Популярные вопросы: тарифы, интеграция, API, безопасность."
+    answer_only = (
+        "FAQ доступен по адресу /faq. Популярные вопросы: тарифы, интеграция, API, безопасность."
+    )
 
     assert mod._is_seed_qa_chunk(seed, q) is True
     assert mod._is_seed_qa_chunk(noise, q) is False

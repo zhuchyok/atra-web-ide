@@ -81,6 +81,9 @@ def test_pin_brain_when_11434_empty():
 def test_pin_brain_skipped_when_qwen38_loaded():
     assert _should_pin_brain(["victoria-qwen38:latest"]) is False
     assert _should_pin_brain(["qwen3.8:latest"]) is False
+    # canary tag stays in BRAIN_ALLOW — guard must not evict / re-pin :latest over it
+    assert _should_pin_brain(["victoria-qwen38:canary"]) is False
+    assert _should_unload("victoria-qwen38:canary") is False
 
 
 def test_brain_runner_alive_detects_blob(monkeypatch):
@@ -124,6 +127,9 @@ def test_pin_brain_keep_alive_is_duration_not_minus_one():
     brain_fn = src.split("def pin_brain():", 1)[1].split("def _should_unload(", 1)[0]
     assert '"keep_alive": "24h"' in brain_fn
     assert '"keep_alive": -1' not in brain_fn
+    assert "BRAIN_PIN_MODEL" in brain_fn
+    assert "VICTORIA_BRAIN_MODEL" in src
+    assert 'os.getenv("VICTORIA_BRAIN_MODEL", "victoria-qwen38:latest")' in src
 
 
 def test_pin_nomic_skipped_when_already_loaded():

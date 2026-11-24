@@ -23,9 +23,7 @@ class ExperimentRequest(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=100)
     description: str = Field(default="", max_length=500)
-    variants: Dict[str, float] = Field(
-        default_factory=lambda: {"control": 50.0, "variant_a": 50.0}
-    )
+    variants: Dict[str, float] = Field(default_factory=lambda: {"control": 50.0, "variant_a": 50.0})
     parameters: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
     enabled: bool = True
 

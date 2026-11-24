@@ -11,7 +11,27 @@ DATASET_PATH="$KO_ROOT/training_data/train.jsonl"
 ADAPTER_PATH="$KO_ROOT/training_data/adapters/victoria-wisdom-v1"
 # Используем локальную базу, которая реально доступна на хосте.
 # Можно переопределить через MLX_LORA_BASE_MODEL.
-MODEL_NAME="${MLX_LORA_BASE_MODEL:-$HOME/mlx-models/qwen2.5-3b}"
+# Wave-4 day pin = victoria-qwen38 family ONLY.
+# Default: HF-cached mlx-community/Qwen3.8-27B-4bit via ~/mlx-models/qwen38-27b-4bit symlink.
+MODEL_NAME="${MLX_LORA_BASE_MODEL:-$HOME/mlx-models/qwen38-27b-4bit}"
+
+_base_lc="$(echo "$MODEL_NAME" | tr '[:upper:]' '[:lower:]')"
+case "$_base_lc" in
+  *qwen2.5-3b*|*llama-3.2-3b*|*llama3.2*)
+    echo "❌ [TRAINING] Refusing wrong-family base: $MODEL_NAME"
+    echo "   Day Wave-4 fuse target is victoria-qwen38 / Qwen3.8 only."
+    echo "   Set MLX_LORA_BASE_MODEL to a qwen38-family MLX path, then re-run."
+    exit 2
+    ;;
+esac
+case "$_base_lc" in
+  *qwen3.8*|*qwen38*|*victoria-qwen38*)
+    ;;
+  *)
+    echo "❌ [TRAINING] Base must contain qwen38 / Qwen3.8 / victoria-qwen38: $MODEL_NAME"
+    exit 2
+    ;;
+esac
 
 # Параметры обучения (ЭКСТРЕМАЛЬНО-Щадящий режим для 128GB RAM)
 RANK=4

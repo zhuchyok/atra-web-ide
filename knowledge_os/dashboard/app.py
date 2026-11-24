@@ -88,10 +88,10 @@ st.set_page_config(
 VECTOR_CORE_URL = os.getenv("VECTOR_CORE_URL", "http://knowledge_vector_core:8001")
 # Hands :11437 has nomic; brain :11434 is victoria-qwen38 only.
 OLLAMA_EMBED_BASE = (
-    os.getenv("LIVE_OLLAMA_URL")
-    or os.getenv("OLLAMA_EMBED_URL")
-    or "http://127.0.0.1:11437"
-).rstrip("/").replace("/api/embeddings", "")
+    (os.getenv("LIVE_OLLAMA_URL") or os.getenv("OLLAMA_EMBED_URL") or "http://127.0.0.1:11437")
+    .rstrip("/")
+    .replace("/api/embeddings", "")
+)
 EMBEDDING_DIM = 768  # nomic-embed-text; knowledge_nodes.embedding vector(768)
 
 

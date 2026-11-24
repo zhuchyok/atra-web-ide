@@ -15,8 +15,9 @@ VICTORIA_SERVER = ROOT / "src" / "agents" / "bridge" / "victoria_server.py"
 
 def _load_resolve_chat_user_key():
     text = VICTORIA_SERVER.read_text(encoding="utf-8")
-    start = text.index("def _resolve_chat_user_key(")
-    end = text.index("\n@app.post(\"/v1/chat/completions\")")
+    # Include _coerce_chat_user_key helper defined just above resolve.
+    start = text.index("def _coerce_chat_user_key(")
+    end = text.index('\n@app.post("/v1/chat/completions")')
     ns: dict = {"os": os, "Optional": __import__("typing").Optional}
     # Minimal stand-ins so the annotated signature can exec.
     ns["ChatCompletionRequest"] = object
@@ -58,6 +59,44 @@ def test_x_victoria_user_before_x_session_id(resolve_key, monkeypatch):
         )
         == "v-user"
     )
+
+
+def test_openwebui_user_id_header(resolve_key, monkeypatch):
+    monkeypatch.setenv("VICTORIA_CHAT_USER_KEY", "env-user")
+    body = SimpleNamespace(user="body-user")
+    assert resolve_key(body, _req({"X-OpenWebUI-User-Id": "owui-uid-42"})) == "owui-uid-42"
+
+
+def test_openwebui_email_when_no_id(resolve_key, monkeypatch):
+    monkeypatch.delenv("VICTORIA_CHAT_USER_KEY", raising=False)
+    body = SimpleNamespace(user=None)
+    assert (
+        resolve_key(body, _req({"X-OpenWebUI-User-Email": "admin@atra.local"}))
+        == "admin@atra.local"
+    )
+
+
+def test_x_victoria_beats_openwebui(resolve_key, monkeypatch):
+    monkeypatch.delenv("VICTORIA_CHAT_USER_KEY", raising=False)
+    body = SimpleNamespace(user=None)
+    assert (
+        resolve_key(
+            body,
+            _req(
+                {
+                    "X-Victoria-User": "v-user",
+                    "X-OpenWebUI-User-Id": "owui-uid",
+                }
+            ),
+        )
+        == "v-user"
+    )
+
+
+def test_body_user_dict_uses_id(resolve_key, monkeypatch):
+    monkeypatch.setenv("VICTORIA_CHAT_USER_KEY", "env-user")
+    body = SimpleNamespace(user={"id": "dict-id", "email": "a@b.c"})
+    assert resolve_key(body, _req({})) == "dict-id"
 
 
 def test_body_user_when_no_headers(resolve_key, monkeypatch):
@@ -116,5 +155,6 @@ def test_chat_path_injects_experience_lessons_after_live_fact():
     assert simple_gate < exp_pos
     # Cap / N=3 contract present in chat region.
     assert "_fetch_experience_lessons(exp_probe, 3)" in chat_region or (
-        "_fetch_experience_lessons(" in chat_region and ", 3)" in chat_region[exp_pos : exp_pos + 80]
+        "_fetch_experience_lessons(" in chat_region
+        and ", 3)" in chat_region[exp_pos : exp_pos + 80]
     )

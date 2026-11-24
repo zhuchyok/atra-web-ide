@@ -21,10 +21,10 @@ if not DATABASE_URL:
 
 # Hands :11437 has nomic; brain :11434 is victoria-qwen38 only.
 OLLAMA_BASE_URL = (
-    os.getenv("LIVE_OLLAMA_URL")
-    or os.getenv("OLLAMA_EMBED_URL")
-    or "http://127.0.0.1:11437"
-).rstrip("/").replace("/api/embeddings", "")
+    (os.getenv("LIVE_OLLAMA_URL") or os.getenv("OLLAMA_EMBED_URL") or "http://127.0.0.1:11437")
+    .rstrip("/")
+    .replace("/api/embeddings", "")
+)
 OLLAMA_MODEL = os.getenv("OLLAMA_EMBED_MODEL", os.getenv("OLLAMA_MODEL", "nomic-embed-text:latest"))
 CONCURRENCY = int(os.getenv("TASK_EMBED_CONCURRENCY", "4"))
 

@@ -30,6 +30,7 @@ except ImportError:
 def get_sandbox_manager() -> Any:
     return _get_sandbox_manager_impl()
 
+
 router = APIRouter(prefix="/api/sandbox", tags=["sandbox"])
 logger = logging.getLogger(__name__)
 

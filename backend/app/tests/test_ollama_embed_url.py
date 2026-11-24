@@ -37,9 +37,7 @@ def test_resolve_ollama_embed_prefers_live_url(monkeypatch: pytest.MonkeyPatch):
 def test_resolve_ollama_embed_prefers_explicit_and_strips_path(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    monkeypatch.setenv(
-        "OLLAMA_EMBED_URL", "http://embed.example:9999/api/embeddings"
-    )
+    monkeypatch.setenv("OLLAMA_EMBED_URL", "http://embed.example:9999/api/embeddings")
     monkeypatch.setenv("OLLAMA_HANDS_URL", "http://127.0.0.1:11437")
 
     from app.config import resolve_ollama_embed_base_url
@@ -134,7 +132,7 @@ def test_vector_core_default_embed_url_is_hands_not_brain():
     assert "LIVE_OLLAMA_URL" in text
     assert "11437" in text
     # Default base must mention hands port, never brain as getenv default.
-    assert re.search(r'_default_embed_base\s*=\s*\([\s\S]*?11437', text)
+    assert re.search(r"_default_embed_base\s*=\s*\([\s\S]*?11437", text)
     # EMBED_FALLBACK_URLS must strip both path forms before appending /api/embeddings.
     assert "_normalize_embed_base" in text
     assert '"/api/embed"' in text
@@ -194,9 +192,7 @@ def test_seed_validation_answers_strips_embed_path_and_ignores_brain(
     assert "resolve_ollama_embed_base_url" in text
     assert 'f"{_embed_url}/api/embeddings"' not in text
 
-    monkeypatch.setenv(
-        "OLLAMA_EMBED_URL", "http://host.docker.internal:11437/api/embeddings"
-    )
+    monkeypatch.setenv("OLLAMA_EMBED_URL", "http://host.docker.internal:11437/api/embeddings")
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
     monkeypatch.delenv("LIVE_OLLAMA_URL", raising=False)
 

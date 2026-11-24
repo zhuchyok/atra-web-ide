@@ -13,12 +13,22 @@ import httpx
 from mcp.server.fastmcp import FastMCP
 
 try:
+    from src.agents.bridge.execution_plan_local import (
+        ALLOWED_COMMANDS as _LOCAL_ALLOWED,
+        execute_plan_local,
+        validate_command,
+    )
     from src.agents.bridge.victoria_mcp_parse import (
         extract_text,
         format_run_result,
         is_victoria_stub,
     )
 except ImportError:
+    from execution_plan_local import (  # type: ignore
+        ALLOWED_COMMANDS as _LOCAL_ALLOWED,
+        execute_plan_local,
+        validate_command,
+    )
     from victoria_mcp_parse import extract_text, format_run_result, is_victoria_stub
 
 logging.basicConfig(level=logging.INFO)
@@ -34,66 +44,12 @@ VICTORIA_MCP_RUN_TIMEOUT_SEC = float(os.getenv("VICTORIA_MCP_RUN_TIMEOUT_SEC", "
 
 mcp = FastMCP("VictoriaATRA")
 
-ALLOWED_COMMANDS = {
-    "pytest",
-    "python",
-    "python3",
-    "pip",
-    "pip3",
-    "npm",
-    "node",
-    "cargo",
-    "go",
-    "make",
-    "cmake",
-    "ruff",
-    "mypy",
-    "tsc",
-    "eslint",
-    "pylint",
-    "git",
-    "ls",
-    "cat",
-    "find",
-    "grep",
-    "curl",
-}
+ALLOWED_COMMANDS = _LOCAL_ALLOWED
 
 
 def _validate_command(command: str) -> str:
     """Validate command against allowlist."""
-    if not command:
-        raise ValueError("Empty command not allowed")
-
-    parts = command.strip().split()
-    base_cmd = parts[0] if parts else ""
-
-    if base_cmd not in ALLOWED_COMMANDS:
-        raise ValueError(
-            f"Command '{base_cmd}' not allowed. Use: {', '.join(sorted(ALLOWED_COMMANDS))}"
-        )
-
-    dangerous_patterns = [
-        "&&",
-        "||",
-        ";",
-        "|",
-        ">",
-        ">>",
-        "<",
-        "$(",
-        "`",
-        "\\",
-        "&&",
-        "2>",
-        "0>",
-        "1>",
-    ]
-    for pattern in dangerous_patterns:
-        if pattern in command:
-            raise ValueError(f"Dangerous pattern '{pattern}' not allowed in commands")
-
-    return command
+    return validate_command(command)
 
 
 def _is_victoria_stub(text: str, status: Optional[str] = None) -> bool:
@@ -414,22 +370,19 @@ async def victoria_execute_plan(
     goal: str,
     workspace_path: str = "/Users/bikos/Documents/atra-web-ide",
     max_steps: Optional[int] = 500,
+    approve_writes: bool = False,
 ) -> str:
-    """Получить execution_plan от Victoria и выполнить его автоматически.
+    """Получить execution_plan от Victoria и выполнить на локальном FS.
 
-    Виктория создаст план (read_file, edit, run), который будет выполнен через MCP filesystem.
-    Это аналог "рук в IDE" — Victoria решает ЧТО делать, IDE выполняет КАК.
+    read_file — всегда. edit/run — только при approve_writes=True (иначе needs_approve).
 
     Args:
-        goal: Задача для Victoria (например, "добавь функцию X в файл Y")
-        workspace_path: Путь к рабочему каталогу проекта
-        max_steps: Максимальное количество шагов планирования (по умолчанию 500)
-
-    Returns:
-        Результат выполнения плана (список шагов с результатами)
+        goal: Задача для Victoria
+        workspace_path: Корень sandbox
+        max_steps: Лимит шагов планирования
+        approve_writes: Явное разрешение mutate/run
     """
     try:
-        # 1. Запросить plan от Victoria через /orchestrate с return_execution_plan=true
         async with httpx.AsyncClient(timeout=VICTORIA_MCP_RUN_TIMEOUT_SEC) as client:
             resp = await client.post(
                 f"{VICTORIA_URL}/orchestrate",
@@ -446,55 +399,18 @@ async def victoria_execute_plan(
         if not execution_plan:
             return f"⚠️ Victoria не вернула execution_plan. Ответ:\n{data.get('output', '')}"
 
-        logger.info(f"[victoria_execute_plan] Получен план из {len(execution_plan)} шагов")
-
-        # 2. Выполнить plan через ExecutionPlanExecutor
-        # Для простоты пока выполним вручную через httpx к user-filesystem MCP
-        results = []
-        filesystem_mcp_url = os.getenv(
-            "FILESYSTEM_MCP_URL", "http://localhost:8012"
-        )  # Синхронизировано с victoria-mcp port
-
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            for i, step in enumerate(execution_plan, 1):
-                action = step.get("action")
-                description = step.get("description", "")
-
-                logger.info(
-                    f"[victoria_execute_plan] Шаг {i}/{len(execution_plan)}: {action} - {description}"
-                )
-
-                try:
-                    if action == "read_file":
-                        path = step.get("path", "")
-                        if not path.startswith("/"):
-                            path = f"{workspace_path}/{path}"
-                        # MCP tool: read_file
-                        # Пока просто читаем через httpx (позже можно через CallMcpTool)
-                        result_text = f"[Прочитан файл {path}]"
-                        results.append(f"✅ Шаг {i}: {action} - {result_text}")
-
-                    elif action == "edit":
-                        path = step.get("path", "")
-                        content = step.get("content", "")
-                        if not path.startswith("/"):
-                            path = f"{workspace_path}/{path}"
-                        result_text = f"[Изменён файл {path}]"
-                        results.append(f"✅ Шаг {i}: {action} - {result_text}")
-
-                    elif action == "run":
-                        command = _validate_command(step.get("command", ""))
-                        result_text = f"[Выполнена команда: {command}]"
-                        results.append(f"✅ Шаг {i}: {action} - {result_text}")
-
-                    else:
-                        results.append(f"⚠️ Шаг {i}: Неизвестное действие {action}")
-
-                except Exception as e:
-                    logger.exception(f"Ошибка на шаге {i}")
-                    results.append(f"❌ Шаг {i}: {action} - Ошибка: {e}")
-
-        summary = f"Выполнен план из {len(execution_plan)} шагов:\n\n" + "\n".join(results)
+        logger.info(
+            "[victoria_execute_plan] steps=%s approve_writes=%s",
+            len(execution_plan),
+            approve_writes,
+        )
+        results = execute_plan_local(
+            execution_plan,
+            workspace_path,
+            approve_writes=approve_writes,
+        )
+        summary = f"План ({len(execution_plan)} шагов, approve_writes={approve_writes}):\n\n"
+        summary += "\n".join(results)
         summary += f"\n\nОтвет Victoria:\n{data.get('output', '')}"
         return summary
 
@@ -719,6 +635,50 @@ async def victoria_batch_grep(
     except Exception as e:
         logger.exception("Ошибка victoria_batch_grep")
         return f"❌ Ошибка: {e}"
+
+
+def _git_tools():
+    try:
+        from src.agents.tools.system_tools import GitTools
+    except ImportError:
+        from agents.tools.system_tools import GitTools  # type: ignore
+    return GitTools
+
+
+@mcp.tool()
+async def victoria_git_status() -> str:
+    """Read-only git status for the ATRA repo (Wave2 polish)."""
+    try:
+        return await _git_tools().git_status()
+    except Exception as e:
+        return f"❌ git_status: {e}"
+
+
+@mcp.tool()
+async def victoria_git_diff(file_path: str = "") -> str:
+    """Read-only git diff --stat (Wave2). Optional relative file_path."""
+    try:
+        return await _git_tools().git_diff(file_path=file_path or "")
+    except Exception as e:
+        return f"❌ git_diff: {e}"
+
+
+@mcp.tool()
+async def victoria_git_log(limit: int = 10) -> str:
+    """Read-only recent git log (Wave2)."""
+    try:
+        return await _git_tools().git_log(count=max(1, min(int(limit or 10), 50)))
+    except Exception as e:
+        return f"❌ git_log: {e}"
+
+
+@mcp.tool()
+async def victoria_git_pr_list() -> str:
+    """Read-only gh pr list (Wave2). Mutate git stays off MCP."""
+    try:
+        return await _git_tools().git_pr_list()
+    except Exception as e:
+        return f"❌ git_pr_list: {e}"
 
 
 if __name__ == "__main__":

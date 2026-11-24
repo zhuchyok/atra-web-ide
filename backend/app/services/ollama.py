@@ -264,7 +264,9 @@ class OllamaClient:
 
         try:
             result = await self._retry_request(_make_request)
-            return cast(Dict[str, Any], result) if isinstance(result, dict) else {"status": "healthy"}
+            return (
+                cast(Dict[str, Any], result) if isinstance(result, dict) else {"status": "healthy"}
+            )
         except httpx.HTTPError as e:
             return {
                 "status": "unhealthy",

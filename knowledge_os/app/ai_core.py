@@ -1094,6 +1094,8 @@ async def _run_cloud_agent_async(
                                         "model": model_name,
                                         "prompt": prompt,
                                         "stream": False,
+                                        # Qwen3.5: without think:false CoT fills thinking / burns tokens
+                                        "think": False,
                                         "keep_alive": _keep_alive,
                                     },
                                     timeout=aiohttp.ClientTimeout(total=_ollama_timeout),

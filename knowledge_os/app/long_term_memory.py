@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -230,8 +231,12 @@ class LongTermMemory:
 
         vector = self._embedding_to_vector(embedding)
         if vector is None:
-            emb = await get_embedding(content[:2000])
-            vector = self._embedding_to_vector(emb)
+            # Day latency: never block chat on embed 503 → HF SentenceTransformer pull.
+            try:
+                emb = await asyncio.wait_for(get_embedding(content[:2000]), timeout=2.0)
+                vector = self._embedding_to_vector(emb)
+            except Exception:
+                vector = None
         if vector is None:
             vector = self._embedding_to_vector([0.0] * 768)
 
