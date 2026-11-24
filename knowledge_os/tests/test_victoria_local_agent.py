@@ -44,11 +44,15 @@ def test_enhanced_evolver_has_no_cursor_binary_path():
     import inspect
 
     # 'app' может быть занят backend/app (импортирован другим тестом ранее) —
-    # вычищаем все варианты, чтобы импортировать knowledge_os/app/enhanced_expert_evolver
-    sys.modules.pop("app.enhanced_expert_evolver", None)
-    if not hasattr(sys.modules.get("app", ModuleType("app")), "__path__"):
-        sys.modules.pop("app", None)
-    import app.enhanced_expert_evolver as mod
+    # принудительно указываем knowledge_os/app как пакет 'app' для этого импорта
+    import importlib.util
+    import types
+    from pathlib import Path
+
+    ko_app = types.ModuleType("app")
+    ko_app.__path__ = [str(Path(__file__).resolve().parents[1] / "app")]
+    sys.modules["app"] = ko_app
+    mod = importlib.import_module("app.enhanced_expert_evolver")
 
     src = inspect.getsource(mod)
     assert "/root/.local/bin/cursor-agent" not in src
