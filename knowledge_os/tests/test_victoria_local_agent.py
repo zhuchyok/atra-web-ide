@@ -41,11 +41,10 @@ async def test_generate_local_prefer_router():
 
 
 def test_enhanced_evolver_has_no_cursor_binary_path():
-    import inspect
-
     # 'app' может быть занят backend/app (импортирован другим тестом ранее) —
     # принудительно указываем knowledge_os/app как пакет 'app' для этого импорта
     import importlib.util
+    import inspect
     import types
     from pathlib import Path
 

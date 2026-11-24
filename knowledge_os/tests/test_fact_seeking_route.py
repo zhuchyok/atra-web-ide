@@ -101,6 +101,13 @@ def test_fixed_token_reply_ignore_metrics_is_not_fact_seeking():
     slots_tip = "Fact: tip 0ad27568 nomic defaults to hands :11437. Reply YES."
     assert is_fact_seeking_question(slots_tip) is False
     assert fixed_token_reply_answer(slots_tip) == "YES"
+    # Multi-choice must not echo the word "yes" from "Answer yes/no/unset".
+    env_ask = (
+        "Is ATRA_ALLOW_GIT_MUTATE set true on victoria-agent? "
+        "Answer yes/no/unset with how you checked."
+    )
+    assert fixed_token_reply_answer(env_ask) is None
+    assert fixed_token_reply_answer("Reply YES only.") == "YES"
     # Real metrics asks still trip fact-seeking.
     assert is_fact_seeking_question("дай pending и throughput p95") is True
 
