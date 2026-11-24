@@ -9,8 +9,8 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_run_smart_agent_async_prepends_cursor_method_once():
-    from app.cursor_method import CURSOR_METHOD_PROMPT
     from app import ai_core
+    from app.cursor_method import CURSOR_METHOD_PROMPT
 
     mock_impl = AsyncMock(return_value="ok")
     with patch.dict("os.environ", {"USE_AI_PIPELINE_V2": "false"}, clear=False):

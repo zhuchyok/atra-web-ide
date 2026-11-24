@@ -54,10 +54,11 @@ class PlanCacheService:
         self._ttl = ttl
         self.use_redis = use_redis and (redis_client is not None or _get_redis_client() is not None)
         self.redis = redis_client or (_get_redis_client() if self.use_redis else None)
+        self.local_cache: Dict[str, Any]
         if maxsize == 0 or TTLCache is None:
             self.local_cache: Dict[str, Any] = {}
         else:
-            self.local_cache: Dict[str, Any] = TTLCache(maxsize=maxsize, ttl=ttl)  # type: ignore[assignment]
+            self.local_cache = TTLCache(maxsize=maxsize, ttl=ttl)
 
     def _generate_key(self, goal: str, project_context: Optional[str] = None) -> str:
         normalized = " ".join((goal or "").strip().lower().split())
