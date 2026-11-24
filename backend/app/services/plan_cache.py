@@ -57,7 +57,7 @@ class PlanCacheService:
         if maxsize == 0 or TTLCache is None:
             self.local_cache: Dict[str, Any] = {}
         else:
-            self.local_cache = TTLCache(maxsize=maxsize, ttl=ttl)
+            self.local_cache: Dict[str, Any] = TTLCache(maxsize=maxsize, ttl=ttl)  # type: ignore[assignment]
 
     def _generate_key(self, goal: str, project_context: Optional[str] = None) -> str:
         normalized = " ".join((goal or "").strip().lower().split())
