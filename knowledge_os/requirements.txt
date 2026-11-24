@@ -90,3 +90,5 @@ redis>=5.0.1
 agentscope>=0.0.5
 psutil
 streamlit>=1.30.0
+plotly>=5.20.0
+psycopg2-binary>=2.9.9
