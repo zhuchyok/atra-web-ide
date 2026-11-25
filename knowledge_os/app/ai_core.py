@@ -2190,12 +2190,41 @@ Use HANDOFF only if delegation genuinely improves the result.
     async def get_cache_and_context():
         # Запускаем параллельно: проверку кэша и получение контекста знаний (RAG с учётом project_context)
         tasks = []
-        if cache and not images:
+        # Align with executor: victoria-qwen38 day brain must not L2-hit unrelated recipes
+        # (seen: cursor_method first-line → sticky PgBouncer-6432 plan).
+        _skip_vic_cache = os.getenv("VICTORIA_DISABLE_SEMANTIC_CACHE_FOR_QWEN", "true").lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        ) and any(x in str(expert_name).lower() for x in ("виктория", "victoria"))
+        if cache and not images and not _skip_vic_cache:
             tasks.append(cache.get_cached_response(user_part, expert_name))
         else:
             tasks.append(asyncio.sleep(0, result=None))
 
-        tasks.append(_get_knowledge_context(user_part, project_context))
+        # Evidence-tool goals: skip RAG — sticky PgBouncer/runbook nodes hijack free-read.
+        _skip_rag = False
+        try:
+            from ai_pipeline import _is_evidence_tool_goal as _ev
+
+            _skip_rag = bool(_ev(user_part))
+        except Exception:
+            _up = (user_part or "").lower()
+            _skip_rag = any(
+                m in _up
+                for m in (
+                    "read_file",
+                    "read file",
+                    "git_diff",
+                    "printenv",
+                    "cursor_method.md",
+                )
+            )
+        if _skip_rag:
+            tasks.append(asyncio.sleep(0, result=""))
+        else:
+            tasks.append(_get_knowledge_context(user_part, project_context))
 
         return await asyncio.gather(*tasks)
 
@@ -2302,6 +2331,21 @@ Use HANDOFF only if delegation genuinely improves the result.
             "yes",
         ):
             raise RuntimeError("LTM recall disabled by env")
+        # Evidence-tool goals: skip LTM — sticky past PgBouncer threads bleed.
+        try:
+            from ai_pipeline import _is_evidence_tool_goal as _ev_ltm
+
+            if _ev_ltm(user_part):
+                raise RuntimeError("LTM recall skipped for evidence-tool goal")
+        except RuntimeError:
+            raise
+        except Exception:
+            _up_ltm = (user_part or "").lower()
+            if any(
+                m in _up_ltm
+                for m in ("read_file", "git_diff", "printenv", "cursor_method.md", "rg -n")
+            ):
+                raise RuntimeError("LTM recall skipped for evidence-tool goal")
         from long_term_memory import get_ltm
 
         ltm = get_ltm()
@@ -4112,15 +4156,31 @@ Use HANDOFF only if delegation genuinely improves the result.
         if isinstance(prompt, str):
             prompt = prompt.replace("### TEAM_DISCUSSION", "").strip()
 
-    instruction_reinjection = f"""
+    # Skip absolute-truth crystal reinjection when empty or evidence-tool goal
+    # (amplifies sticky PgBouncer invent when no crystals present).
+    _skip_crystal_truth = not (memory_crystals or "").strip()
+    if not _skip_crystal_truth:
+        try:
+            from ai_pipeline import _is_evidence_tool_goal as _ev_truth
+
+            _skip_crystal_truth = bool(_ev_truth(prompt or user_part or ""))
+        except Exception:
+            _up = (prompt or user_part or "").lower()
+            _skip_crystal_truth = any(
+                m in _up for m in ("read_file", "git_diff", "printenv", "cursor_method.md")
+            )
+    if not _skip_crystal_truth:
+        instruction_reinjection = f"""
 ### [ATTENTION ANCHOR: CORE MISSION]
 Напоминание: Ты {expert_name}. Твоя цель — следовать 'Золотому стандарту' ATRA.
 Используй <memory_crystals> из начала контекста как абсолютную истину.
 ДЕЙСТВУЙ СТРОГО ПО ПРАВИЛАМ.
 """
-    full_prompt += instruction_reinjection
-    # TODO: Convert f-string to %s formatting for performance
-    logger.info(f"⚓ [U-SHAPE] Instruction re-injected at the BOTTOM for {expert_name}")
+        full_prompt += instruction_reinjection
+        # TODO: Convert f-string to %s formatting for performance
+        logger.info(f"⚓ [U-SHAPE] Instruction re-injected at the BOTTOM for {expert_name}")
+    else:
+        logger.info("⚓ [U-SHAPE] Crystal absolute-truth reinjection skipped")
 
     # [SINGULARITY 21.36] Agentic RAG 2.0 (Corrective RAG)
     # Если поиск по базе знаний не дал результатов, добавляем инструкцию перефразирования

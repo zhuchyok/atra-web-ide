@@ -39,6 +39,19 @@ def is_bare_done(result: str) -> bool:
     return any(m in text for m in BARE_DONE_MARKERS)
 
 
+BARE_DONE_REFUSAL = (
+    "Не заявляю «готово» без доказательства "
+    "(нужен вывод команды, теста или /health)."
+)
+
+
+def reject_bare_done_answer(text: str) -> str:
+    """Egress guard: replace bare-done claims with an honest refusal."""
+    if is_bare_done(text):
+        return BARE_DONE_REFUSAL
+    return text or ""
+
+
 def should_journal_task(summary: str, execution_mode: str | None = None) -> bool:
     """Skip fast-path noise; keep real work and failures."""
     if execution_mode == "fast_path":

@@ -17,6 +17,63 @@ logger = logging.getLogger(__name__)
 # ─── Phase 1: Prompt Preparation ─────────────────────────────────────────
 
 
+def _is_evidence_tool_goal(user_prompt: Optional[str]) -> bool:
+    """File/git/env evidence asks — no crystals/experience bleed (PgBouncer recipe hijack)."""
+    try:
+        from task_detector import is_evidence_tool_goal as _bridge_ev
+
+        return bool(_bridge_ev(user_prompt or ""))
+    except Exception:
+        pass
+    prompt = (user_prompt or "").strip().lower()
+    if not prompt:
+        return False
+    markers = (
+        "read_file",
+        "read file",
+        "прочитай файл",
+        "прочитайте файл",
+        "первая строка",
+        "first line",
+        "line number",
+        "quote line",
+        "git_diff",
+        "git diff",
+        "git_status",
+        "git status",
+        "printenv",
+        "atra_allow_git",
+        "grep_search",
+        "rg -n",
+        "cursor_method.md",
+        "найди",
+        "find ",
+        "в файлах",
+        "where ",
+        "где ",
+        "объясни",
+        "explain ",
+        "exist",
+        "exists",
+        "существует",
+        "does file",
+        "file exists",
+        "git_status",
+        "git status",
+        "quote the",
+        "line with",
+        "на какой строке",
+        "compare",
+        "сравни",
+        "what does",
+        "top of",
+        "list_directory",
+        "list files",
+        "list dir",
+    )
+    return any(m in prompt for m in markers)
+
+
 def _is_operational_query(task_category: Optional[str], user_prompt: Optional[str]) -> bool:
     """Heuristic gate: short operational prompts should not inherit global crystals."""
     category = (task_category or "").strip().lower()
@@ -31,6 +88,10 @@ def _is_operational_query(task_category: Optional[str], user_prompt: Optional[st
     prompt = (user_prompt or "").strip().lower()
     if not prompt:
         return False
+
+    # Curator evidence twins must not inherit sticky project crystals (PgBouncer TZ).
+    if _is_evidence_tool_goal(prompt):
+        return True
 
     short_len = int(os.getenv("AI_PIPELINE_CRYSTALS_OPERATIONAL_MAX_CHARS", "700"))
     if len(prompt) <= short_len:
@@ -80,7 +141,9 @@ async def load_memory_crystals(
                     }
                     deny_re = os.getenv(
                         "AI_PIPELINE_CRYSTALS_DENY_REGEX",
-                        r"pgbouncer|database port\s*:?\s*6432",
+                        r"pgbouncer|pgbounce|db\s*port|database\s*port|"
+                        r"порт\s*:?\s*6432|\b6432\b|pgbouncer\.ini|"
+                        r"default_pool_size|переходим к (?:выполнению|исполнению)\s+тз",
                     )
                     deny_pattern = re.compile(deny_re, re.IGNORECASE) if deny_re else None
 
@@ -178,70 +241,73 @@ async def inject_context_enrichment(
 
         result["constitution"] = get_constitution_context()
 
-        from ai_core import _get_db_pool
+        # Skip wisdom/mentorship/experience on evidence-tool goals (file/git/env).
+        _skip_exp = _is_evidence_tool_goal(user_part)
+        if not _skip_exp:
+            from ai_core import _get_db_pool
 
-        pool = await _get_db_pool()
-        if pool:
-            async with pool.acquire() as conn:
-                # Meta-Strategies (compact top-2)
-                rows = await conn.fetch(
-                    # [v149.36] Кавычки внутри LIKE-паттерна экранируются УДВОЕНИЕМ ('') в SQL,
-                    # а не бэкслешем: \' в Python-строке съедался и ломал SQL
-                    # ("syntax error at or near 'status'" каждые 10 мин от log_scanner-цикла).
-                    "SELECT content FROM knowledge_nodes WHERE metadata->>'type' = 'meta_wisdom' AND is_verified = TRUE AND content NOT LIKE '%job_id%' AND content NOT LIKE '%''status'': ''processing''%' ORDER BY created_at DESC LIMIT 2"
-                )
-                if rows:
-                    texts = "\n".join(f"- {r['content'][:150]}" for r in rows)
-                    result["meta_wisdom"] = f"\n### 🏛 СТРАТЕГИИ:\n{texts}\n"
-                    # TODO: Convert f-string to %s formatting for performance
-                    logger.info(f"🏛 [WISDOM] Injected {len(rows)} meta-strategies (compact)")
+            pool = await _get_db_pool()
+            if pool:
+                async with pool.acquire() as conn:
+                    # Meta-Strategies (compact top-2)
+                    rows = await conn.fetch(
+                        # [v149.36] Кавычки внутри LIKE-паттерна экранируются УДВОЕНИЕМ ('') в SQL,
+                        # а не бэкслешем: \' в Python-строке съедался и ломал SQL
+                        # ("syntax error at or near 'status'" каждые 10 мин от log_scanner-цикла).
+                        "SELECT content FROM knowledge_nodes WHERE metadata->>'type' = 'meta_wisdom' AND is_verified = TRUE AND content NOT LIKE '%job_id%' AND content NOT LIKE '%''status'': ''processing''%' ORDER BY created_at DESC LIMIT 2"
+                    )
+                    if rows:
+                        texts = "\n".join(f"- {r['content'][:150]}" for r in rows)
+                        result["meta_wisdom"] = f"\n### 🏛 СТРАТЕГИИ:\n{texts}\n"
+                        # TODO: Convert f-string to %s formatting for performance
+                        logger.info(f"🏛 [WISDOM] Injected {len(rows)} meta-strategies (compact)")
 
-                # Mentorship (compact top-1)
-                rows = await conn.fetch(
-                    "SELECT content FROM knowledge_nodes WHERE metadata->>'type' = 'mentorship_note' AND metadata->>'target_expert' = $1 ORDER BY created_at DESC LIMIT 1",
-                    expert_name,
-                )
-                if rows:
-                    texts = "\n".join(f"- {r['content'][:150]}" for r in rows)
-                    result["mentorship"] = f"\n### 🎓 НАСТАВНИЧЕСТВО ДЛЯ {expert_name}:\n{texts}\n"
+                    # Mentorship (compact top-1)
+                    rows = await conn.fetch(
+                        "SELECT content FROM knowledge_nodes WHERE metadata->>'type' = 'mentorship_note' AND metadata->>'target_expert' = $1 ORDER BY created_at DESC LIMIT 1",
+                        expert_name,
+                    )
+                    if rows:
+                        texts = "\n".join(f"- {r['content'][:150]}" for r in rows)
+                        result["mentorship"] = f"\n### 🎓 НАСТАВНИЧЕСТВО ДЛЯ {expert_name}:\n{texts}\n"
 
-        # Experience & Success (compact)
-        try:
-            from experience_retriever import get_experience_context
-
-            exp = await get_experience_context(user_part, expert_name)
-            if exp:
-                result["experience"] = exp[:300]
-        except Exception:
-            pass
-        # [v149.65b] SUCCESS RETRIEVAL — источник context bleed: вставлял ЧУЖИЕ
-        # пары «задача-ответ» в промпт → модель отвечала на чужой вопрос
-        # (QC v10-v13). Env-гейт: включение обратно SUCCESS_RETRIEVAL_ENABLED=true.
-        if os.getenv("SUCCESS_RETRIEVAL_ENABLED", "false").strip().lower() in (
-            "1",
-            "true",
-            "yes",
-        ):
+        if not _skip_exp:
             try:
-                from success_retriever import get_success_context
+                from experience_retriever import get_experience_context
 
-                suc = await get_success_context(user_part, expert_name=expert_name)
-                if suc:
-                    result["experience"] += "\n" + suc[:300]
+                exp = await get_experience_context(user_part, expert_name)
+                if exp:
+                    result["experience"] = exp[:300]
             except Exception:
                 pass
+            # [v149.65b] SUCCESS RETRIEVAL — источник context bleed: вставлял ЧУЖИЕ
+            # пары «задача-ответ» в промпт → модель отвечала на чужой вопрос
+            # (QC v10-v13). Env-гейт: включение обратно SUCCESS_RETRIEVAL_ENABLED=true.
+            if os.getenv("SUCCESS_RETRIEVAL_ENABLED", "false").strip().lower() in (
+                "1",
+                "true",
+                "yes",
+            ):
+                try:
+                    from success_retriever import get_success_context
 
-        # Expert DNA (compact)
-        try:
-            from expert_dna_manager import get_expert_dna_manager
+                    suc = await get_success_context(user_part, expert_name=expert_name)
+                    if suc:
+                        result["experience"] += "\n" + suc[:300]
+                except Exception:
+                    pass
 
-            dna = await get_expert_dna_manager().get_expert_dna(expert_name)
-            if dna:
-                result["experience"] = dna[:400] + "\n" + result["experience"]
-                # TODO: Convert f-string to %s formatting for performance
-                logger.info(f"🧬 [EXPERT DNA] Injected for {expert_name} (compact)")
-        except Exception:
-            pass
+            # Expert DNA (compact)
+            try:
+                from expert_dna_manager import get_expert_dna_manager
+
+                dna = await get_expert_dna_manager().get_expert_dna(expert_name)
+                if dna:
+                    result["experience"] = dna[:400] + "\n" + result["experience"]
+                    # TODO: Convert f-string to %s formatting for performance
+                    logger.info(f"🧬 [EXPERT DNA] Injected for {expert_name} (compact)")
+            except Exception:
+                pass
     except Exception as e:
         # TODO: Convert f-string to %s formatting for performance
         logger.debug(f"Context enrichment failed: {e}")

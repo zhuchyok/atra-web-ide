@@ -11,6 +11,20 @@ _GIT_PUSH_RE = re.compile(
     r"(?:^|[;&|\n]|&&|\|\|)\s*(?:sudo\s+)?(?:/usr/bin/)?git(?:\s+-C\s+\S+)*\s+push\b",
     re.IGNORECASE,
 )
+# Shell bypass of dedicated GitTools: add/commit/branch create|delete/merge/rebase/reset/…
+_GIT_MUTATE_SHELL_RE = re.compile(
+    r"(?:^|[;&|\n]|&&|\|\|)\s*(?:sudo\s+)?(?:/usr/bin/)?git(?:\s+-C\s+\S+)*\s+"
+    r"(?:add\b|commit\b|merge\b|rebase\b|reset\b|restore\b|stash\b|cherry-pick\b|"
+    r"checkout\s+-b\b|switch\s+-c\b|"
+    r"branch\s+(?:-[dDm]|--delete|--force-delete|--move)\b)",
+    re.IGNORECASE,
+)
+_PY_GIT_MUTATE_RE = re.compile(
+    r"(?:os\.system|os\.popen|subprocess\.\w+)\s*\([^)]*\bgit(?:\s+-C\s+\S+)*\s+"
+    r"(?:add|commit|merge|rebase|reset|restore|stash|cherry-pick|checkout\s+-b|switch\s+-c)\b"
+    r"|['\"]git['\"]\s*,\s*['\"](?:add|commit|merge|rebase|reset|restore|stash)['\"]",
+    re.IGNORECASE,
+)
 _SHELL_C_RE = re.compile(
     r"(?:^|[;&|\n]|&&|\|\|)\s*(?:sudo\s+)?(?:(?:/bin/|/usr/bin/)?(?:ba)?sh|zsh|dash|ksh)\s+(?:-c|--command)\s+(.*)$",
     re.IGNORECASE | re.DOTALL,
@@ -76,6 +90,24 @@ def _is_git_push_command(command: str, _depth: int = 0) -> bool:
     evaled = _EVAL_C_RE.search(blob)
     if evaled:
         return _is_git_push_command(_unwrap_quoted(evaled.group(1)), _depth + 1)
+    return False
+
+
+def _is_git_mutate_shell_command(command: str, _depth: int = 0) -> bool:
+    """True if shell would mutate git state (not status/diff/log/push)."""
+    if _depth > 4:
+        return False
+    blob = f"; {command or ''}"
+    if _GIT_MUTATE_SHELL_RE.search(blob):
+        return True
+    if _PY_GIT_MUTATE_RE.search(command or ""):
+        return True
+    wrapped = _SHELL_C_RE.search(blob)
+    if wrapped:
+        return _is_git_mutate_shell_command(_unwrap_quoted(wrapped.group(1)), _depth + 1)
+    evaled = _EVAL_C_RE.search(blob)
+    if evaled:
+        return _is_git_mutate_shell_command(_unwrap_quoted(evaled.group(1)), _depth + 1)
     return False
 
 
@@ -188,6 +220,8 @@ class SystemTools:
             return "Error: Command rejected by ATRA Safety Layer (Risk Manager: Maria). Reason: High destructive risk."
         if _is_git_push_command(c) and not _allow_git_push():
             return "Error: git_push rejected (ATRA_ALLOW_GIT_PUSH not set). Human push only."
+        if _is_git_mutate_shell_command(c) and not _allow_git_mutate():
+            return _git_mutate_rejected()
 
         try:
             if not c:
@@ -268,6 +302,8 @@ class SystemTools:
             return "Error: Command rejected by ATRA Safety Layer (Risk Manager: Maria). Reason: High destructive risk."
         if _is_git_push_command(command) and not _allow_git_push():
             return "Error: git_push rejected (ATRA_ALLOW_GIT_PUSH not set). Human push only."
+        if _is_git_mutate_shell_command(command) and not _allow_git_mutate():
+            return _git_mutate_rejected()
 
         # Автоматическая подстановка если хост наш
         if host in SERVER_CREDENTIALS:
@@ -647,9 +683,12 @@ class GitTools:
 
     @staticmethod
     async def git_diff(file_path: str = "") -> str:
-        cmd = ["git", "-C", GitTools._resolve_repo(), "diff", "--stat"]
-        if file_path:
-            cmd.append(file_path)
+        # Path given → content diff (curator evidence). No path → overview --stat.
+        repo = GitTools._resolve_repo()
+        if file_path and str(file_path).strip():
+            cmd = ["git", "-C", repo, "diff", "--", str(file_path).strip()]
+        else:
+            cmd = ["git", "-C", repo, "diff", "--stat"]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
         out = (result.stdout or result.stderr or "").strip()
         return out[:MAX_DB_CHARS] or "(нет изменений)"

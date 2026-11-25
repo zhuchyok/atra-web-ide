@@ -1523,6 +1523,28 @@ from src.agents.bridge.task_detector import (
     is_introspection_goal,
     is_operational_execution_goal,
     prefix_brain_canary_token,
+    first_line_file_answer,
+    multi_first_line_answer,
+    nth_line_file_answer,
+    multi_nth_line_answer,
+    file_summarize_answer,
+    multi_file_summarize_answer,
+    file_compare_answer,
+    git_diff_answer,
+    multi_git_diff_answer,
+    git_status_answer,
+    git_blame_answer,
+    file_exists_answer,
+    list_directory_answer,
+    line_range_file_answer,
+    line_count_file_answer,
+    grep_line_answer,
+    multi_grep_line_answer,
+    git_mutate_reject_answer,
+    bare_done_instruction_answer,
+    is_evidence_tool_goal,
+    looks_like_pgbouncer_recipe,
+    process_env_fact_answer,
     safety_refuse_answer,
     should_use_enhanced,
 )
@@ -4888,7 +4910,13 @@ async def _run_quick_tools_for_goal(goal: str) -> list:
                 res = await asyncio.wait_for(fn(arg), timeout=25)
         except Exception as tool_err:
             res = f"{tool_name} error: {tool_err}"
-        blocks.append(f"[{tool_name}]\n{str(res)[:1200]}")
+        # Keep git_diff/status evidence; old 1200 chopped hunks mid-def (pair FAIL_THIN).
+        try:
+            _tool_cap = int(os.getenv("VICTORIA_QUICK_TOOL_MAX_CHARS", "8000"))
+        except ValueError:
+            _tool_cap = 8000
+        _tool_cap = max(1200, min(_tool_cap, 50000))
+        blocks.append(f"[{tool_name}]\n{str(res)[:_tool_cap]}")
     return blocks
 
 
@@ -4973,6 +5001,147 @@ def _resolve_repo_isfile(path: str) -> bool:
             roots.append(cand)
     return any(os.path.isfile(os.path.join(root, raw)) for root in roots)
 
+
+def _try_first_line_reply(goal: str) -> Optional[str]:
+    """Deterministic first-line read for curator pairs (blocks PgBouncer drift)."""
+    return first_line_file_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_multi_first_reply(goal: str) -> Optional[str]:
+    """Deterministic first-line quote across 2–3 files."""
+    return multi_first_line_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_nth_line_reply(goal: str) -> Optional[str]:
+    """Deterministic Nth-line read (line 2+) for curator pairs."""
+    return nth_line_file_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_multi_nth_reply(goal: str) -> Optional[str]:
+    """Deterministic line-N quote across 2–3 files (same or per-path N)."""
+    return multi_nth_line_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_file_summarize_reply(goal: str) -> Optional[str]:
+    """Deterministic summarize from file bytes (blocks PgBouncer free-read drift)."""
+    return file_summarize_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_multi_summarize_reply(goal: str) -> Optional[str]:
+    """Deterministic summarize across 2–3 files."""
+    return multi_file_summarize_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_file_compare_reply(goal: str) -> Optional[str]:
+    """Deterministic byte-compare of exactly two files."""
+    return file_compare_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_multi_git_diff_reply(goal: str) -> Optional[str]:
+    """Deterministic git diff across 2–3 paths."""
+    return multi_git_diff_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_git_diff_reply(goal: str) -> Optional[str]:
+    """Deterministic single-path git_diff."""
+    return git_diff_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_git_status_reply(goal: str) -> Optional[str]:
+    """Deterministic git status --short."""
+    return git_status_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_git_blame_reply(goal: str) -> Optional[str]:
+    """Deterministic git blame (optional -L / symbol line)."""
+    return git_blame_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_file_exists_reply(goal: str) -> Optional[str]:
+    """Deterministic path EXISTS|MISSING."""
+    return file_exists_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_list_directory_reply(goal: str) -> Optional[str]:
+    """Deterministic allowlisted dir listing (blocks LLM invent trees)."""
+    return list_directory_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_line_range_reply(goal: str) -> Optional[str]:
+    """Deterministic lines A–B quote from one file."""
+    return line_range_file_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_line_count_reply(goal: str) -> Optional[str]:
+    """Deterministic wc -l style count for one file."""
+    return line_count_file_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_grep_line_reply(goal: str) -> Optional[str]:
+    """Deterministic rg/grep hit (blocks invented :123 recipes)."""
+    return grep_line_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_multi_grep_reply(goal: str) -> Optional[str]:
+    """Deterministic find-in-N-files for curator multi-file pairs."""
+    return multi_grep_line_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_git_mutate_reject_reply(goal: str) -> Optional[str]:
+    """Fail-closed mutate reject without LLM when env unset."""
+    return git_mutate_reject_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _try_bare_done_instruction_reply(goal: str) -> Optional[str]:
+    """Refuse curator prompts that demand bare «готово» without evidence."""
+    return bare_done_instruction_answer(_strip_brain_canary_prefix(goal or ""))
+
+
+def _salvage_evidence_replies(goal: str) -> Optional[str]:
+    """Deterministic evidence readers (shared empty/bleed salvage)."""
+    g = _strip_brain_canary_prefix(goal or "")
+    return (
+        _try_multi_first_reply(g)
+        or _try_first_line_reply(g)
+        or _try_multi_nth_reply(g)
+        or _try_nth_line_reply(g)
+        or _try_line_range_reply(g)
+        or _try_line_count_reply(g)
+        or _try_file_compare_reply(g)
+        or _try_multi_summarize_reply(g)
+        or _try_file_summarize_reply(g)
+        or _try_list_directory_reply(g)
+        or _try_multi_grep_reply(g)
+        or _try_grep_line_reply(g)
+        or _try_file_exists_reply(g)
+        or _try_multi_git_diff_reply(g)
+        or _try_git_diff_reply(g)
+        or _try_git_status_reply(g)
+        or _try_git_blame_reply(g)
+        or _try_git_mutate_reject_reply(g)
+        or _try_bare_done_instruction_reply(g)
+        or process_env_fact_answer(g)
+    )
+
+_PGBOUNCER_BLEED_REFUSE = (
+    "Отказ: ответ ушёл в чужой PgBouncer/6432 runbook вместо evidence по цели. "
+    "Повторите с read_file / line N / git_diff / grep."
+)
+
+
+def _refuse_evidence_pgbouncer_bleed(goal: str, output: str) -> str:
+    """On evidence-tool goals, replace sticky PgBouncer recipes with salvage/refuse."""
+    text = output or ""
+    if not is_evidence_tool_goal(goal or ""):
+        return text
+    if not looks_like_pgbouncer_recipe(text):
+        return text
+    salvage = _salvage_evidence_replies(goal)
+    if salvage and not looks_like_pgbouncer_recipe(salvage):
+        logger.warning("[VICTORIA_BLEED] PgBouncer recipe → evidence salvage")
+        return salvage
+    logger.warning("[VICTORIA_BLEED] PgBouncer recipe refused (no salvage)")
+    return _PGBOUNCER_BLEED_REFUSE
 
 # Quoted membership needles: `"pip install" in x` / `"eval()" not in y` — meta-checks, not use.
 _MEMBERSHIP_NEEDLE_RE = re.compile(
@@ -5468,7 +5637,24 @@ def _guard_code_goal_strategy_envelope(goal: str, output: Any) -> str:
     return _strategy_envelope_user_error(goal)
 
 
+def _cursor_method_bare_done_guard(text: str) -> str:
+    """Refuse bare «готово» without evidence (swarm/Victoria cursor-method)."""
+    try:
+        try:
+            from knowledge_os.app.cursor_method import reject_bare_done_answer
+        except ImportError:
+            from app.cursor_method import reject_bare_done_answer
+        return reject_bare_done_answer(text or "")
+    except Exception:
+        return text or ""
+
+
 def _normalize_output_for_user(raw: Any) -> str:
+    """Из сырого ответа агента (dict/str) извлечь текст для пользователя. Избегает вывода {'thought':..., 'tool':...}."""
+    return _cursor_method_bare_done_guard(_normalize_output_for_user_core(raw))
+
+
+def _normalize_output_for_user_core(raw: Any) -> str:
     """Из сырого ответа агента (dict/str) извлечь текст для пользователя. Избегает вывода {'thought':..., 'tool':...}."""
     if raw is None:
         return ""
@@ -5642,8 +5828,13 @@ def _normalize_output_for_user(raw: Any) -> str:
             cleaned = _strip_internal_monologue(s)
             if cleaned != s:
                 s = cleaned
-                if len(s) > 1200:
-                    return s[:1200].rstrip() + "\n\n[...]"
+                try:
+                    _mono_max = int(os.getenv("VICTORIA_NORMALIZE_MAX_CHARS", "8000"))
+                except ValueError:
+                    _mono_max = 8000
+                _mono_max = max(1200, min(_mono_max, 50000))
+                if len(s) > _mono_max:
+                    return s[:_mono_max].rstrip() + "\n\n[...]"
                 return s
         # [v149.2] ReAct-цепочка мысли: несколько {"thought": ..., "tool": "finish", "tool_input": {...}}
         # подряд — вытаскиваем output последней finish-мысли (частая утечка reasoning в ответ).
@@ -5751,9 +5942,15 @@ def _normalize_output_for_user(raw: Any) -> str:
                 "Уточните запрос конкретным действием (например: «покажи чек-лист код-ревью для Python-модуля»)."
             )
 
-        # Жёсткий лимит длины
-        if len(s) > 1200:
-            return s[:1200].rstrip() + "\n\n[... ответ обрезан ...]"
+        # Align with /run/status egress (8000). Old 1200 chopped git_diff hunks
+        # mid-evidence (pair FAIL_THIN / «ответ обрезан» before +def …).
+        try:
+            _norm_max = int(os.getenv("VICTORIA_NORMALIZE_MAX_CHARS", "8000"))
+        except ValueError:
+            _norm_max = 8000
+        _norm_max = max(1200, min(_norm_max, 50000))
+        if len(s) > _norm_max:
+            return s[:_norm_max].rstrip() + "\n\n[... ответ обрезан ...]"
         if s.startswith("{") and ("thought" in s or "tool" in s):
             try:
                 data = json.loads(s) if s.startswith("{") else None
@@ -6555,8 +6752,7 @@ def _is_explicit_concrete_goal(goal: str) -> bool:
     return _is_code_write_goal(g)
 
 
-def _override_need_clarification_strategy(
-    goal: str, strategy_result: Dict[str, Any]
+def _override_need_clarification_strategy(    goal: str, strategy_result: Dict[str, Any]
 ) -> Dict[str, Any]:
     """False need_clarification → deep_analysis for fact/curator/introspection goals.
 
@@ -6588,6 +6784,12 @@ def _override_need_clarification_strategy(
         return {
             "strategy": "deep_analysis",
             "reason": "fact_seeking_no_clarify",
+            "confidence": 0.95,
+        }
+    if is_evidence_tool_goal(goal):
+        return {
+            "strategy": "deep_analysis",
+            "reason": "evidence_tool_goal_no_clarify",
             "confidence": 0.95,
         }
     # «проверь/прочитай файл …» — never soft-clarify; fast path or deep read.
@@ -8649,6 +8851,25 @@ async def _run_task_background(
         )
         return
     goal_for_exec = (restated_goal or goal).strip() or goal
+    # Async /run BG: hit deterministic evidence BEFORE Enhanced (pair FAIL_THIN).
+    _bg_early = _salvage_evidence_replies(goal_for_exec)
+    if _bg_early:
+        store["status"] = "completed"
+        store["stage"] = "completed"
+        store["output"] = _normalize_output_for_user(_bg_early)
+        store["knowledge"] = {
+            "strategy": "evidence_early_bg",
+            "source": "deterministic",
+            "metadata": {"model_used": "none", "correlation_id": correlation_id},
+        }
+        store["updated_at"] = datetime.now(timezone.utc).isoformat()
+        logger.info(
+            "[VICTORIA_CYCLE] BG evidence early exit task_id=%s preview=%s",
+            task_id[:8],
+            (_bg_early or "")[:120],
+        )
+        await _sync_store()
+        return
     # Fast analytical path: if user asked to analyze explicit tool output (git/sql/web),
     # execute tools first and synthesize a short analysis without heavy enhanced/orchestration route.
     if _is_analysis_heavy_goal(goal_for_exec) and _has_explicit_tool_directive(goal_for_exec):
@@ -9300,14 +9521,28 @@ async def _run_task_background(
                     )
                 # Пустой output при route=enhanced — баг CHANGES §56.1: fallback чтобы пользователь видел сообщение
                 if not (store["output"] or "").strip():
-                    method_name = enhanced_result.get("method") or "Victoria Enhanced"
-                    store["output"] = (
-                        f"Задача выполнена (маршрут: {method_name}), но текст ответа не был сохранён в цепочке. "
-                        "Рекомендуется уточнить задачу или повторить запрос."
-                    )
-                    logger.warning(
-                        "[VICTORIA_CYCLE] Пустой output от Enhanced — подставлен fallback (task_id=%s)",
-                        task_id[:8],
+                    # Evidence salvage: deterministic readers may still answer
+                    # after Enhanced returned empty (nth/grep/summarize/mutate).
+                    _salvage = _salvage_evidence_replies(goal_for_exec)
+                    if _salvage:
+                        store["output"] = _salvage
+                        logger.warning(
+                            "[VICTORIA_CYCLE] Empty Enhanced → evidence salvage (task_id=%s)",
+                            task_id[:8],
+                        )
+                    else:
+                        method_name = enhanced_result.get("method") or "Victoria Enhanced"
+                        store["output"] = (
+                            f"Задача выполнена (маршрут: {method_name}), но текст ответа не был сохранён в цепочке. "
+                            "Рекомендуется уточнить задачу или повторить запрос."
+                        )
+                        logger.warning(
+                            "[VICTORIA_CYCLE] Пустой output от Enhanced — подставлен fallback (task_id=%s)",
+                            task_id[:8],
+                        )
+                else:
+                    store["output"] = _refuse_evidence_pgbouncer_bleed(
+                        goal_for_exec, store["output"]
                     )
                 store["knowledge"] = knowledge
                 if session_id:
@@ -9500,6 +9735,9 @@ async def _run_task_background(
                     store["output"] = (
                         str(result) if result is not None else "Результат не удалось нормализовать."
                     )
+                store["output"] = _refuse_evidence_pgbouncer_bleed(
+                    goal_for_exec, store.get("output") or ""
+                )
                 if _scanner_patch_handoff_rejected(scanner_class, store.get("output") or ""):
                     store["status"] = "failed"
                     store["error"] = _PATCH_HANDOFF_FAIL
@@ -10605,6 +10843,11 @@ async def _build_live_fact_answer_for_run(goal: str) -> Optional[str]:
     # prompts are not hijacked into queue/ps dumps (intentional fp0* have no token).
     if is_brain_canary_probe(goal or ""):
         return None
+    # Process env (ATRA_ALLOW_GIT_*, VICTORIA_MODEL) — before tool-directive skip:
+    # "printenv …" looks like a tool ask but os.environ is the live probe.
+    _env_fact = process_env_fact_answer(goal or "")
+    if _env_fact:
+        return _env_fact
     # Tool directives (web/sql/git) must go through quick-tools, not fact-live probe.
     if _has_explicit_tool_directive(goal or ""):
         return None
@@ -10904,6 +11147,329 @@ async def run_task(
                 goal, _normalize_output_for_user(_early_file_check.get("output", ""))
             ),
             knowledge=knowledge,
+            correlation_id=correlation_id,
+        )
+    _multi_first = _try_multi_first_reply(goal)
+    if _multi_first is not None:
+        logger.info(
+            "[VICTORIA_MULTI_FIRST] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _multi_first[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _multi_first),
+            knowledge={
+                "strategy": "multi_first",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _first_line = _try_first_line_reply(goal)
+    if _first_line is not None:
+        logger.info(
+            "[VICTORIA_FIRST_LINE] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _first_line[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _first_line),
+            knowledge={
+                "strategy": "first_line_file",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _multi_nth = _try_multi_nth_reply(goal)
+    if _multi_nth is not None:
+        logger.info(
+            "[VICTORIA_MULTI_NTH] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _multi_nth[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _multi_nth),
+            knowledge={
+                "strategy": "multi_nth",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _nth_line = _try_nth_line_reply(goal)
+    if _nth_line is not None:
+        logger.info(
+            "[VICTORIA_NTH_LINE] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _nth_line[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _nth_line),
+            knowledge={
+                "strategy": "nth_line_file",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _line_range_early = _try_line_range_reply(goal)
+    if _line_range_early is not None:
+        logger.info(
+            "[VICTORIA_LINE_RANGE] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _line_range_early[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _line_range_early),
+            knowledge={
+                "strategy": "line_range",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _line_count = _try_line_count_reply(goal)
+    if _line_count is not None:
+        logger.info(
+            "[VICTORIA_LINE_COUNT] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _line_count[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _line_count),
+            knowledge={
+                "strategy": "line_count",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _file_cmp = _try_file_compare_reply(goal)
+    if _file_cmp is not None:
+        logger.info(
+            "[VICTORIA_FILE_COMPARE] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _file_cmp[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _file_cmp),
+            knowledge={
+                "strategy": "file_compare",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _multi_sum = _try_multi_summarize_reply(goal)
+    if _multi_sum is not None:
+        logger.info(
+            "[VICTORIA_MULTI_SUM] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _multi_sum[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _multi_sum),
+            knowledge={
+                "strategy": "multi_summarize",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _file_sum = _try_file_summarize_reply(goal)
+    if _file_sum is not None:
+        logger.info(
+            "[VICTORIA_FILE_SUM] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _file_sum[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _file_sum),
+            knowledge={
+                "strategy": "file_summarize",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _multi_diff = _try_multi_git_diff_reply(goal)
+    if _multi_diff is not None:
+        logger.info(
+            "[VICTORIA_MULTI_GIT_DIFF] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _multi_diff[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _multi_diff),
+            knowledge={
+                "strategy": "multi_git_diff",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _git_diff = _try_git_diff_reply(goal)
+    if _git_diff is not None:
+        logger.info(
+            "[VICTORIA_GIT_DIFF] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _git_diff[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _git_diff),
+            knowledge={
+                "strategy": "git_diff",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _list_dir = _try_list_directory_reply(goal)
+    if _list_dir is not None:
+        logger.info(
+            "[VICTORIA_LIST_DIR] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _list_dir[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _list_dir),
+            knowledge={
+                "strategy": "list_directory",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _multi_grep = _try_multi_grep_reply(goal)
+    if _multi_grep is not None:
+        logger.info(
+            "[VICTORIA_MULTI_GREP] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _multi_grep[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _multi_grep),
+            knowledge={
+                "strategy": "multi_grep",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _file_exists = _try_file_exists_reply(goal)
+    if _file_exists is not None:
+        logger.info(
+            "[VICTORIA_FILE_EXISTS] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _file_exists[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _file_exists),
+            knowledge={
+                "strategy": "file_exists",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _git_status = _try_git_status_reply(goal)
+    if _git_status is not None:
+        logger.info(
+            "[VICTORIA_GIT_STATUS] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _git_status[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _git_status),
+            knowledge={
+                "strategy": "git_status",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _git_blame = _try_git_blame_reply(goal)
+    if _git_blame is not None:
+        logger.info(
+            "[VICTORIA_GIT_BLAME] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _git_blame[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _git_blame),
+            knowledge={
+                "strategy": "git_blame",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _grep_line = _try_grep_line_reply(goal)
+    if _grep_line is not None:
+        logger.info(
+            "[VICTORIA_GREP_LINE] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _grep_line[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _grep_line),
+            knowledge={
+                "strategy": "grep_line",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _mutate_rej = _try_git_mutate_reject_reply(goal)
+    if _mutate_rej is not None:
+        logger.info(
+            "[VICTORIA_GIT_MUTATE_REJECT] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _mutate_rej[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _mutate_rej),
+            knowledge={
+                "strategy": "git_mutate_reject",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
+            correlation_id=correlation_id,
+        )
+    _bare_instr = _try_bare_done_instruction_reply(goal)
+    if _bare_instr is not None:
+        logger.info(
+            "[VICTORIA_BARE_DONE] /run correlation_id=%s preview=%s",
+            correlation_id,
+            _bare_instr[:120],
+        )
+        return TaskResponse(
+            status="success",
+            output=prefix_brain_canary_token(goal, _bare_instr),
+            knowledge={
+                "strategy": "bare_done_refuse",
+                "source": "deterministic",
+                "metadata": {"model_used": "none", "correlation_id": correlation_id},
+            },
             correlation_id=correlation_id,
         )
     # Fixed-token YES/NO before live-fact: tip preambles often contain inflight/ttc/11437.
@@ -13626,6 +14192,386 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
             }
         )
+    _chat_multi_first = _try_multi_first_reply(goal)
+    if _chat_multi_first is not None:
+        _chat_multi_first = prefix_brain_canary_token(goal, _chat_multi_first)
+        logger.info("[VICTORIA_MULTI_FIRST] chat completions preview=%s", _chat_multi_first[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_multi_first},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_first = _try_first_line_reply(goal)
+    if _chat_first is not None:
+        _chat_first = prefix_brain_canary_token(goal, _chat_first)
+        logger.info("[VICTORIA_FIRST_LINE] chat completions preview=%s", _chat_first[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_first},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_multi_nth = _try_multi_nth_reply(goal)
+    if _chat_multi_nth is not None:
+        _chat_multi_nth = prefix_brain_canary_token(goal, _chat_multi_nth)
+        logger.info("[VICTORIA_MULTI_NTH] chat completions preview=%s", _chat_multi_nth[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_multi_nth},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_nth = _try_nth_line_reply(goal)
+    if _chat_nth is not None:
+        _chat_nth = prefix_brain_canary_token(goal, _chat_nth)
+        logger.info("[VICTORIA_NTH_LINE] chat completions preview=%s", _chat_nth[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_nth},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_line_range = _try_line_range_reply(goal)
+    if _chat_line_range is not None:
+        _chat_line_range = prefix_brain_canary_token(goal, _chat_line_range)
+        logger.info("[VICTORIA_LINE_RANGE] chat preview=%s", _chat_line_range[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_line_range},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_line_count = _try_line_count_reply(goal)
+    if _chat_line_count is not None:
+        _chat_line_count = prefix_brain_canary_token(goal, _chat_line_count)
+        logger.info("[VICTORIA_LINE_COUNT] chat preview=%s", _chat_line_count[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_line_count},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_cmp = _try_file_compare_reply(goal)
+    if _chat_cmp is not None:
+        _chat_cmp = prefix_brain_canary_token(goal, _chat_cmp)
+        logger.info("[VICTORIA_FILE_COMPARE] chat preview=%s", _chat_cmp[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_cmp},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_multi_sum = _try_multi_summarize_reply(goal)
+    if _chat_multi_sum is not None:
+        _chat_multi_sum = prefix_brain_canary_token(goal, _chat_multi_sum)
+        logger.info("[VICTORIA_MULTI_SUM] chat completions preview=%s", _chat_multi_sum[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_multi_sum},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_sum = _try_file_summarize_reply(goal)
+    if _chat_sum is not None:
+        _chat_sum = prefix_brain_canary_token(goal, _chat_sum)
+        logger.info("[VICTORIA_FILE_SUM] chat completions preview=%s", _chat_sum[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_sum},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_multi_diff = _try_multi_git_diff_reply(goal)
+    if _chat_multi_diff is not None:
+        _chat_multi_diff = prefix_brain_canary_token(goal, _chat_multi_diff)
+        logger.info("[VICTORIA_MULTI_GIT_DIFF] chat preview=%s", _chat_multi_diff[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_multi_diff},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_git_diff = _try_git_diff_reply(goal)
+    if _chat_git_diff is not None:
+        _chat_git_diff = prefix_brain_canary_token(goal, _chat_git_diff)
+        logger.info("[VICTORIA_GIT_DIFF] chat preview=%s", _chat_git_diff[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_git_diff},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_list = _try_list_directory_reply(goal)
+    if _chat_list is not None:
+        _chat_list = prefix_brain_canary_token(goal, _chat_list)
+        logger.info("[VICTORIA_LIST_DIR] chat preview=%s", _chat_list[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_list},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_multi = _try_multi_grep_reply(goal)
+    if _chat_multi is not None:
+        _chat_multi = prefix_brain_canary_token(goal, _chat_multi)
+        logger.info("[VICTORIA_MULTI_GREP] chat completions preview=%s", _chat_multi[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_multi},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_exists = _try_file_exists_reply(goal)
+    if _chat_exists is not None:
+        _chat_exists = prefix_brain_canary_token(goal, _chat_exists)
+        logger.info("[VICTORIA_FILE_EXISTS] chat preview=%s", _chat_exists[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_exists},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_git_status = _try_git_status_reply(goal)
+    if _chat_git_status is not None:
+        _chat_git_status = prefix_brain_canary_token(goal, _chat_git_status)
+        logger.info("[VICTORIA_GIT_STATUS] chat preview=%s", _chat_git_status[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_git_status},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_git_blame = _try_git_blame_reply(goal)
+    if _chat_git_blame is not None:
+        _chat_git_blame = prefix_brain_canary_token(goal, _chat_git_blame)
+        logger.info("[VICTORIA_GIT_BLAME] chat preview=%s", _chat_git_blame[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_git_blame},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_grep = _try_grep_line_reply(goal)
+    if _chat_grep is not None:
+        _chat_grep = prefix_brain_canary_token(goal, _chat_grep)
+        logger.info("[VICTORIA_GREP_LINE] chat completions preview=%s", _chat_grep[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_grep},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_mutate = _try_git_mutate_reject_reply(goal)
+    if _chat_mutate is not None:
+        _chat_mutate = prefix_brain_canary_token(goal, _chat_mutate)
+        logger.info("[VICTORIA_GIT_MUTATE_REJECT] chat preview=%s", _chat_mutate[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_mutate},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
+    _chat_bare = _try_bare_done_instruction_reply(goal)
+    if _chat_bare is not None:
+        _chat_bare = prefix_brain_canary_token(goal, _chat_bare)
+        logger.info("[VICTORIA_BARE_DONE] chat preview=%s", _chat_bare[:120])
+        return JSONResponse(
+            content={
+                "id": f"chatcmpl-{correlation_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": _chat_bare},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        )
     # Fixed-token YES/NO before live-fact (pair tips with INFLIGHT/TTC/11437).
     _chat_fixed = fixed_token_reply_answer(goal)
     if _chat_fixed:
@@ -13813,26 +14759,36 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     if not _is_simple:
         # Phase 2: top-N kind=experience into chat LLM path (AFTER live-fact exits above).
         # Probe original user text — do not poison fact-probe (already returned) or tsquery.
+        # Skip on evidence-tool goals (read_file/git/printenv) — bleed → PgBouncer recipes.
         try:
             exp_probe = (_user_msg_text or goal or "").strip()
-            exp_lessons = await _fetch_experience_lessons(exp_probe, 3)
-            if exp_lessons:
-                exp_block = "ОПЫТ:\n" + "\n".join(f"- {lesson}" for lesson in exp_lessons)
-                if len(exp_block) > 600:
-                    exp_block = exp_block[:600]
-                goal = f"{exp_block}\n\nТЕКУЩИЙ ЗАПРОС: {goal}"
-                task_req.goal = goal
+            if is_evidence_tool_goal(exp_probe):
                 logger.info(
-                    "🧠 [OPENAI-API] Experience lessons injected: %s chars (%s items)",
-                    len(exp_block),
-                    len(exp_lessons),
+                    "🧠 [OPENAI-API] Experience lessons skipped (evidence-tool goal)"
                 )
+            else:
+                exp_lessons = await _fetch_experience_lessons(exp_probe, 3)
+                if exp_lessons:
+                    exp_block = "ОПЫТ:\n" + "\n".join(f"- {lesson}" for lesson in exp_lessons)
+                    if len(exp_block) > 600:
+                        exp_block = exp_block[:600]
+                    goal = f"{exp_block}\n\nТЕКУЩИЙ ЗАПРОС: {goal}"
+                    task_req.goal = goal
+                    logger.info(
+                        "🧠 [OPENAI-API] Experience lessons injected: %s chars (%s items)",
+                        len(exp_block),
+                        len(exp_lessons),
+                    )
         except Exception as e:  # noqa: BLE001
             logger.debug("experience inject skipped: %s", e)
 
         # [SINGULARITY 15.0] Интеграция LongTermMemory
+        # Skip on evidence-tool goals — sticky «РАНЕЕ ОБСУЖДАЛОСЬ» often carries PgBouncer TZ.
         memory_context = ""
-        if "victoria" in str(request.model).lower():
+        _ltm_probe = (_user_msg_text or goal or "").strip()
+        if is_evidence_tool_goal(_ltm_probe):
+            logger.info("🧠 [OPENAI-API] LTM skipped (evidence-tool goal)")
+        elif "victoria" in str(request.model).lower():
             try:
                 try:
                     from knowledge_os.app.long_term_memory import get_long_term_memory_manager
@@ -13868,7 +14824,8 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
         # Probe original user text — LTM may bloat `goal`.
         _rag_probe = (_user_msg_text or goal or "").strip()
         _skip_omni_rag = (
-            bool(_FILE_CHECK_RE.match(_rag_probe[:_FILE_CHECK_MAX_PREFIX]))
+            is_evidence_tool_goal(_rag_probe)
+            or bool(_FILE_CHECK_RE.match(_rag_probe[:_FILE_CHECK_MAX_PREFIX]))
             or _is_trivial_self_contained_code_goal(_rag_probe)
             or (
                 _is_code_write_goal(_rag_probe)
@@ -15693,6 +16650,8 @@ async def autonomous_code(request: dict):
 
 async def _fetch_experience_lessons(goal_text: str, limit: int = 3) -> list:
     """[v3.4] Top-3 релевантных опыта (kind=experience) из knowledge_nodes."""
+    if is_evidence_tool_goal(goal_text or ""):
+        return []
     try:
         dsn = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
         conn = await asyncpg.connect(dsn=dsn)
@@ -15708,13 +16667,7 @@ async def _fetch_experience_lessons(goal_text: str, limit: int = 3) -> list:
                 goal_text[:400],
                 limit,
             )
-            if not rows:
-                rows = await conn.fetch(
-                    """SELECT content FROM knowledge_nodes
-                       WHERE metadata @> '{"kind":"experience"}'::jsonb
-                       ORDER BY created_at DESC LIMIT $1""",
-                    limit,
-                )
+            # No newest-fallback: sticky PgBouncer/infra lessons on tsquery miss.
         finally:
             await conn.close()
         return [str(r["content"])[:300] for r in rows]

@@ -67,13 +67,7 @@ async def fetch_experience_lessons(
                 goal[:400],
                 limit,
             )
-            if not rows:
-                rows = await conn.fetch(
-                    """SELECT content FROM knowledge_nodes
-                       WHERE metadata @> '{"kind":"experience"}'::jsonb
-                       ORDER BY created_at DESC LIMIT $1""",
-                    limit,
-                )
+            # No newest-fallback — miss must not inject unrelated infra recipes.
         finally:
             await conn.close()
         return [str(r["content"])[:300] for r in rows]

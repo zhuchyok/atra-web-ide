@@ -69,13 +69,17 @@ async def test_crystal_filter_removes_pgbouncer_noise(monkeypatch):
     rows = [
         {"crystal_type": "parameter", "content": "Database Port: 6432 (PgBouncer)"},
         {"crystal_type": "decision", "content": "Use per-task isolation in dynamic pool."},
+        {
+            "crystal_type": "fact",
+            "content": "Принято. Переходим к выполнению ТЗ по PgBouncer.ini default_pool_size",
+        },
     ]
 
     async def _fake_pool():
         return _FakePool(rows)
 
     monkeypatch.setenv("AI_PIPELINE_CRYSTALS_SKIP_OPERATIONAL", "true")
-    monkeypatch.setenv("AI_PIPELINE_CRYSTALS_DENY_REGEX", r"pgbouncer|database port\s*:?\s*6432")
+    monkeypatch.delenv("AI_PIPELINE_CRYSTALS_DENY_REGEX", raising=False)  # use default broadened
     monkeypatch.setenv("AI_PIPELINE_CRYSTALS_ALLOWED_TYPES", "decision,parameter,milestone,fact")
     monkeypatch.setattr("ai_core._get_db_pool", _fake_pool)
 
@@ -87,3 +91,35 @@ async def test_crystal_filter_removes_pgbouncer_noise(monkeypatch):
     assert "ПАМЯТЬ ПРОЕКТА" in res
     assert "Use per-task isolation" in res
     assert "PgBouncer" not in res
+    assert "default_pool_size" not in res
+    assert "Переходим к выполнению" not in res
+
+
+@pytest.mark.asyncio
+async def test_evidence_tool_goal_skips_crystals(monkeypatch):
+    from app import ai_pipeline
+
+    called = {"value": False}
+
+    async def _boom():
+        called["value"] = True
+        raise AssertionError("DB should not be hit for evidence-tool crystal skip")
+
+    monkeypatch.setenv("AI_PIPELINE_CRYSTALS_SKIP_OPERATIONAL", "true")
+    monkeypatch.setattr("ai_core._get_db_pool", _boom)
+
+    res = await ai_pipeline.load_memory_crystals(
+        project_context="atra-web-ide",
+        task_category="reasoning",
+        user_prompt="Read file docs/curator_reports/standards/cursor_method.md. Quote line 3.",
+    )
+    assert res == ""
+    assert called["value"] is False
+
+
+def test_is_evidence_tool_goal_markers():
+    from app import ai_pipeline
+
+    assert ai_pipeline._is_evidence_tool_goal("git_diff src/agents/bridge/task_detector.py")
+    assert ai_pipeline._is_evidence_tool_goal("printenv ATRA_ALLOW_GIT_MUTATE")
+    assert not ai_pipeline._is_evidence_tool_goal("Сделай архитектурный анализ роя экспертов")

@@ -125,6 +125,22 @@ def test_public_task_title_strips_method_prefix():
     assert "МЕТОД CURSOR" not in public_task_title(enriched)
 
 
+def test_process_env_fact_unset_and_model(monkeypatch):
+    from src.agents.bridge.task_detector import process_env_fact_answer
+
+    monkeypatch.delenv("ATRA_ALLOW_GIT_MUTATE", raising=False)
+    monkeypatch.delenv("ATRA_ALLOW_GIT_PUSH", raising=False)
+    monkeypatch.setenv("VICTORIA_MODEL", "victoria-qwen38:latest")
+    out = process_env_fact_answer(
+        "printenv ATRA_ALLOW_GIT_MUTATE ATRA_ALLOW_GIT_PUSH VICTORIA_MODEL"
+    )
+    assert out is not None
+    assert "ATRA_ALLOW_GIT_MUTATE=UNSET" in out
+    assert "ATRA_ALLOW_GIT_PUSH=UNSET" in out
+    assert "VICTORIA_MODEL=victoria-qwen38:latest" in out
+    assert process_env_fact_answer("какие слоты на 11434?") is None
+
+
 def test_live_health_ok():
     assert format_live_fact_answer("health Victoria ok или нет?", health="ok") == "ok"
 

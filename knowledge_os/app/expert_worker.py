@@ -925,9 +925,21 @@ async def process_task(task_data: dict):
                     fetch_experience_lessons,
                 )
 
-            _exp_lessons = await fetch_experience_lessons(_task_goal_for_exp, 3)
-            if _exp_lessons:
-                description = append_experience_lessons(description, _exp_lessons)
+            _skip_exp_ev = False
+            try:
+                from task_detector import is_evidence_tool_goal as _ev_goal
+
+                _skip_exp_ev = bool(_ev_goal(_task_goal_for_exp or ""))
+            except Exception:
+                _gl = (_task_goal_for_exp or "").lower()
+                _skip_exp_ev = any(
+                    m in _gl
+                    for m in ("read_file", "git_diff", "printenv", "cursor_method.md")
+                )
+            if not _skip_exp_ev:
+                _exp_lessons = await fetch_experience_lessons(_task_goal_for_exp, 3)
+                if _exp_lessons:
+                    description = append_experience_lessons(description, _exp_lessons)
                 logger.info(
                     "🧠 [SKILL-LOOP] Injected %s experience lesson(s) for %s",
                     len(_exp_lessons),
