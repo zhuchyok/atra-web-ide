@@ -79,13 +79,17 @@ fi
 export VICTORIA_URL
 
 echo ""
+PYTHON_CMD="python3"
+if [ -x "$ROOT/knowledge_os/.venv/bin/python" ]; then
+  PYTHON_CMD="$ROOT/knowledge_os/.venv/bin/python"
+fi
 echo "=== 1. Прогон куратора ==="
 if [ -n "$FULL" ]; then
   echo "Режим: полный"
-  python3 scripts/curator_send_tasks_to_victoria.py --file scripts/curator_tasks.txt --async --max-wait 3600
+  $PYTHON_CMD scripts/curator_send_tasks_to_victoria.py --file scripts/curator_tasks.txt --async --max-wait 3600
 else
   echo "Режим: быстрый (2 задачи)"
-  python3 scripts/curator_send_tasks_to_victoria.py --file scripts/curator_tasks.txt --async --quick
+  $PYTHON_CMD scripts/curator_send_tasks_to_victoria.py --file scripts/curator_tasks.txt --async --quick
 fi
 
 REPORT=$(ls -t "$REPORTS_DIR"/curator_*.json 2>/dev/null | head -1)

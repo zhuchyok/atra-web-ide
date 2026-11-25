@@ -24,20 +24,24 @@ def build_task_text() -> str:
     base = TEMPLATE.read_text(encoding="utf-8")
     cutoff = datetime.now() - timedelta(hours=30)
     excerpts = []
+    dated = []
     seen_goals = set()
     # только отчёты вида curator_YYYY-MM-DD_HH-MM-SS.json (не curator_full_*)
     import re
 
     pat = re.compile(r"^curator_(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})$")
-    dated = []
-    for f in REPORTS.glob("curator_*.json"):
+    # два формата: классический curator_*.json и парный pair_*.json (v150.9x)
+    files = list(REPORTS.glob("curator_*.json")) + list(REPORTS.glob("pair_*.json"))
+    for f in files:
         m = pat.match(f.stem)
-        if not m:
-            continue
-        try:
-            ts = datetime.strptime(m.group(1) + " " + m.group(2), "%Y-%m-%d %H-%M-%S")
-        except ValueError:
-            continue
+        if m:
+            try:
+                ts = datetime.strptime(m.group(1) + " " + m.group(2), "%Y-%m-%d %H-%M-%S")
+            except ValueError:
+                continue
+        else:
+            # pair_* не несёт времени в имени — берём mtime
+            ts = datetime.fromtimestamp(f.stat().st_mtime)
         dated.append((ts, f))
     for ts, f in sorted(dated, reverse=True):
         if ts < cutoff:
@@ -46,8 +50,12 @@ def build_task_text() -> str:
             d = json.loads(f.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             continue
-        for r in d.get("results", []):
-            goal, out = r.get("goal", ""), str(r.get("output_preview", ""))
+        # классический формат: {"results": [{goal, output_preview}]};
+        # парный pair_*: {"goal", "answer"} одной записью
+        rows = d.get("results") or ([d] if d.get("goal") else [])
+        for r in rows:
+            goal = r.get("goal", "")
+            out = str(r.get("output_preview") or r.get("answer") or "")
             gl = goal.lower()
             # защита от рекурсии: не включать сам самоаудит и его материал,
             # а также любые служебные/дублированные задачи
