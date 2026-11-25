@@ -1,0 +1,1342 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Демо: расчёт стоимости потолка — 100potolki.ru</title>
+<meta name="description" content="Ответьте на 6 вопросов и узнайте стоимость натяжного потолка. Бесплатный замер.">
+<meta name="theme-color" content="#c2512b">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preload" href="fonts/rubik.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+  @font-face {
+    font-family: "Rubik"; src: url("fonts/rubik.woff2") format("woff2");
+    font-weight: 400 700; font-style: normal; font-display: swap;
+  }
+  :root {
+    /* фон и поверхности */
+    --bg: #FBF4EC; --bg-2: #F6E6D6; --card: #FFFDFA; --line: #EADCCD; --line-2: #DCCBB8;
+    /* текст */
+    --text: #2B211C; --muted: #6E5E54;
+    /* акцент (в персональных демо заменяется цветом бренда) */
+    --primary: #c2512b; --primary-hover: #a54525; --primary-soft: #f9ece5; --primary-ink: #b14a27; --primary-rgb: 194, 81, 43;
+    /* цвета из иллюстраций */
+    --mustard: #F2B544; --mustard-soft: #FFF3D6; --mustard-ink: #7A5A12;
+    --mint: #BFE3CC; --mint-soft: #E8F5EC; --teal: #1F7A70; --blue: #7F96C8; --err: #B42318;
+    /* форма */
+    --r-card: 24px; --r-tile: 20px; --r-btn: 16px; --r-input: 14px;
+    --shadow-tile: 0 6px 16px rgba(120, 70, 40, .08);
+    --shadow-card: 0 20px 50px rgba(120, 70, 40, .12);
+    --shadow-btn: 0 8px 20px rgba(var(--primary-rgb), .28);
+    --ease: cubic-bezier(.2, .75, .2, 1);
+    --head-h: 56px; --bar-h: 72px;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  html, body { margin: 0; }
+  body {
+    font-family: "Rubik", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: 16px; line-height: 1.5;
+    background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  }
+  body.has-bar { padding-bottom: calc(var(--bar-h) + env(safe-area-inset-bottom)); }
+  img { display: block; max-width: 100%; }
+  button { font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; }
+  h1, h2, h3, p, figure { margin: 0; }
+  a { color: var(--teal); text-underline-offset: 3px; }
+  :focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .i { width: 20px; height: 20px; flex: none; }
+
+  /* ---------- шапка ---------- */
+  .top {
+    position: sticky; top: 0; z-index: 20; background: rgba(251, 244, 236, .92);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border-bottom: 1px solid transparent; transition: border-color .2s;
+  }
+  .started .top { border-bottom-color: var(--line); }
+  .top-in { height: var(--head-h); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; max-width: 1264px; margin: 0 auto; }
+  .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .logo {
+    width: 40px; height: 40px; border-radius: 12px; flex: none; display: grid; place-items: center; font-weight: 700; font-size: 19px;
+    color: var(--primary-ink); background: var(--primary-soft); box-shadow: inset 0 0 0 1px rgba(var(--primary-rgb), .2);
+  }
+  .bname { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+  .bname b { font-weight: 700; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bname small { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .call {
+    flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 44px; height: 44px;
+    border-radius: 50%; border: 1px solid var(--line); background: var(--card); color: var(--teal); text-decoration: none; box-shadow: var(--shadow-tile);
+  }
+  .call span { display: none; }
+
+  /* ---------- обложка / левая панель ---------- */
+  .layout { max-width: 1264px; margin: 0 auto; }
+  .visual { padding: 4px 16px 0; }
+  .vis-fig { position: relative; border-radius: var(--r-card); overflow: hidden; aspect-ratio: 16 / 9; background: var(--bg-2); }
+  .vis-fig img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 45%; transition: opacity .3s ease; }
+  .vis-fig img.swap { opacity: 0; }
+  .vis-fig.contain img { object-fit: contain; padding: 8%; }
+  .vis-sum { display: none; }
+  .started .visual { display: none; }
+
+  /* ---------- первый экран ---------- */
+  .intro { padding: 20px 16px 0; }
+  .eyebrow { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--teal); margin-bottom: 8px; }
+  .eyebrow::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 4px var(--mint-soft); }
+  h1 { font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -.012em; text-wrap: balance; }
+  .sub { margin-top: 8px; color: var(--muted); font-size: 16px; text-wrap: pretty; }
+  .trust { display: flex; gap: 8px; list-style: none; margin: 16px -16px 0; padding: 0 16px; overflow-x: auto; scrollbar-width: none; }
+  .trust::-webkit-scrollbar { display: none; }
+  .trust li {
+    flex: none; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px 0 10px; border-radius: 999px;
+    background: var(--mint-soft); font-size: 14px; font-weight: 500; white-space: nowrap;
+  }
+  .trust li a { color: inherit; text-decoration: none; }
+  .trust .i { width: 16px; height: 16px; color: var(--teal); }
+  .trust .star { color: #C98A10; }
+  .resume {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; margin-top: 16px; min-height: 52px;
+    padding: 8px 16px; border-radius: var(--r-btn); border: 1px dashed var(--line-2); background: var(--card); cursor: pointer; text-align: left; font-weight: 500;
+  }
+  .resume[hidden] { display: none; }
+  .resume .i { color: var(--teal); }
+  .started .intro { display: none; }
+
+  /* ---------- бонус ---------- */
+  .bonus {
+    display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 10px 12px 10px 8px; border-radius: var(--r-tile);
+    background: var(--mustard-soft); border: 1px solid #F3DDA6;
+  }
+  .bonus[hidden] { display: none; }
+  .bonus-pic { width: 56px; height: 56px; flex: none; }
+  .bonus-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
+  .bonus-lbl { font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--mustard-ink); }
+  .bonus-txt b { font-size: 16px; line-height: 1.3; font-weight: 700; }
+  .bonus-txt small { font-size: 14px; color: var(--muted); line-height: 1.35; }
+  .bonus-lock { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .75); color: var(--mustard-ink); flex: none; }
+  .bonus-lock .i { width: 18px; height: 18px; }
+  .bonus.open { background: var(--mint-soft); border-color: #CBE7D5; }
+  .bonus.open .bonus-lbl, .bonus.open .bonus-lock { color: var(--teal); }
+
+  /* ---------- квиз ---------- */
+  .quiz { padding: 24px 16px 32px; }
+  .started .quiz { padding-top: 0; }
+  .prog { padding: 4px 0; }
+  .started .prog {
+    position: sticky; top: var(--head-h); z-index: 6; margin: 0 -16px; padding: 10px 16px 12px;
+    background: rgba(251, 244, 236, .95); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  }
+  .plabel { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+  .segs { display: flex; gap: 4px; }
+  .seg { flex: 1; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .seg i { display: block; height: 100%; width: 0; background: var(--primary); border-radius: 3px; transition: width .45s var(--ease); }
+  .step { transition: opacity .15s ease, transform .15s ease; }
+  .step.leaving { opacity: 0; transform: translateX(calc(var(--dir, 1) * -12px)); }
+  .qhead { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .qicon { width: 40px; height: 40px; flex: none; }
+  h2.q { font-size: 22px; line-height: 1.25; font-weight: 700; letter-spacing: -.008em; text-wrap: balance; }
+  h2.q:focus { outline: none; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .tag { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px 0 8px; border-radius: 999px; background: var(--mint-soft); font-size: 13px; font-weight: 500; }
+  .tag .i { width: 14px; height: 14px; color: var(--teal); }
+  .hint { margin-top: 6px; color: var(--muted); font-size: 15px; line-height: 1.45; }
+  .tip { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; padding: 10px 12px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); font-size: 15px; }
+  .tip-ava { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex: none; display: grid; place-items: center; background: var(--mint-soft); color: var(--teal); font-weight: 700; }
+  .tip-ava img { width: 100%; height: 100%; object-fit: cover; }
+  .tip b { display: block; font-size: 13px; color: var(--muted); font-weight: 600; }
+
+  /* плитки вариантов */
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .opt {
+    position: relative; display: flex; flex-direction: column; padding: 6px; text-align: left; cursor: pointer; color: var(--text);
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--r-tile); box-shadow: var(--shadow-tile);
+    transition: transform .12s ease, box-shadow .2s, border-color .2s, background-color .2s;
+  }
+  .opt:active { transform: scale(.98); }
+  .opt .ph { position: relative; display: block; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden; background: var(--bg-2); }
+  .opt .ph .swatch {
+    position: absolute; left: 8px; bottom: 8px; width: 44px; height: 44px; border-radius: 50%; object-fit: cover;
+    border: 3px solid var(--card); box-shadow: 0 4px 10px rgba(43, 33, 28, .25);
+  }
+  .opt .ph img { width: 100%; height: 100%; object-fit: cover; }
+  .opt .cap { display: flex; flex-direction: column; gap: 2px; padding: 9px 8px 7px; }
+  .opt .cap b { font-weight: 500; font-size: 16px; line-height: 1.3; }
+  .opt .cap small { font-size: 14px; line-height: 1.35; color: var(--muted); }
+  .opt .key { display: none; }
+  .opt[aria-checked="true"] { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary), var(--shadow-tile); background: var(--primary-soft); }
+  .mark {
+    position: absolute; top: 12px; right: 12px; width: 24px; height: 24px; border-radius: 50%; pointer-events: none;
+    background: var(--primary) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / 14px no-repeat;
+    box-shadow: 0 2px 6px rgba(43, 33, 28, .2); opacity: 0; transform: scale(.5); transition: opacity .15s, transform .2s var(--ease);
+  }
+  .opt[aria-checked="true"] .mark { opacity: 1; transform: none; }
+  .opt.multi .mark { border-radius: 7px; opacity: 1; transform: none; background-color: rgba(255, 253, 250, .96); background-size: 0; border: 1.5px solid var(--line-2); }
+  .opt.multi[aria-checked="true"] .mark { background-color: var(--primary); background-size: 14px; border-color: var(--primary); }
+  .opt.ico { padding: 14px; gap: 10px; min-height: 124px; }
+  .opt.ico .oicon { width: 56px; height: 56px; }
+  .opt.ico .cap, .opt.wide .cap { padding: 0; }
+  .opt.wide { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 12px; padding: 10px 48px 10px 10px; min-height: 72px; }
+  .opt.wide .oicon { width: 52px; height: 52px; flex: none; }
+  .opt.wide .mark { top: 50%; margin-top: -12px; }
+
+  /* площадь */
+  .presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+  .pchip {
+    height: 48px; border-radius: var(--r-input); border: 1px solid var(--line); background: var(--card); font-weight: 500; font-size: 16px;
+    cursor: pointer; box-shadow: var(--shadow-tile); white-space: nowrap; font-variant-numeric: tabular-nums; transition: background-color .15s, border-color .15s;
+  }
+  .pchip small { font-size: 13px; color: var(--muted); }
+  .pchip[aria-checked="true"] { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); background: var(--primary-soft); color: var(--primary-ink); }
+  .pchip[aria-checked="true"] small { color: var(--primary-ink); }
+  .stepper { display: flex; align-items: center; gap: 4px; }
+  .sbtn {
+    width: 48px; height: 48px; border-radius: var(--r-input); border: 1px solid var(--line); background: var(--bg); display: grid; place-items: center;
+    cursor: pointer; color: var(--text); flex: none; transition: background-color .15s, transform .1s;
+  }
+  .sbtn:active { transform: scale(.94); }
+  .sbtn:disabled { opacity: .4; cursor: default; }
+  .stepper.big { margin-top: 12px; justify-content: space-between; padding: 10px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-tile); box-shadow: var(--shadow-tile); }
+  .stepper.big .sbtn { width: 56px; height: 56px; border-radius: var(--r-btn); }
+  .numwrap { display: flex; align-items: baseline; justify-content: center; gap: 6px; flex: 1; cursor: text; border-radius: 12px; padding: 2px 6px; }
+  .numwrap:focus-within { outline: 3px solid var(--teal); outline-offset: 2px; }
+  .num { width: 2.6ch; border: 0; background: transparent; font: inherit; font-size: 40px; font-weight: 700; text-align: right; color: var(--text); font-variant-numeric: tabular-nums; padding: 0; line-height: 1.1; }
+  .num:focus { outline: none; }
+  .numwrap span { font-size: 20px; color: var(--muted); font-weight: 500; }
+
+  /* освещение */
+  .media { margin-top: 16px; padding: 6px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-tile); box-shadow: var(--shadow-tile); }
+  .media img { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 14px; }
+  .counters { display: grid; gap: 12px; margin-top: 12px; }
+  .counter { display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 8px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-tile); box-shadow: var(--shadow-tile); }
+  .cthumb { width: 64px; height: 64px; border-radius: 14px; overflow: hidden; flex: none; background: var(--bg-2); }
+  .cthumb img { width: 100%; height: 100%; object-fit: cover; }
+  .clabel { flex: 1; min-width: 0; font-weight: 500; line-height: 1.3; }
+  .stepper output { min-width: 2.2ch; text-align: center; font-weight: 700; font-size: 20px; font-variant-numeric: tabular-nums; }
+
+  /* ---------- нижняя панель ---------- */
+  .bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex; align-items: center; gap: 12px; min-height: var(--bar-h);
+    padding: 12px max(16px, calc((100vw - 680px) / 2)) calc(12px + env(safe-area-inset-bottom));
+    background: rgba(251, 244, 236, .92); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border-top: 1px solid var(--line);
+  }
+  .bar[hidden] { display: none; }
+  .back {
+    width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--card); display: grid; place-items: center;
+    cursor: pointer; flex: none; color: var(--text); transition: background-color .15s;
+  }
+  .back[hidden] { display: none; }
+  .kbd { display: none; }
+  .btn-primary {
+    flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 56px; padding: 8px 20px; border: 0;
+    border-radius: var(--r-btn); background: var(--primary); color: #fff; font-size: 17px; font-weight: 600; line-height: 1.15; cursor: pointer;
+    box-shadow: var(--shadow-btn); transition: background-color .15s, transform .12s, box-shadow .2s; text-align: center;
+  }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-primary:active { transform: scale(.98); }
+  .btn-primary:disabled { background: var(--line); color: var(--muted); box-shadow: none; cursor: not-allowed; }
+  .btn-primary[hidden] { display: none; }
+  .btn-primary .i { width: 20px; height: 20px; }
+
+  /* ---------- пауза «Считаем…» ---------- */
+  .calc { text-align: center; padding: 4px 0 24px; }
+  .calc-pic { width: min(100%, 340px); height: auto; margin: 0 auto; }
+  .calc h2.q { margin-top: 4px; }
+  .loader { width: 180px; height: 6px; border-radius: 3px; background: var(--line); margin: 20px auto 0; overflow: hidden; }
+  .loader i { display: block; height: 100%; width: 8%; background: var(--primary); border-radius: 3px; animation: load 1.2s var(--ease) forwards; }
+  @keyframes load { to { width: 100%; } }
+
+  /* ---------- результат ---------- */
+  .res-pic { margin-top: 8px; padding: 6px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); box-shadow: var(--shadow-tile); }
+  .res-pic img { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 18px; }
+  .res-cap { margin-top: 20px; font-size: 15px; font-weight: 500; color: var(--muted); }
+  .price { margin-top: 4px; font-size: 34px; line-height: 1.1; font-weight: 700; letter-spacing: -.015em; font-variant-numeric: tabular-nums; }
+  .p-one { display: inline-block; white-space: nowrap; }
+  .p-two { display: none; }
+  .price.stack .p-one { display: none; }
+  .price.stack .p-two { display: block; }
+  .p-two b { display: block; font-weight: 700; white-space: nowrap; }
+  .p-two span { display: block; margin-top: 4px; font-size: .6em; font-weight: 600; color: var(--muted); white-space: nowrap; }
+  .per { display: inline-block; margin-top: 10px; padding: 5px 12px; border-radius: 999px; background: var(--bg-2); font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .why { margin-top: 10px; color: var(--muted); font-size: 15px; }
+  .box { margin-top: 16px; padding: 16px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-tile); box-shadow: var(--shadow-tile); }
+  .h3 { font-size: 16px; font-weight: 700; line-height: 1.3; }
+  .incl { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .incl li { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 6px 8px; border-radius: 999px; background: var(--mint-soft); font-size: 14px; font-weight: 500; }
+  .incl .i { width: 16px; height: 16px; color: var(--teal); }
+  .parts { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line-2); display: grid; gap: 6px; }
+  .parts div { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; color: var(--muted); }
+  .parts b { font-weight: 600; color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .parts p { font-size: 13px; color: var(--muted); }
+  .sum-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .linkbtn { background: none; border: 0; padding: 8px 0; color: var(--teal); font-weight: 600; font-size: 15px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .sumry { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  .schip {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--bg); font-size: 14px; font-weight: 500; cursor: pointer; text-align: left; line-height: 1.3;
+  }
+  .schip .i { width: 14px; height: 14px; color: var(--muted); }
+
+  /* ---------- форма ---------- */
+  .form { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--line); scroll-margin-top: 120px; }
+  .field { margin: 16px 0 0; border: 0; padding: 0; min-width: 0; }
+  .lbl { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; padding: 0; }
+  .msgr { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .mbtn {
+    display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 12px; border-radius: var(--r-input); border: 1px solid var(--line);
+    background: var(--card); font-size: 15px; font-weight: 500; cursor: pointer; text-align: left; line-height: 1.2; transition: border-color .15s, background-color .15s;
+  }
+  .mbtn svg { width: 26px; height: 26px; flex: none; }
+  .mbtn[aria-checked="true"] { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); background: var(--primary-soft); }
+  .in {
+    width: 100%; height: 56px; padding: 0 16px; border: 1px solid var(--line-2); border-radius: var(--r-input); background: var(--card);
+    font: inherit; font-size: 17px; color: var(--text); transition: border-color .15s, box-shadow .15s;
+  }
+  .in::placeholder { color: #9A877A; }
+  .in:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(31, 122, 112, .2); }
+  .in[aria-invalid="true"] { border-color: var(--err); box-shadow: 0 0 0 3px rgba(180, 35, 24, .12); }
+  .ferr { display: flex; align-items: flex-start; gap: 6px; margin-top: 6px; color: var(--err); font-size: 14px; font-weight: 500; line-height: 1.35; }
+  .ferr[hidden] { display: none; }
+  .ferr .i { width: 18px; height: 18px; }
+  .consent { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; padding: 10px 0; font-size: 15px; line-height: 1.4; }
+  .consent input {
+    -webkit-appearance: none; appearance: none; width: 24px; height: 24px; margin: -1px 0 0; flex: none; cursor: pointer;
+    border: 1.5px solid #C9B4A0; border-radius: 7px; background: var(--card); transition: background-color .15s, border-color .15s;
+  }
+  .consent input:checked {
+    border-color: var(--primary);
+    background: var(--primary) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / 16px no-repeat;
+  }
+  .consent input[aria-invalid="true"] { border-color: var(--err); box-shadow: 0 0 0 3px rgba(180, 35, 24, .12); }
+  .policy { font-size: 13px; color: var(--muted); line-height: 1.45; }
+  .send { width: 100%; margin-top: 18px; }
+  .spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(255, 255, 255, .45); border-top-color: #fff; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .safe { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; font-size: 14px; color: var(--muted); line-height: 1.4; }
+  .safe .i { width: 18px; height: 18px; color: var(--teal); margin-top: 1px; }
+  .hp { position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+
+  /* соцдоказательство (только из конфига) */
+  .proof { margin-top: 28px; }
+  .rating { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; color: var(--text); text-decoration: none; padding: 14px 16px; border-radius: var(--r-tile); background: var(--card); border: 1px solid var(--line); }
+  .rating b { font-size: 22px; }
+  .rating .star { color: #C98A10; font-size: 20px; }
+  .rating small { flex-basis: 100%; color: var(--muted); font-size: 13px; }
+  .works { display: grid; grid-auto-flow: column; grid-auto-columns: 72%; gap: 12px; overflow-x: auto; margin: 10px -16px 0; padding: 0 16px 6px; scroll-snap-type: x mandatory; }
+  .work { scroll-snap-align: start; padding: 6px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-tile); }
+  .work img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 14px; }
+  .work figcaption { font-size: 14px; padding: 8px 6px 4px; color: var(--muted); }
+
+  /* ---------- «Спасибо» ---------- */
+  .thanks-pic { width: min(100%, 360px); height: auto; margin: 0 auto; }
+  .thanks h2.q { margin-top: 4px; }
+  .next { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 10px; counter-reset: n; }
+  .next li { display: flex; gap: 12px; align-items: center; counter-increment: n; padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; line-height: 1.35; }
+  .next li::before { content: counter(n); width: 28px; height: 28px; border-radius: 50%; background: var(--primary-soft); color: var(--primary-ink); font-weight: 700; font-size: 14px; display: grid; place-items: center; flex: none; }
+  .thanks-links { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin-top: 18px; }
+  .phone-link { display: inline-flex; align-items: center; gap: 8px; color: var(--teal); font-weight: 600; font-size: 18px; text-decoration: none; }
+
+  footer { color: var(--muted); font-size: 13px; text-align: center; padding: 8px 16px 32px; line-height: 1.6; }
+  footer a { color: var(--muted); }
+
+  /* ---------- анимации ---------- */
+  .in-r { animation: inR .38s var(--ease); }
+  .in-l { animation: inL .38s var(--ease); }
+  .fade { animation: fade .35s ease; }
+  @keyframes inR { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: none; } }
+  @keyframes inL { from { opacity: 0; transform: translateX(-22px); } to { opacity: 1; transform: none; } }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  @media (hover: hover) {
+    .opt:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(120, 70, 40, .13); }
+    .opt[aria-checked="true"]:hover { box-shadow: 0 0 0 1px var(--primary), 0 12px 26px rgba(120, 70, 40, .13); }
+    .pchip:hover, .mbtn:hover, .schip:hover, .sbtn:hover, .back:hover { border-color: var(--line-2); background-color: #FFF8F1; }
+  }
+  @media (min-width: 600px) {
+    .layout { max-width: 680px; }
+    .opts.cols3 { grid-template-columns: repeat(3, 1fr); }
+    .works { grid-auto-columns: 46%; }
+  }
+  @media (min-width: 960px) {
+    :root { --head-h: 76px; }
+    .top { position: static; background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border: 0; }
+    .started .top { border: 0; }
+    .top-in { padding: 0 32px; }
+    .logo { width: 44px; height: 44px; font-size: 21px; }
+    .bname b { font-size: 17px; }
+    .call { width: auto; padding: 0 18px 0 14px; border-radius: 999px; color: var(--text); font-weight: 600; font-size: 15px; }
+    .call span { display: inline; }
+    .call .i { color: var(--teal); }
+    .layout { max-width: 1264px; display: grid; grid-template-columns: minmax(0, 55fr) minmax(0, 45fr); gap: 32px; padding: 0 32px 24px; align-items: start; }
+    .visual, .started .visual { position: sticky; top: 20px; display: flex; flex-direction: column; gap: 12px; padding: 0; height: calc(100vh - 124px); min-height: 500px; max-height: 860px; }
+    .vis-fig { flex: 1; min-height: 0; aspect-ratio: auto; border-radius: 28px; box-shadow: var(--shadow-card); }
+    .vis-sum {
+      display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: var(--card); border: 1px solid var(--line);
+      border-radius: var(--r-tile); box-shadow: var(--shadow-tile); font-size: 15px; min-height: 64px;
+    }
+    .vis-sum[hidden] { display: none; }
+    .vis-sum .vs-lbl { font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); display: block; }
+    .vis-sum .vs-txt { font-weight: 500; }
+    .vis-sum img { width: 40px; height: 40px; flex: none; }
+    .intro { padding: 12px 0 0; }
+    h1 { font-size: 40px; }
+    .sub { font-size: 17px; }
+    .trust { flex-wrap: wrap; overflow: visible; margin: 20px 0 0; padding: 0; }
+    .quiz { margin-top: 24px; padding: 28px 32px 32px; background: var(--card); border: 1px solid var(--line); border-radius: 28px; box-shadow: var(--shadow-card); }
+    .started .quiz { margin-top: 0; padding-top: 28px; }
+    .started .prog { position: static; margin: 0; padding: 4px 0; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+    h2.q { font-size: 26px; }
+    .opt { background: var(--card); }
+    .opt .key {
+      display: inline-grid; place-items: center; position: absolute; left: 12px; top: 12px; min-width: 22px; height: 22px; padding: 0 5px;
+      border-radius: 6px; border: 1px solid var(--line); background: rgba(255, 253, 250, .92); font-size: 12px; font-weight: 600; color: var(--muted);
+    }
+    .opt.ico .key { left: auto; right: 12px; }
+    .opt.ico[aria-checked="true"] .key { display: none; }
+    .opt.wide .key { left: auto; right: 48px; top: 50%; margin-top: -11px; }
+    .media, .res-pic, .thanks-pic, .calc-pic { display: none; }
+    .calc { padding: 40px 0 32px; }
+    .bar { position: sticky; bottom: 0; left: auto; right: auto; margin: 24px -32px -32px; padding: 16px 32px; border-radius: 0 0 28px 28px; background: rgba(255, 253, 250, .95); min-height: 0; }
+    body.has-bar { padding-bottom: 0; }
+    .bar.hint .kbd { display: inline; flex: none; font-size: 13px; color: var(--muted); margin-left: auto; }
+    .bar.hint .btn-primary { flex: 0 1 260px; }
+    .kbd kbd { font: inherit; font-weight: 600; padding: 2px 6px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--bg); }
+    .price { font-size: 44px; }
+    .works { grid-auto-columns: 44%; margin: 10px 0 0; padding: 0 0 6px; }
+    footer { padding: 20px 0 8px; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+  [hidden] { display: none !important; }
+  @media (max-width: 959px) {
+    .visual, .started .visual { display: block; }
+    .vis-fig { max-height: 210px; aspect-ratio: 16 / 9; }
+    .vis-fig img { object-position: center 70%; }
+    .intro { padding-top: 8px; }
+    .intro h1, .intro .sub, .intro .bonus { display: none; }
+    .quiz { padding-top: 4px; }
+    .trust { margin-top: 8px; }
+    .opts { gap: 8px; margin-top: 8px; }
+    .opt .ph { aspect-ratio: 2 / 1; }
+  }
+  .demo-banner { background: #2B211C; color: #F6E6D6; font-size: 13px; line-height: 1.4; text-align: center; padding: 8px 16px; }
+  .demo-banner b { color: #fff; }
+  .tgmsg { text-align: left; background: #E7F3FF; color: #2B211C; border-radius: 18px 18px 18px 6px; padding: 12px 14px;
+    margin: 14px 0; max-width: 440px; font-size: 15px; line-height: 1.55; box-shadow: 0 2px 10px rgba(43, 33, 28, .08); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="demo-banner"><b>Демо-версия</b> квиза для «100potolki.ru». Это не сайт компании: цены условные, форма ничего не отправляет.</div>
+  <header class="top">
+    <div class="top-in">
+      <div class="brand">
+        <span class="logo" id="logo" aria-hidden="true">П</span>
+        <span class="bname"><b id="cname">ПотолокПро</b><small id="ctag">Натяжные потолки под ключ</small></span>
+      </div>
+      <a class="call" id="cphone" href="#" aria-label="Позвонить">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>
+        <span id="cphoneTxt"></span>
+      </a>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="visual" id="visual">
+      <figure class="vis-fig" id="visFig">
+        <img id="visImg" alt="Иллюстрация: гостиная с натяжным потолком, точечными светильниками и подсветкой" width="1600" height="1200" fetchpriority="high" decoding="async">
+      </figure>
+      <div class="vis-sum" id="visSum" hidden></div>
+    </aside>
+
+    <div class="col">
+      <section class="intro" id="intro">
+        <p class="eyebrow" id="eyebrow">Онлайн-расчёт</p>
+        <h1 id="title">Рассчитайте стоимость натяжного потолка за 1 минуту</h1>
+        <p class="sub" id="subtitle"></p>
+        <ul class="trust" id="badges"></ul>
+        <div id="bonusSlot"></div>
+        <button type="button" class="resume" id="resume" hidden></button>
+      </section>
+
+      <main class="quiz" id="quiz">
+        <div class="prog" id="prog" role="progressbar" aria-valuemin="1" aria-valuemax="6" aria-valuenow="1" aria-valuetext="Вопрос 1 из 6">
+          <div class="plabel" id="plabel">Вопрос 1 из 6</div>
+          <div class="segs" id="segs" aria-hidden="true"></div>
+        </div>
+        <div id="step" class="step"><noscript>Для расчёта включите JavaScript.</noscript></div>
+        <p class="sr" id="live" aria-live="polite"></p>
+        <div class="bar" id="bar" hidden>
+          <button type="button" class="back" id="back" aria-label="Назад">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <span class="kbd" aria-hidden="true">или нажмите <kbd>Enter ↵</kbd></span>
+          <button type="button" class="btn-primary" id="next"><span id="nextTxt">Далее</span>
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </main>
+
+      <footer>
+        © <span id="fname">ПотолокПро</span><span id="flegal"></span> · <a href="privacy.html" target="_blank" rel="noopener">Политика конфиденциальности</a><br>
+        Расчёт предварительный и не является публичной офертой.
+      </footer>
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+ * Формула расчёта квиза. Чистая функция: answers + pricing (из config.json) → диапазон цены.
+ * Используется на странице (window.QuizCalc) и в тестах (QuickJS).
+ *
+ * answers = {
+ *   room: "kitchen", area: 18, canvas: "mat",
+ *   lights: {spots: 4, chandeliers: 1},
+ *   extras: ["cornice", "led"], timing: "week"
+ * }
+ * Длины для доп. работ оцениваются по площади как для квадратной комнаты:
+ *   perimeter = 4·√S (подсветка, парящий профиль), wall = √S (карниз/ниша — одна стена).
+ * Неизвестные значения (например, «Не знаю — посоветуйте» или «Ничего не нужно») просто не добавляют стоимости.
+ */
+(function (root) {
+  "use strict";
+
+  var NBSP = " ";
+
+  function num(v) {
+    var n = Number(v);
+    return isFinite(n) && n > 0 ? n : 0;
+  }
+
+  function roundTo(x, step) {
+    step = step || 1;
+    return Math.round(x / step) * step;
+  }
+
+  /** 27300 → "27 300" (неразрывные пробелы между разрядами; Intl не нужен — работает и в QuickJS). */
+  function fmt(n) {
+    var s = String(Math.round(Math.abs(Number(n) || 0)));
+    var out = "";
+    while (s.length > 3) {
+      out = NBSP + s.slice(-3) + out;
+      s = s.slice(0, -3);
+    }
+    return (Number(n) < 0 ? "−" : "") + s + out;
+  }
+
+  /** 27300 → "27 300 ₽": знак валюты никогда не переносится на отдельную строку. */
+  function money(n, cur) {
+    return fmt(n) + NBSP + (cur || "₽");
+  }
+
+  function estimate(answers, pricing) {
+    var a = answers || {};
+    var p = pricing;
+    var area = Math.max(num(a.area), p.min_area);
+    var side = Math.sqrt(area);
+    var lengths = { perimeter: 4 * side, wall: side };
+
+    var canvas = (p.canvas_per_m2[a.canvas] || 0) * area * (p.room_coef[a.room] || 1);
+
+    var lights = 0;
+    var chosenLights = a.lights || {};
+    for (var key in p.light) {
+      if (Object.prototype.hasOwnProperty.call(p.light, key)) {
+        lights += Math.floor(num(chosenLights[key])) * p.light[key];
+      }
+    }
+
+    var extras = 0;
+    var extraMeters = [];
+    var chosenExtras = Array.isArray(a.extras) ? a.extras : [];
+    for (var i = 0; i < chosenExtras.length; i++) {
+      var e = p.extras[chosenExtras[i]];
+      if (!e) continue;
+      var meters = e.per === "item" ? 0 : (lengths[e.length] || 0);
+      extras += e.per === "item" ? e.price : e.price * meters;
+      if (meters) extraMeters.push({ id: chosenExtras[i], meters: meters });
+    }
+
+    var subtotal = (canvas + lights + extras) * (p.timing_coef[a.timing] || 1);
+    var floored = subtotal < p.min_total;
+    var total = Math.max(subtotal, p.min_total);
+
+    var step = p.round_to || 1;
+    var min = roundTo(total * p.range[0], step);
+    var max = roundTo(total * p.range[1], step);
+    var floor = roundTo(p.min_total, step);
+    if (min < floor) min = floor;
+
+    return {
+      min: min,
+      max: max,
+      parts: {
+        canvas: Math.round(canvas),
+        lights: Math.round(lights),
+        extras: Math.round(extras)
+      },
+      // для показа человеку: разбивка округлена до шага цены (100 ₽), цена за м² — до 10 ₽
+      approx: {
+        canvas: roundTo(canvas, step),
+        lights: roundTo(lights, step),
+        extras: roundTo(extras, step)
+      },
+      per_m2: { min: roundTo(min / area, 10), max: roundTo(max / area, 10) },
+      area: area,
+      floored: floored,
+      extraMeters: extraMeters
+    };
+  }
+
+  root.QuizCalc = { estimate: estimate, fmt: fmt, money: money, roundTo: roundTo };
+  if (typeof module !== "undefined" && module.exports) module.exports = root.QuizCalc;
+})(typeof window !== "undefined" ? window : globalThis);
+
+</script>
+<script>window.QUIZ_CONFIG = {"company": {"name": "100potolki.ru", "tagline": "Натяжные потолки · Чебоксары", "phone": "", "city": "Чебоксары", "city_prep": "в Чебоксарах", "badges": ["Бесплатный замер", "Расчёт за 1 минуту"], "legal": "", "works_url": ""}, "bonus": {"title": "Подробная смета в подарок", "terms": "Пришлём расчёт с вариантами полотна и светильников"}, "proof": {}, "metrika": "", "images": {"hero": "assets/hero.webp", "hero_srcset": ["assets/hero-640.webp 640w", "assets/hero-1080.webp 1080w", "assets/hero.webp 1600w"], "hd_widths": [1600, 2560, 3840], "hd": ["hero", "result", "lights", "area", "room-living", "room-flat", "room-kitchen", "room-bath", "room-hall", "room-office", "canvas-mat", "canvas-satin", "canvas-gloss", "canvas-fabric", "extra-led", "extra-floating", "extra-cornice", "extra-niche", "calc", "thanks"], "result": "assets/result.webp", "calc": "assets/calc.webp", "thanks": "assets/thanks.webp", "gift": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20fill%3D%22none%22%20stroke%3D%22%23c2512b%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22%23c2512b%22%20fill-opacity%3D%22.1%22%20stroke%3D%22none%22%2F%3E%3Crect%20x%3D%2213%22%20y%3D%2224%22%20width%3D%2238%22%20height%3D%229%22%20rx%3D%222.5%22%20fill%3D%22%23c2512b%22%20fill-opacity%3D%22.16%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2233%22%20width%3D%2232%22%20height%3D%2217%22%20rx%3D%222.5%22%20fill%3D%22%23c2512b%22%20fill-opacity%3D%22.16%22%2F%3E%3Cpath%20d%3D%22M32%2024v26M32%2024c-2.6-6-10.5-9.5-12.3-4.6C18.4%2023%2025%2024%2032%2024zM32%2024c2.6-6%2010.5-9.5%2012.3-4.6C45.6%2023%2039%2024%2032%2024z%22%2F%3E%3C%2Fsvg%3E"}, "texts": {"eyebrow": "Онлайн-расчёт", "title": "Рассчитайте стоимость натяжного потолка за 1 минуту", "subtitle": "6 коротких вопросов — и примерная цена в Чебоксарах сразу на экране. Замер бесплатно.", "calc_title": "Считаем по ценам{city}…", "calc_text": "Учитываем площадь, полотно, свет и доп. работы", "result_title": "Предварительная стоимость{city}", "result_note": "Итог уточнится на замере: углы, трубы, ниши. Замер бесплатный и ни к чему не обязывает.", "included_title": "Входит в цену", "included": ["Полотно", "Стеновой профиль", "Монтаж"], "form_title": "Расчёт готов. Куда прислать подробности?", "submit": "Получить расчёт", "safe_line": "Номер не передаём третьим лицам.", "thanks_title": "Спасибо! Заявка принята", "next_steps": ["{next} в рабочее время", "Согласуем удобное время замера", "Замер бесплатный и ни к чему не обязывает"], "cta": "Рассчитать стоимость"}, "currency": "₽", "messengers": [{"value": "telegram", "label": "Telegram", "cta": "Получить расчёт в Telegram", "next": "Напишем в Telegram"}, {"value": "whatsapp", "label": "WhatsApp", "cta": "Получить расчёт в WhatsApp", "next": "Напишем в WhatsApp"}, {"value": "max", "label": "MAX", "cta": "Получить расчёт в MAX", "next": "Напишем в MAX"}, {"value": "call", "label": "Позвоните мне", "cta": "Жду звонка", "next": "Позвоним вам"}], "steps": [{"id": "room", "type": "single", "short": "Помещение", "title": "Где будет потолок?", "options": [{"value": "living", "label": "Гостиная или спальня", "image": "assets/room-living.webp"}, {"value": "flat", "label": "Вся квартира", "image": "assets/room-flat.webp"}, {"value": "kitchen", "label": "Кухня", "image": "assets/room-kitchen.webp"}, {"value": "bath", "label": "Ванная или санузел", "image": "assets/room-bath.webp"}, {"value": "hall", "label": "Коридор", "image": "assets/room-hall.webp"}, {"value": "office", "label": "Офис или магазин", "image": "assets/room-office.webp"}]}, {"id": "area", "type": "range", "short": "Площадь", "title": "Какая площадь потолка?", "hint": "Не знаете точно — возьмите площадь пола из документов. Если меньше 6 м², в смете всё равно считаем 6 м².", "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20fill%3D%22none%22%20stroke%3D%22%23c2512b%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22%23c2512b%22%20fill-opacity%3D%22.1%22%20stroke%3D%22none%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%2217%22%20width%3D%2230%22%20height%3D%2230%22%20rx%3D%229%22%20fill%3D%22%23c2512b%22%20fill-opacity%3D%22.16%22%2F%3E%3Ccircle%20cx%3D%2225%22%20cy%3D%2232%22%20r%3D%225.5%22%2F%3E%3Cpath%20d%3D%22M33%2040h21v7H33M41%2040v3.5M46.5%2040v3.5M52%2040v3.5%22%20stroke-width%3D%222.6%22%2F%3E%3C%2Fsvg%3E", "image": "assets/area.webp", "min": 3, "max": 150, "step": 1, "default": 18, "unit": "м²", "presets": [{"label": "до 10", "value": 8, "to": 10}, {"label": "10–15", "value": 12, "from": 10, "to": 15}, {"label": "15–20", "value": 18, "from": 15, "to": 20}, {"label": "20–30", "value": 25, "from": 20, "to": 30}, {"label": "30–50", "value": 40, "from": 30, "to": 50}, {"label": "50+", "value": 60, "from": 50}], "default_by": {"step": "room", "values": {"bath": 4, "hall": 6, "kitchen": 10, "living": 18, "flat": 50, "office": 40}}}, {"id": "canvas", "type": "single", "short": "Полотно", "title": "Какое полотно нравится?", "options": [{"value": "mat", "label": "Матовое", "hint": "Без бликов, как побелка", "image": "assets/canvas-mat.webp", "swatch": "assets/swatch-mat.webp"}, {"value": "satin", "label": "Сатиновое", "hint": "Мягкий отлив, как шёлк", "image": "assets/canvas-satin.webp", "swatch": "assets/swatch-satin.webp"}, {"value": "gloss", "label": "Глянцевое", "hint": "Зеркальный, комната больше", "image": "assets/canvas-gloss.webp", "swatch": "assets/swatch-gloss.webp"}, {"value": "fabric", "label": "Тканевое", "hint": "Премиум, «дышащее» полотно", "image": "assets/canvas-fabric.webp", "swatch": "assets/swatch-fabric.webp"}, {"value": "unknown", "label": "Не знаю — посоветуйте", "short": "Полотно подскажет мастер", "hint": "Мастер привезёт образцы на замер", "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20fill%3D%22none%22%20stroke%3D%22%23c2512b%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22%23c2512b%22%20fill-opacity%3D%22.1%22%20stroke%3D%22none%22%2F%3E%3Cpath%20d%3D%22M17%2017h30a5%205%200%200%201%205%205v17a5%205%200%200%201-5%205H31l-8%207v-7h-6a5%205%200%200%201-5-5V22a5%205%200%200%201%205-5z%22%20fill%3D%22%23c2512b%22%20fill-opacity%3D%22.16%22%2F%3E%3Cpath%20d%3D%22M27.8%2026.5a4.3%204.3%200%201%201%206%204c-1.2.5-1.8%201.3-1.8%202.6v.6%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2238.6%22%20r%3D%221.9%22%20fill%3D%22%23c2512b%22%20stroke%3D%22none%22%2F%3E%3C%2Fsvg%3E", "wide": true}]}, {"id": "lights", "type": "counters", "short": "Освещение", "title": "Сколько светильников установить?", "hint": "Не знаете количество — оставьте 0. Мастер посчитает на замере, в смету ничего не добавляем заранее.", "image": "assets/lights.webp", "items": [{"id": "spots", "label": "Точечные светильники", "short": "Точки", "min": 0, "max": 40, "default": 0, "image": "assets/light-spots.webp"}, {"id": "chandeliers", "label": "Люстры", "short": "Люстры", "min": 0, "max": 6, "default": 0, "image": "assets/light-chandelier.webp"}]}, {"id": "extras", "type": "multi", "short": "Доп. работы", "title": "Что ещё нужно?", "tags": ["Можно несколько", "Можно пропустить"], "options": [{"value": "cornice", "label": "Скрытый карниз", "image": "assets/extra-cornice.webp"}, {"value": "niche", "label": "Ниша под шторы", "image": "assets/extra-niche.webp"}, {"value": "led", "label": "Световые линии и подсветка", "image": "assets/extra-led.webp"}, {"value": "floating", "label": "Парящий потолок", "image": "assets/extra-floating.webp"}, {"value": "none", "label": "Ничего не нужно", "short": "Без доп. работ", "hint": "Только полотно и светильники", "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20fill%3D%22none%22%20stroke%3D%22%23c2512b%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22%23c2512b%22%20fill-opacity%3D%22.1%22%20stroke%3D%22none%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2217%22%20fill%3D%22%23c2512b%22%20fill-opacity%3D%22.16%22%2F%3E%3Cpath%20d%3D%22M24.5%2032.5l5.2%205.2L40%2027%22%2F%3E%3C%2Fsvg%3E", "wide": true, "exclusive": true}]}, {"id": "timing", "type": "single", "short": "Сроки", "title": "Когда планируете монтаж?", "options": [{"value": "asap", "label": "Как можно скорее", "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20fill%3D%22none%22%20stroke%3D%22%23c2512b%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22%23c2512b%22%20fill-opacity%3D%22.1%22%20stroke%3D%22none%22%2F%3E%3Cpath%20d%3D%22M35.5%2012.5%2020.5%2035h11L28%2051.5%2043.5%2028H32.5z%22%20fill%3D%22%23c2512b%22%20fill-opacity%3D%22.16%22%2F%3E%3C%2Fsvg%3E"}, {"value": "week", "label": "В течение недели", "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20fill%3D%22none%22%20stroke%3D%22%23c2512b%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22%23c2512b%22%20fill-opacity%3D%22.1%22%20stroke%3D%22none%22%2F%3E%3Crect%20x%3D%2215%22%20y%3D%2218%22%20width%3D%2234%22%20height%3D%2231%22%20rx%3D%226%22%20fill%3D%22%23c2512b%22%20fill-opacity%3D%22.16%22%2F%3E%3Cpath%20d%3D%22M15%2027h34M25%2014v7M39%2014v7%22%2F%3E%3Cpath%20d%3D%22M27%2033.5h10l-6%2011%22%2F%3E%3C%2Fsvg%3E"}, {"value": "month", "label": "В течение месяца", "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20fill%3D%22none%22%20stroke%3D%22%23c2512b%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22%23c2512b%22%20fill-opacity%3D%22.1%22%20stroke%3D%22none%22%2F%3E%3Crect%20x%3D%2215%22%20y%3D%2218%22%20width%3D%2234%22%20height%3D%2231%22%20rx%3D%226%22%20fill%3D%22%23c2512b%22%20fill-opacity%3D%22.16%22%2F%3E%3Cpath%20d%3D%22M15%2027h34M25%2014v7M39%2014v7%22%2F%3E%3Cpath%20d%3D%22M22.6%2034.2c.6-1.3%201.8-2%203.3-2%201.9%200%203.2%201.1%203.2%202.7s-1.3%202.7-3.2%202.7c2.1%200%203.5%201.1%203.5%202.9%200%201.8-1.5%202.9-3.5%202.9-1.6%200-2.8-.7-3.4-2%22%2F%3E%3Cellipse%20cx%3D%2238%22%20cy%3D%2238.5%22%20rx%3D%223.6%22%20ry%3D%226.2%22%2F%3E%3C%2Fsvg%3E"}, {"value": "later", "label": "Пока прицениваюсь", "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20fill%3D%22none%22%20stroke%3D%22%23c2512b%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22%23c2512b%22%20fill-opacity%3D%22.1%22%20stroke%3D%22none%22%2F%3E%3Ccircle%20cx%3D%2228%22%20cy%3D%2228%22%20r%3D%2213%22%20fill%3D%22%23c2512b%22%20fill-opacity%3D%22.16%22%2F%3E%3Cpath%20d%3D%22M37.5%2037.5%2048%2048%22%2F%3E%3Cpath%20d%3D%22M25%2035V21.5h4.3a3.6%203.6%200%200%201%200%207.2H22.5M22.5%2032h8%22%20stroke-width%3D%222.6%22%2F%3E%3C%2Fsvg%3E"}]}], "pricing": {"canvas_per_m2": {"mat": 450, "satin": 520, "gloss": 590, "fabric": 1350, "unknown": 450}, "room_coef": {"living": 1.0, "kitchen": 1.05, "bath": 1.12, "hall": 1.08, "flat": 0.95, "office": 1.0}, "min_area": 6, "light": {"spots": 450, "chandeliers": 750}, "extras": {"cornice": {"per": "m", "length": "wall", "price": 1600}, "niche": {"per": "m", "length": "wall", "price": 2200}, "led": {"per": "m", "length": "perimeter", "price": 1100}, "floating": {"per": "m", "length": "perimeter", "price": 900}}, "timing_coef": {"asap": 1.05, "week": 1.0, "month": 0.97, "later": 1.0}, "range": [0.92, 1.18], "min_total": 6000, "round_to": 100}, "asset_prefix": ""};
+window.QUIZ_DEMO = true;</script>
+<script>
+(async function () {
+  "use strict";
+  const $ = (s, el = document) => el.querySelector(s);
+  const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const reduceMotion = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const isDesk = () => !!(window.matchMedia && matchMedia("(min-width: 960px)").matches);
+  const stepEl = $("#step"), quizEl = $("#quiz"), barEl = $("#bar"), nextBtn = $("#next"), backBtn = $("#back");
+  const live = $("#live"), plabel = $("#plabel"), prog = $("#prog");
+
+  let cfg;
+  try {
+    if (window.QUIZ_CONFIG) { cfg = window.QUIZ_CONFIG; }
+    else { const r = await fetch("config.json", { cache: "no-store" }); cfg = await r.json(); }
+  } catch (e) {
+    stepEl.innerHTML = '<p class="ferr">Не удалось загрузить квиз. Обновите страницу или позвоните нам.</p>';
+    return;
+  }
+
+  const T = cfg.texts || {}, steps = cfg.steps, C = cfg.company || {}, IMG = cfg.images || {}, P = cfg.proof || {};
+  const cur = cfg.currency || "₽";
+  const money = (n) => QuizCalc.money(n, cur), fmt = QuizCalc.fmt;
+  const A = (p) => (p ? (/^data:/.test(p) ? "" : cfg.asset_prefix || "") + p : "");
+  const withCity = (s) => String(s || "").replace("{city}", C.city_prep ? " " + C.city_prep : "");
+  const startedAt = Date.now();
+  const state = { i: 0, answers: {}, messenger: cfg.messengers[0].value, started: false, areaTouched: false, view: "step", estimate: null };
+  let dir = 1, calcTimer = 0;
+
+  const ICON = {
+    check: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
+    lock: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="11" width="15" height="10" rx="3"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>',
+    unlock: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="11" width="15" height="10" rx="3"/><path d="M8 11V7.5a4 4 0 0 1 7.6-1.7"/></svg>',
+    alert: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5h.01"/></svg>',
+    minus: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg>',
+    plus: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+    pen: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>',
+    clock: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    phone: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>'
+  };
+  const MSGR_ICON = {
+    telegram: '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#2AABEE"/><path fill="#fff" d="M7.2 15.6c4.7-2 7.8-3.4 9.4-4 4.5-1.9 5.4-2.2 6-2.2.1 0 .4 0 .6.2.2.1.2.3.2.4v.6c-.2 2.6-1.3 8.8-1.8 11.7-.2 1.2-.7 1.6-1.1 1.7-.9.1-1.7-.6-2.6-1.2l-3.6-2.4c-1.6-1.1-.6-1.7.4-2.6.2-.3 4.4-4 4.5-4.4v-.2c-.1-.1-.2-.1-.3 0-.1 0-2.3 1.4-6.5 4.3-.6.4-1.2.6-1.7.6-.6 0-1.6-.3-2.4-.6-1-.3-1.7-.5-1.6-1.1 0-.3.4-.6 1.1-.9z"/></svg>',
+    whatsapp: '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#25D366"/><path fill="#fff" d="M16 6.8a9.2 9.2 0 0 0-7.9 13.9l-1.3 4.6 4.8-1.3A9.2 9.2 0 1 0 16 6.8zm0 16.8c-1.4 0-2.8-.4-4-1.1l-.3-.2-2.8.7.8-2.7-.2-.3A7.6 7.6 0 1 1 16 23.6zm4.2-5.7c-.2-.1-1.4-.7-1.6-.8-.2-.1-.4-.1-.5.1l-.7.9c-.1.2-.3.2-.5.1a6.2 6.2 0 0 1-3.1-2.7c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.7-1.7c-.2-.4-.4-.4-.5-.4h-.5a.9.9 0 0 0-.7.3c-.2.3-.9.9-.9 2.2s.9 2.5 1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.4-.6 1.6-1.1.2-.6.2-1 .1-1.1-.1-.1-.2-.2-.5-.3z"/></svg>',
+    max: '<svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="mxg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3D8BFF"/><stop offset="1" stop-color="#8A3FFC"/></linearGradient></defs><rect width="32" height="32" rx="10" fill="url(#mxg)"/><path fill="#fff" d="M16 8.5c-4.4 0-7.7 3.1-7.7 7.2 0 2 .8 3.8 2.2 5.1l-.6 2.9 3-1.4c1 .4 2 .6 3.1.6 4.4 0 7.7-3.1 7.7-7.2S20.4 8.5 16 8.5zm0 11.4a4.2 4.2 0 1 1 0-8.4 4.2 4.2 0 0 1 0 8.4z"/></svg>',
+    call: '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#1F7A70"/><path fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M23 19.6v2.2a1.5 1.5 0 0 1-1.6 1.5 14.7 14.7 0 0 1-6.4-2.3 14.5 14.5 0 0 1-4.5-4.5 14.7 14.7 0 0 1-2.3-6.4A1.5 1.5 0 0 1 9.7 8.5h2.2a1.5 1.5 0 0 1 1.5 1.3l.5 2a1.5 1.5 0 0 1-.4 1.6l-.9.9a12 12 0 0 0 4.5 4.5l.9-.9a1.5 1.5 0 0 1 1.6-.4l2 .5a1.5 1.5 0 0 1 1.3 1.6z"/></svg>'
+  };
+
+  for (const s of steps) {
+    if (s.type === "range") state.answers[s.id] = s.default;
+    if (s.type === "multi") state.answers[s.id] = [];
+    if (s.type === "counters") {
+      state.answers[s.id] = {};
+      for (const it of s.items) state.answers[s.id][it.id] = it.default || 0;
+    }
+  }
+
+  // --- метрика: цели на каждый шаг (только если в конфиге задан номер счётчика и счётчик подключён на сайте)
+  function goal(name) {
+    try { if (cfg.metrika && typeof window.ym === "function") window.ym(cfg.metrika, "reachGoal", name); } catch (e) { /* без метрики */ }
+  }
+
+  // --- незаконченный проход в localStorage
+  const SKEY = "quiz:" + location.pathname;
+  function save() {
+    if (!state.started) return;
+    try { localStorage.setItem(SKEY, JSON.stringify({ i: state.i, a: state.answers, at: state.areaTouched, t: Date.now() })); } catch (e) { /* приватный режим */ }
+  }
+  function loadSaved() {
+    try {
+      const x = JSON.parse(localStorage.getItem(SKEY) || "null");
+      if (x && x.i > 0 && x.a && Date.now() - x.t < 7 * 864e5) return x;
+    } catch (e) { /* нет доступа */ }
+    return null;
+  }
+  function clearSaved() { try { localStorage.removeItem(SKEY); } catch (e) { /* нет доступа */ } }
+
+  // --- шапка и первый экран из конфига
+  $("#cname").textContent = C.name; $("#fname").textContent = C.name;
+  $("#ctag").textContent = C.tagline || "";
+  const brand = (C.name || "П").trim();
+  $("#logo").textContent = /^\d/.test(brand) ? "П" : (brand[0] || "П");
+  if (C.legal) $("#flegal").textContent = " · " + C.legal;
+  const telHref = "tel:+" + String(C.phone || "").replace(/\D/g, "");
+  if (C.phone) {
+    $("#cphone").href = telHref; $("#cphoneTxt").textContent = C.phone;
+    $("#cphone").setAttribute("aria-label", "Позвонить: " + C.phone);
+  } else $("#cphone").hidden = true;
+  $("#eyebrow").textContent = (T.eyebrow || "Онлайн-расчёт") + (C.city ? " · " + C.city : "");
+  $("#title").textContent = T.title; $("#subtitle").textContent = withCity(T.subtitle);
+  const badges = (C.badges || []).map((b) => `<li>${ICON.check}${esc(b)}</li>`);
+  const R = P.rating || null;
+  if (R && R.value && R.source) {
+    badges.unshift(`<li><a href="${esc(R.url || "#")}" target="_blank" rel="noopener"><span class="star">★</span> ${esc(String(R.value).replace(".", ","))} на ${esc(R.source)}</a></li>`);
+  }
+  $("#badges").innerHTML = badges.join("");
+  const B = cfg.bonus && cfg.bonus.title ? cfg.bonus : null;
+  const bonusHTML = (open) => !B ? "" : `<div class="bonus${open ? " open" : ""}">
+      ${IMG.gift ? `<img class="bonus-pic" src="${esc(A(IMG.gift))}" alt="" width="56" height="56" decoding="async">` : ""}
+      <div class="bonus-txt"><span class="bonus-lbl">${open ? "Бонус открыт" : "Бонус за прохождение"}</span>
+        <b>${esc(B.title)}</b><small>${esc(open ? "Закрепим за вашим номером после заявки" : (B.terms || ""))}</small></div>
+      <span class="bonus-lock" aria-hidden="true">${open ? ICON.unlock : ICON.lock}</span></div>`;
+  $("#bonusSlot").innerHTML = bonusHTML(false);
+
+  // --- левая панель (десктоп): картинка текущего шага + сводка
+  const visImg = $("#visImg"), visFig = $("#visFig");
+  // HD-версии (<имя>-1600/-2560/-3840.webp, tools/make_hd.py) для большой картинки слева:
+  // браузер сам берёт ширину под размер панели и плотность экрана (2K/4K-мониторы получают 2560/3840)
+  const HD = new Set(IMG.hd || []), HDW = IMG.hd_widths || [];
+  function hdSet(src) {
+    const m = /^(.*?)([a-z0-9-]+)\.webp$/.exec(src || "");
+    return m && HD.has(m[2]) ? HDW.map((w) => `${A(m[1] + m[2] + "-" + w + ".webp")} ${w}w`) : [];
+  }
+  // ширина картинки в панели в CSS-пикселях: cover обрезает по высоте (картинка шире панели), contain вписывает
+  function visSizes(ratio, contain) {
+    const w = visFig.clientWidth, h = visFig.clientHeight;
+    if (!w || !h) return "100vw";
+    return Math.ceil(contain ? Math.min(w, h * ratio) : Math.max(w, h * ratio)) + "px";
+  }
+  if (IMG.hero) {
+    const own = (IMG.hero_srcset || []).map((x) => A(x)), ws = own.map((x) => x.split(" ").pop());
+    const set = own.concat(hdSet(IMG.hero).filter((x) => !ws.includes(x.split(" ").pop())));
+    if (set.length) {
+      visImg.srcset = set.join(", ");
+      visImg.sizes = isDesk() ? visSizes(4 / 3) : "100vw";
+    }
+    visImg.src = A(IMG.hero);
+  } else $("#visual").hidden = true;
+  let visCur = IMG.hero || "";
+  function setVisual(src, contain, ratio) {
+    if (!src || src === visCur) return;
+    visCur = src;
+    const im = new Image(), set = hdSet(src);
+    im.onload = () => {
+      if (visCur !== src) return;            // пока грузилась HD-версия, человек уже выбрал другое
+      visImg.classList.add("swap");
+      setTimeout(() => {
+        visImg.removeAttribute("srcset"); visImg.src = im.currentSrc || im.src; visImg.alt = "";
+        visFig.classList.toggle("contain", !!contain);
+        visImg.classList.remove("swap");
+      }, reduceMotion ? 0 : 160);
+    };
+    if (set.length) { im.sizes = visSizes(ratio || 4 / 3, contain); im.srcset = set.join(", "); }
+    im.src = A(src);
+  }
+
+  const img = (src, w = 800, h = 600) => src
+    ? `<img src="${esc(A(src))}" alt="" loading="lazy" decoding="async" width="${w}" height="${h}">`
+    : "";
+
+  function preload(i) {
+    const s = steps[i];
+    const list = s ? [s.icon].concat((s.options || []).map((o) => o.image || o.icon), (s.items || []).map((x) => x.image)) : [IMG.calc, IMG.result];
+    list.filter(Boolean).forEach((p) => { const im = new Image(); im.src = A(p); });
+  }
+
+  const plural = (n, f) => {
+    const a = Math.abs(n) % 100, b = a % 10;
+    return f[a > 10 && a < 20 ? 2 : b > 1 && b < 5 ? 1 : b === 1 ? 0 : 2];
+  };
+  const optOf = (s, v) => (s.options || []).find((o) => o.value === v);
+
+  // --- сводка выбора
+  function summary() {
+    const out = [];
+    steps.forEach((s, k) => {
+      const v = state.answers[s.id];
+      if (state.view === "step" && k >= state.i) return;
+      let t = "";
+      if (s.type === "single") { const o = optOf(s, v); t = o ? (o.short || o.label) : ""; }
+      else if (s.type === "range") {
+        const billed = s.id === "area" && cfg.pricing ? Math.max(Number(v), cfg.pricing.min_area) : v;
+        t = billed > v ? v + " " + (s.unit || "") + ", в смете " + billed : v + " " + (s.unit || "");
+      }
+      else if (s.type === "multi") {
+        t = v.map((x) => { const o = optOf(s, x); return o ? (o.short || o.label) : ""; }).filter(Boolean).join(", ");
+      } else if (s.type === "counters") {
+        const parts = s.items.filter((it) => v[it.id] > 0).map((it) => `${it.short || it.label}: ${v[it.id]}`);
+        t = parts.length ? parts.join(", ") : "Без светильников";
+      }
+      if (t) out.push({ k, t });
+    });
+    return out;
+  }
+  function renderVisSum() {
+    const el = $("#visSum"), items = summary();
+    if (!state.started || (!items.length && !B)) { el.hidden = true; return; }
+    el.hidden = false;
+    if (!items.length) {
+      el.innerHTML = `${IMG.gift ? `<img src="${esc(A(IMG.gift))}" alt="">` : ""}<span><span class="vs-lbl">Бонус после расчёта</span><span class="vs-txt">${esc(B.title)}</span></span>`;
+      return;
+    }
+    el.innerHTML = `<span><span class="vs-lbl">Ваш выбор</span><span class="vs-txt">${items.map((x) => esc(x.t)).join(" · ")}</span></span>`;
+  }
+
+  // --- прогресс: сегменты по числу вопросов, текущий закрашен частично
+  const N = steps.length;
+  $("#segs").innerHTML = steps.map(() => '<span class="seg"><i></i></span>').join("");
+  prog.setAttribute("aria-valuemax", N);
+  function setProgress() {
+    const segs = $$("#segs i");
+    const done = state.view === "step" ? state.i : N;
+    segs.forEach((el, k) => { el.style.width = k < done ? "100%" : k === done ? "38%" : "0"; });
+    let label, now = Math.min(state.i + 1, N);
+    if (state.view === "step") {
+      const s = steps[state.i];
+      label = state.i === N - 1 ? `Последний вопрос · ${s.short}` : `Вопрос ${state.i + 1} из ${N} · ${s.short}`;
+    } else label = state.view === "thanks" ? "Заявка отправлена" : state.view === "calc" ? "Считаем…" : "Расчёт готов";
+    plabel.textContent = label;
+    prog.setAttribute("aria-valuenow", now);
+    prog.setAttribute("aria-valuetext", state.view === "step" ? `Вопрос ${state.i + 1} из ${N}` : label);
+  }
+
+  // --- нижняя панель «Назад / Далее»
+  let barMode = "step", sendObserver = null;
+  function setBar(show, label, hint) {
+    barEl.hidden = !show;
+    document.body.classList.toggle("has-bar", !!show);
+    if (!show) return;
+    nextBtn.hidden = label == null;
+    if (label != null) $("#nextTxt").textContent = label;
+    barEl.classList.toggle("hint", !!hint);
+  }
+  function updateBar(s) {
+    const first = state.i === 0;
+    backBtn.hidden = first;
+    let label = state.i === N - 1 ? "Показать расчёт" : "Далее";
+    // одиночный выбор: сам дальше не переходим — «Далее» появляется после выбора, чтобы можно было спокойно сравнить варианты
+    if (s.type === "single") return state.answers[s.id] === undefined ? setBar(!first, null, false) : setBar(true, label, true);
+    if (s.type === "multi") {
+      const arr = state.answers[s.id];
+      const ex = arr.some((v) => (optOf(s, v) || {}).exclusive);
+      if (!arr.length) label = "Пропустить";
+      else if (!ex && state.i < N - 1) label = `Далее · выбрано ${arr.length}`;
+    }
+    setBar(true, label, true);
+  }
+  backBtn.onclick = () => go(-1);
+  nextBtn.onclick = () => {
+    if (barMode === "result") return toForm();
+    go(1);
+  };
+
+  function start() {
+    if (state.started) return;
+    state.started = true;
+    document.body.classList.add("started");
+    goal("quiz_start");
+  }
+
+  function toTop() {
+    const head = isDesk() ? 20 : $(".top").offsetHeight;
+    const y = quizEl.getBoundingClientRect().top + window.scrollY - head;
+    window.scrollTo({ top: Math.max(0, y), behavior: reduceMotion ? "auto" : "smooth" });
+  }
+  function focusTitle(msg) {
+    const h = $("#qTitle");
+    if (h) h.focus({ preventScroll: true });
+    if (msg) live.textContent = msg;
+  }
+
+  function go(delta, target) {
+    clearTimeout(calcTimer);
+    const from = state.view === "step" ? state.i : N;
+    const ni = target != null ? target : from + delta;
+    if (ni < 0) return;
+    dir = ni >= from ? 1 : -1;
+    start();
+    stepEl.style.setProperty("--dir", dir);
+    stepEl.classList.add("leaving");
+    setTimeout(() => {
+      stepEl.classList.remove("leaving");
+      if (ni >= N) { state.i = N; renderCalc(); }
+      else { state.i = ni; render(); }
+      toTop();
+      focusTitle(state.view === "step" ? `Вопрос ${state.i + 1} из ${N}: ${steps[state.i].title}` : "");
+    }, reduceMotion ? 0 : 150);
+  }
+
+  // ---------------------------------------------------------------- шаги
+  function optHTML(s, o, k) {
+    const multi = s.type === "multi";
+    const on = multi ? state.answers[s.id].includes(o.value) : state.answers[s.id] === o.value;
+    const kind = o.image ? "pic" : o.wide ? "wide" : "ico";
+    const lens = o.swatch ? `<img class="swatch" src="${esc(A(o.swatch))}" alt="" width="44" height="44" loading="lazy" decoding="async">` : "";
+    const media = o.image ? `<span class="ph">${img(o.image)}${lens}</span>`
+      : o.icon ? `<img class="oicon" src="${esc(A(o.icon))}" alt="" width="56" height="56" decoding="async">` : "";
+    return `<button type="button" class="opt ${kind}${multi ? " multi" : ""}${o.wide ? " wide" : ""}" role="${multi ? "checkbox" : "radio"}"` +
+      ` aria-checked="${on}" data-v="${esc(o.value)}">${media}<span class="cap"><b>${esc(o.label)}</b>` +
+      `${o.hint ? `<small>${esc(o.hint)}</small>` : ""}</span><span class="key" aria-hidden="true">${k + 1}</span><span class="mark" aria-hidden="true"></span></button>`;
+  }
+
+  const inPreset = (p, v) => v > (p.from || 0) && (p.to == null || v <= p.to);
+
+  function render() {
+    state.view = "step"; barMode = "step";
+    const s = steps[state.i];
+    setProgress();
+    save();
+    let h = `<div class="qhead">${s.icon ? `<img class="qicon" src="${esc(A(s.icon))}" alt="" width="40" height="40">` : ""}` +
+      `<h2 class="q" id="qTitle" tabindex="-1">${esc(s.title)}</h2></div>`;
+    if (s.tags && s.tags.length) h += `<div class="tags">${s.tags.map((t) => `<span class="tag">${ICON.check}${esc(t)}</span>`).join("")}</div>`;
+    if (s.hint) h += `<p class="hint">${esc(s.hint)}</p>`;
+    const M = P.master, tip = M && M.name && M.tips && M.tips[s.id];
+    if (tip) {
+      h += `<div class="tip"><span class="tip-ava">${M.photo ? `<img src="${esc(A(M.photo))}" alt="">` : esc(M.name[0])}</span>` +
+        `<p><b>${esc(M.name)}${M.role ? ", " + esc(M.role) : ""}</b>${esc(tip)}</p></div>`;
+    }
+    if (s.type === "single" || s.type === "multi") {
+      const pics = s.options.filter((o) => o.image).length;
+      h += `<div class="opts${pics >= 6 ? " cols3" : ""}" role="${s.type === "single" ? "radiogroup" : "group"}" aria-labelledby="qTitle">` +
+        s.options.map((o, k) => optHTML(s, o, k)).join("") + "</div>";
+    } else if (s.type === "range" && s.presets) {
+      const v = state.answers[s.id], u = esc(s.unit || "");
+      h += `<div class="presets" role="radiogroup" aria-label="Примерная площадь">` + s.presets.map((p, k) =>
+        `<button type="button" class="pchip" role="radio" aria-checked="${inPreset(p, v)}" data-k="${k}">${esc(p.label)}<small> ${u}</small></button>`).join("") + "</div>" +
+        `<div class="stepper big"><button type="button" class="sbtn" data-d="-1" aria-label="Меньше на 1 ${u}">${ICON.minus}</button>` +
+        `<label class="numwrap"><input class="num" id="rnum" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="3" value="${v}" aria-label="Площадь потолка, ${u}"><span>${u}</span></label>` +
+        `<button type="button" class="sbtn" data-d="1" aria-label="Больше на 1 ${u}">${ICON.plus}</button></div>`;
+    } else if (s.type === "range") {
+      const v = state.answers[s.id];
+      h += `<div class="stepper big"><input type="range" id="rng" min="${s.min}" max="${s.max}" step="${s.step}" value="${v}" aria-label="${esc(s.title)}" style="flex:1">` +
+        `<label class="numwrap"><input class="num" id="rnum" type="text" inputmode="numeric" value="${v}" aria-label="${esc(s.title)}"><span>${esc(s.unit || "")}</span></label></div>`;
+    } else if (s.type === "counters") {
+      if (s.image) h += `<figure class="media">${img(s.image, 1280, 720)}</figure>`;
+      h += `<div class="counters">` + s.items.map((it) => `<div class="counter">${it.image ? `<span class="cthumb">${img(it.image, 400, 400)}</span>` : ""}` +
+        `<span class="clabel" id="cl-${esc(it.id)}">${esc(it.label)}</span><div class="stepper" data-id="${esc(it.id)}" role="group" aria-labelledby="cl-${esc(it.id)}">` +
+        `<button type="button" class="sbtn" data-d="-1" aria-label="Меньше">${ICON.minus}</button><output aria-live="polite">${state.answers[s.id][it.id]}</output>` +
+        `<button type="button" class="sbtn" data-d="1" aria-label="Больше">${ICON.plus}</button></div></div>`).join("") + "</div>";
+    }
+    stepEl.innerHTML = `<div class="${dir > 0 ? "in-r" : "in-l"}">${h}</div>`;
+    bindStep(s);
+    updateBar(s);
+    renderVisSum();
+    stepVisual(s);
+    preload(state.i + 1);
+    goal("step_" + s.id);
+  }
+
+  function stepVisual(s) {
+    // до старта слева обложка; но если на первом вопросе уже что-то выбрали — показываем выбранное крупно
+    if (!state.started && state.answers[s.id] === undefined) return;
+    let src = s.image, ratio = 16 / 9;          // картинка шага — 16:9, фото вариантов — 4:3
+    if (s.type === "single" || s.type === "multi") {
+      const v = state.answers[s.id];
+      const last = Array.isArray(v) ? v[v.length - 1] : v;
+      const o = optOf(s, last);
+      src = (o && o.image) || (s.options.find((x) => x.image) || {}).image;
+      ratio = 4 / 3;
+    }
+    if (s.id === "timing" || !src) { src = IMG.result || IMG.hero; ratio = IMG.result ? 16 / 9 : 4 / 3; }
+    setVisual(src, false, ratio);
+  }
+
+  function bindStep(s) {
+    if (s.type === "single") {
+      $$(".opt", stepEl).forEach((b) => b.onclick = () => {
+        state.answers[s.id] = b.dataset.v;
+        $$(".opt", stepEl).forEach((x) => x.setAttribute("aria-checked", x === b));
+        onAnswer(s);
+      });
+    } else if (s.type === "multi") {
+      $$(".opt", stepEl).forEach((b) => b.onclick = () => {
+        let arr = state.answers[s.id];
+        const v = b.dataset.v, o = optOf(s, v), k = arr.indexOf(v);
+        if (k >= 0) arr.splice(k, 1);
+        else if (o && o.exclusive) arr = [v];
+        else { arr = arr.filter((x) => !(optOf(s, x) || {}).exclusive); arr.push(v); }
+        state.answers[s.id] = arr;
+        $$(".opt", stepEl).forEach((x) => x.setAttribute("aria-checked", arr.includes(x.dataset.v)));
+        onAnswer(s);
+      });
+    } else if (s.type === "range") {
+      const num = $("#rnum"), rng = $("#rng");
+      const size = () => { num.style.width = Math.max(2, String(num.value).length) + 0.6 + "ch"; };
+      const set = (val, from) => {
+        let v = Math.round(Number(val));
+        if (!isFinite(v)) return;
+        v = Math.min(s.max, Math.max(s.min, v));
+        state.answers[s.id] = v;
+        if (from !== "num") num.value = v;
+        if (rng && from !== "rng") rng.value = v;
+        size();
+        if (s.presets) $$(".pchip", stepEl).forEach((c) => c.setAttribute("aria-checked", inPreset(s.presets[c.dataset.k], v)));
+        $$(".sbtn", stepEl).forEach((b) => { b.disabled = b.dataset.d < 0 ? v <= s.min : v >= s.max; });
+        if (from !== "init") { state.areaTouched = true; onAnswer(s); }
+      };
+      $$(".pchip", stepEl).forEach((c) => c.onclick = () => set(s.presets[c.dataset.k].value, "chip"));
+      $$(".sbtn", stepEl).forEach((b) => b.onclick = () => set(state.answers[s.id] + Number(b.dataset.d), "btn"));
+      num.oninput = () => {
+        num.value = num.value.replace(/\D/g, "").slice(0, 3);
+        size();
+        const v = Number(num.value);
+        if (num.value && v >= s.min && v <= s.max) set(v, "num");
+      };
+      num.onblur = () => {
+        if (!num.value) { num.value = state.answers[s.id]; size(); }
+        else if (Number(num.value) !== state.answers[s.id]) set(num.value, "blur");
+      };
+      num.onfocus = () => { if (!isDesk()) setTimeout(() => num.scrollIntoView({ block: "center", behavior: "smooth" }), 250); };
+      num.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); num.blur(); go(1); } };
+      if (rng) rng.oninput = () => set(rng.value, "rng");
+      set(state.answers[s.id], "init");
+    } else if (s.type === "counters") {
+      $$(".stepper", stepEl).forEach((st) => {
+        const it = s.items.find((x) => x.id === st.dataset.id), out = $("output", st), btns = $$("button", st);
+        const sync = () => btns.forEach((b) => { b.disabled = b.dataset.d < 0 ? state.answers[s.id][it.id] <= it.min : state.answers[s.id][it.id] >= it.max; });
+        btns.forEach((b) => b.onclick = () => {
+          const v = Math.min(it.max, Math.max(it.min, state.answers[s.id][it.id] + Number(b.dataset.d)));
+          state.answers[s.id][it.id] = v; out.textContent = v; sync(); onAnswer(s);
+        });
+        sync();
+      });
+    }
+  }
+
+  function onAnswer(s) {
+    // площадь по умолчанию зависит от помещения, пока человек сам её не менял
+    const areaStep = steps.find((x) => x.default_by && x.default_by.step === s.id);
+    if (areaStep && !state.areaTouched) {
+      const v = areaStep.default_by.values[state.answers[s.id]];
+      if (v) state.answers[areaStep.id] = v;
+    }
+    updateBar(s);
+    renderVisSum();
+    stepVisual(s);
+    save();
+  }
+
+  function maskPhone(v) {
+    let d = v.replace(/\D/g, "");
+    if (!d) return "";
+    if (d[0] === "8") d = "7" + d.slice(1);
+    if (d[0] !== "7") d = "7" + d;
+    const p = d.slice(1, 11);
+    let out = "+7";
+    if (p.length) out += " (" + p.slice(0, 3);
+    // разделители ставим только перед следующей цифрой — иначе Backspace «застревает» на скобке/дефисе
+    if (p.length > 3) out += ") " + p.slice(3, 6);
+    if (p.length > 6) out += "-" + p.slice(6, 8);
+    if (p.length > 8) out += "-" + p.slice(8, 10);
+    return out;
+  }
+
+  // ---------------------------------------------------------------- «Считаем…» и результат
+  function renderCalc() {
+    state.view = "calc"; barMode = "none";
+    setProgress(); setBar(false); save();
+    setVisual(IMG.calc, true);
+    const title = C.city_prep ? withCity(T.calc_title || "Считаем по ценам{city}…") : "Считаем стоимость…";
+    stepEl.innerHTML = `<div class="calc fade" aria-busy="true">${IMG.calc ? `<img class="calc-pic" src="${esc(A(IMG.calc))}" alt="" width="720" height="540">` : ""}` +
+      `<h2 class="q" id="qTitle" tabindex="-1">${esc(title)}</h2><p class="hint">${esc(T.calc_text || "")}</p><div class="loader" aria-hidden="true"><i></i></div></div>`;
+    live.textContent = title;
+    calcTimer = setTimeout(renderResult, 1200);
+  }
+
+  function fitPrice() {
+    const box = $("#price");
+    if (!box) return;
+    box.classList.remove("stack");
+    if ($(".p-one", box).scrollWidth > box.clientWidth + 1) box.classList.add("stack");
+  }
+  window.addEventListener("resize", fitPrice);
+
+  function toForm() {
+    const ph = $("#phone");
+    if (!ph) return;
+    ph.scrollIntoView({ block: "center", behavior: reduceMotion ? "auto" : "smooth" });
+    ph.focus({ preventScroll: true });
+  }
+
+  function renderResult() {
+    const est = QuizCalc.estimate(state.answers, cfg.pricing);
+    state.estimate = est; state.view = "result"; barMode = "result";
+    setProgress(); save(); goal("calc_result");
+    setVisual(IMG.result, false, 16 / 9);
+    const lightsStep = steps.find((s) => s.type === "counters");
+    const nLights = lightsStep ? lightsStep.items.reduce((n, it) => n + (state.answers[lightsStep.id][it.id] || 0), 0) : 0;
+    const incl = (T.included || []).slice();
+    if (nLights) incl.push(`Установка ${nLights} ${plural(nLights, ["светильник", "светильника", "светильников"])}`);
+    let note = T.result_note || "";
+    if (Number(state.answers.area) < est.area) {
+      note += " Вы указали " + state.answers.area + " м², в смете " + est.area + " м².";
+    }
+    if (est.floored) note += " Ниже " + fmt(cfg.pricing.min_total) + " ₽ выезд не считаем.";
+    if (est.extraMeters.length) {
+      const extraStep = steps.find((s) => s.id === "extras");
+      const bits = est.extraMeters.map((x) => {
+        const o = extraStep && optOf(extraStep, x.id);
+        return (o ? (o.short || o.label) : x.id) + " ≈ " + Math.round(x.meters) + " м";
+      });
+      note += " Длину взяли как для квадратной комнаты: " + bits.join(", ") + ". На замере поправим.";
+    }
+    const parts = [["Полотно с монтажом", est.approx.canvas], ["Освещение", est.approx.lights], ["Доп. работы", est.approx.extras]]
+      .filter((x) => x[1] > 0);
+    const m = cfg.messengers.find((x) => x.value === state.messenger) || cfg.messengers[0];
+    const proof = proofHTML();
+    stepEl.innerHTML = `<div class="${dir > 0 ? "in-r" : "in-l"}">
+      ${IMG.result ? `<figure class="res-pic">${img(IMG.result, 1280, 720)}</figure>` : ""}
+      <p class="res-cap">${esc(withCity(T.result_title || "Предварительная стоимость"))}</p>
+      <h2 class="sr" id="qTitle" tabindex="-1">Расчёт готов: от ${fmt(est.min)} до ${fmt(est.max)} ${esc(cur)}</h2>
+      <div class="price" id="price" aria-hidden="true"><span class="p-one">от ${fmt(est.min)} до ${money(est.max)}</span>
+        <span class="p-two"><b>от ${money(est.min)}</b><span>до ${money(est.max)}</span></span></div>
+      <span class="per">≈ ${fmt(est.per_m2.min)}–${money(est.per_m2.max)} за м² всей сметы</span>
+      <p class="why">${esc(note)}</p>
+      <div class="box">
+        <h3 class="h3">${esc(T.included_title || "Входит в цену")}</h3>
+        <ul class="incl">${incl.map((x) => `<li>${ICON.check}${esc(x)}</li>`).join("")}</ul>
+        ${parts.length ? `<div class="parts">${parts.map((p) => `<div><span>${p[0]}</span><b>≈ ${money(p[1])}</b></div>`).join("")}
+          <p>Разбивка примерная, округлена до 100 ${esc(cur)}</p></div>` : ""}
+      </div>
+      <div class="box">
+        <div class="sum-head"><h3 class="h3">Ваш выбор</h3><button type="button" class="linkbtn" id="edit">Изменить</button></div>
+        <div class="sumry">${summary().map((x) => `<button type="button" class="schip" data-k="${x.k}" aria-label="Изменить: ${esc(steps[x.k].short)}">${esc(x.t)}${ICON.pen}</button>`).join("")}</div>
+      </div>
+      ${bonusHTML(true)}
+      <form id="lead" class="form" novalidate>
+        <h2 class="q">${esc(T.form_title)}</h2>
+        <fieldset class="field"><legend class="lbl">Где удобнее получить ответ?</legend>
+          <div class="msgr" role="radiogroup" aria-label="Способ связи">${cfg.messengers.map((x) =>
+            `<button type="button" class="mbtn" role="radio" data-v="${esc(x.value)}" aria-checked="${x.value === state.messenger}">${MSGR_ICON[x.value] || ""}<span>${esc(x.label)}</span></button>`).join("")}</div>
+        </fieldset>
+        <div class="field"><label class="lbl" for="phone">Телефон</label>
+          <input class="in" id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 (___) ___-__-__" aria-describedby="phoneErr">
+          <p class="ferr" id="phoneErr" hidden>${ICON.alert}<span></span></p></div>
+        <div class="field"><label class="lbl" for="name">Как к вам обращаться</label>
+          <input class="in" id="name" name="name" autocomplete="given-name" maxlength="60" placeholder="Например, Анна" aria-describedby="nameErr">
+          <p class="ferr" id="nameErr" hidden>${ICON.alert}<span></span></p></div>
+        <div class="hp" aria-hidden="true"><label>Ваш сайт <input name="website" tabindex="-1" autocomplete="off"></label></div>
+        <div class="field"><div class="consent"><input type="checkbox" id="consent" aria-describedby="consentErr">
+          <span><label for="consent">Даю согласие на обработку моих персональных данных.</label> <a href="consent.html" target="_blank" rel="noopener">Текст согласия</a></span></div>
+          <p class="ferr" id="consentErr" hidden>${ICON.alert}<span></span></p></div>
+        <p class="policy">Как мы храним и используем данные — в <a href="privacy.html" target="_blank" rel="noopener">политике конфиденциальности</a>.</p>
+        <p class="ferr" id="err" role="alert" hidden>${ICON.alert}<span></span></p>
+        <button class="btn-primary send" id="send" type="submit"><span id="sendTxt">${esc(m.cta || T.submit)}</span></button>
+        ${T.safe_line ? `<p class="safe">${ICON.lock}<span>${esc(T.safe_line)}</span></p>` : ""}
+      </form>
+      ${proof}</div>`;
+    fitPrice();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitPrice);
+    setBar(true, "Получить расчёт", false);
+    backBtn.hidden = false;
+    renderVisSum();
+    live.textContent = `Расчёт готов: от ${fmt(est.min)} до ${fmt(est.max)} ${cur}`;
+
+    $("#edit").onclick = () => go(0, 0);
+    $$(".schip", stepEl).forEach((c) => c.onclick = () => go(0, Number(c.dataset.k)));
+
+    // панель внизу прячется, когда кнопка формы уже на экране
+    if (sendObserver) sendObserver.disconnect();
+    if ("IntersectionObserver" in window) {
+      sendObserver = new IntersectionObserver((en) => {
+        if (state.view !== "result") return;
+        const vis = en[0].isIntersecting;
+        barEl.hidden = vis; document.body.classList.toggle("has-bar", !vis);
+      }, { rootMargin: "0px 0px -20px 0px" });
+      sendObserver.observe($("#send"));
+    }
+
+    const form = $("#lead"), phone = $("#phone"), name = $("#name"), consent = $("#consent"), send = $("#send");
+    const NAME_RE = /^[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё .'\-]{1,59}$/;
+    const setErr = (el, msg) => {
+      const p = $("#" + el.getAttribute("aria-describedby"));
+      el.setAttribute("aria-invalid", msg ? "true" : "false");
+      p.hidden = !msg; $("span", p).textContent = msg || "";
+    };
+    const checkPhone = () => {
+      const d = phone.value.replace(/\D/g, "");
+      const msg = d.length === 11 ? "" : d.length <= 1 ? "Введите номер телефона" : "Номер неполный: нужно 10 цифр после +7";
+      setErr(phone, msg); return !msg;
+    };
+    const checkName = () => {
+      const v = name.value.trim();
+      const msg = NAME_RE.test(v) ? "" : v.length < 2 ? "Напишите, как к вам обращаться" : "Только буквы — без цифр и символов";
+      setErr(name, msg); return !msg;
+    };
+    const checkConsent = () => {
+      const msg = consent.checked ? "" : "Отметьте согласие — без него мы не можем принять заявку";
+      setErr(consent, msg); return !msg;
+    };
+    const generalErr = (msg) => { const e = $("#err"); e.hidden = !msg; $("span", e).textContent = msg || ""; };
+
+    phone.addEventListener("input", () => {
+      phone.value = maskPhone(phone.value);
+      if (phone.getAttribute("aria-invalid") === "true" && phone.value.replace(/\D/g, "").length === 11) setErr(phone, "");
+    });
+    phone.addEventListener("focus", () => {
+      if (!phone.value) phone.value = "+7 (";
+      if (!isDesk()) setTimeout(() => phone.scrollIntoView({ block: "center", behavior: "smooth" }), 250);
+    });
+    phone.addEventListener("blur", () => {
+      if (phone.value.replace(/\D/g, "").length <= 1) { phone.value = ""; return; }
+      checkPhone();
+    });
+    name.addEventListener("input", () => { if (name.getAttribute("aria-invalid") === "true" && NAME_RE.test(name.value.trim())) setErr(name, ""); });
+    name.addEventListener("blur", () => { if (name.value.trim()) checkName(); });
+    name.addEventListener("focus", () => { if (!isDesk()) setTimeout(() => name.scrollIntoView({ block: "center", behavior: "smooth" }), 250); });
+    consent.addEventListener("change", () => { if (consent.checked) setErr(consent, ""); });
+    $$(".mbtn", form).forEach((c) => c.onclick = () => {
+      state.messenger = c.dataset.v;
+      $$(".mbtn", form).forEach((x) => x.setAttribute("aria-checked", x === c));
+      const mm = cfg.messengers.find((x) => x.value === state.messenger) || {};
+      $("#sendTxt").textContent = mm.cta || T.submit;
+    });
+    const setSending = (on) => {
+      send.disabled = on;
+      send.innerHTML = on ? '<span class="spin" aria-hidden="true"></span><span>Отправляем…</span>'
+        : `<span id="sendTxt">${esc((cfg.messengers.find((x) => x.value === state.messenger) || {}).cta || T.submit)}</span>`;
+    };
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      generalErr("");
+      const okPhone = checkPhone(), okName = checkName(), okConsent = checkConsent();
+      const bad = !okPhone ? phone : !okName ? name : !okConsent ? consent : null;
+      if (bad) {
+        bad.focus({ preventScroll: true });
+        bad.scrollIntoView({ block: "center", behavior: reduceMotion ? "auto" : "smooth" });
+        return;
+      }
+      const nm = name.value.trim(), digits = phone.value.replace(/\D/g, "");
+      goal("lead_submit");
+      if (window.QUIZ_DEMO) { renderDemoSent(nm, digits, est); return; }
+      setSending(true);
+      try {
+        const r = await fetch("lead", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: nm, phone: digits, messenger: state.messenger, consent: true,
+            answers: state.answers, estimate: { min: est.min, max: est.max },
+            website: form.website.value, started_at: startedAt, page: location.href
+          })
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.ok) throw new Error(j.error || "Не удалось отправить заявку");
+        renderThanks(nm);
+      } catch (ex) {
+        generalErr(ex.message + (C.phone ? ". Можно позвонить нам: " + C.phone : ""));
+        setSending(false);
+      }
+    });
+  }
+
+  function proofHTML() {
+    let h = "";
+    if (R && R.value && R.source) {
+      const n = Number(R.count) || 0;
+      h += `<a class="rating" href="${esc(R.url || "#")}" target="_blank" rel="noopener"><span class="star" aria-hidden="true">★</span>` +
+        `<b>${esc(String(R.value).replace(".", ","))}</b><span>${n ? `· ${n} ${plural(n, ["отзыв", "отзыва", "отзывов"])} ` : ""}на ${esc(R.source)}</span>` +
+        `${R.date ? `<small>Данные на ${esc(R.date)}</small>` : ""}</a>`;
+    }
+    const W = (P.works || []).filter((w) => w.image);
+    if (W.length) {
+      h += `<h3 class="h3" style="margin-top:20px">Похожие работы</h3><div class="works">` +
+        W.map((w) => `<figure class="work">${img(w.image)}<figcaption>${esc(w.caption || "")}</figcaption></figure>`).join("") + "</div>";
+    }
+    return h ? `<section class="proof">${h}</section>` : "";
+  }
+
+  function thanksHTML(title, body) {
+    return `<div class="thanks fade">${IMG.thanks ? `<img class="thanks-pic" src="${esc(A(IMG.thanks))}" alt="" width="720" height="540">` : ""}
+      <h2 class="q" id="qTitle" tabindex="-1">${esc(title)}</h2>${body}</div>`;
+  }
+
+  function finish() {
+    state.view = "thanks"; barMode = "none";
+    if (sendObserver) sendObserver.disconnect();
+    setProgress(); setBar(false); clearSaved();
+    setVisual(IMG.thanks, true);
+    toTop();
+  }
+
+
+  function renderDemoSent(nm, digits, est) {
+    finish();
+    plabel.textContent = "Демо: ничего не отправлено";
+    prog.setAttribute("aria-valuetext", plabel.textContent);
+    const a = state.answers;
+    const labelOf = (id, v) => {
+      const s = steps.find((x) => x.id === id);
+      const o = s && s.options ? s.options.find((x) => x.value === v) : null;
+      return o ? o.label : (v == null ? "—" : String(v));
+    };
+    const m = cfg.messengers.find((x) => x.value === state.messenger);
+    const lines = [
+      "Имя: " + nm,
+      "Телефон: " + maskPhone(digits),
+      "Помещение: " + labelOf("room", a.room),
+      "Площадь: " + (a.area == null ? "—" : a.area + " м²"),
+      "Полотно: " + labelOf("canvas", a.canvas),
+      "Расчёт: от " + fmt(est.min) + " до " + money(est.max),
+      "Связаться: " + (m ? m.label : "—")
+    ];
+    stepEl.innerHTML = thanksHTML("Демо: эта заявка пришла бы вам в Telegram",
+      `<p class="hint">В рабочей версии заявка сразу приходит владельцу и менеджерам — вот так:</p>
+      <div class="tgmsg"><b>Новая заявка с квиза</b><br>${lines.map(esc).join("<br>")}</div>
+      <p class="hint">Ничего никуда не отправлено — это демонстрация.</p>`);
+    focusTitle("Демо: заявка не отправлена");
+  }
+
+  function renderThanks(nm) {
+    finish();
+    goal("lead_sent");
+    const m = cfg.messengers.find((x) => x.value === state.messenger) || {};
+    const list = (T.next_steps || []).map((x) => x.replace("{next}", m.next || "Свяжемся с вами"));
+    stepEl.innerHTML = thanksHTML(nm ? `Спасибо, ${nm}! Заявка принята` : (T.thanks_title || "Спасибо! Заявка принята"),
+      `<ol class="next">${list.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>
+      <div class="thanks-links">${C.phone ? `<a class="phone-link" href="${telHref}">${ICON.phone}${esc(C.phone)}</a>` : ""}
+      ${C.works_url ? `<a href="${esc(C.works_url)}" target="_blank" rel="noopener">Наши работы</a>` : ""}</div>`);
+    focusTitle("Заявка отправлена");
+  }
+
+  // ---------------------------------------------------------------- клавиатура (десктоп): 1–9 — выбор, Enter — дальше
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || state.view !== "step") return;
+    const tag = (document.activeElement && document.activeElement.tagName) || "";
+    if (/INPUT|TEXTAREA|SELECT/.test(tag)) return;
+    const s = steps[state.i];
+    if (/^[1-9]$/.test(e.key) && (s.type === "single" || s.type === "multi")) {
+      const b = $$(".opt", stepEl)[Number(e.key) - 1];
+      if (b) { e.preventDefault(); b.click(); }
+    } else if (e.key === "Enter" && tag !== "BUTTON" && tag !== "A" && !barEl.hidden && !nextBtn.hidden) {
+      e.preventDefault(); nextBtn.click();
+    }
+  });
+
+  // ---------------------------------------------------------------- «продолжить с того же места»
+  const saved = loadSaved();
+  if (saved) {
+    const btn = $("#resume");
+    btn.hidden = false;
+    btn.innerHTML = `<span>${saved.i >= N ? "Вернуться к вашему расчёту" : `Продолжить с вопроса ${saved.i + 1} из ${N}`}</span>` +
+      '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+    btn.onclick = () => {
+      for (const s of steps) if (saved.a[s.id] !== undefined) state.answers[s.id] = saved.a[s.id];
+      state.areaTouched = !!saved.at;
+      go(0, Math.min(saved.i, N));
+    };
+  }
+
+  preload(0);
+  render();
+})();
+</script>
+</body>
+</html>

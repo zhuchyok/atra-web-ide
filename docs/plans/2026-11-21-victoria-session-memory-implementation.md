@@ -27,7 +27,8 @@
 - Create: `knowledge_os/tests/test_chat_user_key.py`
 
 - [x] Add optional `user: Optional[str] = None` on `ChatCompletionRequest`
-- [x] Add `_resolve_chat_user_key(request, req) -> str` (headers `X-Victoria-User` / `X-Session-Id`, then `request.user`, then `VICTORIA_CHAT_USER_KEY`, then `atra-default`)
+- [x] Add `_resolve_chat_user_key(request, req) -> str` (headers `X-Victoria-User` / `X-Session-Id` / `X-OpenWebUI-User-Id` / `X-OpenWebUI-User-Email`, then `request.user`, then `VICTORIA_CHAT_USER_KEY`, then `atra-default`)
+- [x] OpenWebUI `ENABLE_FORWARD_USER_INFO_HEADERS=true` in `docker-compose.ui.yml` (2026-11-23) — LTM threads land under real OWUI user id, not `atra-default` mush
 - [x] Replace `session_id=f"openai-{correlation_id[:8]}"` and LTM `user_key=f"openai-..."` with resolved key
 - [x] Unit test key resolution priority
 - [ ] Commit `feat(chat): stable user key for session memory`
@@ -38,14 +39,16 @@
 
 - Modify: `knowledge_os/docker-compose.agents.yml` (victoria-agent environment)
 
-- [ ] Add `LONG_TERM_MEMORY_ENABLED: "true"`
-- [ ] Add `VICTORIA_CHAT_USER_KEY: ${VICTORIA_CHAT_USER_KEY:-atra-default}`
-- [ ] Commit `chore(compose): enable VictoriaTM for victoria-agent`
+- [x] Add `LONG_TERM_MEMORY_ENABLED: "true"` (compose live)
+- [x] Add `VICTORIA_CHAT_USER_KEY: ${VICTORIA_CHAT_USER_KEY:-atra-default}`
+- [ ] Commit `chore(compose): enable VictoriaTM for victoria-agent` (optional)
+
+**Store note (2026-11-22):** live LTM threads are `knowledge_nodes` with `metadata.type=long_term_memory_thread` (not the unused SQL `long_term_memory` table). Chat LTM read is gated by model containing `victoria` + non-simple, not only by the env flag.
 
 ### Task 3: Verify + restart
 
-- [ ] pytest `test_chat_user_key.py` + `test_fact_seeking_route.py`
-- [ ] `docker restart victoria-agent`; health ok
-- [ ] Two curls with same `X-Victoria-User` after a non-simple exchange — LTM path uses same key (log or unit evidence)
+- [x] pytest `test_chat_user_key.py` + `test_fact_seeking_route.py` — **31 passed** (2026-11-24 expert)
+- [x] `docker restart victoria-agent`; health ok
+- [x] Two curls with same `X-Victoria-User` — LTM nonce recall smoke 2026-11-22 (`hit True`); recheck 2026-11-24 `LTM-expert-*` HIT
 
 ---

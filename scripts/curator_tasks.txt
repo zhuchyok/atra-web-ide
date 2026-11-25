@@ -2,13 +2,23 @@
 какой статус проекта?
 что ты умеешь?
 напиши одну строку кода на Python: вывод текущей даты
-проверь файл /app/knowledge_os/scripts/backtest_5coins_intelligent.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/scripts/send_self_audit_chat.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/tests/test_enhanced_search_quality_gate.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/tests/test_fact_seeking_route.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/src/agents/bridge/task_detector.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/backend/app/services/embedding_batch.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/app/services/notification_service.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/scripts/cloud_watchdog.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/scripts/victoria_self_curator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/tests/test_chat_user_key.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/backend/app/tests/test_ollama_embed_url.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
 проверь файл /app/scripts/build_self_audit_task.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/scripts/test_self_audit_channel_disclaimer.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/backend/app/routers/metrics.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/tests/test_run_status_redis_sync.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/backend/app/routers/preview.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/backend/app/services/emotions.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/tests/test_file_check_existence_phrases.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
-проверь файл /app/knowledge_os/tests/test_file_check_path_hyphen.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/scripts/send_self_audit_chat.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/app/enhanced_search.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/app/semantic_cache.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/scripts/mass_embedding_generator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/tests/test_coder_slot_guard.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/tests/test_early_async_preamble_shortcut.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/tests/test_victoria_local_agent.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/knowledge_os/tests/test_victoria_run_fact_mode_guard.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/backend/app/routers/ab_testing.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата
+проверь файл /app/backend/app/routers/sandbox.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата

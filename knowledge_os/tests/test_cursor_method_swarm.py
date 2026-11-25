@@ -8,6 +8,8 @@ from app.task_result_validator import validate_task_result
 
 
 def test_bare_done_rejected():
+    from app.cursor_method import BARE_DONE_REFUSAL, reject_bare_done_answer
+
     assert is_bare_done("готово")
     assert is_bare_done("всё работает")
     assert is_bare_done("Принято. Фиксирую статус: задача закрыта, тесты пройдены.")
@@ -16,6 +18,8 @@ def test_bare_done_rejected():
     ok, score = validate_task_result("проверь health", "готово")
     assert ok is False
     assert score <= 0.2
+    assert reject_bare_done_answer("готово") == BARE_DONE_REFUSAL
+    assert "pytest" in reject_bare_done_answer("готово. pytest 13 passed")
 
 
 def test_fast_path_not_journaled():

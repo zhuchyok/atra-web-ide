@@ -156,7 +156,7 @@ def ask_victoria(goal: str, prefer_async: bool = True, max_wait: float = DEFAULT
 
 def write_report(goal: str, answer: str, lesson: str) -> Path:
     REPORTS.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S-%f")
     path = REPORTS / f"pair_{stamp}.md"
     path.write_text(
         f"# Pair {stamp}\n\n## Goal\n\n{goal}\n\n## Victoria\n\n{answer}\n\n## Lesson\n\n{lesson}\n",
