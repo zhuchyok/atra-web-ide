@@ -365,39 +365,71 @@ async def victoria_task_status(task_id: str) -> str:
         return f"❌ Ошибка: {e}"
 
 
+def coerce_execution_plan_json(raw: Optional[str]):
+    """Parse optional MCP plan JSON; None if empty. Raises ValueError if invalid."""
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    data = json.loads(text)
+    if not isinstance(data, list) or not data:
+        raise ValueError("execution_plan_json must be a non-empty JSON list")
+    return data
+
+
 @mcp.tool()
 async def victoria_execute_plan(
     goal: str,
     workspace_path: str = "/Users/bikos/Documents/atra-web-ide",
     max_steps: Optional[int] = 500,
     approve_writes: bool = False,
+    execution_plan_json: Optional[str] = None,
 ) -> str:
     """Получить execution_plan от Victoria и выполнить на локальном FS.
 
     read_file — всегда. edit/run — только при approve_writes=True (иначе needs_approve).
 
+    Если передан execution_plan_json (JSON-список шагов) — /orchestrate не вызывается
+    (быстрый IDE hands-path; plan уже готов).
+
     Args:
-        goal: Задача для Victoria
+        goal: Задача для Victoria (контекст/подпись; при готовом плане не шлётся в LLM)
         workspace_path: Корень sandbox
-        max_steps: Лимит шагов планирования
+        max_steps: Лимит шагов планирования (только путь /orchestrate)
         approve_writes: Явное разрешение mutate/run
+        execution_plan_json: Готовый план [{"action":"read_file","path":"..."}, ...]
     """
     try:
-        async with httpx.AsyncClient(timeout=VICTORIA_MCP_RUN_TIMEOUT_SEC) as client:
-            resp = await client.post(
-                f"{VICTORIA_URL}/orchestrate",
-                json={
-                    "goal": goal,
-                    "max_steps": max_steps,
-                    "return_execution_plan": True,
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        victoria_output = ""
+        try:
+            execution_plan = coerce_execution_plan_json(execution_plan_json)
+        except (ValueError, json.JSONDecodeError) as e:
+            return f"❌ bad execution_plan_json: {e}"
 
-        execution_plan = data.get("execution_plan")
-        if not execution_plan:
-            return f"⚠️ Victoria не вернула execution_plan. Ответ:\n{data.get('output', '')}"
+        if execution_plan is None:
+            async with httpx.AsyncClient(timeout=VICTORIA_MCP_RUN_TIMEOUT_SEC) as client:
+                resp = await client.post(
+                    f"{VICTORIA_URL}/orchestrate",
+                    json={
+                        "goal": goal,
+                        "max_steps": max_steps,
+                        "return_execution_plan": True,
+                    },
+                )
+                resp.raise_for_status()
+                data = resp.json()
+
+            execution_plan = data.get("execution_plan")
+            victoria_output = str(data.get("output", "") or "")
+            if not execution_plan:
+                return f"⚠️ Victoria не вернула execution_plan. Ответ:\n{victoria_output}"
+        else:
+            logger.info(
+                "[victoria_execute_plan] skip orchestrate; ready plan steps=%s goal=%s",
+                len(execution_plan),
+                (goal or "")[:120],
+            )
 
         logger.info(
             "[victoria_execute_plan] steps=%s approve_writes=%s",
@@ -411,7 +443,10 @@ async def victoria_execute_plan(
         )
         summary = f"План ({len(execution_plan)} шагов, approve_writes={approve_writes}):\n\n"
         summary += "\n".join(results)
-        summary += f"\n\nОтвет Victoria:\n{data.get('output', '')}"
+        if victoria_output:
+            summary += f"\n\nОтвет Victoria:\n{victoria_output}"
+        else:
+            summary += "\n\n(local plan; /orchestrate skipped)"
         return summary
 
     except httpx.TimeoutException:
