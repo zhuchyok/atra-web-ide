@@ -129,6 +129,16 @@ IGNORE_PATTERNS = [
         r"Exception calling Node .*(ReadTimeout|RemoteProtocolError|ConnectError|Server disconnected)"
     ),
     re.compile(r"\[LLM_ERROR\] HTTP 500:.*unexpected EOF"),
+    # Same Ollama runner tear mid-stream — victoria-agent / router wording, not [LLM_ERROR].
+    re.compile(r"Streaming error:\s*500:.*unexpected EOF", re.IGNORECASE),
+    re.compile(
+        r"\[ROUTER\].*HTTP 500:.*unexpected EOF",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"an error was encountered while running the model:\s*unexpected EOF",
+        re.IGNORECASE,
+    ),
     # LLM snippet QA is expected to fail; not a runtime incident.
     re.compile(r"\[SANDBOX GROUNDING\]"),
     re.compile(r"\[QUALITY CHECK\]"),

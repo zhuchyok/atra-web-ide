@@ -51,6 +51,18 @@ def test_ignore_visual_search_retry_and_router_readtimeout():
         )
         is None
     )
+    assert (
+        scanner.extract_error(
+            '2026-11-26 02:41:25,906 - ERROR - Streaming error: 500: {"error":"an error was encountered while running the model: unexpected EOF"}'
+        )
+        is None
+    )
+    assert (
+        scanner.extract_error(
+            '2026-11-26 02:41:25,907 - ERROR - [ROUTER] ❌ Node Mac Studio (Ollama) returned HTTP 500: {"error":"an error was encountered while running the model: unexpected EOF"}'
+        )
+        is None
+    )
 
 
 def test_ignore_pg_parallel_fatal_and_busy_retries():
