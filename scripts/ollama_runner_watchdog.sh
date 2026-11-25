@@ -27,6 +27,8 @@ BRAIN_PROBE_EVERY_SEC="${OLLAMA_WD_BRAIN_PROBE_EVERY_SEC:-180}"
 HANDS_PROBE_EVERY_SEC="${OLLAMA_WD_HANDS_PROBE_EVERY_SEC:-60}"
 PROBE_TIMEOUT_SEC_BRAIN="${OLLAMA_WD_PROBE_TIMEOUT_SEC_BRAIN:-25}"
 PROBE_TIMEOUT_SEC_HANDS="${OLLAMA_WD_PROBE_TIMEOUT_SEC_HANDS:-20}"
+# Canary window: VICTORIA_BRAIN_MODEL=victoria-qwen38:canary (default :latest)
+BRAIN_MODEL="${VICTORIA_BRAIN_MODEL:-${OLLAMA_WD_BRAIN_MODEL:-victoria-qwen38:latest}}"
 
 state_get() {
     local key="$1"
@@ -170,7 +172,7 @@ brain_warmup_gate() {
     [ "$port" != "11434" ] && return 0
     [ "${OLLAMA_WD_BRAIN_WARMUP:-true}" != "true" ] && return 0
 
-    local model="${OLLAMA_WD_BRAIN_MODEL:-victoria-qwen38:latest}"
+    local model="${BRAIN_MODEL}"
     local attempts="${OLLAMA_WD_BRAIN_WARMUP_ATTEMPTS:-4}"
     local need_ok="${OLLAMA_WD_BRAIN_WARMUP_CONSECUTIVE_OK:-2}"
     local timeout="${OLLAMA_WD_BRAIN_WARMUP_TIMEOUT_SEC:-20}"
@@ -206,9 +208,21 @@ brain_warmup_gate() {
     return 1
 }
 
+# Wave 0: large model pull shares :11434 serve — kickstart aborts download.
+large_pull_active() {
+    pgrep -f 'ollama pull ' >/dev/null 2>&1 && return 0
+    # Growing/incomplete gpt-oss (or any) partial blob without listed tag yet
+    ls ~/.ollama/models/blobs/*-partial >/dev/null 2>&1 || return 1
+    pgrep -f 'com.atra.night-120b-pull|_night_120b_pull_until_done' >/dev/null 2>&1
+}
+
 restart_serve() {
     local port="$1"
     local main_pid="$2"
+    if [ "$port" = "11434" ] && large_pull_active; then
+        log "PROBE-RESTART-SKIP :11434 — active ollama pull / night-120b pipeline (avoid abort download)"
+        return 0
+    fi
     state_set "wd_last_restart_${port}" "$(now_ts)"
     launchctl kickstart -k "gui/$(id -u)/$([ "$port" = "11434" ] && echo homebrew.mxcl.ollama || echo com.atra.ollama-hands)" 2>/dev/null \
         || kill -HUP "$main_pid" 2>/dev/null
@@ -216,6 +230,10 @@ restart_serve() {
         # [v150.31] One controlled second chance for brain: if first warmup gate
         # fails, do one more restart+warmup before giving up.
         if [ "$port" = "11434" ]; then
+            if large_pull_active; then
+                log "BRAIN-WARMUP-SKIP :11434 second_chance — pull active"
+                return 0
+            fi
             log "BRAIN-WARMUP :$port second_chance restart"
             launchctl kickstart -k "gui/$(id -u)/homebrew.mxcl.ollama" 2>/dev/null \
                 || kill -HUP "$main_pid" 2>/dev/null
@@ -284,7 +302,7 @@ except Exception:
     if should_probe_now "$PORT"; then
         _probe_model="phi3.5:3.8b"
         _probe_timeout="$PROBE_TIMEOUT_SEC_HANDS"
-        [ "$PORT" = "11434" ] && _probe_model="victoria-qwen38:latest" && _probe_timeout="$PROBE_TIMEOUT_SEC_BRAIN"
+        [ "$PORT" = "11434" ] && _probe_model="$BRAIN_MODEL" && _probe_timeout="$PROBE_TIMEOUT_SEC_BRAIN"
         _probe_body="/tmp/ollama_probe_${PORT}.json"
         rm -f "$_probe_body" 2>/dev/null || true
         _probe=$(curl -s --max-time "$_probe_timeout" -o "$_probe_body" -w '%{http_code}' \
@@ -349,7 +367,7 @@ except Exception:
         _probe=$(curl -s --max-time 5 -o "$_probe_body" -w '%{http_code}' \
             -X POST "http://localhost:${PORT}/api/generate" \
             -H 'Content-Type: application/json' \
-            -d "$(probe_generate_payload "$PORT" "$([ "$PORT" = "11434" ] && echo victoria-qwen38:latest || echo phi3.5:3.8b)")" 2>/dev/null)
+            -d "$(probe_generate_payload "$PORT" "$([ "$PORT" = "11434" ] && echo "$BRAIN_MODEL" || echo phi3.5:3.8b)")" 2>/dev/null)
         _probe_msg=""
         [ -f "$_probe_body" ] && _probe_msg="$(tr -d '\n' < "$_probe_body" 2>/dev/null || true)"
         if [ "$_probe" = "503" ] || { [ "$_probe" = "500" ] && echo "$_probe_msg" | grep -Eiq 'llama-server process no longer running|unexpected EOF|server disconnected'; }; then

@@ -53,6 +53,8 @@ def test_hands_allow_xor_only_phi_and_nomic():
     assert _should_unload_hands("tinyllama:1.1b-chat") is True
     assert _should_unload_hands("moondream:latest") is True
     assert _should_unload_hands("victoria-qwen38:latest") is True
+    # XOR: -stable must not sit on 11437 even though name contains phi3.5
+    assert _should_unload_hands("phi3.5:3.8b-stable") is True
 
 
 def test_pin_phi_skipped_when_any_phi_already_loaded():

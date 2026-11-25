@@ -26,7 +26,10 @@ DRY = os.getenv("WISDOM_GUARD_DRY_RUN", "false").lower() in ("1", "true", "yes")
 # [v150.1] Контракт v149.4: мозг живёт на 11434 — никогда не выгружать.
 # [v150.8] На 11434 живёт ТОЛЬКО мозг: руки/эмбеддер переехали на 11437 —
 # их присутствие на 11434 = чужой слот, выгружать.
+# Substring match: victoria-qwen38:canary / :latest both allowed.
 BRAIN_ALLOW = ("victoria-qwen38", "qwen3.8")
+# Pin target when 11434 empty. Canary window: VICTORIA_BRAIN_MODEL=victoria-qwen38:canary
+BRAIN_PIN_MODEL = os.getenv("VICTORIA_BRAIN_MODEL", "victoria-qwen38:latest")
 
 
 def _log(msg: str) -> None:
@@ -157,10 +160,16 @@ def unload_hands(model):
 
 def _should_unload_hands(name: str) -> bool:
     """[v150.13] 11437 = только руки (симметрия brain-only@11434). Утром 15.10
-    мозг грузился на инстансе рук — вытеснял phi, RAM падала до 29%."""
+    мозг грузился на инстансе рук — вытеснял phi, RAM падала до 29%.
+
+    [v173 XOR] Canonical hands = phi3.5:3.8b @8192 + nomic. Never keep
+    phi3.5:3.8b-stable resident (substring 'phi3.5' would otherwise allow it).
+    """
     key = (name or "").lower()
     if not key:
         return False
+    if "phi" in key and "stable" in key:
+        return True
     return not any(a in key for a in HANDS_ALLOW)
 
 
@@ -238,7 +247,7 @@ def pin_brain():
             _clear_brain_ghost()
         return
     body = {
-        "model": "victoria-qwen38:latest",
+        "model": BRAIN_PIN_MODEL,
         "prompt": "ok",
         "stream": False,
         # [v150.76] keep_alive=-1 на 11434 не держит runner (ps пустеет сразу
@@ -251,7 +260,7 @@ def pin_brain():
         f"{OLLAMA}/api/generate", data=data, headers={"Content-Type": "application/json"}
     )
     urllib.request.urlopen(req, timeout=240).read()
-    _log(f"pinned victoria-qwen38:latest on {OLLAMA}")
+    _log(f"pinned {BRAIN_PIN_MODEL} on {OLLAMA}")
 
 
 def _should_unload(name: str) -> bool:

@@ -7,6 +7,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 # [v149.34] MAINTENANCE MODE: при ручных операциях с инфраструктурой все
 # автоматические акторы молчат (файл-флаг ставит scripts/maintenance.sh).
 if [ -f /tmp/atra_maintenance_mode ]; then echo "$(date '+%F %T') maintenance mode — skip"; exit 0; fi
+# Canary window: VICTORIA_BRAIN_MODEL=victoria-qwen38:canary (default :latest)
 M="${VICTORIA_BRAIN_MODEL:-victoria-qwen38:latest}"
 U="${OLLAMA_BASE_URL:-http://localhost:11434}"
 LOCK=/tmp/brain_keepalive.backoff

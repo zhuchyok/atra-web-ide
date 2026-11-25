@@ -344,11 +344,13 @@ def http_canaries(state: dict) -> list:
         and (now_ts - float(state.get("brain_canary_last_ts", 0))) >= brain_every_sec
     )
     if run_brain_canary:
+        # Canary window: VICTORIA_BRAIN_MODEL=victoria-qwen38:canary
+        brain_model = os.environ.get("VICTORIA_BRAIN_MODEL", "victoria-qwen38:latest")
         canaries.append(
             (
                 "brain victoria-qwen38@11434",
                 "http://127.0.0.1:11434/api/generate",
-                {"model": "victoria-qwen38:latest", "prompt": "ok", "stream": False,
+                {"model": brain_model, "prompt": "ok", "stream": False,
                  "keep_alive": "24h",
                  "options": {"num_predict": 1, "num_ctx": 16384}},
                 240,
