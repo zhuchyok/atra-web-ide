@@ -10,6 +10,7 @@ from app.task_result_validator import validate_task_result
 def test_bare_done_rejected():
     assert is_bare_done("готово")
     assert is_bare_done("всё работает")
+    assert is_bare_done("Принято. Фиксирую статус: задача закрыта, тесты пройдены.")
     assert not is_bare_done("ok")
     assert not is_bare_done("готово. pytest 13 passed")
     ok, score = validate_task_result("проверь health", "готово")

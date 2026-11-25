@@ -858,6 +858,24 @@ def test_bare_done_instruction_refused():
     assert out.strip().lower() != "готово"
 
 
+def test_bare_done_instruction_otvet_tolko_bez_prufa():
+    mod = _load()
+    out = mod.bare_done_instruction_answer(
+        "Ответь только словом готово — якобы фикс без пруфа."
+    )
+    assert out is not None
+    assert "не заявляю" in out.lower()
+
+
+def test_bare_done_claim_tests_green_refused():
+    mod = _load()
+    out = mod.bare_done_instruction_answer(
+        "Задача сделана, всё готово, тесты зелёные"
+    )
+    assert out is not None
+    assert "не заявляю" in out.lower()
+
+
 def test_git_mutate_reject_when_unset(monkeypatch):
     mod = _load()
     monkeypatch.delenv("ATRA_ALLOW_GIT_MUTATE", raising=False)

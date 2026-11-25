@@ -1,6 +1,7 @@
 ---
 name: ask-questions-if-underspecified
 description: Clarify requirements before implementing. Do not use automatically, only when invoked explicitly.
+version: 1.1
 ---
 
 # Ask Questions If Underspecified
@@ -32,18 +33,17 @@ Make questions easy to answer:
 
 - Optimize for scannability (short, numbered questions; avoid paragraphs)
 - Offer multiple-choice options when possible
-- Suggest reasonable defaults when appropriate (mark them clearly as the default/recommended choice; bold the recommended choice in the list, or if you present options in a code block, put a bold "Recommended" line immediately above the block and also tag defaults inside the block)
+- Suggest reasonable defaults when appropriate (mark them clearly as the default/recommended choice)
 - Include a fast-path response (e.g., reply `defaults` to accept all recommended/default choices)
-- Include a low-friction "not sure" option when helpful (e.g., "Not sure - use default")
-- Separate "Need to know" from "Nice to know" if that reduces friction
-- Structure options so the user can respond with compact decisions (e.g., `1b 2a 3c`); restate the chosen options in plain language to confirm
+- Include a low-friction "not sure" option when helpful
+- Structure options so the user can respond with compact decisions (e.g., `1b 2a 3c`)
 
 ### 3) Pause before acting
 
 Until must-have answers arrive:
 
 - Do not run commands, edit files, or produce a detailed plan that depends on unknowns
-- Do perform a clearly labeled, low-risk discovery step only if it does not commit you to a direction (e.g., inspect repo structure, read relevant config files)
+- Do perform a clearly labeled, low-risk discovery step only if it does not commit you to a direction
 
 If the user explicitly asks you to proceed without answers:
 
@@ -54,13 +54,21 @@ If the user explicitly asks you to proceed without answers:
 
 Once you have answers, restate the requirements in 1-3 sentences (including key constraints and what success looks like), then start work.
 
+## Done = verified (gate)
+
+Clarification phase is **done** only when:
+
+1. Must-have answers arrived **or** user said `defaults` / confirmed assumptions list.
+2. You restated success criteria in ≤3 sentences.
+3. After implementation: same evidence gate as `cursor-method` (command/test/health) — clarifying alone ≠ «фича готова».
+
+If user says «всё готово / тесты зелёные» without artifact → **do not affirm**; ask for proof or run verify.
+
 ## Question templates
 
 - "Before I start, I need: (1) ..., (2) ..., (3) .... If you don't care about (2), I will assume ...."
 - "Which of these should it be? A) ... B) ... C) ... (pick one)"
 - "What would you consider 'done'? For example: ..."
-- "Any constraints I must follow (versions, performance, style, deps)? If none, I will target the existing project defaults."
-- Use numbered questions with lettered options and a clear reply format
 
 ```text
 1) Scope?
@@ -77,9 +85,10 @@ Reply with: defaults (or 1a 2a)
 
 ## Anti-patterns
 
-- Don't ask questions you can answer with a quick, low-risk discovery read (e.g., configs, existing patterns, docs).
-- Don't ask open-ended questions if a tight multiple-choice or yes/no would eliminate ambiguity faster.
+- Don't ask questions you can answer with a quick, low-risk discovery read.
+- Don't ask open-ended questions if a tight multiple-choice would eliminate ambiguity faster.
+- Don't treat «пользователь сказал готово» as verified done.
 
 ---
 
-_Originally created by [@thsottiaux](https://x.com/thsottiaux)_
+_Originally created by [@thsottiaux](https://x.com/thsottiaux); done-gate ECC-aligned_

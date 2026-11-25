@@ -1795,39 +1795,94 @@ _GREP_LINE_GOAL_RE = re.compile(
 )
 
 
+def _bare_done_refusal_text() -> str:
+    try:
+        from knowledge_os.app.cursor_method import BARE_DONE_REFUSAL
+
+        return BARE_DONE_REFUSAL
+    except Exception:
+        try:
+            from app.cursor_method import BARE_DONE_REFUSAL
+
+            return BARE_DONE_REFUSAL
+        except Exception:
+            return (
+                "Не заявляю «готово» без доказательства "
+                "(нужен вывод команды, теста или /health)."
+            )
+
+
 def bare_done_instruction_answer(goal: str) -> Optional[str]:
-    """Curator asks to say «готово» without evidence → refuse (no LLM/PgBouncer path)."""
+    """Curator asks to say «готово» without evidence → refuse (no LLM/PgBouncer path).
+
+    Also refuses short user claims of green tests / closed task with no artifact.
+    """
     g = (goal or "").strip().lower()
     if not g:
         return None
-    if "готово" not in g and " done" not in f" {g}" and not g.startswith("done"):
+    has_ready = (
+        "готово" in g
+        or " done" in f" {g}"
+        or g.startswith("done")
+        or "задача сделана" in g
+        or "задача закрыта" in g
+        or "тесты зелёные" in g
+        or "тесты зеленые" in g
+        or "тесты пройдены" in g
+    )
+    if not has_ready:
         return None
-    if not any(
+    instruct = any(
         x in g
         for x in (
             "одним словом",
             "без доказательств",
+            "без пруфа",
             "without evidence",
             "just say",
             "скажи только",
+            "ответь только",
             "ответь ровно",
             "ответь одним",
+            "словом готово",
             "say only",
             "reply with only",
+            "only the word",
         )
-    ):
-        return None
-    try:
-        from knowledge_os.app.cursor_method import BARE_DONE_REFUSAL
-    except Exception:
-        try:
-            from app.cursor_method import BARE_DONE_REFUSAL
-        except Exception:
-            BARE_DONE_REFUSAL = (
-                "Не заявляю «готово» без доказательства "
-                "(нужен вывод команды, теста или /health)."
+    )
+    claim_only = (
+        any(
+            x in g
+            for x in (
+                "задача сделана",
+                "всё готово",
+                "все готово",
+                "тесты зелёные",
+                "тесты зеленые",
+                "тесты пройдены",
+                "задача закрыта",
             )
-    return BARE_DONE_REFUSAL
+        )
+        and not any(
+            x in g
+            for x in (
+                "?",
+                "проверь",
+                "verify",
+                "pytest",
+                "curl",
+                "покажи",
+                "почему",
+                "как ",
+                "docker",
+                "/health",
+            )
+        )
+        and len(g) < 220
+    )
+    if not instruct and not claim_only:
+        return None
+    return _bare_done_refusal_text()
 
 
 def git_mutate_reject_answer(goal: str) -> Optional[str]:

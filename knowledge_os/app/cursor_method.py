@@ -13,6 +13,14 @@ BARE_DONE_MARKERS = (
     "всё работает",
     "все работает",
 )
+UNVERIFIED_SUCCESS_MARKERS = (
+    "тесты пройдены",
+    "тесты зелёные",
+    "тесты зеленые",
+    "задача закрыта",
+    "фиксирую статус",
+    "задача выполнена",
+)
 EVIDENCE_MARKERS = (
     "pytest",
     "curl",
@@ -34,6 +42,8 @@ def is_bare_done(result: str) -> bool:
         return False
     if any(e in text for e in EVIDENCE_MARKERS):
         return False
+    if any(m in text for m in UNVERIFIED_SUCCESS_MARKERS):
+        return True
     if len(text) > 80:
         return False
     return any(m in text for m in BARE_DONE_MARKERS)

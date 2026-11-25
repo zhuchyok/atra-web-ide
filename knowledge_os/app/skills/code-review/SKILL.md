@@ -134,3 +134,14 @@ try {
 - [ ] No obvious performance issues
 - [ ] Code is readable and documented
 - [ ] Breaking changes documented
+
+## Done = verified (ECC-style)
+
+Review is not «LGTM» without:
+
+1. **Scope:** listed files/diff actually read (paths cited).
+2. **Critical empty-or-not:** either ≥1 Critical with file:line **or** explicit `No critical findings` after checklist.
+3. **Test callout:** for behavior changes — say which test proves it, or `TEST_GAP: …`.
+4. **Fresh pass:** one sentence pre-mortem (how this PR fails in prod tomorrow).
+
+No paths cited → review incomplete, not approve.
