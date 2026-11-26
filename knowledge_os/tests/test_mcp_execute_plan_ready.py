@@ -37,6 +37,9 @@ def test_coerce_execution_plan_json():
     assert m.coerce_execution_plan_json("  ") is None
     plan = m.coerce_execution_plan_json(json.dumps([{"action": "read_file", "path": "a.txt"}]))
     assert isinstance(plan, list) and plan[0]["action"] == "read_file"
+    # Cursor MCP may pass an already-decoded list
+    plan2 = m.coerce_execution_plan_json([{"action": "read_file", "path": "b.txt"}])
+    assert plan2[0]["path"] == "b.txt"
     try:
         m.coerce_execution_plan_json("{}")
         assert False, "expected ValueError"

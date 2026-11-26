@@ -7,7 +7,7 @@ import asyncio
 import json
 import logging
 import os
-from typing import Optional
+from typing import Any, Optional, Union
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -365,10 +365,17 @@ async def victoria_task_status(task_id: str) -> str:
         return f"❌ Ошибка: {e}"
 
 
-def coerce_execution_plan_json(raw: Optional[str]):
-    """Parse optional MCP plan JSON; None if empty. Raises ValueError if invalid."""
+def coerce_execution_plan_json(raw: Any):
+    """Parse optional MCP plan (JSON str or list); None if empty. Raises ValueError if invalid.
+
+    Cursor MCP often JSON-decodes a string arg into a list before the tool runs.
+    """
     if raw is None:
         return None
+    if isinstance(raw, list):
+        if not raw:
+            raise ValueError("execution_plan_json must be a non-empty list")
+        return raw
     text = str(raw).strip()
     if not text:
         return None
@@ -384,7 +391,7 @@ async def victoria_execute_plan(
     workspace_path: str = "/Users/bikos/Documents/atra-web-ide",
     max_steps: Optional[int] = 500,
     approve_writes: bool = False,
-    execution_plan_json: Optional[str] = None,
+    execution_plan_json: Optional[Union[str, list]] = None,
 ) -> str:
     """Получить execution_plan от Victoria и выполнить на локальном FS.
 
@@ -399,6 +406,7 @@ async def victoria_execute_plan(
         max_steps: Лимит шагов планирования (только путь /orchestrate)
         approve_writes: Явное разрешение mutate/run
         execution_plan_json: Готовый план [{"action":"read_file","path":"..."}, ...]
+            (строка JSON или уже list — Cursor часто отдаёт list)
     """
     try:
         victoria_output = ""
