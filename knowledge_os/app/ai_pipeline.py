@@ -269,7 +269,9 @@ async def inject_context_enrichment(
                     )
                     if rows:
                         texts = "\n".join(f"- {r['content'][:150]}" for r in rows)
-                        result["mentorship"] = f"\n### 🎓 НАСТАВНИЧЕСТВО ДЛЯ {expert_name}:\n{texts}\n"
+                        result["mentorship"] = (
+                            f"\n### 🎓 НАСТАВНИЧЕСТВО ДЛЯ {expert_name}:\n{texts}\n"
+                        )
 
         if not _skip_exp:
             try:
