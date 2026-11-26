@@ -54,6 +54,7 @@ jobs:
         run: |
           python -m pytest knowledge_os/tests/ \
             --ignore=knowledge_os/tests/test_e2e.py \
+            --ignore=knowledge_os/tests/test_e2e_full_cycle.py \
             --ignore=knowledge_os/tests/test_security.py \
             --ignore=knowledge_os/tests/test_performance_benchmarks.py \
             --ignore=knowledge_os/tests/test_live_chain.py \

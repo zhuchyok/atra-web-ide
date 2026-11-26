@@ -1,0 +1,48 @@
+name: Agent Audit
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          pip install -r knowledge_os/requirements.txt
+          pip install pytest pytest-asyncio vulture
+      - name: Run all tests
+        run: python -m pytest knowledge_os/tests/ -q --tb=line -x
+      - name: Check for dead code
+        run: |
+          python -m vulture knowledge_os/app/expert_worker.py \
+            knowledge_os/app/agent_messaging.py \
+            knowledge_os/app/ai_pipeline.py \
+            --min-confidence 70 || true
+      - name: Validate message schemas
+        run: |
+          python -c "
+          from app.agent_message_registry import get_message_registry
+          r = get_message_registry()
+          verbs = r.list_verbs()
+          print(f'Registered verbs ({len(verbs)}): {verbs}')
+          for v in verbs:
+              s = r.get_schema(v)
+              assert s is not None, f'{v} has no schema'
+              assert s.required_fields, f'{v} has no required_fields'
+          print('All schemas valid')
+          "
+      - name: Generate report
+        run: |
+          echo '# Agent Audit Report' > agent-audit-report.md
+          echo '## Summary' >> agent-audit-report.md
+          echo "- Date: $(date)" >> agent-audit-report.md
+          echo "- Tests: passed" >> agent-audit-report.md
+          echo "- Schemas: valid" >> agent-audit-report.md
+          cat agent-audit-report.md
