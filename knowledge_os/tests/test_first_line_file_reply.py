@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -10,6 +11,7 @@ _TD = ROOT / "src" / "agents" / "bridge" / "task_detector.py"
 
 
 def _load():
+    os.environ.setdefault("PROJECT_ROOT", str(Path(__file__).resolve().parents[2]))
     spec = importlib.util.spec_from_file_location("task_detector_first_line", _TD)
     mod = importlib.util.module_from_spec(spec)
     assert spec and spec.loader
