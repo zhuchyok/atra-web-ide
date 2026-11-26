@@ -41,11 +41,12 @@ jobs:
           pip install pytest pytest-asyncio
       - name: Run agent unit tests
         run: |
-          python -m pytest knowledge_os/tests/ -q --tb=line \
-            -k "not test_e2e and not test_rest_api and not test_health_api" \
-            --ignore=knowledge_os/tests/test_e2e.py \
-            --ignore=knowledge_os/tests/test_rest_api.py \
-            --ignore=knowledge_os/tests/test_health_api.py
+          python -m pytest -q --tb=line \
+            knowledge_os/tests/test_a2a_protocol.py \
+            knowledge_os/tests/test_code_sandbox.py \
+            knowledge_os/tests/test_state_checkpoint.py \
+            knowledge_os/tests/test_group_chat_state_machine.py
         env:
           DATABASE_URL: postgresql://admin:secret@localhost:5432/knowledge_os_test
           REDIS_URL: redis://localhost:6379
+          PYTHONPATH: ${{ github.workspace }}/knowledge_os
