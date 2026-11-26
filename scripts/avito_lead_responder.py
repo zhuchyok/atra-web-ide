@@ -594,7 +594,7 @@ def main() -> int:
     # отдельный скан свежих чатов, пишем первое сообщение 1 раз на чат.
     try:
         u_all = "https://api.avito.ru/messenger/v2/accounts/" + "7561711" + "/chats?limit=100"
-        all_chats = json.loads(urllib.request.urlopen(urllib.request.Request(u_all, headers=hdr), timeout=20).read()).get("chats", [])
+        all_chats = json.loads(urllib.request.urlopen(urllib.request.Request(u_all, headers=hdrs), timeout=20).read()).get("chats", [])
     except Exception as e:
         print(f"проактивный проход: chats ERR {type(e).__name__}")
         all_chats = []
@@ -606,7 +606,7 @@ def main() -> int:
             continue  # уже обработан этот чат (писали/отвечали/проактив отправлен)
         try:
             u2 = "https://api.avito.ru/messenger/v3/accounts/7561711/chats/" + cid + "/messages/?limit=15"
-            mlist = json.loads(urllib.request.urlopen(urllib.request.Request(u2, headers=hdr), timeout=15).read()).get("messages", [])
+            mlist = json.loads(urllib.request.urlopen(urllib.request.Request(u2, headers=hdrs), timeout=15).read()).get("messages", [])
         except Exception:
             continue
         sys_evt = " ".join(str(m.get("content", {}).get("text", "")) for m in mlist[-3:]).lower()
