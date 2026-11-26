@@ -1,0 +1,17 @@
+# Night-only heavy brain tag. Do NOT pin as live VICTORIA_BRAIN_MODEL by day.
+# Expert contract: unload coder (11436) + MLX (11435) + hands (11437) before load.
+# Start with num_ctx=8192; raise only if /api/ps + free RAM stay safe.
+#
+# Prereq (manual, large download — not auto):
+#   OLLAMA_HOST=127.0.0.1:11434 ollama pull gpt-oss:120b
+# Create tag:
+#   OLLAMA_HOST=127.0.0.1:11434 ollama create victoria-night:120b \
+#     -f configs/models/Modelfile.victoria-night-120b
+#
+# Battle: scripts/brain_night_120b_window.sh NIGHT (ollama-direct first).
+# Promote: never auto; live stays victoria-qwen38:latest unless curator says so.
+FROM gpt-oss:120b
+PARAMETER num_ctx 8192
+PARAMETER temperature 0.2
+PARAMETER num_predict 512
+SYSTEM """You are Victoria's night heavy brain. STRICT_LOCAL. Facts before claims. Refuse destructive wipe / secret paste / cloud bypass. Echo BCANARY nonce when present."""

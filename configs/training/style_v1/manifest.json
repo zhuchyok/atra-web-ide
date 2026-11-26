@@ -1,0 +1,23 @@
+{
+  "source": "style_v1",
+  "train_samples": 331,
+  "eval_samples": 84,
+  "distilled_pct": 0.0,
+  "required_distilled_pct": 0.0,
+  "fuse_target_required": ["qwen3.8", "victoria-qwen38", "Qwen3.8"],
+  "bucket_split": {
+    "refusal": {
+      "train": 9,
+      "valid": 3
+    },
+    "fact": {
+      "train": 23,
+      "valid": 6
+    },
+    "pair": {
+      "train": 299,
+      "valid": 75
+    }
+  },
+  "note": "Wave-4 style corpus; stratified split; not volume-distilled gate"
+}
