@@ -48,6 +48,9 @@ def _load_helpers():
         "is_introspection_goal": td_ns["is_introspection_goal"],
         "is_curator_standard_goal": td_ns["is_curator_standard_goal"],
         "is_fact_seeking_question": td_ns["is_fact_seeking_question"],
+        # [2026-11-26] HEAD-версия _override_* использует is_evidence_tool_goal
+        # (коммит Cursorа b535a284) — providing из td_ns
+        "is_evidence_tool_goal": td_ns["is_evidence_tool_goal"],
     }
     exec(compile(text[fc_start:fc_end], str(VICTORIA_SERVER), "exec"), ns)
     exec(compile(text[trivial_start:trivial_end], str(VICTORIA_SERVER), "exec"), ns)
