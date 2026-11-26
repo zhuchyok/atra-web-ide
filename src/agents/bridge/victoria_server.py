@@ -5123,6 +5123,7 @@ def _salvage_evidence_replies(goal: str) -> Optional[str]:
         or process_env_fact_answer(g)
     )
 
+
 _PGBOUNCER_BLEED_REFUSE = (
     "Отказ: ответ ушёл в чужой PgBouncer/6432 runbook вместо evidence по цели. "
     "Повторите с read_file / line N / git_diff / grep."
@@ -5142,6 +5143,7 @@ def _refuse_evidence_pgbouncer_bleed(goal: str, output: str) -> str:
         return salvage
     logger.warning("[VICTORIA_BLEED] PgBouncer recipe refused (no salvage)")
     return _PGBOUNCER_BLEED_REFUSE
+
 
 # Quoted membership needles: `"pip install" in x` / `"eval()" not in y` — meta-checks, not use.
 _MEMBERSHIP_NEEDLE_RE = re.compile(
@@ -6752,7 +6754,8 @@ def _is_explicit_concrete_goal(goal: str) -> bool:
     return _is_code_write_goal(g)
 
 
-def _override_need_clarification_strategy(    goal: str, strategy_result: Dict[str, Any]
+def _override_need_clarification_strategy(
+    goal: str, strategy_result: Dict[str, Any]
 ) -> Dict[str, Any]:
     """False need_clarification → deep_analysis for fact/curator/introspection goals.
 
@@ -14763,9 +14766,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
         try:
             exp_probe = (_user_msg_text or goal or "").strip()
             if is_evidence_tool_goal(exp_probe):
-                logger.info(
-                    "🧠 [OPENAI-API] Experience lessons skipped (evidence-tool goal)"
-                )
+                logger.info("🧠 [OPENAI-API] Experience lessons skipped (evidence-tool goal)")
             else:
                 exp_lessons = await _fetch_experience_lessons(exp_probe, 3)
                 if exp_lessons:

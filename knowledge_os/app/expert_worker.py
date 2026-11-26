@@ -933,8 +933,7 @@ async def process_task(task_data: dict):
             except Exception:
                 _gl = (_task_goal_for_exp or "").lower()
                 _skip_exp_ev = any(
-                    m in _gl
-                    for m in ("read_file", "git_diff", "printenv", "cursor_method.md")
+                    m in _gl for m in ("read_file", "git_diff", "printenv", "cursor_method.md")
                 )
             if not _skip_exp_ev:
                 _exp_lessons = await fetch_experience_lessons(_task_goal_for_exp, 3)

@@ -669,7 +669,10 @@ def multi_first_line_answer(goal: str) -> Optional[str]:
     ):
         return None
     # Mixed first+last across paths → leave to line_range / multi_nth (no B:1 false-proof).
-    if any(x in gl for x in ("last ", "tail ", "bottom ", "final ", "последн", "хвост", "trailing", "ending")):
+    if any(
+        x in gl
+        for x in ("last ", "tail ", "bottom ", "final ", "последн", "хвост", "trailing", "ending")
+    ):
         return None
     # Mixed "first line of A and line 5 of B" → leave to multi_nth (no B:1 false-proof).
     if re.search(
@@ -685,7 +688,7 @@ def multi_first_line_answer(goal: str) -> Optional[str]:
             continue
         try:
             with open(resolved, encoding="utf-8", errors="replace") as fh:
-                hits.append(f"{rel}:1:{fh.readline().rstrip(chr(10)+chr(13))}")
+                hits.append(f"{rel}:1:{fh.readline().rstrip(chr(10) + chr(13))}")
         except OSError:
             hits.append(f"{rel}:1: read_error")
     if not hits:
@@ -735,7 +738,9 @@ def nth_line_file_answer(goal: str) -> Optional[str]:
     # ≥2 paths → multi_nth_line_answer
     if len(_repo_paths_in_goal(g)) >= 2:
         return None
-    if not any(x in gl for x in ("line ", "line number", "строк", "read_file", "read file", "прочитай")):
+    if not any(
+        x in gl for x in ("line ", "line number", "строк", "read_file", "read file", "прочитай")
+    ):
         return None
     m = _NTH_LINE_GOAL_RE.search(g)
     if not m:
@@ -975,6 +980,7 @@ _SUMMARIZE_MARKERS = (
     "чему учит",
 )
 
+
 def _summarize_repo_file(rel: str) -> Optional[str]:
     """Up to 3 bullets from disk for one repo-relative path."""
     resolved = resolve_repo_file_path(rel)
@@ -1075,7 +1081,9 @@ def multi_file_summarize_answer(goal: str) -> Optional[str]:
         return None
     if not any(m in gl for m in _SUMMARIZE_MARKERS):
         return None
-    if not any(x in gl for x in ("read_file", "read file", "прочитай", ".md", ".txt", ".py", "each")):
+    if not any(
+        x in gl for x in ("read_file", "read file", "прочитай", ".md", ".txt", ".py", "each")
+    ):
         return None
     blocks: list[str] = []
     for rel in paths[:3]:
@@ -1198,7 +1206,9 @@ def git_status_answer(goal: str) -> Optional[str]:
     gl = g.lower()
     if not any(x in gl for x in ("git_status", "git status")):
         return None
-    if any(x in gl for x in ("git_diff", "git diff", "git_commit", "git commit", "git_add", "git add")):
+    if any(
+        x in gl for x in ("git_diff", "git diff", "git_commit", "git commit", "git_add", "git add")
+    ):
         return None
     repo = _resolve_git_repo()
     if not repo:
@@ -1292,9 +1302,7 @@ def git_blame_answer(goal: str) -> Optional[str]:
         # Prefer longest snake_case symbol; never path segments / stopwords.
         cands = re.findall(r"\b([A-Za-z_][A-Za-z0-9_]{6,80})\b", g)
         cands = [
-            c
-            for c in cands
-            if c.lower() not in _blame_stop and c not in path_bits and "_" in c
+            c for c in cands if c.lower() not in _blame_stop and c not in path_bits and "_" in c
         ]
         if tok and (tok.lower() in _blame_stop or tok in path_bits or "_" not in tok):
             tok = max(cands, key=len) if cands else None
@@ -1317,8 +1325,7 @@ def git_blame_answer(goal: str) -> Optional[str]:
     # Whole-file blame without -L is too large / not evidence — require a line window.
     if line_a is None or line_b is None:
         return (
-            "git_blame (no LLM):\n"
-            "Error: line window required (-L a,b / line N / symbol in path)."
+            "git_blame (no LLM):\nError: line window required (-L a,b / line N / symbol in path)."
         )
     cmd = ["git", "-C", repo, "blame", f"-L{line_a},{line_b}", "--", rel]
     try:
@@ -1379,10 +1386,7 @@ def file_exists_answer(goal: str) -> Optional[str]:
     paths = _repo_paths_in_goal(g)
     if not paths:
         return None
-    hits = [
-        f"{rel}: {'EXISTS' if resolve_repo_file_path(rel) else 'MISSING'}"
-        for rel in paths[:3]
-    ]
+    hits = [f"{rel}: {'EXISTS' if resolve_repo_file_path(rel) else 'MISSING'}" for rel in paths[:3]]
     return "File existence (no LLM):\n" + "\n".join(hits)
 
 
@@ -1513,9 +1517,7 @@ _WORD_TO_INT = {
     "пятьдесят": 50,
     "шестьдесят": 60,
 }
-_WORD_N_ALT = r"\d+|" + "|".join(
-    re.escape(k) for k in sorted(_WORD_TO_INT, key=len, reverse=True)
-)
+_WORD_N_ALT = r"\d+|" + "|".join(re.escape(k) for k in sorted(_WORD_TO_INT, key=len, reverse=True))
 
 
 def _parse_line_count_token(raw: str) -> Optional[int]:
@@ -1524,8 +1526,10 @@ def _parse_line_count_token(raw: str) -> Optional[int]:
         return None
     if s.isdigit():
         return int(s)
-    return _WORD_TO_INT.get(s) or _WORD_TO_INT.get(s.replace(" ", "-")) or _WORD_TO_INT.get(
-        s.replace(" ", "")
+    return (
+        _WORD_TO_INT.get(s)
+        or _WORD_TO_INT.get(s.replace(" ", "-"))
+        or _WORD_TO_INT.get(s.replace(" ", ""))
     )
 
 
@@ -1607,9 +1611,7 @@ def line_range_file_answer(goal: str) -> Optional[str]:
         re.IGNORECASE,
     )
     # «first line» / «top of» as N=1 when paired with a last-window ask.
-    first_one = bool(
-        re.search(r"\bfirst\s+line\b|первая\s+строка|top\s+of\b|opening\s+of\b", gl)
-    )
+    first_one = bool(re.search(r"\bfirst\s+line\b|первая\s+строка|top\s+of\b|opening\s+of\b", gl))
     last_n = re.search(
         rf"(?:last|final|bottom|trailing|ending|последн(?:ие|их)?|хвост|концев\w*)\s+"
         rf"(?P<n>{_WORD_N_ALT})\s+(?:lines?|строк)",
@@ -1807,8 +1809,7 @@ def _bare_done_refusal_text() -> str:
             return BARE_DONE_REFUSAL
         except Exception:
             return (
-                "Не заявляю «готово» без доказательства "
-                "(нужен вывод команды, теста или /health)."
+                "Не заявляю «готово» без доказательства (нужен вывод команды, теста или /health)."
             )
 
 
@@ -1907,7 +1908,9 @@ def git_mutate_reject_answer(goal: str) -> Optional[str]:
     if not mutate_ask:
         return None
     # Read-only git asks are not mutate.
-    if any(x in gl for x in ("git_status", "git status", "git_diff", "git diff", "git_log", "git log")):
+    if any(
+        x in gl for x in ("git_status", "git status", "git_diff", "git diff", "git_log", "git log")
+    ):
         if not any(x in gl for x in ("git_commit", "git commit", "git_add", "git add", "mutate")):
             return None
     if os.getenv("ATRA_ALLOW_GIT_MUTATE", "").lower() in ("true", "1", "yes"):
@@ -1986,9 +1989,11 @@ def multi_grep_line_answer(goal: str) -> Optional[str]:
             "±",
         )
     ) or bool(re.search(r"-[CAB]\s*\d+", g))
-    if len(paths) == 1 and any(
-        x in gl for x in ("rg -n", "grep_search", "grep -n", "grep -rn")
-    ) and not _ctx_ask:
+    if (
+        len(paths) == 1
+        and any(x in gl for x in ("rg -n", "grep_search", "grep -n", "grep -rn"))
+        and not _ctx_ask
+    ):
         return None
     if not any(
         x in gl
@@ -2266,9 +2271,7 @@ def multi_grep_line_answer(goal: str) -> Optional[str]:
                         a = max(1, i - ctx_k)
                         b = min(len(all_lines), i + ctx_k)
                         for j in range(a, b + 1):
-                            hits.append(
-                                f"{rel}:{j}:{all_lines[j - 1].rstrip(chr(10) + chr(13))}"
-                            )
+                            hits.append(f"{rel}:{j}:{all_lines[j - 1].rstrip(chr(10) + chr(13))}")
                     else:
                         hits.append(f"{rel}:{i}:{line.rstrip()}")
                     found = True
@@ -2280,11 +2283,7 @@ def multi_grep_line_answer(goal: str) -> Optional[str]:
             hits.append(f"{rel}: no match for {pat!r}")
     if not hits:
         return None
-    header = (
-        "Multi-file find (no LLM):\n"
-        if len(paths) >= 2
-        else "Symbol find (no LLM):\n"
-    )
+    header = "Multi-file find (no LLM):\n" if len(paths) >= 2 else "Symbol find (no LLM):\n"
     return header + "\n".join(hits)
 
 
