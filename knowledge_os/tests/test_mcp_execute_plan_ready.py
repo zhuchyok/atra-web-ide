@@ -35,9 +35,7 @@ def test_coerce_execution_plan_json():
     m = _load()
     assert m.coerce_execution_plan_json(None) is None
     assert m.coerce_execution_plan_json("  ") is None
-    plan = m.coerce_execution_plan_json(
-        json.dumps([{"action": "read_file", "path": "a.txt"}])
-    )
+    plan = m.coerce_execution_plan_json(json.dumps([{"action": "read_file", "path": "a.txt"}]))
     assert isinstance(plan, list) and plan[0]["action"] == "read_file"
     try:
         m.coerce_execution_plan_json("{}")

@@ -45,3 +45,4 @@ pytest-codspeed>=5.0.0
 watchdog>=3.0.0
 streamlit>=1.30.0
 plotly>=5.20.0
+mcp<2.0.0
