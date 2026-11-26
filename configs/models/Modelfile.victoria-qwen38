@@ -1,0 +1,26 @@
+# Day live brain tag (11434). Recreate WITHOUT dual-loading canary/night.
+# Source: Unsloth Qwen3.8-27B Q8 — parent bakes Go TEMPLATE with xhigh + <think>.
+# This Modelfile overrides the **Go generate TEMPLATE**.
+# GGUF **Jinja chat template** may still contain reasoning_effort|default('xhigh')
+# in `ollama show --template` — that string is NOT the live Modelfile layer.
+# Runtime gate: callers must send top-level think:false (executor / victoria_server /
+# ai_core generate). OpenWebUI must use Victoria OpenAI /v1, not raw 11434 model.
+#
+#   OLLAMA_HOST=127.0.0.1:11434 ollama create victoria-qwen38:latest \
+#     -f configs/models/Modelfile.victoria-qwen38
+#
+# After create: pin @16384. Verify Modelfile layer:
+#   curl -s localhost:11434/api/show -d '{"name":"victoria-qwen38:latest"}' \
+#     | python3 -c 'import sys,json; mf=json.load(sys.stdin)["modelfile"]; print("xhigh" in mf.lower())'
+#   → False. Jinja --template may still mention xhigh; ignore if think:false is on.
+FROM hf.co/unsloth/Qwen3.8-27B-GGUF:Q8_0
+PARAMETER num_ctx 16384
+PARAMETER temperature 0.2
+# Do NOT inherit parent Go TEMPLATE (xhigh + empty <think> opener).
+TEMPLATE """{{ if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{ end }}{{ if .Prompt }}<|im_start|>user
+{{ .Prompt }}<|im_end|>
+{{ end }}<|im_start|>assistant
+{{ .Response }}<|im_end|>
+"""

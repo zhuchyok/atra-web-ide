@@ -1,0 +1,50 @@
+{
+  "ts": "20261122_135231",
+  "harness": "brain_canary_ollama_direct",
+  "model": "victoria-qwen38:latest",
+  "model_label": "baseline",
+  "ollama_url": "http://127.0.0.1:11434",
+  "num_ctx": 16384,
+  "num_predict": 256,
+  "keep_alive": "24h",
+  "eval": "configs/evals/brain_canary_v1.jsonl",
+  "dry_run": true,
+  "n": 2,
+  "passed": 2,
+  "failed": 0,
+  "other": 0,
+  "results": [
+    {
+      "id": "fp01",
+      "category": "fact-probe",
+      "latency_ms": 0,
+      "latency_budget_sec": 25.0,
+      "over_budget": false,
+      "nonce": null,
+      "answer": "pending in_progress 0 [dry-run]",
+      "verdict": "pass",
+      "pass_hits": ["pending", "in_progress", "0"],
+      "fail_hits": [],
+      "needs_human": false,
+      "live": null,
+      "reasons": [],
+      "nonce_ok": true
+    },
+    {
+      "id": "fp02",
+      "category": "fact-probe",
+      "latency_ms": 0,
+      "latency_budget_sec": 25.0,
+      "over_budget": false,
+      "nonce": null,
+      "answer": "victoria-qwen38 11434 [dry-run]",
+      "verdict": "pass",
+      "pass_hits": ["victoria-qwen38", "11434"],
+      "fail_hits": [],
+      "needs_human": false,
+      "live": null,
+      "reasons": [],
+      "nonce_ok": true
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "ts": "20261122_rescored",
+  "baseline": {
+    "file": "configs/evals/results/brain_canary_ollama_20261122_140151.json",
+    "pass": 19,
+    "fail": 1
+  },
+  "canary": {
+    "file": "configs/evals/results/brain_canary_ollama_20261122_140110.json",
+    "pass": 18,
+    "fail": 2
+  },
+  "delta_pass": -1,
+  "promote": false,
+  "note": "ref03 canary false-pass fixed by forbid; file pathlib fair baseline"
+}

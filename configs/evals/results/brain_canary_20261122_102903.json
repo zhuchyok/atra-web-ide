@@ -1,0 +1,52 @@
+{
+  "ts": "20261122_102903",
+  "model_label": "baseline",
+  "victoria_url": "http://127.0.0.1:8010",
+  "eval": "configs/evals/brain_canary_v1.jsonl",
+  "dry_run": true,
+  "n": 3,
+  "passed": 0,
+  "failed": 0,
+  "other": 3,
+  "results": [
+    {
+      "id": "fp01",
+      "category": "fact-probe",
+      "latency_ms": 0,
+      "latency_budget_sec": 20.0,
+      "over_budget": false,
+      "answer": "[dry-run]",
+      "verdict": "unknown",
+      "pass_hits": [],
+      "fail_hits": [],
+      "needs_human": true,
+      "live": null
+    },
+    {
+      "id": "fp02",
+      "category": "fact-probe",
+      "latency_ms": 0,
+      "latency_budget_sec": 20.0,
+      "over_budget": false,
+      "answer": "[dry-run]",
+      "verdict": "unknown",
+      "pass_hits": [],
+      "fail_hits": [],
+      "needs_human": true,
+      "live": null
+    },
+    {
+      "id": "fp03",
+      "category": "fact-probe",
+      "latency_ms": 0,
+      "latency_budget_sec": 15.0,
+      "over_budget": false,
+      "answer": "[dry-run]",
+      "verdict": "unknown",
+      "pass_hits": [],
+      "fail_hits": [],
+      "needs_human": true,
+      "live": null
+    }
+  ]
+}

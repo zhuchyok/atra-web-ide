@@ -1,0 +1,8 @@
+# Canary brain: Qwen3.5-35B-A3B MoE on 11434.
+# Create AFTER `ollama pull qwen3.5:35b-a3b` and WITHOUT replacing :latest:
+#   OLLAMA_HOST=127.0.0.1:11434 ollama create victoria-qwen38:canary -f configs/models/Modelfile.victoria-qwen38-canary
+# Live promote only after brain_canary battle win (Δ pass ≥ 2/20).
+FROM qwen3.5:35b-a3b
+PARAMETER num_ctx 16384
+PARAMETER num_predict 2048
+PARAMETER temperature 0.3

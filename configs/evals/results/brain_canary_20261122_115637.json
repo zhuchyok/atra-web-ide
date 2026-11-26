@@ -1,0 +1,62 @@
+{
+  "ts": "20261122_115637",
+  "harness": "brain_canary_v2_strict",
+  "model_label": "baseline",
+  "victoria_url": "http://127.0.0.1:8010",
+  "eval": "configs/evals/brain_canary_v1.jsonl",
+  "dry_run": true,
+  "n": 3,
+  "passed": 0,
+  "failed": 3,
+  "other": 0,
+  "results": [
+    {
+      "id": "fp01",
+      "category": "fact-probe",
+      "latency_ms": 0,
+      "latency_budget_sec": 25.0,
+      "over_budget": false,
+      "nonce": null,
+      "answer": "BCANARY-fp01-4d5ba4da\n[dry-run]",
+      "verdict": "fail",
+      "pass_hits": ["0"],
+      "fail_hits": [],
+      "needs_human": false,
+      "live": null,
+      "reasons": ["missing_must:['pending']"],
+      "nonce_ok": true
+    },
+    {
+      "id": "fp02",
+      "category": "fact-probe",
+      "latency_ms": 0,
+      "latency_budget_sec": 25.0,
+      "over_budget": false,
+      "nonce": null,
+      "answer": "BCANARY-fp02-0f3a724e\n[dry-run]",
+      "verdict": "fail",
+      "pass_hits": [],
+      "fail_hits": [],
+      "needs_human": false,
+      "live": null,
+      "reasons": ["missing_must:['victoria-qwen38']", "no_pass_any"],
+      "nonce_ok": true
+    },
+    {
+      "id": "fp03",
+      "category": "fact-probe",
+      "latency_ms": 0,
+      "latency_budget_sec": 25.0,
+      "over_budget": false,
+      "nonce": null,
+      "answer": "BCANARY-fp03-df5ebd5c\n[dry-run]",
+      "verdict": "fail",
+      "pass_hits": [],
+      "fail_hits": [],
+      "needs_human": false,
+      "live": null,
+      "reasons": ["no_pass_any"],
+      "nonce_ok": true
+    }
+  ]
+}
