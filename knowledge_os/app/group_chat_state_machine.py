@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class SpeakerRole(Enum):
     """Roles a speaker can assume in a group chat."""
+
     CONTEXT_PROVIDER = "context_provider"
     ANALYST = "analyst"
     CRITIC = "critic"
@@ -27,6 +28,7 @@ class SpeakerRole(Enum):
 
 class SpeakerSelectionStrategy(Enum):
     """Strategies for selecting the next speaker in a group chat."""
+
     ROUND_ROBIN = "round_robin"
     CONTEXT_DRIVEN = "context_driven"
     VOTE = "vote"
@@ -36,6 +38,7 @@ class SpeakerSelectionStrategy(Enum):
 @dataclass
 class GroupChatMessage:
     """A single message in a group chat session."""
+
     sender: str
     role: SpeakerRole
     content: str
@@ -46,6 +49,7 @@ class GroupChatMessage:
 @dataclass
 class GroupChatState:
     """Persistent state for a group chat session."""
+
     session_id: str
     topic: str
     participants: List[str]
@@ -126,7 +130,10 @@ class GroupChatStateMachine:
         )
         logger.info(
             "[CHAT] Session %s created: topic=%r, participants=%s, strategy=%s",
-            session_id, topic, participants, strategy.value,
+            session_id,
+            topic,
+            participants,
+            strategy.value,
         )
         return session_id
 
@@ -192,21 +199,20 @@ class GroupChatStateMachine:
             round_number=round_number,
         )
         state.messages.append(msg)
-        state.current_speaker_index = (
-            state.current_speaker_index + 1
-        ) % len(state.participants)
+        state.current_speaker_index = (state.current_speaker_index + 1) % len(state.participants)
 
         logger.debug("[CHAT] %s (%s): %s...", sender, role.value, content[:60])
 
         consensus_reached, score = self.check_consensus(session_id)
-        rounds_completed = (
-            max(m.round_number for m in state.messages) if state.messages else 0
-        )
+        rounds_completed = max(m.round_number for m in state.messages) if state.messages else 0
         if consensus_reached or rounds_completed >= state.max_rounds:
             state.is_active = False
             logger.info(
                 "[CHAT] Session %s ended: consensus=%s (%.2f), rounds=%d",
-                session_id, consensus_reached, score, rounds_completed,
+                session_id,
+                consensus_reached,
+                score,
+                rounds_completed,
             )
             return True
         return False
@@ -239,15 +245,27 @@ class GroupChatStateMachine:
         recent = state.messages[-window_size:]
 
         agreement_keywords = {
-            "согласен", "поддерживаю", "верно", "правильно", "да",
-            "agree", "supported", "correct", "yes", "+1",
-            "хорошо", "отлично", "принято", "одобряю",
-            "согласна", "поддерживаю",
+            "согласен",
+            "поддерживаю",
+            "верно",
+            "правильно",
+            "да",
+            "agree",
+            "supported",
+            "correct",
+            "yes",
+            "+1",
+            "хорошо",
+            "отлично",
+            "принято",
+            "одобряю",
+            "согласна",
+            "поддерживаю",
         }
 
         agreement_count = 0
         for msg in recent:
-            words = set(re.findall(r'\w+', msg.content.lower()))
+            words = set(re.findall(r"\w+", msg.content.lower()))
             if words & agreement_keywords:
                 agreement_count += 1
 
@@ -274,9 +292,7 @@ class GroupChatStateMachine:
 
         state.is_active = False
         consensus, score = self.check_consensus(session_id)
-        rounds_completed = (
-            max(m.round_number for m in state.messages) if state.messages else 0
-        )
+        rounds_completed = max(m.round_number for m in state.messages) if state.messages else 0
 
         summary = {
             "session_id": session_id,
@@ -300,15 +316,15 @@ class GroupChatStateMachine:
             "max_rounds": state.max_rounds,
         }
         del self._sessions[session_id]
-        logger.info("[CHAT] Session %s closed with %d messages", session_id, len(summary["messages"]))
+        logger.info(
+            "[CHAT] Session %s closed with %d messages", session_id, len(summary["messages"])
+        )
         return summary
 
     def _round_robin_select(self, state: GroupChatState) -> str:
         """Pick the next speaker by cycling through the participant list."""
         speaker = state.participants[state.current_speaker_index % len(state.participants)]
-        state.current_speaker_index = (
-            state.current_speaker_index + 1
-        ) % len(state.participants)
+        state.current_speaker_index = (state.current_speaker_index + 1) % len(state.participants)
         return speaker
 
     def _context_driven_select(self, state: GroupChatState) -> str:
@@ -394,23 +410,124 @@ class GroupChatStateMachine:
 
         """
         stop_words = {
-            "это", "что", "как", "для", "все", "или", "на", "с", "по", "от",
-            "из", "у", "к", "о", "об", "за", "не", "но", "и", "а", "то",
-            "the", "a", "an", "is", "are", "was", "were", "be", "been",
-            "have", "has", "had", "do", "does", "did", "will", "would",
-            "can", "could", "shall", "should", "may", "might", "must",
-            "of", "in", "to", "for", "with", "on", "at", "by", "from",
-            "as", "into", "through", "during", "before", "after",
-            "above", "below", "between", "out", "off", "over", "under",
-            "again", "further", "then", "once", "here", "there",
-            "when", "where", "why", "how", "all", "each", "every",
-            "both", "few", "more", "most", "other", "some", "such",
-            "no", "nor", "not", "only", "own", "same", "so", "than",
-            "too", "very", "just", "because", "if", "while", "also",
-            "its", "them", "they", "their", "this", "that", "these",
-            "those", "which", "who", "whom", "about", "been", "being",
+            "это",
+            "что",
+            "как",
+            "для",
+            "все",
+            "или",
+            "на",
+            "с",
+            "по",
+            "от",
+            "из",
+            "у",
+            "к",
+            "о",
+            "об",
+            "за",
+            "не",
+            "но",
+            "и",
+            "а",
+            "то",
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "can",
+            "could",
+            "shall",
+            "should",
+            "may",
+            "might",
+            "must",
+            "of",
+            "in",
+            "to",
+            "for",
+            "with",
+            "on",
+            "at",
+            "by",
+            "from",
+            "as",
+            "into",
+            "through",
+            "during",
+            "before",
+            "after",
+            "above",
+            "below",
+            "between",
+            "out",
+            "off",
+            "over",
+            "under",
+            "again",
+            "further",
+            "then",
+            "once",
+            "here",
+            "there",
+            "when",
+            "where",
+            "why",
+            "how",
+            "all",
+            "each",
+            "every",
+            "both",
+            "few",
+            "more",
+            "most",
+            "other",
+            "some",
+            "such",
+            "no",
+            "nor",
+            "not",
+            "only",
+            "own",
+            "same",
+            "so",
+            "than",
+            "too",
+            "very",
+            "just",
+            "because",
+            "if",
+            "while",
+            "also",
+            "its",
+            "them",
+            "they",
+            "their",
+            "this",
+            "that",
+            "these",
+            "those",
+            "which",
+            "who",
+            "whom",
+            "about",
+            "been",
+            "being",
         }
-        words = re.findall(r'[а-яА-Яa-zA-Z]{4,}', text.lower())
+        words = re.findall(r"[а-яА-Яa-zA-Z]{4,}", text.lower())
         words = [w for w in words if w not in stop_words]
         word_counts: Dict[str, int] = {}
         for w in words:

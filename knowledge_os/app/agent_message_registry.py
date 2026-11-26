@@ -130,18 +130,14 @@ class AgentMessageRegistry:
         if schema.verb not in self._schemas:
             self._schemas[schema.verb] = {}
         self._schemas[schema.verb][schema.version] = schema
-        logger.debug(
-            f"[MSG_REGISTRY] Registered schema {schema.verb} v{schema.version}"
-        )
+        logger.debug(f"[MSG_REGISTRY] Registered schema {schema.verb} v{schema.version}")
 
     # ── Schema management ─────────────────────────────────────────────────
 
     def register_schema(self, schema: MessageSchema):
         """Register a new message schema (overwrites existing verb+version)."""
         self._insert(schema)
-        logger.info(
-            f"[MSG_REGISTRY] Schema registered: {schema.verb} v{schema.version}"
-        )
+        logger.info(f"[MSG_REGISTRY] Schema registered: {schema.verb} v{schema.version}")
 
     def get_schema(self, verb: str, version: str = "1.0") -> Optional[MessageSchema]:
         """Look up a schema by verb and version. Returns None if not found."""
@@ -165,17 +161,14 @@ class AgentMessageRegistry:
 
         schema = self.get_schema(verb, version)
         if schema is None:
-            errors.append(
-                f"No schema registered for verb={verb!r} version={version!r}"
-            )
+            errors.append(f"No schema registered for verb={verb!r} version={version!r}")
             return False, errors
 
         # Check required fields
         for field_name in schema.required_fields:
             if field_name not in msg or msg[field_name] is None:
                 errors.append(
-                    f"Missing required field: {field_name!r} "
-                    f"(verb={verb!r}, version={version!r})"
+                    f"Missing required field: {field_name!r} (verb={verb!r}, version={version!r})"
                 )
 
         # Check payload size
@@ -195,9 +188,7 @@ class AgentMessageRegistry:
         allowed = set(schema.required_fields + schema.optional_fields)
         unknown = [k for k in msg if k not in allowed and k != "payload"]
         if unknown:
-            logger.debug(
-                f"[MSG_REGISTRY] Unknown fields in {verb} message: {unknown}"
-            )
+            logger.debug(f"[MSG_REGISTRY] Unknown fields in {verb} message: {unknown}")
 
         return len(errors) == 0, errors
 

@@ -40,7 +40,9 @@ class A2AMessage:
     """A structured message between agents (A2A spec)."""
 
     role: str  # "user" | "agent"
-    content: List[Dict[str, Any]]  # parts: [{"type":"text","text":"..."}, {"type":"file","file":{...}}]
+    content: List[
+        Dict[str, Any]
+    ]  # parts: [{"type":"text","text":"..."}, {"type":"file","file":{...}}]
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -153,6 +155,7 @@ class A2AProtocolAdapter:
         if self._redis is None:
             try:
                 import redis.asyncio as aioredis
+
                 self._redis = aioredis.from_url(REDIS_URL, decode_responses=True)
             except ImportError:
                 logger.warning("[A2A] redis.asyncio not available, using in-memory only")
@@ -357,7 +360,12 @@ class A2AProtocolAdapter:
                 task.messages.append(
                     A2AMessage(
                         role="agent",
-                        content=[{"type": "text", "text": json.dumps(response_payload, ensure_ascii=False)}],
+                        content=[
+                            {
+                                "type": "text",
+                                "text": json.dumps(response_payload, ensure_ascii=False),
+                            }
+                        ],
                     )
                 )
 
@@ -365,7 +373,9 @@ class A2AProtocolAdapter:
         await self._persist_task(task)
         return task
 
-    async def _poll_for_response(self, correlation_id: str, target_agent: str, timeout: float = 30.0) -> Optional[Dict]:
+    async def _poll_for_response(
+        self, correlation_id: str, target_agent: str, timeout: float = 30.0
+    ) -> Optional[Dict]:
         """Poll Redis for a response message with the matching correlation_id."""
         r = await self._get_redis()
         if not r:
@@ -423,7 +433,11 @@ class A2AProtocolAdapter:
             raw = await r.get(f"a2a:task:{task_id}")
             if raw:
                 task = A2ATask.from_dict(json.loads(raw))
-                if task.state in (A2ATaskState.COMPLETED, A2ATaskState.FAILED, A2ATaskState.CANCELED):
+                if task.state in (
+                    A2ATaskState.COMPLETED,
+                    A2ATaskState.FAILED,
+                    A2ATaskState.CANCELED,
+                ):
                     return False
                 task.state = A2ATaskState.CANCELED
                 task.updated_at = datetime.now(timezone.utc)
@@ -472,18 +486,31 @@ class A2AProtocolAdapter:
         """Convert AgentMessage payload dict -> A2ATask."""
         task_id = msg.get("task_id", str(uuid.uuid4()))
         messages_raw = msg.get("messages", [])
-        messages = [A2AMessage.from_dict(m) if isinstance(m, dict) else A2AMessage(role="agent", content=[{"type": "text", "text": str(m)}]) for m in messages_raw]
+        messages = [
+            A2AMessage.from_dict(m)
+            if isinstance(m, dict)
+            else A2AMessage(role="agent", content=[{"type": "text", "text": str(m)}])
+            for m in messages_raw
+        ]
 
         card_raw = msg.get("agent_card", {})
-        card = AgentCard.from_dict(card_raw) if isinstance(card_raw, dict) else AgentCard(name="unknown", description="", url="", skills=[], authentication={})
+        card = (
+            AgentCard.from_dict(card_raw)
+            if isinstance(card_raw, dict)
+            else AgentCard(name="unknown", description="", url="", skills=[], authentication={})
+        )
 
         return A2ATask(
             task_id=task_id,
             state=A2ATaskState(msg.get("state", "submitted")),
             messages=messages,
             agent_card=card,
-            created_at=datetime.fromisoformat(msg["created_at"]) if "created_at" in msg else datetime.now(timezone.utc),
-            updated_at=datetime.fromisoformat(msg["updated_at"]) if "updated_at" in msg else datetime.now(timezone.utc),
+            created_at=datetime.fromisoformat(msg["created_at"])
+            if "created_at" in msg
+            else datetime.now(timezone.utc),
+            updated_at=datetime.fromisoformat(msg["updated_at"])
+            if "updated_at" in msg
+            else datetime.now(timezone.utc),
             metadata=msg.get("metadata", {}),
         )
 
@@ -531,10 +558,17 @@ class A2AProtocolAdapter:
         params = request_body.get("params", request_body)
         task_data = params.get("task", params) if isinstance(params, dict) else params
 
-        if not isinstance(task_data, dict) or not task_data.get("task_id") or not task_data.get("agent_card"):
+        if (
+            not isinstance(task_data, dict)
+            or not task_data.get("task_id")
+            or not task_data.get("agent_card")
+        ):
             return {
                 "jsonrpc": "2.0",
-                "error": {"code": -32602, "message": "Invalid task data: missing task_id or agent_card"},
+                "error": {
+                    "code": -32602,
+                    "message": "Invalid task data: missing task_id or agent_card",
+                },
             }
 
         task = A2ATask.from_dict(task_data)
@@ -592,6 +626,7 @@ def get_a2a_protocol() -> A2AProtocolAdapter:
 
 # ── Auto-registration (module load) ─────────────────────────────────────────
 
+
 async def _auto_register_experts():
     """Query experts table and register A2A cards for all known agents."""
     try:
@@ -608,7 +643,9 @@ async def _auto_register_experts():
         adapter = get_a2a_protocol()
 
         async with pool.acquire() as conn:
-            rows = await conn.fetch("SELECT name, role, department, system_prompt, metadata FROM experts ORDER BY name")
+            rows = await conn.fetch(
+                "SELECT name, role, department, system_prompt, metadata FROM experts ORDER BY name"
+            )
             for row in rows:
                 name = row["name"]
                 role = row.get("role") or ""

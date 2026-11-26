@@ -36,13 +36,13 @@ class SandboxResult:
 
 
 class CodeSandbox:
-
     def __init__(self, config: Optional[SandboxConfig] = None):
         self.config = config or SandboxConfig()
 
     @staticmethod
     def check_docker_available() -> bool:
         import subprocess
+
         try:
             result = subprocess.run(
                 ["docker", "info"],
@@ -69,20 +69,27 @@ class CodeSandbox:
                 input_path.write_text(json.dumps(input_data, ensure_ascii=False), encoding="utf-8")
 
             volume_bind = f"{tmpdir}:/sandbox"
-            network_arg = "--network=none" if not self.config.network_enabled else "--network=bridge"
+            network_arg = (
+                "--network=none" if not self.config.network_enabled else "--network=bridge"
+            )
             memory_arg = f"-m{self.config.memory_limit_mb}m"
             timeout_arg = f"--timeout={self.config.timeout_seconds}"
 
             cmd = [
-                "docker", "run", "--rm",
+                "docker",
+                "run",
+                "--rm",
                 network_arg,
                 memory_arg,
                 timeout_arg,
                 "--read-only",
-                "-v", volume_bind,
-                "-w", "/sandbox",
+                "-v",
+                volume_bind,
+                "-w",
+                "/sandbox",
                 self.config.image,
-                "python", "/sandbox/sandbox_script.py",
+                "python",
+                "/sandbox/sandbox_script.py",
             ]
 
             process = await asyncio.create_subprocess_exec(
@@ -168,20 +175,27 @@ class CodeSandbox:
                 input_path.write_text(json.dumps(input_data, ensure_ascii=False), encoding="utf-8")
 
             volume_bind = f"{tmpdir}:/sandbox"
-            network_arg = "--network=none" if not self.config.network_enabled else "--network=bridge"
+            network_arg = (
+                "--network=none" if not self.config.network_enabled else "--network=bridge"
+            )
             memory_arg = f"-m{self.config.memory_limit_mb}m"
             timeout_arg = f"--timeout={self.config.timeout_seconds}"
 
             cmd = [
-                "docker", "run", "--rm",
+                "docker",
+                "run",
+                "--rm",
                 network_arg,
                 memory_arg,
                 timeout_arg,
                 "--read-only",
-                "-v", volume_bind,
-                "-w", "/sandbox",
+                "-v",
+                volume_bind,
+                "-w",
+                "/sandbox",
                 self.config.image,
-                "python", "/sandbox/sandbox_script.py",
+                "python",
+                "/sandbox/sandbox_script.py",
             ]
 
             process = await asyncio.create_subprocess_exec(
@@ -316,7 +330,7 @@ async def run_code_in_sandbox_and_append_results(report_text: str) -> str:
         if not code:
             continue
 
-        parts.append(report_text[last_end:match.end()])
+        parts.append(report_text[last_end : match.end()])
         last_end = match.end()
 
         result = await sandbox.run(code)

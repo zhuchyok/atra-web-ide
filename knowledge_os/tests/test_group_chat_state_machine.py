@@ -81,7 +81,8 @@ class TestGroupChatStateMachine:
             SpeakerSelectionStrategy.CONTEXT_DRIVEN,
         )
         self.machine.add_message(
-            session_id, "Игорь",
+            session_id,
+            "Игорь",
             "I think we need to optimize the database queries for postgres.",
             SpeakerRole.CONTEXT_PROVIDER,
         )
@@ -107,7 +108,8 @@ class TestGroupChatStateMachine:
             SpeakerSelectionStrategy.CONTEXT_DRIVEN,
         )
         self.machine.add_message(
-            session_id, "Игорь",
+            session_id,
+            "Игорь",
             "We need a full security audit and penetration testing.",
             SpeakerRole.CONTEXT_PROVIDER,
         )
@@ -124,7 +126,8 @@ class TestGroupChatStateMachine:
         # Both Игорь and Борис match "docker infrastructure",
         # but Игорь just spoke, so Борис should be preferred
         self.machine.add_message(
-            session_id, "Игорь",
+            session_id,
+            "Игорь",
             "We need to improve docker infrastructure deployment.",
         )
         next_speaker = self.machine.get_next_speaker(session_id)
@@ -141,9 +144,7 @@ class TestGroupChatStateMachine:
         assert next_speaker in ("B", "C")
 
     def test_vote_excludes_last_speaker(self):
-        session_id = self.machine.create_session(
-            "Topic", ["A", "B"], SpeakerSelectionStrategy.VOTE
-        )
+        session_id = self.machine.create_session("Topic", ["A", "B"], SpeakerSelectionStrategy.VOTE)
         self.machine.add_message(session_id, "A", "Hello")
         # B is the only candidate (A just spoke)
         assert self.machine.get_next_speaker(session_id) == "B"
@@ -167,9 +168,7 @@ class TestGroupChatStateMachine:
         assert len(speakers) > 1
 
     def test_random_single_participant(self):
-        session_id = self.machine.create_session(
-            "Topic", ["Only"], SpeakerSelectionStrategy.RANDOM
-        )
+        session_id = self.machine.create_session("Topic", ["Only"], SpeakerSelectionStrategy.RANDOM)
         assert self.machine.get_next_speaker(session_id) == "Only"
         assert self.machine.get_next_speaker(session_id) == "Only"
 
@@ -177,7 +176,8 @@ class TestGroupChatStateMachine:
 
     def test_consensus_detected_when_majority_agrees(self):
         session_id = self.machine.create_session(
-            "Topic", ["A", "B", "C"],
+            "Topic",
+            ["A", "B", "C"],
             SpeakerSelectionStrategy.ROUND_ROBIN,
             consensus_threshold=0.5,
         )
@@ -191,7 +191,8 @@ class TestGroupChatStateMachine:
 
     def test_consensus_not_detected_when_disagreement(self):
         session_id = self.machine.create_session(
-            "Topic", ["A", "B", "C"],
+            "Topic",
+            ["A", "B", "C"],
             SpeakerSelectionStrategy.ROUND_ROBIN,
             consensus_threshold=0.8,
         )
@@ -211,7 +212,8 @@ class TestGroupChatStateMachine:
 
     def test_add_message_returns_true_when_consensus_reached(self):
         session_id = self.machine.create_session(
-            "Topic", ["A", "B"],
+            "Topic",
+            ["A", "B"],
             SpeakerSelectionStrategy.ROUND_ROBIN,
             consensus_threshold=0.5,
         )
@@ -221,7 +223,8 @@ class TestGroupChatStateMachine:
 
     def test_add_message_returns_false_when_no_consensus(self):
         session_id = self.machine.create_session(
-            "Topic", ["A", "B"],
+            "Topic",
+            ["A", "B"],
             SpeakerSelectionStrategy.ROUND_ROBIN,
             consensus_threshold=0.9,
         )
@@ -231,7 +234,8 @@ class TestGroupChatStateMachine:
 
     def test_russian_agreement_keywords_detected(self):
         session_id = self.machine.create_session(
-            "Topic", ["A", "B"],
+            "Topic",
+            ["A", "B"],
             SpeakerSelectionStrategy.ROUND_ROBIN,
             consensus_threshold=0.5,
         )
@@ -243,7 +247,8 @@ class TestGroupChatStateMachine:
 
     def test_session_stops_after_max_rounds(self):
         session_id = self.machine.create_session(
-            "Topic", ["A", "B"],
+            "Topic",
+            ["A", "B"],
             SpeakerSelectionStrategy.ROUND_ROBIN,
             max_rounds=2,
             consensus_threshold=0.99,
@@ -256,7 +261,8 @@ class TestGroupChatStateMachine:
 
     def test_get_next_speaker_returns_none_for_stopped_session(self):
         session_id = self.machine.create_session(
-            "Topic", ["A"],
+            "Topic",
+            ["A"],
             SpeakerSelectionStrategy.ROUND_ROBIN,
             max_rounds=1,
         )
@@ -280,12 +286,8 @@ class TestGroupChatStateMachine:
 
     def test_transcript_messages_have_roles(self):
         session_id = self.machine.create_session("Topic", ["A"])
-        self.machine.add_message(
-            session_id, "A", "ctx", SpeakerRole.CONTEXT_PROVIDER
-        )
-        self.machine.add_message(
-            session_id, "A", "crit", SpeakerRole.CRITIC
-        )
+        self.machine.add_message(session_id, "A", "ctx", SpeakerRole.CONTEXT_PROVIDER)
+        self.machine.add_message(session_id, "A", "crit", SpeakerRole.CRITIC)
         transcript = self.machine.get_transcript(session_id)
         assert transcript[0].role == SpeakerRole.CONTEXT_PROVIDER
         assert transcript[1].role == SpeakerRole.CRITIC
@@ -331,7 +333,8 @@ class TestGroupChatStateMachine:
 
     def test_close_session_includes_consensus_info(self):
         session_id = self.machine.create_session(
-            "Topic", ["A", "B"],
+            "Topic",
+            ["A", "B"],
             SpeakerSelectionStrategy.ROUND_ROBIN,
             consensus_threshold=0.5,
         )

@@ -29,7 +29,9 @@ class TestSandboxConfig:
         assert "math" in config.allowed_modules
 
     def test_custom_config(self):
-        config = SandboxConfig(image="python:3.12", timeout_seconds=60, memory_limit_mb=512, network_enabled=True)
+        config = SandboxConfig(
+            image="python:3.12", timeout_seconds=60, memory_limit_mb=512, network_enabled=True
+        )
         assert config.image == "python:3.12"
         assert config.timeout_seconds == 60
         assert config.memory_limit_mb == 512
@@ -38,7 +40,9 @@ class TestSandboxConfig:
 
 class TestSandboxResult:
     def test_success_result(self):
-        result = SandboxResult(success=True, stdout="hello", stderr="", exit_code=0, execution_time_ms=10.5)
+        result = SandboxResult(
+            success=True, stdout="hello", stderr="", exit_code=0, execution_time_ms=10.5
+        )
         assert result.success is True
         assert result.stdout == "hello"
         assert result.stderr == ""
@@ -48,7 +52,12 @@ class TestSandboxResult:
 
     def test_failure_result(self):
         result = SandboxResult(
-            success=False, stdout="", stderr="Error!", exit_code=1, execution_time_ms=5.2, error="Error!"
+            success=False,
+            stdout="",
+            stderr="Error!",
+            exit_code=1,
+            execution_time_ms=5.2,
+            error="Error!",
         )
         assert result.success is False
         assert result.stderr == "Error!"
@@ -102,9 +111,16 @@ class TestCodeSandbox:
         sandbox = CodeSandbox()
         with patch.object(sandbox, "run", new=AsyncMock()) as mock_run:
             mock_run.return_value = SandboxResult(
-                success=True, stdout='{"key": "value"}\n', stderr="", exit_code=0, execution_time_ms=12.0
+                success=True,
+                stdout='{"key": "value"}\n',
+                stderr="",
+                exit_code=0,
+                execution_time_ms=12.0,
             )
-            result = await sandbox.run("import json; print(json.load(open('/sandbox/sandbox_input.json')))", {"key": "value"})
+            result = await sandbox.run(
+                "import json; print(json.load(open('/sandbox/sandbox_input.json')))",
+                {"key": "value"},
+            )
             assert result.success is True
 
     @pytest.mark.asyncio
@@ -145,7 +161,13 @@ class TestCodeSandbox:
         sandbox = CodeSandbox()
         with patch.object(sandbox, "run_with_file_check", new=AsyncMock()) as mock_run:
             mock_run.return_value = (
-                SandboxResult(success=True, stdout="file created", stderr="", exit_code=0, execution_time_ms=20.0),
+                SandboxResult(
+                    success=True,
+                    stdout="file created",
+                    stderr="",
+                    exit_code=0,
+                    execution_time_ms=20.0,
+                ),
                 {"output.txt": "hello world"},
             )
             result, files = await sandbox.run_with_file_check(
@@ -161,7 +183,9 @@ class TestCodeSandbox:
         sandbox = CodeSandbox()
         with patch.object(sandbox, "run_with_file_check", new=AsyncMock()) as mock_run:
             mock_run.return_value = (
-                SandboxResult(success=True, stdout="", stderr="", exit_code=0, execution_time_ms=10.0),
+                SandboxResult(
+                    success=True, stdout="", stderr="", exit_code=0, execution_time_ms=10.0
+                ),
                 {},
             )
             result, files = await sandbox.run_with_file_check(
@@ -218,9 +242,11 @@ class TestSandboxCodeExecutionAppend:
     async def test_code_block_gets_sandbox_result_appended(self):
         text = "Here is the code:\n```python\nprint(42)\n```"
         mock_sandbox = MagicMock()
-        mock_sandbox.run = AsyncMock(return_value=SandboxResult(
-            success=True, stdout="42\n", stderr="", exit_code=0, execution_time_ms=15.0
-        ))
+        mock_sandbox.run = AsyncMock(
+            return_value=SandboxResult(
+                success=True, stdout="42\n", stderr="", exit_code=0, execution_time_ms=15.0
+            )
+        )
 
         with patch("knowledge_os.app.code_sandbox.get_code_sandbox", return_value=mock_sandbox):
             result = await run_code_in_sandbox_and_append_results(text)
@@ -232,9 +258,11 @@ class TestSandboxCodeExecutionAppend:
     async def test_multiple_code_blocks_get_results(self):
         text = "Block 1:\n```python\nprint(1)\n```\nBlock 2:\n```python\nprint(2)\n```"
         mock_sandbox = MagicMock()
-        mock_sandbox.run = AsyncMock(return_value=SandboxResult(
-            success=True, stdout="1\n", stderr="", exit_code=0, execution_time_ms=10.0
-        ))
+        mock_sandbox.run = AsyncMock(
+            return_value=SandboxResult(
+                success=True, stdout="1\n", stderr="", exit_code=0, execution_time_ms=10.0
+            )
+        )
 
         with patch("knowledge_os.app.code_sandbox.get_code_sandbox", return_value=mock_sandbox):
             result = await run_code_in_sandbox_and_append_results(text)
@@ -244,10 +272,16 @@ class TestSandboxCodeExecutionAppend:
     async def test_handles_timeout_in_sandbox_run(self):
         text = "```python\nimport time; time.sleep(999)\n```"
         mock_sandbox = MagicMock()
-        mock_sandbox.run = AsyncMock(return_value=SandboxResult(
-            success=False, stdout="", stderr="", exit_code=-1, execution_time_ms=30000.0,
-            error="Execution timed out after 30s"
-        ))
+        mock_sandbox.run = AsyncMock(
+            return_value=SandboxResult(
+                success=False,
+                stdout="",
+                stderr="",
+                exit_code=-1,
+                execution_time_ms=30000.0,
+                error="Execution timed out after 30s",
+            )
+        )
 
         with patch("knowledge_os.app.code_sandbox.get_code_sandbox", return_value=mock_sandbox):
             result = await run_code_in_sandbox_and_append_results(text)
@@ -263,10 +297,16 @@ class TestSandboxCodeExecutionAppend:
     async def test_stderr_appears_in_comment(self):
         text = "```python\nprint(1/0)\n```"
         mock_sandbox = MagicMock()
-        mock_sandbox.run = AsyncMock(return_value=SandboxResult(
-            success=False, stdout="", stderr="ZeroDivisionError: division by zero", exit_code=1,
-            execution_time_ms=5.0, error="ZeroDivisionError: division by zero"
-        ))
+        mock_sandbox.run = AsyncMock(
+            return_value=SandboxResult(
+                success=False,
+                stdout="",
+                stderr="ZeroDivisionError: division by zero",
+                exit_code=1,
+                execution_time_ms=5.0,
+                error="ZeroDivisionError: division by zero",
+            )
+        )
 
         with patch("knowledge_os.app.code_sandbox.get_code_sandbox", return_value=mock_sandbox):
             result = await run_code_in_sandbox_and_append_results(text)
@@ -284,11 +324,20 @@ class TestSandboxCodeExecutionAppend:
 
 class TestSandboxResultDataClass:
     def test_default_error_is_none(self):
-        result = SandboxResult(success=True, stdout="", stderr="", exit_code=0, execution_time_ms=0.0)
+        result = SandboxResult(
+            success=True, stdout="", stderr="", exit_code=0, execution_time_ms=0.0
+        )
         assert result.error is None
 
     def test_custom_error(self):
-        result = SandboxResult(success=False, stdout="", stderr="fail", exit_code=1, execution_time_ms=1.0, error="fail")
+        result = SandboxResult(
+            success=False,
+            stdout="",
+            stderr="fail",
+            exit_code=1,
+            execution_time_ms=1.0,
+            error="fail",
+        )
         assert result.error == "fail"
 
     def test_equality_based_on_fields(self):

@@ -171,17 +171,13 @@ class StateCheckpointManager:
                 "ORDER BY created_at DESC LIMIT 50",
                 agent_name,
             )
-            state_data["snapshot"]["active_tasks"] = [
-                dict(r) for r in active_tasks
-            ]
+            state_data["snapshot"]["active_tasks"] = [dict(r) for r in active_tasks]
 
             crystals = await conn.fetch(
                 "SELECT project_context, crystal_type, content, confidence_score, metadata "
                 "FROM memory_crystals ORDER BY created_at DESC LIMIT 50",
             )
-            state_data["snapshot"]["memory_crystals"] = [
-                dict(r) for r in crystals
-            ]
+            state_data["snapshot"]["memory_crystals"] = [dict(r) for r in crystals]
 
             try:
                 episodes = await conn.fetch(
@@ -440,7 +436,10 @@ class StateCheckpointManager:
                         )
                 return True, f"rolled back {agent_name} to full snapshot checkpoint {cp_id}"
             else:
-                return True, f"rollback to {state_type} checkpoint {cp_id} recorded (no direct action)"
+                return (
+                    True,
+                    f"rollback to {state_type} checkpoint {cp_id} recorded (no direct action)",
+                )
 
         return True, f"agent {agent_name} rolled back {steps} step(s) to checkpoint"
 
@@ -464,16 +463,16 @@ class StateCheckpointManager:
                 keep_last,
             )
             count = result.split()[-1] if " " in result else "0"
-            logger.info("cleanup for %s: removed %s checkpoints (keeping %d)", agent_name, count, keep_last)
+            logger.info(
+                "cleanup for %s: removed %s checkpoints (keeping %d)", agent_name, count, keep_last
+            )
 
     async def cleanup_all(self, keep_last: int = 50):
         if not DB_AVAILABLE:
             return
         pool = await self._get_pool()
         async with pool.acquire() as conn:
-            agents = await conn.fetch(
-                "SELECT DISTINCT agent_name FROM agent_checkpoints"
-            )
+            agents = await conn.fetch("SELECT DISTINCT agent_name FROM agent_checkpoints")
             for row in agents:
                 agent = row["agent_name"]
                 await self.cleanup(agent, keep_last=keep_last)

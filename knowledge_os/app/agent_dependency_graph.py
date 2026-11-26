@@ -148,9 +148,7 @@ class AgentDependencyGraph:
         Уникальные имена, отсортированные по алфавиту.
         """
         with self._lock:
-            return sorted({
-                e.source_agent for e in self._edges if e.target_agent == agent_name
-            })
+            return sorted({e.source_agent for e in self._edges if e.target_agent == agent_name})
 
     def get_downstream(self, agent_name: str) -> List[str]:
         """
@@ -158,9 +156,7 @@ class AgentDependencyGraph:
         Уникальные имена, отсортированные по алфавиту.
         """
         with self._lock:
-            return sorted({
-                e.target_agent for e in self._edges if e.source_agent == agent_name
-            })
+            return sorted({e.target_agent for e in self._edges if e.source_agent == agent_name})
 
     # ------------------------------------------------------------------
     # Critical path (shortest path via BFS)
@@ -208,7 +204,9 @@ class AgentDependencyGraph:
             call_count, success_count, failed_count, success_rate, avg_latency_ms
         """
         with self._lock:
-            s = self._stats.get(agent_name, {"call_count": 0, "success_count": 0, "total_latency": 0.0})
+            s = self._stats.get(
+                agent_name, {"call_count": 0, "success_count": 0, "total_latency": 0.0}
+            )
             call_count = int(s["call_count"])
             success_count = int(s["success_count"])
             total_latency = s["total_latency"]
@@ -258,14 +256,16 @@ class AgentDependencyGraph:
                         "success_rate": stats["success_rate"],
                         "avg_latency_ms": stats["avg_latency_ms"],
                     }
-                edges.append({
-                    "source": e.source_agent,
-                    "target": e.target_agent,
-                    "edge_type": e.edge_type,
-                    "task_id": e.task_id,
-                    "latency_ms": e.latency_ms,
-                    "success": e.success,
-                })
+                edges.append(
+                    {
+                        "source": e.source_agent,
+                        "target": e.target_agent,
+                        "edge_type": e.edge_type,
+                        "task_id": e.task_id,
+                        "latency_ms": e.latency_ms,
+                        "success": e.success,
+                    }
+                )
 
             total_edges = len(self._edges)
 

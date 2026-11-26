@@ -72,7 +72,9 @@ def _record_metric_safe(metric, *args, **kwargs):
         elif hasattr(metric, "inc"):
             metric.labels(*args, **kwargs).inc()
     except Exception as _sla_err:
-        logger.debug(f"[SLA] Failed to record metric {metric._name if hasattr(metric, '_name') else '?'}: {_sla_err}")
+        logger.debug(
+            f"[SLA] Failed to record metric {metric._name if hasattr(metric, '_name') else '?'}: {_sla_err}"
+        )
 
 
 class AgentSLAMetrics:
@@ -81,9 +83,7 @@ class AgentSLAMetrics:
     def __init__(self):
         self._lock = threading.Lock()
         # rolling window для p95 расчёта: agent -> deque of (timestamp, latency_seconds)
-        self._latency_samples: Dict[str, deque] = defaultdict(
-            lambda: deque(maxlen=10000)
-        )
+        self._latency_samples: Dict[str, deque] = defaultdict(lambda: deque(maxlen=10000))
         # статистика для SLA отчёта: agent -> {tasks, errors, ...}
         self._task_stats: Dict[str, dict] = defaultdict(
             lambda: {
@@ -102,9 +102,7 @@ class AgentSLAMetrics:
         self, agent: str, task_type: str, status: str, duration_seconds: float
     ):
         """Record task execution duration to histogram."""
-        _record_metric_safe(
-            _agent_task_duration, agent, task_type, status, value=duration_seconds
-        )
+        _record_metric_safe(_agent_task_duration, agent, task_type, status, value=duration_seconds)
         with self._lock:
             stats = self._task_stats[agent]
             stats["tasks_processed"] += 1
@@ -122,9 +120,7 @@ class AgentSLAMetrics:
 
     def set_availability(self, agent: str, is_up: bool):
         """Set agent availability gauge (1=up, 0=down)."""
-        _record_metric_safe(
-            _agent_availability, agent, value=1.0 if is_up else 0.0
-        )
+        _record_metric_safe(_agent_availability, agent, value=1.0 if is_up else 0.0)
 
     def record_latency(self, agent: str, latency_seconds: float):
         """Track a latency sample for p95 calculation."""
@@ -186,9 +182,17 @@ class AgentSLAMetrics:
         availability = max(0.0, 1.0 - error_rate)
 
         # Определяем статус
-        if p95_ms < SLA_LATENCY_P95_THRESHOLD_SEC * 1000 and error_rate < SLA_ERROR_RATE_THRESHOLD and availability >= SLA_AVAILABILITY_THRESHOLD:
+        if (
+            p95_ms < SLA_LATENCY_P95_THRESHOLD_SEC * 1000
+            and error_rate < SLA_ERROR_RATE_THRESHOLD
+            and availability >= SLA_AVAILABILITY_THRESHOLD
+        ):
             status = "healthy"
-        elif p95_ms < SLA_LATENCY_P95_THRESHOLD_SEC * 1000 * 2 and error_rate < SLA_ERROR_RATE_THRESHOLD * 2 and availability >= SLA_AVAILABILITY_THRESHOLD * 0.9:
+        elif (
+            p95_ms < SLA_LATENCY_P95_THRESHOLD_SEC * 1000 * 2
+            and error_rate < SLA_ERROR_RATE_THRESHOLD * 2
+            and availability >= SLA_AVAILABILITY_THRESHOLD * 0.9
+        ):
             status = "degraded"
         else:
             status = "critical"
@@ -211,9 +215,7 @@ class AgentSLAMetrics:
             reports.append(report)
 
             # Update Prometheus P95 gauge for each agent
-            _record_metric_safe(
-                _agent_latency_p95, agent, value=report["p95_latency_ms"] / 1000.0
-            )
+            _record_metric_safe(_agent_latency_p95, agent, value=report["p95_latency_ms"] / 1000.0)
         return reports
 
 
